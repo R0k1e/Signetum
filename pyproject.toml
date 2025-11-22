@@ -4,7 +4,16 @@ version = "0.1.0"
 description = "Code Project"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "dotenv>=0.9.9",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "pydantic>=2.12.4",
+    "rich>=14.2.0",
+    "tenacity>=9.1.2",
+    "typer>=0.20.0",
+    "uvloop>=0.22.1",
+]
 
 [tool.uv]
 package = true
@@ -12,6 +21,7 @@ dev-dependencies = [
     "ruff",
     "pre-commit",
     "pytest",
+    "pytest-asyncio",
     "mypy",
 ]
 
