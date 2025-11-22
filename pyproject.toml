@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Code Project"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "pytest",
+]
 
 [tool.uv]
 package = true
