@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+	branches: [main]
+  pull_request:
+	branches: [main]
+
+jobs:
+  quality-check:
+	runs-on: ubuntu-latest
+	steps:
+	  - name: Checkout code
+		uses: actions/checkout@v4
+
+	  - name: Install uv
+		uses: astral-sh/setup-uv@v1
+		with:
+		  version: "latest"
+
+	  - name: Set up Python
+		run: uv python install 3.10
+
+	  - name: Install dependencies
+		run: uv sync --all-extras --dev
+
+	  - name: Run Ruff Lint
+		# 如果发现 lint 错误，工作流会失败
+		run: uv run ruff check .
+
+	  - name: Check Code Format
+		# 检查代码是否符合格式 (不修改文件，只报错)
+		run: uv run ruff format --check .
+
+	  - name: Run Tests
+	  run: uv run pytest

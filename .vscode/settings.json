@@ -1,0 +1,21 @@
+{
+    // 告诉 VS Code 使用 Ruff 进行格式化
+    "[python]": {
+      "editor.defaultFormatter": "ms-python.python",
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit",
+        "source.organizeImports": "explicit"
+      }
+    },
+    // 告诉 VS Code 优先使用 uv 生成的虚拟环境 (.venv)
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    // 开启 Ruff 集成
+    "ruff.enable": true,
+    // 忽略不需要搜索的大文件夹
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.venv": true,
+      "**/__pycache__": true
+    }
+  }

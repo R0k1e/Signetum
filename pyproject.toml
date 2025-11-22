@@ -1,0 +1,26 @@
+[project]
+name = "placeholder_name"
+version = "0.1.0"
+description = "Code Project"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv]
+package = true
+dev-dependencies = [
+    "ruff",
+    "pre-commit",
+    "pytest",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+fixable = ["ALL"]
+
+[tool.ruff.format]
+quote-style = "double"
