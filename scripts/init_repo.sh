@@ -1,8 +1,14 @@
-# 0. 获取当前目录名作为项目名
-local CURRENT_DIR_NAME=$(basename "$PWD")
-local PACKAGE_NAME=${CURRENT_DIR_NAME//-/_}
+# 0. 获取脚本的父目录的父目录的名称作为项目名
+CURRENT_REPO_ROOT=$(dirname "$(dirname "$(realpath "$0")")")
+CURRENT_REPO_NAME=$(basename "$CURRENT_REPO_ROOT")
+echo "CURRENT_REPO_NAME: $CURRENT_REPO_NAME"
+if [ -z "$CURRENT_REPO_ROOT" ]; then
+    echo "❌ CURRENT_REPO_ROOT is not set"
+    exit 1
+fi
+PACKAGE_NAME=${CURRENT_REPO_NAME//-/_}
 
-echo "🚀 Initializing Project: $CURRENT_DIR_NAME (Package: $PACKAGE_NAME)..."
+echo "🚀 Initializing Project: $CURRENT_REPO_ROOT (Package: $PACKAGE_NAME)..."
 
 # --- 自动化替换逻辑 START ---
 
