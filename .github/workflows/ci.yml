@@ -2,35 +2,66 @@ name: CI
 
 on:
   push:
-	branches: [main]
+    branches: [main]
   pull_request:
-	branches: [main]
+    branches: [main]
 
 jobs:
   quality-check:
-	runs-on: ubuntu-latest
-	steps:
-	  - name: Checkout code
-		uses: actions/checkout@v4
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
 
-	  - name: Install uv
-		uses: astral-sh/setup-uv@v1
-		with:
-		  version: "latest"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-	  - name: Set up Python
-		run: uv python install 3.10
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: "latest"
 
-	  - name: Install dependencies
-		run: uv sync --all-extras --dev
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
-	  - name: Run Ruff Lint
-		# 如果发现 lint 错误，工作流会失败
-		run: uv run ruff check .
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
 
-	  - name: Check Code Format
-		# 检查代码是否符合格式 (不修改文件，只报错)
-		run: uv run ruff format --check .
+      # --- 质量检查步骤 (必须设置 ID 和 continue-on-error) ---
 
-	  - name: Run Tests
-	  run: uv run pytest
+      - name: Run Ruff Lint
+        id: ruff-lint
+        run: uv run ruff check .
+        continue-on-error: true
+
+      - name: Check Code Format
+        id: ruff-format
+        run: uv run ruff format --check .
+        continue-on-error: true
+
+      - name: Run Mypy Type Check
+        id: mypy-check
+        run: uv run mypy src
+        continue-on-error: true
+
+      - name: Run Tests
+        id: unit-tests
+        run: uv run pytest
+        continue-on-error: true
+
+      # --- 最终错误汇集步骤 ---
+      - name: Final Quality Check Summary
+        # 如果任一步骤的执行结果 (outcome) 为 'failure'，则执行该步骤
+        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.mypy-check.outcome == 'failure' || steps.unit-tests.outcome == 'failure' }}
+        run: |
+          echo "--------------------------------------------------------"
+          echo "🚨 Quality Checks Failed. See results above."
+          echo "--------------------------------------------------------"
+          echo "Ruff Lint Status: ${{ steps.ruff-lint.outcome }}"
+          echo "Ruff Format Status: ${{ steps.ruff-format.outcome }}"
+          echo "MyPy Check Status: ${{ steps.mypy-check.outcome }}"
+          echo "Unit Tests Status: ${{ steps.unit-tests.outcome }}"
+          echo "--------------------------------------------------------"
+          # 强制退出码为 1，使整个 Job 失败
+          exit 1
