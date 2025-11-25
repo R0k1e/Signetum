@@ -19,7 +19,7 @@ repos:
       - id: mypy
         name: mypy (local env)
         args: [--strict]
-        entry: mypy
+        entry: uv run mypy
         language: system
         types: [python]
         files: 'src/.*\.py$'

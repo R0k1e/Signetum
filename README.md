@@ -8,9 +8,10 @@ This repository serves as a robust project template for high-performance and rep
 3. Execute this script. The package name will be renamed as the directory name.
 
 ``` bash
+pip install uv
 uv sync
 uv run pre-commit autoupdate --repo https://github.com/pre-commit/pre-commit-hooks
-bash init_repo.sh
+bash scirpt/init_repo.sh
 ```
 
 ## Stack Overview
@@ -27,27 +28,29 @@ bash init_repo.sh
 
 # Directory Structure
 ``` bash
-my-project/
+your-project/
 ├── .env.example
 ├── .github
 │   └── workflows
 │       └── ci.yml
 ├── .gitignore
 ├── .pre-commit-config.yaml
+├── .python-version
 ├── .vscode
 │   └── settings.json
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── README.md
 ├── config
-├── init_repo.sh
+│   └── config.yml
 ├── main.py
-├── output
 ├── pyproject.toml
 ├── scripts
+│   └── init_repo.sh
 ├── src
 │   └── placeholder_name
-│       └── __init__.py
+│       ├── __init__.py
+│       └── py.typed
 └── tests
     └── test_smoke.py
 ```
