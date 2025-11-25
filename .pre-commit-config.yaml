@@ -12,7 +12,9 @@ repos:
     hooks:
       - id: ruff
         args: [ --fix ]
+        files: '^src/.*\.py$'
       - id: ruff-format
+        files: '^src/.*\.py$'
 
   - repo: local
     hooks:
