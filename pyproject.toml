@@ -55,16 +55,31 @@ show_error_codes = true
 namespace_packages = true
 explicit_package_bases = true
 mypy_path = "src"
-exclude = ["\\.venv/", "build/", "dist/"]
+files = ["src"]
+exclude = ["\\.venv/", "build/", "dist/", "tests/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "litellm.*",
+    "hydra.*",
+    "omegaconf.*",
+    "loguru.*",
+    "yaml.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+addopts = [
+    "--cov=src",
+    "--cov-report=term",
+]
 
 [tool.coverage.run]
-source = ["src", "main.py"]
+source = ["src"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
@@ -76,6 +91,7 @@ omit = [
 precision = 2
 show_missing = true
 skip_covered = false
+fail_under = 80
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
