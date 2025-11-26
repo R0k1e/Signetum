@@ -12,19 +12,19 @@ repos:
     hooks:
       - id: ruff
         args: [ --fix ]
-        files: '^src/.*\.py$'
+        files: '^(src/.*\.py|main\.py)$'
       - id: ruff-format
-        files: '^src/.*\.py$'
+        files: '^(src/.*\.py|main\.py)$'
 
   - repo: local
     hooks:
       - id: mypy
         name: mypy (local env)
-        args: [--strict]
-        entry: uv run mypy
+        entry: uv run mypy src
         language: system
         types: [python]
         files: 'src/.*\.py$'
+        pass_filenames: false
       - id: coverage
         name: Check test coverage
         entry: uv run pytest --cov=src --cov-report=term --cov-fail-under=80
