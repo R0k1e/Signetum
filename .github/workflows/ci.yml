@@ -3,21 +3,59 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - "**"
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
+  # --- Job 1: Auto-fix 可自动修复的问题并提交回去 ---
+  auto-fix:
+    runs-on: ubuntu-latest
+    # 只在 push 事件触发（非 PR），避免在 fork PR 上写回
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Auto-fix with Ruff
+        run: uv run ruff check --fix src main.py && uv run ruff format src main.py
+
+      - name: Commit auto-fixes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: auto-fix by ruff [skip ci]"
+
+  # --- Job 2: 质量检查（等待 auto-fix 完成后再检查修复后的代码）---
   quality-check:
     runs-on: ubuntu-latest
+    needs: auto-fix
+    if: always() && (needs.auto-fix.result == 'success' || needs.auto-fix.result == 'skipped')
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.12", "3.13"]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v1
@@ -42,28 +80,61 @@ jobs:
         run: uv run ruff format --check src main.py
         continue-on-error: true
 
-      - name: Run Mypy Type Check
-        id: mypy-check
-        run: uv run mypy src
+      - name: Run ty Type Check
+        id: ty-check
+        run: uv run ty check src
         continue-on-error: true
 
       - name: Run Tests with Coverage
         id: unit-tests
-        run: uv run pytest --cov=src --cov-report=term --cov-fail-under=80
+        run: uv run pytest --cov=src --cov-report=term --cov-report=xml --cov-fail-under=80
         continue-on-error: true
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
 
       # --- 最终错误汇集步骤 ---
       - name: Final Quality Check Summary
-        # 如果任一步骤的执行结果 (outcome) 为 'failure'，则执行该步骤
-        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.mypy-check.outcome == 'failure' || steps.unit-tests.outcome == 'failure' }}
+        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.ty-check.outcome == 'failure' || steps.unit-tests.outcome == 'failure' }}
         run: |
           echo "--------------------------------------------------------"
           echo "🚨 Quality Checks Failed. See results above."
           echo "--------------------------------------------------------"
           echo "Ruff Lint Status: ${{ steps.ruff-lint.outcome }}"
           echo "Ruff Format Status: ${{ steps.ruff-format.outcome }}"
-          echo "MyPy Check Status: ${{ steps.mypy-check.outcome }}"
+          echo "ty Check Status: ${{ steps.ty-check.outcome }}"
           echo "Unit Tests Status: ${{ steps.unit-tests.outcome }}"
           echo "--------------------------------------------------------"
-          # 强制退出码为 1，使整个 Job 失败
           exit 1
+
+  # --- Job 3: 所有检查通过后自动合并 worktree 分支到 main ---
+  auto-merge:
+    runs-on: ubuntu-latest
+    needs: quality-check
+    # 只在非 main 分支的 push 事件上触发
+    if: >
+      github.event_name == 'push' &&
+      github.ref_name != 'main' &&
+      needs.quality-check.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge branch to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git merge --no-ff origin/${{ github.ref_name }} -m "chore: auto-merge ${{ github.ref_name }} into main"
+          git push origin main
+
+      - name: Delete merged branch
+        run: git push origin --delete ${{ github.ref_name }}

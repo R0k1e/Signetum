@@ -13,6 +13,13 @@ jobs:
       id-token: write
 
     steps:
+      - name: Verify CI passed on tagged commit
+        run: |
+          gh run list --commit ${{ github.sha }} --workflow ci.yml --json conclusion \
+            --jq 'if any(.[]; .conclusion == "success") then "CI passed" else error("CI has not passed on this commit") end'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -44,6 +51,12 @@ jobs:
 
       - name: Build package
         run: uv build
+
+      - name: Verify package installable
+        run: |
+          pip install dist/*.whl
+          PACKAGE=$(ls dist/*.whl | head -1 | xargs basename | cut -d'-' -f1)
+          python -c "import $PACKAGE; print('Import OK')"
 
       - name: Publish to PyPI
         env:
