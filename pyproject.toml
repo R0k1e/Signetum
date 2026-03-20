@@ -31,14 +31,23 @@ dev-dependencies = [
     "pytest-asyncio",
     "pytest-cov",
     "ty",
+    "vulture",
+    "pip-audit",
 ]
 
 [tool.ruff]
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "I", "B", "UP", "S", "RUF"]
 fixable = ["ALL"]
+# S101: allow assert in tests
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.vulture]
+min_confidence = 80
+paths = ["src", "main.py"]
 
 [tool.ruff.format]
 quote-style = "double"

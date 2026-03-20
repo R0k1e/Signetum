@@ -85,6 +85,16 @@ jobs:
         run: uv run ty check src
         continue-on-error: true
 
+      - name: Run Vulture (dead code)
+        id: vulture
+        run: uv run vulture src main.py --min-confidence 80
+        continue-on-error: true
+
+      - name: Run pip-audit (dependency vulnerabilities)
+        id: pip-audit
+        run: uv run pip-audit
+        continue-on-error: true
+
       - name: Run Tests with Coverage
         id: unit-tests
         run: uv run pytest --cov=src --cov-report=term --cov-report=xml --cov-fail-under=80
@@ -99,15 +109,17 @@ jobs:
 
       # --- 最终错误汇集步骤 ---
       - name: Final Quality Check Summary
-        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.ty-check.outcome == 'failure' || steps.unit-tests.outcome == 'failure' }}
+        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.ty-check.outcome == 'failure' || steps.vulture.outcome == 'failure' || steps.pip-audit.outcome == 'failure' || steps.unit-tests.outcome == 'failure' }}
         run: |
           echo "--------------------------------------------------------"
-          echo "🚨 Quality Checks Failed. See results above."
+          echo "Quality Checks Failed. See results above."
           echo "--------------------------------------------------------"
-          echo "Ruff Lint Status: ${{ steps.ruff-lint.outcome }}"
-          echo "Ruff Format Status: ${{ steps.ruff-format.outcome }}"
-          echo "ty Check Status: ${{ steps.ty-check.outcome }}"
-          echo "Unit Tests Status: ${{ steps.unit-tests.outcome }}"
+          echo "Ruff Lint Status:    ${{ steps.ruff-lint.outcome }}"
+          echo "Ruff Format Status:  ${{ steps.ruff-format.outcome }}"
+          echo "ty Check Status:     ${{ steps.ty-check.outcome }}"
+          echo "Vulture Status:      ${{ steps.vulture.outcome }}"
+          echo "pip-audit Status:    ${{ steps.pip-audit.outcome }}"
+          echo "Unit Tests Status:   ${{ steps.unit-tests.outcome }}"
           echo "--------------------------------------------------------"
           exit 1
 

@@ -16,11 +16,22 @@ repos:
       - id: ruff-format
         files: '^(src/.*\.py|main\.py)$'
 
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.32.0
+    hooks:
+      - id: typos
+
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy (local env)
-        entry: uv run mypy src
+      - id: vulture
+        name: vulture (dead code)
+        entry: uv run vulture src main.py --min-confidence 80
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ty
+        name: ty type check
+        entry: uv run ty check src
         language: system
         types: [python]
         files: 'src/.*\.py$'
