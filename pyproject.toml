@@ -78,12 +78,15 @@ markers = [
 ]
 addopts = [
     "-n", "auto",
+    "--dist", "loadfile",
     "--cov=src",
     "--cov-report=term",
 ]
 
 [tool.coverage.run]
 source = ["src"]
+parallel = true
+concurrency = ["thread", "multiprocessing"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

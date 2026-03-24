@@ -38,6 +38,10 @@ jobs:
       - name: Auto-fix with Ruff
         run: uv run ruff check --fix src main.py && uv run ruff format src main.py
 
+      - name: Auto-fix file format
+        run: uv run pre-commit run --all-files trailing-whitespace end-of-file-fixer check-yaml check-added-large-files
+        continue-on-error: true
+
       - name: Commit auto-fixes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
@@ -146,8 +150,13 @@ jobs:
         run: uv run lint-imports
         continue-on-error: true
 
+      - name: Check file format
+        id: file-format
+        run: uv run pre-commit run --all-files trailing-whitespace end-of-file-fixer check-yaml check-added-large-files
+        continue-on-error: true
+
       - name: Final Quality Check Summary
-        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.ty-check.outcome == 'failure' || steps.vulture.outcome == 'failure' || steps.typos.outcome == 'failure' || steps.import-linter.outcome == 'failure' }}
+        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.ty-check.outcome == 'failure' || steps.vulture.outcome == 'failure' || steps.typos.outcome == 'failure' || steps.import-linter.outcome == 'failure' || steps.file-format.outcome == 'failure' }}
         run: |
           echo "--------------------------------------------------------"
           echo "Quality Checks Failed. See results above."
@@ -158,6 +167,7 @@ jobs:
           echo "Vulture Status:        ${{ steps.vulture.outcome }}"
           echo "Typos Status:          ${{ steps.typos.outcome }}"
           echo "import-linter Status:  ${{ steps.import-linter.outcome }}"
+          echo "File Format Status:    ${{ steps.file-format.outcome }}"
           echo "--------------------------------------------------------"
           exit 1
 

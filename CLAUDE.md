@@ -9,7 +9,7 @@
 ### 二、 契约、类型与边界 (Contracts, Types & Boundaries)
 
 * **数据模型**：统一使用 `Pydantic V2`（开启 `frozen=True`）保证跨边界数据不可变。对于高频更新的状态实体，采用‘内部受控突变+外部版本快照’模式以兼顾性能。
-* **严格类型**：**严禁使用** `Any`、`cast` 绕过检查，禁止使用 `Literal` 或字符串标注类型（必须使用 `Enum`）。使用 `NewType` 或 Opaque Types 阻断非法数据耦合。
+* **严格类型**：**严禁使用** `Any`、`cast` 绕过检查。禁止使用 `Literal` 或字符串标注类型（必须使用 `Enum`）。使用 `NewType` 或 Opaque Types 阻断非法数据耦合。`Any` 仅在以下情形才允许保留，并必须附 ADP 说明：1. 第三方库无导出类型 2. 用户在运行时才提供的 schema 3. 跨进程/网络边界的协议消息，其结构由外部协议定义
 * **逻辑契约**：使用 `icontract` 显式定义前置/后置条件与不变式，将 `None` 检查前置。消除隐式依赖，若有必须在注释中声明。
 * **铁路导向异常处理**：系统内部严禁捕获异常或处理 `None`。必须在系统边界使用 `returns` 库将异常归一化为预定义错误域（Failure/Maybe/Result）。
 * **依赖注入控制**：统一使用 `Lagom` 自动装配。依赖注入仅限“组合根”（Composition Root），严禁将 Container 注入领域逻辑层。
@@ -30,7 +30,7 @@
 ### 五、 可观测性与文档沉淀 (Observability & Documentation)
 
 * **全链路监控**：基于 OpenTelemetry 与 `loguru`，涵盖 Logs、Trace、Metrics。生产请求必须携带 `X-Request-ID` 并向下游上下文游传。
-* **文档同源**：根目录维护全局技术架构；具体文件内维护架构决策记录（ADR/ADP），记录背景、备选与放弃的原因。ADR 必须包含 ‘拒绝的理由’。对于绕过规范的特例（如使用 cast 或 mutable），必须附带 ADP (Architecture Decision Position) 解释。ADR/ADP 直接写到代码中作为注释。不允许因为实现方便绕过现有抽象。
+* **文档同源**：代码即文档，保证信息的准确性和一致性。文件内维护架构决策记录（ADR/ADP），记录背景、备选与放弃的原因。ADR 必须包含 ‘拒绝的理由’。ADR/ADP 直接写到代码中作为注释。
 * **语言规范**：思考与对话过程使用**中文**；代码注释、日志与技术文档必须使用**英文**并与代码强一致。
 
 ### 六、 质量保障与安全 (Quality & Security)
