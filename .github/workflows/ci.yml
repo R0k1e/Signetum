@@ -13,7 +13,6 @@ jobs:
   # --- Job 1: Auto-fix 可自动修复的问题并提交回去 ---
   auto-fix:
     runs-on: ubuntu-latest
-    # 只在 push 事件触发（非 PR），避免在 fork PR 上写回
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
@@ -27,6 +26,8 @@ jobs:
         uses: astral-sh/setup-uv@v1
         with:
           version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -42,12 +43,57 @@ jobs:
         with:
           commit_message: "style: auto-fix by ruff [skip ci]"
 
-  # --- Job 2: 质量检查（等待 auto-fix 完成后再检查修复后的代码）---
+  # --- Job 2: 测试（与 auto-fix 并行，ruff 修复不影响测试结果）---
+  # 3.12 收集 coverage，3.13 仅跑兼容性验证
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run Tests with Coverage
+        if: matrix.python-version == '3.12'
+        run: uv run pytest --cov-report=xml --cov-fail-under=80
+        env:
+          HYPOTHESIS_PROFILE: ci
+
+      - name: Run Tests
+        if: matrix.python-version != '3.12'
+        run: uv run pytest --no-cov
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  # --- Job 3: 静态质量检查（等待 auto-fix 完成后检查修复后的代码）---
   quality-check:
     runs-on: ubuntu-latest
     needs: auto-fix
     if: always() && (needs.auto-fix.result == 'success' || needs.auto-fix.result == 'skipped')
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
 
@@ -61,14 +107,14 @@ jobs:
         uses: astral-sh/setup-uv@v1
         with:
           version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: uv sync --all-extras --dev
-
-      # --- 质量检查步骤 (必须设置 ID 和 continue-on-error) ---
 
       - name: Run Ruff Lint
         id: ruff-lint
@@ -90,48 +136,71 @@ jobs:
         run: uv run vulture src main.py --min-confidence 80
         continue-on-error: true
 
-      - name: Run pip-audit (dependency vulnerabilities)
-        id: pip-audit
-        run: uv run pip-audit
+      - name: Run Typos (spell check)
+        id: typos
+        uses: crate-ci/typos@v1.32.0
         continue-on-error: true
 
-      - name: Run Tests with Coverage
-        id: unit-tests
-        run: uv run pytest --cov=src --cov-report=term --cov-report=xml --cov-fail-under=80
+      - name: Run import-linter (architecture constraints)
+        id: import-linter
+        run: uv run lint-imports
         continue-on-error: true
 
-      - name: Upload coverage report
-        if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
-
-      # --- 最终错误汇集步骤 ---
       - name: Final Quality Check Summary
-        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.ty-check.outcome == 'failure' || steps.vulture.outcome == 'failure' || steps.pip-audit.outcome == 'failure' || steps.unit-tests.outcome == 'failure' }}
+        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.ty-check.outcome == 'failure' || steps.vulture.outcome == 'failure' || steps.typos.outcome == 'failure' || steps.import-linter.outcome == 'failure' }}
         run: |
           echo "--------------------------------------------------------"
           echo "Quality Checks Failed. See results above."
           echo "--------------------------------------------------------"
-          echo "Ruff Lint Status:    ${{ steps.ruff-lint.outcome }}"
-          echo "Ruff Format Status:  ${{ steps.ruff-format.outcome }}"
-          echo "ty Check Status:     ${{ steps.ty-check.outcome }}"
-          echo "Vulture Status:      ${{ steps.vulture.outcome }}"
-          echo "pip-audit Status:    ${{ steps.pip-audit.outcome }}"
-          echo "Unit Tests Status:   ${{ steps.unit-tests.outcome }}"
+          echo "Ruff Lint Status:      ${{ steps.ruff-lint.outcome }}"
+          echo "Ruff Format Status:    ${{ steps.ruff-format.outcome }}"
+          echo "ty Check Status:       ${{ steps.ty-check.outcome }}"
+          echo "Vulture Status:        ${{ steps.vulture.outcome }}"
+          echo "Typos Status:          ${{ steps.typos.outcome }}"
+          echo "import-linter Status:  ${{ steps.import-linter.outcome }}"
           echo "--------------------------------------------------------"
           exit 1
 
-  # --- Job 3: 所有检查通过后自动合并 worktree 分支到 main ---
+  # --- Job 4: 安全扫描（单次，不跑 matrix，依赖变更时缓存失效自动重跑）---
+  security-check:
+    runs-on: ubuntu-latest
+    needs: auto-fix
+    if: always() && (needs.auto-fix.result == 'success' || needs.auto-fix.result == 'skipped')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run pip-audit (dependency vulnerabilities)
+        run: uv run pip-audit
+
+      - name: Run Bandit (SAST)
+        run: uv run bandit -r src
+
+  # --- Job 5: 所有检查通过后自动合并 worktree 分支到 main ---
   auto-merge:
     runs-on: ubuntu-latest
-    needs: quality-check
-    # 只在非 main 分支的 push 事件上触发
+    needs: [test, quality-check, security-check]
     if: >
       github.event_name == 'push' &&
       github.ref_name != 'main' &&
-      needs.quality-check.result == 'success'
+      needs.test.result == 'success' &&
+      needs.quality-check.result == 'success' &&
+      needs.security-check.result == 'success'
     permissions:
       contents: write
     steps:

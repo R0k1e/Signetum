@@ -15,20 +15,26 @@ jobs:
     steps:
       - name: Verify CI passed on tagged commit
         run: |
-          gh run list --commit ${{ github.sha }} --workflow ci.yml --json conclusion \
-            --jq 'if any(.[]; .conclusion == "success") then "CI passed" else error("CI has not passed on this commit") end'
+          gh run list \
+            --commit ${{ github.sha }} \
+            --workflow ci.yml \
+            --status completed \
+            --json conclusion \
+            --jq 'if length == 0 then error("CI has not run on this commit") elif any(.[]; .conclusion == "success") then "CI passed" else error("CI has not passed on this commit") end'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取完整 git 历史，用于提取 tag 注释
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v1
         with:
           version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -43,20 +49,15 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
-      - name: Extract release notes
-        id: release_notes
-        run: |
-          python scripts/extract_release_notes.py ${{ steps.version.outputs.version }} RELEASE_NOTES.md
-        continue-on-error: false
-
       - name: Build package
         run: uv build
 
       - name: Verify package installable
         run: |
-          pip install dist/*.whl
+          uv venv /tmp/verify-env
+          uv pip install --python /tmp/verify-env/bin/python dist/*.whl
           PACKAGE=$(ls dist/*.whl | head -1 | xargs basename | cut -d'-' -f1)
-          python -c "import $PACKAGE; print('Import OK')"
+          /tmp/verify-env/bin/python -c "import $PACKAGE; print('Import OK')"
 
       - name: Publish to PyPI
         env:
@@ -70,16 +71,10 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
-          body_path: RELEASE_NOTES.md
-          files: |
-            dist/*.whl
-            dist/*.tar.gz
-          draft: false
-          prerelease: false
+        run: |
+          gh release create ${{ steps.version.outputs.version }} \
+            dist/*.whl dist/*.tar.gz \
+            --title "Release ${{ steps.version.outputs.version }}" \
+            --generate-notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

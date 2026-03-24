@@ -21,6 +21,13 @@ repos:
     hooks:
       - id: typos
 
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: uv\.lock
+
   - repo: local
     hooks:
       - id: vulture
@@ -36,10 +43,16 @@ repos:
         types: [python]
         files: 'src/.*\.py$'
         pass_filenames: false
-      - id: coverage
-        name: Check test coverage
-        entry: uv run pytest --cov=src --cov-report=term --cov-fail-under=80
+      - id: fast-tests
+        name: fast unit tests (no slow/IO)
+        entry: uv run pytest -m "not slow" --no-cov
         language: system
         types: [python]
         pass_filenames: false
         always_run: true
+      - id: pip-audit
+        name: pip-audit (security scan)
+        entry: uv run pip-audit
+        language: system
+        pass_filenames: false
+        files: 'uv\.lock|pyproject\.toml'

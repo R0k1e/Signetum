@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"\nimport sys,json,subprocess,os\nd=json.load(sys.stdin)\nf=d.get('tool_input',{}).get('file_path','')\nif not f.endswith('.py'):sys.exit(0)\nroot=None\np=os.path.dirname(f)\nwhile p!=os.path.dirname(p):\n    if os.path.exists(os.path.join(p,'pyproject.toml')):root=p;break\n    p=os.path.dirname(p)\nif not root:sys.exit(0)\nr=subprocess.run(['uv','run','python3','-m','py_compile',f],capture_output=True,text=True,cwd=root)\nif r.returncode!=0:print(json.dumps({'hookSpecificOutput':{'hookEventName':'PostToolUse','additionalContext':'smoke: '+r.stderr.strip()}}))\n\"",
+            "statusMessage": "smoke..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"\nimport sys,json,subprocess,os\nd=json.load(sys.stdin)\nf=d.get('tool_input',{}).get('file_path','')\nif not f.endswith('.py'):sys.exit(0)\nroot=None\np=os.path.dirname(f)\nwhile p!=os.path.dirname(p):\n    if os.path.exists(os.path.join(p,'pyproject.toml')):root=p;break\n    p=os.path.dirname(p)\nif not root:sys.exit(0)\nr=subprocess.run(['uv','run','ty','check',f],capture_output=True,text=True,cwd=root)\nout=(r.stdout+r.stderr).strip()\nif out and 'All checks passed' not in out:print(json.dumps({'hookSpecificOutput':{'hookEventName':'PostToolUse','additionalContext':'ty: '+out}}))\n\"",
+            "statusMessage": "ty check..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"\nimport sys,json,subprocess,os\nd=json.load(sys.stdin)\nf=d.get('tool_input',{}).get('file_path','')\nif not f.endswith('.py'):sys.exit(0)\nroot=None\np=os.path.dirname(f)\nwhile p!=os.path.dirname(p):\n    if os.path.exists(os.path.join(p,'pyproject.toml')):root=p;break\n    p=os.path.dirname(p)\nif not root:sys.exit(0)\nr=subprocess.run(['uv','run','ruff','check','--select','ANN401,RUF013,PLC0415','--no-cache',f],capture_output=True,text=True,cwd=root)\nout=(r.stdout+r.stderr).strip()\nif out and 'All checks passed' not in out and 'No Python files' not in out:print(json.dumps({'hookSpecificOutput':{'hookEventName':'PostToolUse','additionalContext':'ruff (any/none/lazy-import):\\n'+out}}))\n\"",
+            "statusMessage": "ruff (ANN401/RUF013/PLC0415)..."
+          }
+        ]
+      }
+    ]
+  }
+}
