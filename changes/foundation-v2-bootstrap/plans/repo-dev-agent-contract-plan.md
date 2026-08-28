@@ -2,6 +2,7 @@
 
 Status: approved
 Specification: `changes/foundation-v2-bootstrap/specs/repo-dev-agent-contract.yaml`
+Base: exact approved Foundation bootstrap base after change-closure contracts are stable
 
 ## Preconditions
 

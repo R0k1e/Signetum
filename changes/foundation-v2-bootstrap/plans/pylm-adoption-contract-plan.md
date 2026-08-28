@@ -2,6 +2,7 @@
 
 Status: future downstream plan; implementation blocked until Foundation v2 release
 Specification: `changes/foundation-v2-bootstrap/specs/pylm-adoption-contract.yaml`
+Base: exact PyLM approved base selected only after an immutable Foundation v2 release exists
 
 ## Boundary
 

@@ -2,6 +2,7 @@
 
 Status: approved
 Specification: `changes/foundation-v2-bootstrap/specs/immutable-release-and-ci.yaml`
+Base: exact approved Foundation bootstrap base after final-evidence authority exists
 
 ## Preconditions
 
