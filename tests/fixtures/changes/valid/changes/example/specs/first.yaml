@@ -1,0 +1,12 @@
+specification:
+  schema_version: 1
+  id: example/first
+  version: 1
+  status: approved
+  implementation_authorized: true
+  review:
+    id: example
+    clauses: [REQ-1]
+  decisions: [decisions/accepted.md]
+  plan: changes/example/plans/first.md
+  intent: [Implement the first requirement.]
