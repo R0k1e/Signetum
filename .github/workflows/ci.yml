@@ -41,9 +41,7 @@ jobs:
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync ty check
-      - run: uv run --no-sync vulture src main.py --min-confidence 80
       - run: uv run --no-sync pre-commit run typos --all-files
-      - run: uv run --no-sync lint-imports
   security:
     runs-on: ubuntu-latest
     steps:

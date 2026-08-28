@@ -24,6 +24,13 @@ def test_ci_observes_one_read_only_triggering_commit() -> None:
     )
     assert mutation_commands == ()
 
+    static_commands = (
+        "uv run --no-sync ruff check .",
+        "uv run --no-sync ruff format --check .",
+        "uv run --no-sync ty check",
+    )
+    assert all(command in workflow for command in static_commands)
+
 
 def test_reusable_actions_are_commit_pinned() -> None:
     action_lines = [
