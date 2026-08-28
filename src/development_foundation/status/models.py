@@ -40,7 +40,7 @@ class EvidenceSnapshot(FrozenModel):
 
 
 class EvidenceProvider(Protocol):
-    def observe(self, repository_identity: str) -> EvidenceSnapshot:
+    def observe(self, _repository_identity: str) -> EvidenceSnapshot:
         """Return typed observations bound to exact repository identities."""
 
 
