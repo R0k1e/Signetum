@@ -1,0 +1,40 @@
+repository:
+  schema_version: 1
+  product: development-foundation
+  architecture: docs/ARCHITECTURE.md
+  environment:
+    authority: uv
+    manifest: pyproject.toml
+    lock: uv.lock
+  policy:
+    mandatory:
+      - group: foundation
+        reference: .agents/repo-dev/references/foundation.md
+    selectors:
+      - group: python-uv
+        intents: [implementation, validation, bootstrap]
+        paths: [pyproject.toml, uv.lock, src, tests]
+        reference: .agents/repo-dev/references/python-uv.md
+      - group: git-worktrunk
+        intents: [planning, implementation, delivery, recovery]
+        paths: [changes, plans]
+        reference: .agents/repo-dev/references/git-worktrunk.md
+  authorities:
+    specifications: changes/*/specs/*.yaml
+    plans: changes/*/plans/*.md
+    decisions: docs/decisions/*.md
+    manifest_schema: development_foundation.resources.schemas
+    profiles: development_foundation.resources.profiles
+  validation:
+    targeted: uv run pytest tests/unit tests/integration/test_cli_manifest.py
+    complete: uv run pre-commit run --all-files
+  lifecycle:
+    public_operations:
+      - workspace-open
+      - changed
+      - ready
+      - batch-open
+      - batch-admit
+      - batch-continue
+      - final
+      - batch-deliver

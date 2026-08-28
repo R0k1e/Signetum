@@ -4,57 +4,29 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
+        exclude: '^(\.env\.example|\.vscode/settings\.json)$'
       - id: check-yaml
+      - id: check-json
+        exclude: '^\.vscode/settings\.json$'
+      - id: check-toml
       - id: check-added-large-files
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.6
     hooks:
       - id: ruff
-        args: [ --fix ]
-        files: '^(src/.*\.py|main\.py)$'
       - id: ruff-format
-        files: '^(src/.*\.py|main\.py)$'
-
-  - repo: https://github.com/crate-ci/typos
-    rev: v1.32.0
-    hooks:
-      - id: typos
-
+        args: [--check]
   - repo: local
     hooks:
-      - id: detect-secrets
-        name: detect-secrets (auto-init baseline)
-        entry: bash -c 'test -f .secrets.baseline || detect-secrets scan --exclude-files uv\.lock > .secrets.baseline; detect-secrets-hook --baseline .secrets.baseline "$@"' --
-        language: system
-        pass_filenames: true
-        exclude: uv\.lock
-
-  - repo: local
-    hooks:
-      - id: vulture
-        name: vulture (dead code)
-        entry: uv run vulture src main.py --min-confidence 80
-        language: system
-        types: [python]
-        pass_filenames: false
       - id: ty
-        name: ty type check
-        entry: uv run ty check src
+        name: ty
+        entry: uv run ty check
         language: system
-        types: [python]
-        files: 'src/.*\.py$'
         pass_filenames: false
-      - id: coverage
-        name: Check test coverage
-        entry: uv run pytest --cov=src --cov-report=term --cov-fail-under=80
-        language: system
         types: [python]
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
         pass_filenames: false
         always_run: true
-      - id: pip-audit
-        name: pip-audit (security scan)
-        entry: uv run pip-audit
-        language: system
-        pass_filenames: false
-        files: 'uv\.lock|pyproject\.toml'

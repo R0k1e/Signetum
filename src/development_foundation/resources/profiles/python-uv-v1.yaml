@@ -1,0 +1,7 @@
+schema_version: 1
+identity: python-uv@1
+authorities:
+  - python-environment
+  - python-packaging
+requires:
+  - shared-core@1
