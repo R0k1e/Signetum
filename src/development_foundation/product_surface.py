@@ -20,8 +20,9 @@ REQUIRED_PRODUCT_PATHS = (
     "docs/README.md",
     "docs/decisions/README.md",
     "docs/concepts/development-lifecycle.md",
-    "docs/product/why-foundation.md",
+    "docs/product/why-devloom.md",
     "docs/product/frequently-asked-questions.md",
+    "docs/product/devloom-vs-spec-tools.md",
     "docs/workflows/agent-team-delivery.md",
     "docs/guides/customizing-the-template.md",
     "docs/maintainers/releasing.md",
@@ -33,6 +34,13 @@ REQUIRED_PRODUCT_PATHS = (
     ".github/ISSUE_TEMPLATE/feature_request.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
 )
+
+REQUIRED_PRODUCT_CONTENT = {
+    "README.md": ("# DevLoom", "Weave requirements into verified releases"),
+    "QUICKSTART.md": ("DevLoom",),
+    "docs/product/why-devloom.md": ("# Why DevLoom exists",),
+    "docs/product/frequently-asked-questions.md": ("## What is DevLoom?",),
+}
 
 _MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
 
@@ -55,6 +63,7 @@ def validate_product_surface(
     inventory: RepositoryInventory,
     *,
     required_paths: tuple[str, ...] = REQUIRED_PRODUCT_PATHS,
+    required_content: dict[str, tuple[str, ...]] = REQUIRED_PRODUCT_CONTENT,
 ) -> ProductSurfaceReport:
     """Validate required assets and local links against one captured inventory."""
     issues: list[ProductSurfaceIssue] = []
@@ -68,6 +77,24 @@ def validate_product_surface(
                     reason="required public product asset is absent",
                 )
             )
+
+    for source, fragments in required_content.items():
+        if not inventory.contains(source):
+            continue
+        document = repository / PurePosixPath(source)
+        if not document.is_file():
+            continue
+        content = document.read_text(encoding="utf-8")
+        for fragment in fragments:
+            if fragment not in content:
+                issues.append(
+                    ProductSurfaceIssue(
+                        code="missing-required-content",
+                        source=source,
+                        target=fragment,
+                        reason="required public product identity is absent",
+                    )
+                )
 
     markdown_paths = sorted(path for path in inventory.paths if path.endswith(".md"))
     for source in markdown_paths:

@@ -24,13 +24,19 @@ Before requesting publication:
 Recommended repository description:
 
 ```text
-Agent-native GitHub Template for traceable requirements, isolated parallel development, behavior-verified batches, and explainable delivery.
+DevLoom weaves requirements into verified releases with repository-aware Agents, isolated parallel work, behavior tests, and explainable delivery.
+```
+
+Recommended repository name:
+
+```text
+devloom
 ```
 
 Recommended topics:
 
 ```text
-ai-agents, developer-tools, github-template, software-engineering,
+ai-agents, agentic-development, developer-tools, github-template,
 requirements-traceability, git-worktree, continuous-integration, python
 ```
 

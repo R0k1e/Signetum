@@ -1,6 +1,6 @@
 # Development lifecycle concepts
 
-Foundation separates authorities so that a green branch cannot conceal an
+DevLoom separates authorities so that a green branch cannot conceal an
 unrecorded requirement or silently redefine requested behavior.
 
 | Artifact | Owns | Does not own |

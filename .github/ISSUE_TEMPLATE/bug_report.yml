@@ -1,5 +1,5 @@
 name: Bug report
-description: Report observable Foundation behavior that violates a public contract.
+description: Report observable DevLoom behavior that violates a public contract.
 title: "bug: "
 labels: [bug]
 body:
@@ -9,7 +9,7 @@ body:
   - type: input
     id: revision
     attributes:
-      label: Foundation revision
+      label: DevLoom revision
       description: Release version or exact commit.
     validations:
       required: true

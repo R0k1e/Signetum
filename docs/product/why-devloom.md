@@ -1,4 +1,4 @@
-# Why Development Foundation exists
+# Why DevLoom exists
 
 Coding Agents can write code quickly, but repository delivery fails for reasons
 that code generation alone does not solve: a requirement stays in chat, an
@@ -6,7 +6,9 @@ Agent misses an existing authority, parallel sessions overwrite one another,
 every branch repeats expensive tests, or a green commit cannot explain what was
 actually delivered.
 
-Development Foundation makes the repository itself carry the answer.
+DevLoom makes the repository itself carry the answer. It weaves each recorded
+requirement through explicit design, isolated implementation, behavior evidence,
+and an inspectable delivery instead of letting those threads disappear in chat.
 
 ## Requirement coverage is a relation, not a checklist
 
@@ -38,8 +40,8 @@ The machine-readable delivery result records requirements, Plans, original and
 integrated commits, the validated batch tip, the delivery commit, remote
 confirmation, and cleanup. Human acceptance remains a later, explicit state.
 
-## What Foundation is not
+## What DevLoom is not
 
-Foundation is not an Agent runtime, project-management service, hosted CI
+DevLoom is not an Agent runtime, project-management service, hosted CI
 product, or guarantee of defect-free software. It is a standalone GitHub
 Template for repositories that want an inspectable Agent development lifecycle.

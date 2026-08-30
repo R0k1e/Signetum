@@ -2,8 +2,9 @@
 
 ## Evaluate
 
-- [Why Foundation](product/why-foundation.md)
+- [Why DevLoom](product/why-devloom.md)
 - [Frequently asked questions](product/frequently-asked-questions.md)
+- [DevLoom and specification tools](product/devloom-vs-spec-tools.md)
 - [Root product overview](../README.md)
 
 ## Adopt
