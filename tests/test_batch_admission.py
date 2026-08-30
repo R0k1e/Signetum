@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from shutil import which
 
 import pytest
 
@@ -16,8 +17,11 @@ def _load_module():
 
 
 def _git(repository: Path, *arguments: str) -> str:
+    executable = which("git")
+    if executable is None:
+        raise RuntimeError("git executable is unavailable")
     return subprocess.run(  # nosec B603
-        ("git", "-C", str(repository), *arguments),
+        (executable, "-C", str(repository), *arguments),
         check=True,
         capture_output=True,
         text=True,
