@@ -6,6 +6,6 @@ Add product source, tests, and deployment configuration at paths named in
 `.agents/repo-dev/repo.yaml`.
 
 Repository-specific rules belong in a small referenced policy document, not in
-the reusable lifecycle. Upgrade RepoSeal by reviewing a released version,
-changing the exact pin in both `reposeal.yaml` and `Justfile`, and validating
-the change like any other architecture or process decision.
+the reusable lifecycle. Add real member and final argv commands to
+`reposeal.yaml`. A later lifecycle improvement is adopted manually as an
+ordinary reviewed architecture or process change; there is no package upgrade.

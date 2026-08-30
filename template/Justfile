@@ -1,7 +1,7 @@
 set positional-arguments
 
 _reposeal *args:
-    uvx --from reposeal==3.0.0 reposeal lifecycle {{args}}
+    uv run --no-project python .agents/repo-dev/runtime/lifecycle.py {{args}}
 
 workspace-open branch base:
     just _reposeal workspace-open {{branch}} {{base}}

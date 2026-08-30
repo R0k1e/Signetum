@@ -68,9 +68,11 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+"tests/integration/test_clone_ready_template.py" = ["S101", "S603"]
 # Security-boundary rationale: this lifecycle authority invokes the fixed Git
 # executable with tuple arguments after validating repository identities.
 "src/reposeal/lifecycle.py" = ["S603"]
+"template/.agents/repo-dev/runtime/lifecycle.py" = ["S603"]
 # Security-boundary rationale: both adapters resolve Git to an absolute host
 # executable and pass validated tuple arguments without a shell.
 "src/reposeal/release/__init__.py" = ["S603"]

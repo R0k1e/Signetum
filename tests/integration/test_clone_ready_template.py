@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,6 +19,13 @@ def test_template_is_minimal_and_clone_ready() -> None:
     assert "README.md" in report.files
     assert "README.zh-CN.md" in report.files
     assert "changes/.gitkeep" in report.files
+    template_text = "\n".join(
+        path.read_text(encoding="utf-8", errors="replace")
+        for path in (ROOT / "template").rglob("*")
+        if path.is_file()
+    )
+    assert "uvx" not in template_text
+    assert "reposeal==" not in template_text
 
 
 def test_template_render_has_identical_inventory(tmp_path: Path) -> None:
@@ -84,3 +93,35 @@ def test_template_cli_checks_and_renders(tmp_path: Path) -> None:
     assert rendered.exit_code == 0
     assert '"valid": true' in checked.stdout
     assert (tmp_path / "rendered" / "README.zh-CN.md").is_file()
+
+
+def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> None:
+    rendered = tmp_path / "repository"
+    render_template(ROOT / "template", rendered)
+    for command in (
+        ("git", "init", "-b", "main"),
+        ("git", "config", "user.name", "RepoSeal test"),
+        ("git", "config", "user.email", "reposeal@example.invalid"),
+        ("git", "add", "."),
+        ("git", "commit", "-m", "initial template"),
+    ):
+        subprocess.run(command, cwd=rendered, check=True, capture_output=True)
+
+    runtime = rendered / ".agents/repo-dev/runtime/lifecycle.py"
+    diagnostic = subprocess.run(
+        (sys.executable, "-I", str(runtime), "changed", "HEAD"),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    final = subprocess.run(
+        (sys.executable, "-I", str(runtime), "final"),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert '"status": "changed"' in diagnostic.stdout
+    assert '"status": "final"' in final.stdout

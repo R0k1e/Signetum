@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-08-30
 Supersedes: ADP-foundation-is-a-standalone-template.md
-Superseded by: None
+Superseded by: ADP-template-runtime-is-self-contained.md
 
 ## Context
 
