@@ -16,13 +16,20 @@ REQUIRED_PRODUCT_PATHS = (
     "CONTRIBUTING.md",
     "SECURITY.md",
     "LICENSE",
+    "assets/brand/reposeal-mark.png",
+    "assets/brand/reposeal-mark-512.png",
+    "assets/brand/reposeal-mark-256.png",
+    "assets/brand/reposeal-mark-128.png",
+    "assets/brand/reposeal-mark-64.png",
+    "assets/brand/reposeal-mark-32.png",
+    "assets/brand/reposeal-social-preview.png",
     "docs/ARCHITECTURE.md",
     "docs/README.md",
     "docs/decisions/README.md",
     "docs/concepts/development-lifecycle.md",
-    "docs/product/why-devloom.md",
+    "docs/product/why-reposeal.md",
     "docs/product/frequently-asked-questions.md",
-    "docs/product/devloom-vs-spec-tools.md",
+    "docs/product/reposeal-and-specification-tools.md",
     "docs/workflows/agent-team-delivery.md",
     "docs/guides/customizing-the-template.md",
     "docs/maintainers/releasing.md",
@@ -36,10 +43,10 @@ REQUIRED_PRODUCT_PATHS = (
 )
 
 REQUIRED_PRODUCT_CONTENT = {
-    "README.md": ("# DevLoom", "Weave requirements into verified releases"),
-    "QUICKSTART.md": ("DevLoom",),
-    "docs/product/why-devloom.md": ("# Why DevLoom exists",),
-    "docs/product/frequently-asked-questions.md": ("## What is DevLoom?",),
+    "README.md": ("# RepoSeal", "Seal every change with evidence"),
+    "QUICKSTART.md": ("RepoSeal",),
+    "docs/product/why-reposeal.md": ("# Why RepoSeal exists",),
+    "docs/product/frequently-asked-questions.md": ("## What is RepoSeal?",),
 }
 
 _MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")

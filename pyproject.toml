@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "development-foundation"
 version = "2.0.0"
-description = "DevLoom: weave requirements into verified releases"
+description = "RepoSeal: seal every change with evidence"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

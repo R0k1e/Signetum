@@ -1,6 +1,6 @@
 # Development lifecycle concepts
 
-DevLoom separates authorities so that a green branch cannot conceal an
+RepoSeal separates authorities so that a green branch cannot conceal an
 unrecorded requirement or silently redefine requested behavior.
 
 | Artifact | Owns | Does not own |

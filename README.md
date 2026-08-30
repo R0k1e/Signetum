@@ -1,11 +1,15 @@
-# DevLoom
+# RepoSeal
 
-[![CI](https://github.com/R0k1e/Python_CICD_Repo_Template/actions/workflows/ci.yml/badge.svg)](https://github.com/R0k1e/Python_CICD_Repo_Template/actions/workflows/ci.yml)
+<p align="center">
+  <img src="assets/brand/reposeal-mark-256.png" width="180" alt="RepoSeal logo: a seal holding a verified repository with a Git branch on its flipper">
+</p>
+
+[![CI](https://github.com/R0k1e/RepoSeal/actions/workflows/ci.yml/badge.svg)](https://github.com/R0k1e/RepoSeal/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-**Weave requirements into verified releases.**
+**Seal every change with evidence.**
 
-DevLoom is an Agent-native GitHub Template for teams that want coding Agents to
+RepoSeal is an Agent-native GitHub Template for teams that want coding Agents to
 work quickly without losing requirements, duplicating repository authorities,
 overwriting parallel work, or delivering a green commit nobody can explain.
 
@@ -32,7 +36,7 @@ contract.
 | Humans retain consequential decisions | Specification, architecture/process/security decisions, scope deferral, acceptance, and delivery remain explicit. |
 | Failed workflows remain recoverable | The lifecycle avoids history rewriting and preserves evidence until remote delivery is confirmed. |
 
-DevLoom can mechanically prove coverage for requirements that were recorded,
+RepoSeal can mechanically prove coverage for requirements that were recorded,
 the exact tree that was validated, and what entered a delivery. It cannot prove
 that natural language was interpreted perfectly or that software is defect-free.
 
@@ -72,10 +76,10 @@ gate, and explicit delivery.
 5. Read [Customizing the Template](docs/guides/customizing-the-template.md)
    before changing repository authorities.
 
-See the [documentation map](docs/README.md), [why DevLoom exists](docs/product/why-devloom.md),
+See the [documentation map](docs/README.md), [why RepoSeal exists](docs/product/why-reposeal.md),
 and [frequently asked questions](docs/product/frequently-asked-questions.md)
 for evaluation and comparison. If you already use a specification tool, read
-[DevLoom and specification tools](docs/product/devloom-vs-spec-tools.md).
+[RepoSeal and specification tools](docs/product/reposeal-and-specification-tools.md).
 
 A complete, non-authoritative teaching artifact is available under
 [`examples/complete-change`](examples/complete-change/README.md).
@@ -91,7 +95,7 @@ uv build
 ```
 
 The internal `foundation` CLI emits one JSON result and exits nonzero for
-invalid contracts. DevLoom is the product identity; `development_foundation`
+invalid contracts. RepoSeal is the product identity; `development_foundation`
 and `foundation` are stable machine protocol identifiers. See
 [Architecture](docs/ARCHITECTURE.md) for current responsibility boundaries.
 

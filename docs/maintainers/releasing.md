@@ -24,13 +24,13 @@ Before requesting publication:
 Recommended repository description:
 
 ```text
-DevLoom weaves requirements into verified releases with repository-aware Agents, isolated parallel work, behavior tests, and explainable delivery.
+RepoSeal seals every change with traceable requirements, repository-aware Agents, isolated parallel work, behavior tests, and explainable delivery.
 ```
 
 Recommended repository name:
 
 ```text
-devloom
+RepoSeal
 ```
 
 Recommended topics:

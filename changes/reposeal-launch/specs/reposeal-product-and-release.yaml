@@ -1,0 +1,58 @@
+specification:
+  schema_version: 1
+  id: reposeal-launch/product-and-release
+  version: 1
+  status: approved
+  implementation_authorized: true
+  review:
+    id: reposeal-launch
+    clauses: [REPOSEAL-001, REPOSEAL-002, REPOSEAL-003, REPOSEAL-004, REPOSEAL-005]
+  decisions:
+    - docs/decisions/ADP-reposeal-is-the-public-product-identity.md
+  plan: changes/reposeal-launch/plans/reposeal-product-and-release.md
+
+  intent:
+    - establish one collision-resistant public identity
+    - keep the GitHub repository page sufficient for human evaluation and Agent adoption
+    - bind the first formal release to an exact delivered source
+
+  outputs:
+    - RepoSeal-first product documentation and repository metadata
+    - one canonical visual mark and deterministic size derivatives
+    - a renamed public GitHub Template and a v2.0.0 GitHub Release
+
+  invariants:
+    - RepoSeal is the only current public product name
+    - the tagline is Seal every change with evidence
+    - current product documents contain no DevLoom identity
+    - historical decisions preserve superseded facts accurately
+    - the canonical logo geometry is identical at every size
+    - development_foundation and foundation remain internal machine identifiers
+    - no standalone website, synchronization service, or second lifecycle authority is introduced
+
+  scenarios:
+    - id: evaluate-reposeal
+      given: a human or Agent opens the public GitHub repository
+      when: it reads the repository overview and product documentation
+      then:
+        - RepoSeal's purpose and limits are explicit
+        - one canonical mark identifies the product
+        - the complete governed lifecycle remains directly usable
+    - id: verify-release-identity
+      given: version 2.0.0 is published
+      when: a maintainer inspects the tag, release, and CI
+      then:
+        - all three identify the exact delivered source
+
+  removed_or_forbidden:
+    - DevLoom as a current product identity
+    - a separate marketing website as a launch prerequisite
+    - independently redrawn small and large logos
+    - publishing from a source other than the delivered and remotely confirmed main tip
+
+  acceptance:
+    - product-surface validation enforces RepoSeal identity and assets
+    - all repository validation passes on the frozen batch
+    - remote main matches the delivered source
+    - GitHub repository name and metadata identify RepoSeal
+    - the v2.0.0 release workflow succeeds for that source
