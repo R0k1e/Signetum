@@ -10,10 +10,10 @@
     "reposeal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "digest"],
+      "required": ["protocol", "template_version"],
       "properties": {
-        "version": {"type": "string"},
-        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+        "protocol": {"type": "integer", "minimum": 2},
+        "template_version": {"type": "string"}
       }
     },
     "profiles": {
@@ -69,4 +69,3 @@
     "profile": {"type": "string", "pattern": "^[a-z][a-z0-9-]*@[1-9][0-9]*$"}
   }
 }
-

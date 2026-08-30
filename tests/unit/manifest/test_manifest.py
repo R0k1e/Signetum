@@ -11,7 +11,8 @@ def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
     manifest = load_manifest(FIXTURE)
 
     assert manifest.schema_version == 2
-    assert manifest.reposeal.version == "0.2.0"
+    assert manifest.reposeal.protocol == 2
+    assert manifest.reposeal.template_version == "0.2.0"
     assert manifest.repository.architecture == "docs/ARCHITECTURE.md"
     assert manifest.profiles.enabled == ("python-default@1", "git-worktrunk@1")
     assert manifest.impact.rules[0].gates == ("python.type", "python.unit")
@@ -26,8 +27,8 @@ def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
             "reposeal.toml",
             """schema_version = 2
 [reposeal]
-version = "main"
-digest = "sha256:aa"
+protocol = 2
+template_version = "main"
 [repository]
 architecture = "docs/ARCHITECTURE.md"
 specifications = "changes"
@@ -35,14 +36,14 @@ plans = "changes"
 decisions = "docs/decisions"
 delivery_state = ".reposeal/delivery"
 """,
-            "reposeal.version must be an immutable semantic version",
+            "reposeal.template_version must be semantic",
         ),
         (
             "reposeal.toml",
             """schema_version = 2
 [reposeal]
-version = "0.2.0"
-digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+protocol = 2
+template_version = "0.2.0"
 [profiles]
 enabled = ["python-default@1", "python-default@1"]
 [repository]

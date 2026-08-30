@@ -84,7 +84,8 @@ def validate(manifest: Annotated[Path, typer.Option(exists=True, dir_okay=False)
     typer.echo(
         json.dumps(
             {
-                "reposeal": loaded.reposeal.version,
+                "protocol": loaded.reposeal.protocol,
+                "template_version": loaded.reposeal.template_version,
                 "manifest_schema": loaded.schema_version,
                 "profiles": [profile.identity for profile in profiles],
                 "status": "valid",

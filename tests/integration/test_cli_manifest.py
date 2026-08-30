@@ -15,7 +15,8 @@ def test_cli_validates_manifest_through_public_command() -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
-        "reposeal": "0.2.0",
+        "protocol": 2,
+        "template_version": "0.2.0",
         "manifest_schema": 2,
         "profiles": ["shared-core@1", "python-default@1", "git-worktrunk@1"],
         "status": "valid",

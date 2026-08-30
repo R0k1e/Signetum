@@ -14,21 +14,14 @@ class ManifestError(ValueError):
 class RepoSealIdentity(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    version: str
-    digest: str
+    protocol: int = Field(strict=True, ge=2)
+    template_version: str
 
-    @field_validator("version")
+    @field_validator("template_version")
     @classmethod
-    def validate_version(cls, value: str) -> str:
+    def validate_template_version(cls, value: str) -> str:
         if fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", value) is None:
-            raise ValueError("reposeal.version must be an immutable semantic version")
-        return value
-
-    @field_validator("digest")
-    @classmethod
-    def validate_digest(cls, value: str) -> str:
-        if fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
-            raise ValueError("reposeal.digest must be a sha256 identity")
+            raise ValueError("reposeal.template_version must be semantic")
         return value
 
 
