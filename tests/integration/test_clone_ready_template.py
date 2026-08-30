@@ -155,8 +155,88 @@ def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:
     )
 
     assert '"status": "opened"' in opened.stdout
-    assert (rendered / "changes/first-change/review.yaml").is_file()
-    assert (rendered / "changes/first-change/specs/change.yaml").is_file()
+    assert (rendered / "changes/first-change/review.toml").is_file()
+    assert (rendered / "changes/first-change/specs/change.toml").is_file()
     assert (rendered / "changes/first-change/plans/change.md").is_file()
     assert duplicate.returncode == 2
     assert invalid.returncode == 2
+
+
+def _traceability(
+    repository: Path, changes_root: str = "changes"
+) -> subprocess.CompletedProcess[str]:
+    validator = repository / ".agents/repo-dev/runtime/traceability.py"
+    return subprocess.run(
+        (
+            sys.executable,
+            "-I",
+            str(validator),
+            "--repository",
+            str(repository),
+            "--changes-root",
+            changes_root,
+        ),
+        cwd=repository,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_rendered_template_accepts_the_complete_toml_example(tmp_path: Path) -> None:
+    rendered = tmp_path / "repository"
+    render_template(ROOT / "template", rendered)
+
+    result = _traceability(rendered, "examples")
+
+    assert result.returncode == 0
+    assert '"valid": true' in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("mutation", "issue"),
+    [
+        ("missing-plan", "missing-plan"),
+        ("duplicate-owner", "duplicate-clause-owner"),
+        ("unknown-clause", "unknown-review-clause"),
+        ("uncovered-plan", "plan-missing-clause"),
+        ("missing-deferral", "missing-specification"),
+    ],
+)
+def test_rendered_template_rejects_broken_traceability(
+    tmp_path: Path, mutation: str, issue: str
+) -> None:
+    rendered = tmp_path / "repository"
+    render_template(ROOT / "template", rendered)
+    example = rendered / "examples/complete-change"
+    specification = example / "specs/greeting.toml"
+    review = example / "review.toml"
+    plan = example / "plans/greeting.md"
+
+    if mutation == "missing-plan":
+        plan.unlink()
+    elif mutation == "duplicate-owner":
+        duplicate = specification.read_text().replace(
+            'id = "example-greeting/greeting"', 'id = "example-greeting/duplicate"'
+        )
+        (example / "specs/duplicate.toml").write_text(duplicate)
+    elif mutation == "unknown-clause":
+        specification.write_text(
+            specification.read_text().replace('["EXAMPLE-001"]', '["UNKNOWN-001"]')
+        )
+    elif mutation == "uncovered-plan":
+        plan.write_text(plan.read_text().replace("EXAMPLE-001", "OTHER-001"))
+    else:
+        review.write_text(
+            review.read_text()
+            .replace('disposition = "covered"', 'disposition = "deferred"')
+            .replace(
+                'specification = "example-greeting/greeting"',
+                'specification = "missing/change"',
+            )
+        )
+
+    result = _traceability(rendered, "examples")
+
+    assert result.returncode == 3
+    assert f'"code": "{issue}"' in result.stdout

@@ -1,7 +1,7 @@
 # Example greeting plan
 
 Status: approved
-Specification: `examples/complete-change/specs/greeting.yaml`
+Specification: `examples/complete-change/specs/greeting.toml`
 Base: `origin/main@example-base-commit`
 
 ## Obligations

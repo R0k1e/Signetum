@@ -3,7 +3,7 @@ product: replace-with-product-name
 architecture: docs/ARCHITECTURE.md
 authorities:
   changes: changes
-  specifications: changes/*/specs/*.yaml
+  specifications: changes/*/specs/*.toml
   plans: changes/*/plans/*.md
   decisions: docs/decisions
 policy:
@@ -22,5 +22,5 @@ validation:
   ready: just ready
   final: just final
 delivery:
-  branch: product
+  branch: main
   state: .reposeal/delivery

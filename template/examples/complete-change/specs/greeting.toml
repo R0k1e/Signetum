@@ -1,0 +1,17 @@
+[specification]
+schema_version = 1
+id = "example-greeting/greeting"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = []
+plan = "examples/complete-change/plans/greeting.md"
+intent = ["Expose one deterministic greeting behavior."]
+inputs = ["A non-empty validated display name."]
+outputs = ["A greeting containing that exact display name."]
+invariants = ["Invalid empty names fail at the public boundary."]
+acceptance = ["A public-boundary test covers one valid and one empty name."]
+
+[specification.review]
+id = "example-greeting"
+clauses = ["EXAMPLE-001"]

@@ -2,7 +2,13 @@
   "schema_version": 1,
   "runtime": ".agents/repo-dev/runtime/lifecycle.py",
   "validation": {
-    "member": [["git", "diff", "--check"]],
-    "final": [["git", "diff", "--check"]]
+    "member": [
+      ["git", "diff", "--check"],
+      ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"]
+    ],
+    "final": [
+      ["git", "diff", "--check"],
+      ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"]
+    ]
   }
 }

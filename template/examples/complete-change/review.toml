@@ -1,0 +1,19 @@
+[review]
+schema_version = 1
+id = "example-greeting"
+status = "active"
+
+[review.source]
+kind = "human_direction"
+summary = "Add a public greeting command with a deterministic result."
+
+[[review.clauses]]
+id = "EXAMPLE-001"
+statement = "A caller can request a greeting for a validated display name."
+disposition = "covered"
+specification = "example-greeting/greeting"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []
