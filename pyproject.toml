@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "development-foundation"
 version = "2.0.0"
-description = "Agent-native contracts for traceable, parallel, behavior-verified delivery"
+description = "DevLoom: weave requirements into verified releases"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

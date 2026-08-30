@@ -1,6 +1,6 @@
 # Customizing the Template
 
-A repository created from Foundation is an independent repository. Customize
+A repository created from DevLoom is an independent repository. Customize
 its copied authorities directly; do not add an upstream Template dependency.
 
 ## Replace product facts first
@@ -12,7 +12,7 @@ placeholder aliases or fallback identities.
 
 ## Preserve the lifecycle boundaries
 
-If the repository keeps the Foundation lifecycle, keep its public operations
+If the repository keeps the DevLoom lifecycle, keep its public operations
 explicit and non-interactive. Repository commands may project existing
 authorities but must not duplicate selector, receipt, merge, or delivery logic.
 Technology profiles should be selected from repository evidence.

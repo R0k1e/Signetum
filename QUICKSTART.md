@@ -1,13 +1,13 @@
 # Quickstart
 
-This guide starts with a repository created from the Development Foundation
+This guide starts with a repository created from the DevLoom
 GitHub Template and ends with one explicitly delivered, human-reviewable change.
 
 ## 1. Own the copied repository
 
 Use GitHub's **Use this template** action, clone the new repository, and replace
 the example product facts with your own. The new repository does not retain a
-dependency or synchronization relationship with Foundation.
+dependency or synchronization relationship with DevLoom.
 
 ```bash
 mise install

@@ -1,8 +1,15 @@
 # Frequently asked questions
 
-## Is Foundation another CI template?
+## What is DevLoom?
 
-No. CI is one validation consumer. Foundation also governs requirement capture,
+DevLoom is an Agent-development repository Template that connects recorded
+requirements, approved behavior, repository-aware Plans, isolated parallel
+work, behavior tests, frozen batch validation, explicit delivery, and human
+acceptance in one inspectable lifecycle.
+
+## Is DevLoom another CI template?
+
+No. CI is one validation consumer. DevLoom also governs requirement capture,
 behavior specifications, implementation Plans, repository discovery, isolated
 Agent work, batch composition, exact validation evidence, delivery provenance,
 acceptance, and recovery.
@@ -42,6 +49,20 @@ delivery commit, remote commit, and controlled cleanup.
 No. GitHub Template creation is a one-time copy. The new repository owns and
 customizes its lifecycle independently. A useful later idea can be implemented
 manually there as an ordinary local governed change.
+
+## Is DevLoom a specification generator?
+
+No. DevLoom can coexist with a specification authoring tool, but it owns the
+larger repository lifecycle: requirement ownership, implementation obligations,
+isolated Agent work, validation identity, batch composition, delivery
+provenance, and post-delivery acceptance. See
+[DevLoom and specification tools](devloom-vs-spec-tools.md).
+
+## Why are the package and command still called `development_foundation` and `foundation`?
+
+Those are internal machine protocol identifiers, not competing product names.
+Keeping them explicit avoids silently breaking package imports, scripts,
+schemas, fixtures, and release artifacts during a public-brand change.
 
 ## Does `final` automatically deliver?
 

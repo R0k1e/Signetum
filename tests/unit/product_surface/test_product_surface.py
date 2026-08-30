@@ -19,6 +19,7 @@ def test_complete_public_surface_passes_observable_contract(tmp_path: Path) -> N
         tmp_path,
         _inventory("README.md", "docs/guide.md"),
         required_paths=("README.md", "docs/guide.md"),
+        required_content={},
     )
 
     assert report.valid is True
@@ -30,11 +31,34 @@ def test_missing_required_asset_reports_the_exact_path(tmp_path: Path) -> None:
         tmp_path,
         _inventory("README.md"),
         required_paths=("README.md", "QUICKSTART.md"),
+        required_content={},
     )
 
     assert report.valid is False
     assert report.issues[0].code == "missing-required-asset"
     assert report.issues[0].target == "QUICKSTART.md"
+
+
+def test_required_public_identity_reports_stale_brand_content(tmp_path: Path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text("# Development Foundation\n", encoding="utf-8")
+
+    report = validate_product_surface(
+        tmp_path,
+        _inventory("README.md"),
+        required_paths=("README.md",),
+        required_content={"README.md": ("# DevLoom", "Weave requirements into verified releases")},
+    )
+
+    assert report.valid is False
+    assert [issue.code for issue in report.issues] == [
+        "missing-required-content",
+        "missing-required-content",
+    ]
+    assert {issue.target for issue in report.issues} == {
+        "# DevLoom",
+        "Weave requirements into verified releases",
+    }
 
 
 def test_missing_local_markdown_target_reports_source_and_target(tmp_path: Path) -> None:
@@ -45,6 +69,7 @@ def test_missing_local_markdown_target_reports_source_and_target(tmp_path: Path)
         tmp_path,
         _inventory("README.md"),
         required_paths=("README.md",),
+        required_content={},
     )
 
     assert report.valid is False
@@ -64,6 +89,7 @@ def test_external_links_and_anchors_are_not_local_file_contracts(tmp_path: Path)
         tmp_path,
         _inventory("README.md"),
         required_paths=("README.md",),
+        required_content={},
     )
 
     assert report.valid is True
@@ -85,6 +111,7 @@ def test_relative_parent_root_and_encoded_links_resolve_against_inventory(tmp_pa
         tmp_path,
         _inventory("docs/guide.md", "README.md", "LICENSE", "docs/other guide.md"),
         required_paths=("docs/guide.md",),
+        required_content={},
     )
 
     assert report.valid is True
@@ -98,6 +125,7 @@ def test_link_that_escapes_repository_is_not_treated_as_a_local_asset(tmp_path: 
         tmp_path,
         _inventory("README.md"),
         required_paths=("README.md",),
+        required_content={},
     )
 
     assert report.valid is True
