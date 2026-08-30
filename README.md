@@ -6,6 +6,8 @@ This repository is ready for agent-team development. RepoSeal keeps every
 request traceable through review, specification, plan, implementation,
 behavioral validation, batch assembly, and explicit delivery.
 
+Public Template version: `v0.1.0`.
+
 ## Start
 
 1. Replace the product facts in `docs/ARCHITECTURE.md`.
