@@ -4,7 +4,7 @@ id = "reposeal-execution-foundation-v2/product-surface"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-proposal-language-neutral-composable-execution.md"]
+decisions = ["docs/decisions/ADP-0002-language-neutral-composable-execution.md"]
 plan = "changes/reposeal-execution-foundation-v2/plans/product-surface.md"
 acceptance = [
   "English and Chinese README files lead with the user problems and observable RepoSeal workflow.",

@@ -4,7 +4,7 @@ id = "reposeal-execution-foundation-v2/execution-foundation"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-proposal-language-neutral-composable-execution.md"]
+decisions = ["docs/decisions/ADP-0002-language-neutral-composable-execution.md"]
 plan = "changes/reposeal-execution-foundation-v2/plans/execution-foundation.md"
 acceptance = [
   "reposeal.toml is the only active repository configuration format and unsupported or ambiguous configuration fails closed.",

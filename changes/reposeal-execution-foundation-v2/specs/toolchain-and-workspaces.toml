@@ -4,7 +4,7 @@ id = "reposeal-execution-foundation-v2/toolchain-and-workspaces"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-proposal-mise-and-worktrunk-authorities.md"]
+decisions = ["docs/decisions/ADP-0003-mise-and-worktrunk-authorities.md"]
 plan = "changes/reposeal-execution-foundation-v2/plans/toolchain-and-workspaces.md"
 acceptance = [
   "Mise is the external tool version and execution authority while each language ecosystem owns its locked project dependencies.",
