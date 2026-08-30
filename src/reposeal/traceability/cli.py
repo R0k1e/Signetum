@@ -45,19 +45,21 @@ def query(
         review_paths = sorted(
             path
             for path in inventory.paths
-            if path.startswith(changes_prefix) and path.endswith("/review.yaml")
+            if path.startswith(changes_prefix) and path.endswith("/review.toml")
         )
+        reviews = {path: load_review(repository / path) for path in review_paths}
+        review_ids = frozenset(review.id for review in reviews.values())
         reports = []
         projections = []
         for review_path in review_paths:
-            change_root = review_path.removesuffix("/review.yaml")
+            change_root = review_path.removesuffix("/review.toml")
             change_id = Path(change_root).name
             specification_paths = sorted(
                 path
                 for path in inventory.paths
-                if path.startswith(f"{change_root}/specs/") and path.endswith(".yaml")
+                if path.startswith(f"{change_root}/specs/") and path.endswith(".toml")
             )
-            review = load_review(repository / review_path)
+            review = reviews[review_path]
             specifications = tuple(
                 (path, load_specification(repository / path)) for path in specification_paths
             )
@@ -68,7 +70,13 @@ def query(
                 if inventory.contains(path)
             )
             report = TraceabilityValidator().validate(
-                manifest, inventory, review_path, review, specifications, plans
+                manifest,
+                inventory,
+                review_path,
+                review,
+                specifications,
+                plans,
+                review_ids,
             )
             reports.append(report)
             if report.valid:

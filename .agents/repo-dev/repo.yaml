@@ -20,7 +20,8 @@ repository:
         paths: [changes, plans]
         reference: .agents/repo-dev/references/git-worktrunk.md
   authorities:
-    specifications: changes/*/specs/*.yaml
+    reviews: changes/*/review.toml
+    specifications: changes/*/specs/*.toml
     plans: changes/*/plans/*.md
     decisions: docs/decisions/*.md
     manifest_schema: reposeal.resources.schemas

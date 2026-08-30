@@ -2,7 +2,7 @@
 
 from pathlib import PurePosixPath
 
-from reposeal.change.models import Plan, Review, Specification
+from reposeal.change.models import AcceptanceResult, ClauseDisposition, Plan, Review, Specification
 from reposeal.status.models import (
     ClauseProjection,
     DerivedState,
@@ -41,13 +41,15 @@ def project_status(
     deliveries = {
         delivery.batch_commit: delivery.delivery_commit for delivery in evidence.deliveries
     }
-    excluded = {item.clause for item in review.exclusions}
-    reopened = {item.clause for item in review.reopenings}
-    accepted = {
-        clause: acceptance.delivery_commit
-        for acceptance in review.acceptances
-        for clause in acceptance.accepted_clauses
+    excluded = {
+        item.id for item in review.clauses if item.disposition is ClauseDisposition.OUT_OF_SCOPE
     }
+    accepted = set(review.acceptance.accepted_clauses)
+    reopened = (
+        set(review.acceptance.rejected_clauses)
+        if review.acceptance.result in {AcceptanceResult.REJECTED, AcceptanceResult.REOPENED}
+        else set()
+    )
     clauses: list[ClauseProjection] = []
     for clause in review.clauses:
         owner = owners.get(clause.id)
@@ -72,7 +74,11 @@ def project_status(
         if delivery_commit is not None:
             state = DerivedState.DELIVERED
             commit = delivery_commit
-        if delivery_commit is not None and accepted.get(clause.id) == delivery_commit:
+        if (
+            delivery_commit is not None
+            and review.acceptance.delivery_commit == delivery_commit
+            and clause.id in accepted
+        ):
             state = DerivedState.ACCEPTED
         if clause.id in reopened:
             state = DerivedState.REOPENED

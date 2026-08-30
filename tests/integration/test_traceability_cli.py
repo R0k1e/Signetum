@@ -38,6 +38,29 @@ class FailingInventory:
         raise OSError("inventory unavailable")
 
 
+def test_historical_yaml_changes_are_read_only_provenance() -> None:
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    inventory = FixtureInventory().read(FIXTURE)
+    historical = RepositoryInventory(paths=inventory.paths | {"changes/historical/review.yaml"})
+
+    class InventoryWithHistoricalYaml:
+        def read(self, repository: Path) -> RepositoryInventory:
+            return historical
+
+    exit_code = query(
+        FIXTURE,
+        TraceabilityManifest(schema_version=1),
+        EvidenceSnapshot(),
+        stdout,
+        stderr,
+        InventoryWithHistoricalYaml(),
+    )
+
+    assert exit_code is ExitCode.SUCCESS
+    assert json.loads(stdout.getvalue())["changes"][0]["review"] == "example"
+
+
 def test_public_query_emits_one_versioned_json_object() -> None:
     stdout = io.StringIO()
     stderr = io.StringIO()

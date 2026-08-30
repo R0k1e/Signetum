@@ -1,7 +1,7 @@
 # First Plan
 
 Status: approved
-Specification: `changes/example/specs/first.yaml`
+Specification: `changes/example/specs/first.toml`
 Base: `base-1`
 
 ## Obligations

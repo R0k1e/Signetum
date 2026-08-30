@@ -18,9 +18,9 @@ FIXTURE = Path("tests/fixtures/changes/valid")
 
 
 def test_exact_typed_evidence_projects_accepted_parent() -> None:
-    review = load_review(FIXTURE / "changes/example/review.yaml")
+    review = load_review(FIXTURE / "changes/example/review.toml")
     specifications = tuple(
-        load_specification(FIXTURE / f"changes/example/specs/{name}.yaml")
+        load_specification(FIXTURE / f"changes/example/specs/{name}.toml")
         for name in ("first", "second")
     )
     plans = tuple(
@@ -46,8 +46,8 @@ def test_exact_typed_evidence_projects_accepted_parent() -> None:
 
 
 def test_evidence_for_another_commit_does_not_advance_state() -> None:
-    review = load_review(FIXTURE / "changes/example/review.yaml")
-    specification = load_specification(FIXTURE / "changes/example/specs/first.yaml")
+    review = load_review(FIXTURE / "changes/example/review.toml")
+    specification = load_specification(FIXTURE / "changes/example/specs/first.toml")
     plan = load_plan(FIXTURE / "changes/example/plans/first.md", "example")
     evidence = EvidenceSnapshot(
         integrations=(IntegrationObservation(member_commit="other", batch_commit="batch-1"),)
@@ -58,10 +58,8 @@ def test_evidence_for_another_commit_does_not_advance_state() -> None:
 
 
 def test_pending_acceptance_never_accepts_missing_delivery_evidence() -> None:
-    review = load_review(FIXTURE / "changes/example/review.yaml").model_copy(
-        update={"acceptances": ()}
-    )
-    specification = load_specification(FIXTURE / "changes/example/specs/first.yaml")
+    review = load_review(FIXTURE / "changes/example/review.toml")
+    specification = load_specification(FIXTURE / "changes/example/specs/first.toml")
     plan = load_plan(FIXTURE / "changes/example/plans/first.md", "example")
 
     projection = project_status(review, (specification,), (plan,), EvidenceSnapshot())
