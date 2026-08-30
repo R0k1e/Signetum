@@ -28,6 +28,20 @@ def test_template_is_minimal_and_clone_ready() -> None:
     assert "reposeal==" not in template_text
 
 
+def test_template_enables_installable_python_default() -> None:
+    manifest = (ROOT / "template/reposeal.toml").read_text()
+    toolchain = (ROOT / "template/mise.toml").read_text()
+    project = (ROOT / "template/pyproject.toml").read_text()
+
+    assert 'enabled = ["python-default@1", "git-worktrunk@1"]' in manifest
+    assert 'python = "3.12.8"' in toolchain
+    assert 'uv = "0.8.15"' in toolchain
+    for tool in ("ruff", "ty", "pytest", "pip-audit", "detect-secrets"):
+        assert tool in project
+    assert (ROOT / "template/tests/unit/test_application.py").is_file()
+    assert (ROOT / "template/tests/integration/test_application.py").is_file()
+
+
 def test_template_render_has_identical_inventory(tmp_path: Path) -> None:
     source = ROOT / "template"
     rendered = tmp_path / "repository"
