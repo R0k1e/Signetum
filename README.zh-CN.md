@@ -8,7 +8,7 @@
 ## 开始使用
 
 1. 在 `docs/ARCHITECTURE.md` 中填写产品的真实架构。
-2. 在 `changes/<change>/review.yaml` 中记录本次需求。
+2. 运行 `just change-open <短横线名称>`，再填写生成的 Review。
 3. 规格经人工确认后再实现。
 4. 运行 `just workspace-open <branch> <base>` 创建隔离工作树。
 
