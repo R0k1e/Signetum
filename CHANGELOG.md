@@ -3,7 +3,7 @@
 This file records user-visible RepoSeal releases. Git history and delivered
 Plans retain detailed implementation provenance.
 
-## 3.0.0 - Unreleased
+## 3.0.0 - 2026-08-30
 
 - Separate the RepoSeal engine branch from the rendered default-branch Template.
 - Rename the distribution, import package, manifest identity, CLI, receipts,
