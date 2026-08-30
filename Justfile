@@ -1,28 +1,28 @@
 set positional-arguments
 
-_lifecycle *args:
-    uv run python tools/development_foundation/merge_plan_delivery.py {{args}}
+_reposeal *args:
+    uv run --no-project python .agents/repo-dev/runtime/lifecycle.py {{args}}
 
 workspace-open branch base:
-    just _lifecycle workspace-open {{branch}} {{base}}
+    just _reposeal workspace-open {{branch}} {{base}}
 
 changed base *args:
-    just _lifecycle changed {{base}} {{args}}
+    just _reposeal changed {{base}} {{args}}
 
 ready base:
-    just _lifecycle ready {{base}}
+    just _reposeal ready {{base}}
 
 batch-open *args:
-    just _lifecycle batch-open {{args}}
+    just _reposeal batch-open {{args}}
 
 batch-admit batch *args:
-    just _lifecycle batch-admit --batch {{batch}} {{args}}
+    just _reposeal batch-admit --batch {{batch}} {{args}}
 
 batch-continue batch:
-    just _lifecycle batch-continue --batch {{batch}}
+    just _reposeal batch-continue --batch {{batch}}
 
 final:
-    just _lifecycle final
+    just _reposeal final
 
 batch-deliver source target expected-base expected-batch-tip:
-    just _lifecycle batch-deliver {{source}} {{target}} {{expected-base}} {{expected-batch-tip}}
+    just _reposeal batch-deliver {{source}} {{target}} {{expected-base}} {{expected-batch-tip}}

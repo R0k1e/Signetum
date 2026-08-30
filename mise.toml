@@ -1,6 +1,3 @@
 [tools]
-python = "3.12"
-uv = "latest"
-
-[env]
-UV_PROJECT_ENVIRONMENT = ".venv"
+just = "1.42.4"
+uv = "0.8.15"
