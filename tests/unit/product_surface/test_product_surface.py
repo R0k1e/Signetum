@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from development_foundation.product_surface import validate_product_surface
-from development_foundation.traceability.boundary import RepositoryInventory
+from reposeal.product_surface import validate_product_surface
+from reposeal.traceability.boundary import RepositoryInventory
 
 
 def _inventory(*paths: str) -> RepositoryInventory:

@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-08-30
 Supersedes: ADP-template-becomes-versioned-development-foundation.md
-Superseded by: None
+Superseded by: ADP-reposeal-engine-and-template-are-separate-branches.md
 
 ## Decision
 

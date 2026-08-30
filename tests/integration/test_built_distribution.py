@@ -3,7 +3,7 @@ from zipfile import ZipFile
 
 
 def test_built_wheel_contains_public_resources_and_no_downstream_product_facts() -> None:
-    wheels = tuple(Path("dist").glob("development_foundation-*.whl"))
+    wheels = tuple(Path("dist").glob("reposeal-*.whl"))
     assert len(wheels) == 1
 
     with ZipFile(wheels[0]) as wheel:
@@ -14,12 +14,10 @@ def test_built_wheel_contains_public_resources_and_no_downstream_product_facts()
             if name.endswith((".py", ".yaml", ".json"))
         )
 
-    assert "development_foundation/resources/schemas/repository-manifest-v1.schema.json" in names
-    assert "development_foundation/resources/profiles/python-uv-v1.yaml" in names
-    assert (
-        "development_foundation/resources/schemas/contracts/release-metadata.schema.json" in names
-    )
-    assert "development_foundation/resources/skills/repo-dev/SKILL.md" in names
+    assert "reposeal/resources/schemas/repository-manifest-v1.schema.json" in names
+    assert "reposeal/resources/profiles/python-uv-v1.yaml" in names
+    assert "reposeal/resources/schemas/contracts/release-metadata.schema.json" in names
+    assert "reposeal/resources/skills/repo-dev/SKILL.md" in names
     assert "placeholder_name" not in payload
     assert "PyLM" not in payload
     assert "/Users/" not in payload

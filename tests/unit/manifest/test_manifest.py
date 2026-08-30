@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from development_foundation.manifest import ManifestError, load_manifest
+from reposeal.manifest import ManifestError, load_manifest
 
 FIXTURE = Path(__file__).parents[2] / "fixtures" / "repository.yaml"
 
@@ -11,7 +11,7 @@ def test_load_manifest_preserves_downstream_repository_facts() -> None:
     manifest = load_manifest(FIXTURE)
 
     assert manifest.schema_version == 1
-    assert manifest.foundation.version == "2.0.0"
+    assert manifest.reposeal.version == "3.0.0"
     assert manifest.repository.architecture == "docs/ARCHITECTURE.md"
     assert manifest.profiles == (
         "python-uv@1",
@@ -25,18 +25,18 @@ def test_load_manifest_preserves_downstream_repository_facts() -> None:
         ("schema_version: 2\n", "unsupported manifest schema: 2"),
         (
             """schema_version: 1
-foundation:
+reposeal:
   version: main
   digest: sha256:aa
 profiles: []
 repository: {}
 """,
-            "foundation.version must be an immutable semantic version",
+            "reposeal.version must be an immutable semantic version",
         ),
         (
             """schema_version: 1
-foundation:
-  version: 2.0.0
+reposeal:
+  version: 3.0.0
   digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 profiles: []
 repository:
@@ -45,14 +45,14 @@ repository:
   plans: changes
   decisions: docs/decisions
   validation: tools/validate.py
-  delivery_state: .foundation/delivery
+  delivery_state: .reposeal/delivery
 """,
             "repository.architecture must be repository-relative",
         ),
         (
             """schema_version: 1
-foundation:
-  version: 2.0.0
+reposeal:
+  version: 3.0.0
   digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 profiles: [python-uv@1, python-uv@1]
 repository:
@@ -61,7 +61,7 @@ repository:
   plans: changes
   decisions: docs/decisions
   validation: tools/validate.py
-  delivery_state: .foundation/delivery
+  delivery_state: .reposeal/delivery
 """,
             "profiles must contain unique identities",
         ),

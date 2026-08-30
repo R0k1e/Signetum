@@ -1,0 +1,15 @@
+name: Requirement
+description: Capture a user-visible need before specification.
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: User need
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Observable acceptance
+    validations:
+      required: true

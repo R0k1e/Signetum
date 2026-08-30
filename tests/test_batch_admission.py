@@ -2,33 +2,22 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
 
 import pytest
 
-SCRIPT = (
-    Path(__file__).resolve().parents[1]
-    / "tools"
-    / "development_foundation"
-    / "merge_plan_delivery.py"
-)
+import reposeal.lifecycle as lifecycle
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("foundation_merge_plan_delivery", SCRIPT)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load batch admission authority")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return lifecycle
 
 
 def test_delivery_branch_names_are_refused() -> None:
     module = _load_module()
 
-    assert {"main", "master", "product"}.isdisjoint({"batch/foundation-v2"})
+    assert {"main", "master", "product"}.isdisjoint({"batch/reposeal-v2"})
     assert module.AdmissionError
 
 

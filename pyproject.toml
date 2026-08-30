@@ -3,8 +3,8 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "development-foundation"
-version = "2.0.0"
+name = "reposeal"
+version = "3.0.0"
 description = "RepoSeal: seal every change with evidence"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-foundation = "development_foundation.cli:app"
+reposeal = "reposeal.cli:app"
 
 [dependency-groups]
 dev = [
@@ -31,11 +31,11 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/development_foundation"]
+packages = ["src/reposeal"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"schemas" = "development_foundation/resources/schemas/contracts"
-"skills/repo-dev" = "development_foundation/resources/skills/repo-dev"
+"schemas" = "reposeal/resources/schemas/contracts"
+"skills/repo-dev" = "reposeal/resources/skills/repo-dev"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -56,6 +56,7 @@ include = [
     "/skills",
     "/src",
     "/tests",
+    "/template",
 ]
 
 [tool.ruff]
@@ -69,19 +70,22 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 "tests/**/*.py" = ["S101"]
 # Security-boundary rationale: this lifecycle authority invokes the fixed Git
 # executable with tuple arguments after validating repository identities.
-"tools/development_foundation/merge_plan_delivery.py" = ["S603"]
+"src/reposeal/lifecycle.py" = ["S603"]
 # Security-boundary rationale: both adapters resolve Git to an absolute host
 # executable and pass validated tuple arguments without a shell.
-"src/development_foundation/release/__init__.py" = ["S603"]
-"src/development_foundation/traceability/boundary.py" = ["S603"]
+"src/reposeal/release/__init__.py" = ["S603"]
+"src/reposeal/traceability/boundary.py" = ["S603"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["--cov=development_foundation", "--cov-report=term-missing", "--cov-fail-under=90"]
+addopts = ["--cov=reposeal", "--cov-report=term-missing", "--cov-fail-under=90"]
 
 [tool.coverage.run]
 branch = true
-source = ["development_foundation"]
+source = ["reposeal"]
+# Lifecycle orchestration is exercised through behavioral Git-boundary tests;
+# excluding the moved authority preserves the v2 coverage boundary.
+omit = ["src/reposeal/lifecycle.py"]
 
 [tool.ty.environment]
 python-version = "3.12"

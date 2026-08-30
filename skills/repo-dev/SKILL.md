@@ -2,7 +2,7 @@
 name: repo-dev
 description: Govern repository discovery, requirement closure, implementation, validation, delivery, recovery, and bootstrap from repository-declared authorities. Use when changing or auditing a repository; do not use it as a substitute for the repository's own manifest or authorization.
 metadata:
-  version: "2.0.0"
+  version: "3.0.0"
 ---
 
 # Repository development

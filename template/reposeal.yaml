@@ -1,0 +1,14 @@
+schema_version: 1
+reposeal:
+  version: 3.0.0
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+profiles:
+  - shared-core@1
+  - git-worktrunk@1
+repository:
+  architecture: docs/ARCHITECTURE.md
+  specifications: changes
+  plans: changes
+  decisions: docs/decisions
+  validation: just final
+  delivery_state: .reposeal/delivery

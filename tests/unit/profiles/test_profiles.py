@@ -1,6 +1,6 @@
 import pytest
 
-from development_foundation.profiles import (
+from reposeal.profiles import (
     ProfileDeclaration,
     ProfileError,
     resolve_profiles,

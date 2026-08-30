@@ -1,7 +1,7 @@
 # Validation and delivery responsibilities
 
 Ordinary validation is read-only and observes one exact commit. Evidence binds
-foundation, schema, profile, commit, and check identities. A successful member
+RepoSeal, schema, profile, commit, and check identities. A successful member
 check is not batch integration, delivery, or human acceptance.
 
 The member and final gate build the source distribution and wheel before the

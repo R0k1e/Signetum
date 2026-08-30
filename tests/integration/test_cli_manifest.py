@@ -3,9 +3,9 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from development_foundation import release
-from development_foundation.cli import app
-from development_foundation.traceability.boundary import RepositoryInventory
+from reposeal import release
+from reposeal.cli import app
+from reposeal.traceability.boundary import RepositoryInventory
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "repository.yaml"
 
@@ -15,7 +15,7 @@ def test_cli_validates_manifest_through_public_command() -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
-        "foundation": "2.0.0",
+        "reposeal": "3.0.0",
         "manifest_schema": 1,
         "profiles": ["shared-core@1", "python-uv@1", "git-worktrunk@1"],
         "status": "valid",
@@ -72,7 +72,7 @@ def test_check_product_surface_reports_one_versioned_result() -> None:
 
 def test_check_product_surface_rejects_an_incomplete_inventory(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "development_foundation.cli.GitInventoryProvider.read",
+        "reposeal.cli.GitInventoryProvider.read",
         lambda self, repository: RepositoryInventory(paths=frozenset()),
     )
 
@@ -93,7 +93,7 @@ def test_check_product_surface_maps_inventory_failure_to_invocation_result(
     def fail(self, repository: Path) -> RepositoryInventory:
         raise OSError("inventory unavailable")
 
-    monkeypatch.setattr("development_foundation.cli.GitInventoryProvider.read", fail)
+    monkeypatch.setattr("reposeal.cli.GitInventoryProvider.read", fail)
 
     result = CliRunner().invoke(
         app,
