@@ -140,6 +140,9 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> No
         ("git", "config", "user.email", "reposeal@example.invalid"),
         ("git", "add", "."),
         ("git", "commit", "-m", "initial template"),
+        ("mise", "trust", "mise.toml"),
+        ("mise", "install"),
+        ("uv", "sync", "--locked"),
     ):
         subprocess.run(command, cwd=rendered, check=True, capture_output=True)
 
