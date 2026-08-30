@@ -64,7 +64,9 @@ def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
     assert all(command in member for command in expected_member)
     assert all(command in final for command in (*expected_member, *expected_final))
     assert "- run: uv sync --locked" in workflow
-    assert "- run: uv run --no-project python .agents/repo-dev/runtime/lifecycle.py final" in workflow
+    assert (
+        "- run: uv run --no-project python .agents/repo-dev/runtime/lifecycle.py final" in workflow
+    )
 
 
 def test_template_render_has_identical_inventory(tmp_path: Path) -> None:
