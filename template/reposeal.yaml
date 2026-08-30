@@ -4,11 +4,23 @@
   "validation": {
     "member": [
       ["git", "diff", "--check"],
-      ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"]
+      ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"],
+      ["uv", "run", "--no-sync", "ruff", "check", "."],
+      ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
+      ["uv", "run", "--no-sync", "ty", "check"],
+      ["uv", "run", "--no-sync", "pytest", "tests/unit"],
+      ["mise", "run", "python:secrets"]
     ],
     "final": [
       ["git", "diff", "--check"],
-      ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"]
+      ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"],
+      ["uv", "run", "--no-sync", "ruff", "check", "."],
+      ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
+      ["uv", "run", "--no-sync", "ty", "check"],
+      ["uv", "run", "--no-sync", "pytest", "tests/unit"],
+      ["uv", "run", "--no-sync", "pytest", "tests/integration"],
+      ["uv", "run", "--no-sync", "pip-audit"],
+      ["mise", "run", "python:secrets"]
     ]
   }
 }
