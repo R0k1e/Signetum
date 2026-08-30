@@ -24,12 +24,14 @@ Create one stable change package:
 
 ```text
 changes/add-health-endpoint/
-  review.yaml
-  specs/health-endpoint.yaml
+  review.toml
+  specs/health-endpoint.toml
   plans/health-endpoint.md
 ```
 
-The Review records the human request as atomic clauses. The approved
+The Review records the human request as atomic clauses. `reposeal.toml`
+selects one or more language profiles and binds the repository's impact,
+validation, and evidence graph. The approved
 Specification owns observable behavior. The Plan maps every owned clause to an
 implementation obligation and exact evidence. Copy the teaching structure from
 [`examples/complete-change`](examples/complete-change/README.md), then replace
