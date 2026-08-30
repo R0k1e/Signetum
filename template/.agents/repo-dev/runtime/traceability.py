@@ -92,8 +92,11 @@ def validate(repository: Path, changes_root: str) -> tuple[Issue, ...]:
                 issues.append(_issue(root, "unknown-review-clause", spec_path, str(clause_id)))
                 continue
             owners[key].append(spec_id)
-            if plan_content is not None and clause_id not in plan_content:
-                assert plan_path is not None
+            if (
+                plan_content is not None
+                and plan_path is not None
+                and clause_id not in plan_content
+            ):
                 issues.append(_issue(root, "plan-missing-clause", plan_path, clause_id))
 
     for key, clause in clauses.items():
