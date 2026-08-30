@@ -8,10 +8,11 @@ from typing import Annotated
 import typer
 
 from development_foundation.manifest import ManifestError, load_manifest
+from development_foundation.product_surface import validate_product_surface
 from development_foundation.profiles import ProfileError, resolve_profiles
 from development_foundation.release import ReleaseError, preflight
 from development_foundation.status.models import EvidenceSnapshot
-from development_foundation.traceability.boundary import TraceabilityManifest
+from development_foundation.traceability.boundary import GitInventoryProvider, TraceabilityManifest
 from development_foundation.traceability.cli import query
 
 app = typer.Typer(add_completion=False, help="Validate development-foundation contracts.")
@@ -80,6 +81,28 @@ def check_traceability(
     )
     if exit_code:
         raise typer.Exit(code=int(exit_code))
+
+
+@check_app.command("product-surface")
+def check_product_surface(
+    repository: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("."),
+) -> None:
+    """Validate required product assets and repository-relative Markdown links."""
+    resolved = repository.resolve()
+    try:
+        inventory = GitInventoryProvider().read(resolved)
+        report = validate_product_surface(resolved, inventory)
+    except (OSError, ValueError) as error:
+        typer.echo(
+            json.dumps(
+                {"error": str(error), "schema_version": 1, "status": "invalid"},
+                sort_keys=True,
+            )
+        )
+        raise typer.Exit(code=2) from error
+    typer.echo(report.model_dump_json())
+    if not report.valid:
+        raise typer.Exit(code=3)
 
 
 @release_app.command("preflight")
