@@ -3,6 +3,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from development_foundation import release
 from development_foundation.cli import app
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "repository.yaml"
@@ -50,3 +51,18 @@ def test_check_traceability_uses_the_public_query_boundary() -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.stdout)["valid"] is True
+
+
+def test_release_preflight_reports_a_versioned_failure(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(release, "which", lambda executable: None)
+
+    result = CliRunner().invoke(
+        app,
+        ["release", "preflight", "--source", "abc", "--repository", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
+    assert json.loads(result.stdout) == {
+        "error": "git executable is unavailable",
+        "status": "invalid",
+    }

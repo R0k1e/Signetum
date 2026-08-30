@@ -33,8 +33,12 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/development_foundation"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"schemas" = "development_foundation/resources/schemas/contracts"
+"skills/repo-dev" = "development_foundation/resources/skills/repo-dev"
+
 [tool.hatch.build.targets.sdist]
-include = ["/AGENTS.md", "/README.md", "/docs", "/profiles", "/schemas", "/src", "/tests"]
+include = ["/AGENTS.md", "/README.md", "/docs", "/profiles", "/schemas", "/skills", "/src", "/tests"]
 
 [tool.ruff]
 target-version = "py312"

@@ -9,6 +9,7 @@ import typer
 
 from development_foundation.manifest import ManifestError, load_manifest
 from development_foundation.profiles import ProfileError, resolve_profiles
+from development_foundation.release import ReleaseError, preflight
 from development_foundation.status.models import EvidenceSnapshot
 from development_foundation.traceability.boundary import TraceabilityManifest
 from development_foundation.traceability.cli import query
@@ -16,6 +17,8 @@ from development_foundation.traceability.cli import query
 app = typer.Typer(add_completion=False, help="Validate development-foundation contracts.")
 check_app = typer.Typer(add_completion=False, help="Run read-only repository checks.")
 app.add_typer(check_app, name="check")
+release_app = typer.Typer(add_completion=False, help="Verify immutable release candidates.")
+app.add_typer(release_app, name="release")
 
 
 @app.callback()
@@ -77,6 +80,25 @@ def check_traceability(
     )
     if exit_code:
         raise typer.Exit(code=int(exit_code))
+
+
+@release_app.command("preflight")
+def release_preflight(
+    source: Annotated[str, typer.Option()],
+    repository: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("."),
+) -> None:
+    """Verify that an exact source has matching final evidence."""
+    try:
+        metadata = preflight(repository.resolve(), source)
+    except (OSError, ReleaseError) as error:
+        typer.echo(json.dumps({"error": str(error), "status": "invalid"}, sort_keys=True))
+        raise typer.Exit(code=2) from error
+    typer.echo(
+        json.dumps(
+            {"status": "valid", "release": metadata.model_dump(mode="json")},
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":
