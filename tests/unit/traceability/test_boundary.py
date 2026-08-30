@@ -1,5 +1,5 @@
 from pathlib import Path
-from subprocess import CompletedProcess
+from subprocess import CalledProcessError, CompletedProcess
 
 import pytest
 
@@ -35,6 +35,20 @@ def test_inventory_fails_when_git_is_unavailable(
     monkeypatch.setattr(boundary, "which", lambda executable: None)
 
     with pytest.raises(OSError, match="unavailable"):
+        GitInventoryProvider().read(tmp_path)
+
+
+def test_inventory_normalizes_git_failure_without_leaking_subprocess_details(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(boundary, "which", lambda executable: "/usr/bin/git")
+
+    def fail(*args: object, **kwargs: object) -> CompletedProcess[bytes]:
+        raise CalledProcessError(returncode=128, cmd=["git", "ls-files"])
+
+    monkeypatch.setattr(boundary, "run", fail)
+
+    with pytest.raises(OSError, match="repository inventory failed"):
         GitInventoryProvider().read(tmp_path)
 
 

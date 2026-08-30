@@ -2,7 +2,7 @@
 
 from pathlib import Path, PurePosixPath
 from shutil import which
-from subprocess import PIPE, run
+from subprocess import CalledProcessError, run
 from typing import Protocol
 
 from pydantic import Field
@@ -43,19 +43,22 @@ class GitInventoryProvider:
         executable = which("git")
         if executable is None:
             raise OSError("git executable is unavailable")
-        completed = run(  # noqa: S603 -- executable is resolved by the host PATH.
-            [
-                executable,
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "-z",
-            ],
-            cwd=repository,
-            check=True,
-            stdout=PIPE,
-        )
+        try:
+            completed = run(  # noqa: S603 -- executable is resolved by the host PATH.
+                [
+                    executable,
+                    "ls-files",
+                    "--cached",
+                    "--others",
+                    "--exclude-standard",
+                    "-z",
+                ],
+                cwd=repository,
+                check=True,
+                capture_output=True,
+            )
+        except CalledProcessError as error:
+            raise OSError("Git repository inventory failed") from error
         paths = frozenset(item for item in completed.stdout.decode().split("\0") if item)
         return RepositoryInventory(paths=paths)
 
