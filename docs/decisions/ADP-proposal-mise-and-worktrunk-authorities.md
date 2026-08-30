@@ -20,4 +20,3 @@ pinned authorities but never installs or imports the RepoSeal distribution.
 - Git and Mise are the only host prerequisites for the default Template.
 - Hand-written worktree creation and cleanup paths are removed when replaced.
 - A missing or incompatible tool fails with an actionable preflight diagnostic.
-

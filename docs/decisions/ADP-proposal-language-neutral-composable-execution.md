@@ -25,4 +25,3 @@ language profiles without changing the eight public lifecycle operations.
   protocol through repository declarations or later maintained profiles.
 - Profile identities and the resolved validation graph become receipt inputs.
 - The v0.2 configuration break is explicit and has no fallback parser.
-
