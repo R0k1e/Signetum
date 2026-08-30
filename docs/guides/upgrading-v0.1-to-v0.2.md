@@ -23,4 +23,3 @@ local change rather than an upstream pull or package upgrade.
 There is no compatibility shim between the two protocols. A repository that
 needs staged adoption should keep the v0.1 runtime until its v0.2 Change can be
 delivered atomically.
-

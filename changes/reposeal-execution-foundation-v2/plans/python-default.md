@@ -13,4 +13,3 @@ Base: `engine@9e0964e474df395e3222641e27bc9e27008f81f8`
 
 The Template enables this profile by default. Core contains no Python-specific
 branch, tool invocation, or inferred directory.
-
