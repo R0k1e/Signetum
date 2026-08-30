@@ -8,11 +8,11 @@ from reposeal.profiles import (
 
 
 def test_selected_profiles_activate_only_explicit_dependencies() -> None:
-    profiles = resolve_profiles(("python-uv@1", "git-worktrunk@1"))
+    profiles = resolve_profiles(("python-default@1", "git-worktrunk@1"))
 
     assert tuple(profile.identity for profile in profiles) == (
         "shared-core@1",
-        "python-uv@1",
+        "python-default@1",
         "git-worktrunk@1",
     )
 
@@ -45,3 +45,18 @@ def test_duplicate_authority_is_rejected() -> None:
     }
     with pytest.raises(ProfileError, match="duplicate authority: python-environment"):
         resolve_profiles(("python-uv@1", "python-other-test@1"), catalog=catalog)
+
+
+def test_explicit_replacement_substitutes_one_enabled_profile() -> None:
+    catalog = {
+        "shared-core@1": ProfileDeclaration("shared-core@1", ("core",)),
+        "custom@1": ProfileDeclaration("custom@1", ("quality",), ("shared-core@1",)),
+    }
+
+    profiles = resolve_profiles(
+        ("python-default@1",),
+        replacements={"python-default@1": "custom@1"},
+        catalog=catalog,
+    )
+
+    assert tuple(profile.identity for profile in profiles) == ("shared-core@1", "custom@1")

@@ -1,0 +1,5 @@
+schema_version = 1
+identity = "git-worktrunk@1"
+authorities = ["workspace-isolation"]
+requires = ["shared-core@1"]
+

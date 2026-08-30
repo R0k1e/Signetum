@@ -7,7 +7,7 @@ from reposeal import release
 from reposeal.cli import app
 from reposeal.traceability.boundary import RepositoryInventory
 
-FIXTURE = Path(__file__).parents[1] / "fixtures" / "repository.yaml"
+FIXTURE = Path(__file__).parents[1] / "fixtures" / "reposeal.toml"
 
 
 def test_cli_validates_manifest_through_public_command() -> None:
@@ -15,16 +15,16 @@ def test_cli_validates_manifest_through_public_command() -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
-        "reposeal": "3.0.0",
-        "manifest_schema": 1,
-        "profiles": ["shared-core@1", "python-uv@1", "git-worktrunk@1"],
+        "reposeal": "0.2.0",
+        "manifest_schema": 2,
+        "profiles": ["shared-core@1", "python-default@1", "git-worktrunk@1"],
         "status": "valid",
     }
 
 
 def test_cli_reports_one_json_failure(tmp_path: Path) -> None:
-    manifest = tmp_path / "repository.yaml"
-    manifest.write_text("schema_version: 99\n", encoding="utf-8")
+    manifest = tmp_path / "reposeal.toml"
+    manifest.write_text("schema_version = 99\n", encoding="utf-8")
 
     result = CliRunner().invoke(app, ["validate", "--manifest", str(manifest)])
 

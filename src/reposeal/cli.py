@@ -73,7 +73,10 @@ def validate(manifest: Annotated[Path, typer.Option(exists=True, dir_okay=False)
 
     try:
         loaded = load_manifest(manifest)
-        profiles = resolve_profiles(loaded.profiles)
+        profiles = resolve_profiles(
+            loaded.profiles.enabled,
+            replacements=loaded.profiles.replacements,
+        )
     except (ManifestError, ProfileError) as error:
         typer.echo(json.dumps({"error": str(error), "status": "invalid"}, sort_keys=True))
         raise typer.Exit(code=2) from error

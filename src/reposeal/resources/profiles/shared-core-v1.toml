@@ -1,0 +1,5 @@
+schema_version = 1
+identity = "shared-core@1"
+authorities = ["reposeal-contracts"]
+requires = []
+
