@@ -1,6 +1,11 @@
 schema_version: 1
 product: replace-with-product-name
 architecture: docs/ARCHITECTURE.md
+authorities:
+  changes: changes
+  specifications: changes/*/specs/*.yaml
+  plans: changes/*/plans/*.md
+  decisions: docs/decisions
 policy:
   mandatory:
     - group: lifecycle

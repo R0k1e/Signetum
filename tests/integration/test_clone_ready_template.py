@@ -125,3 +125,38 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> No
 
     assert '"status": "changed"' in diagnostic.stdout
     assert '"status": "final"' in final.stdout
+
+
+def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:
+    rendered = tmp_path / "repository"
+    render_template(ROOT / "template", rendered)
+    scaffold = rendered / ".agents/repo-dev/runtime/change_open.py"
+
+    opened = subprocess.run(
+        (sys.executable, "-I", str(scaffold), "first-change"),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    duplicate = subprocess.run(
+        (sys.executable, "-I", str(scaffold), "first-change"),
+        cwd=rendered,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    invalid = subprocess.run(
+        (sys.executable, "-I", str(scaffold), "../unsafe"),
+        cwd=rendered,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert '"status": "opened"' in opened.stdout
+    assert (rendered / "changes/first-change/review.yaml").is_file()
+    assert (rendered / "changes/first-change/specs/change.yaml").is_file()
+    assert (rendered / "changes/first-change/plans/change.md").is_file()
+    assert duplicate.returncode == 2
+    assert invalid.returncode == 2
