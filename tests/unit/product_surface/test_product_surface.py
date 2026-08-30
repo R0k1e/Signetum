@@ -47,7 +47,7 @@ def test_required_public_identity_reports_stale_brand_content(tmp_path: Path) ->
         tmp_path,
         _inventory("README.md"),
         required_paths=("README.md",),
-        required_content={"README.md": ("# DevLoom", "Weave requirements into verified releases")},
+        required_content={"README.md": ("# RepoSeal", "Seal every change with evidence")},
     )
 
     assert report.valid is False
@@ -56,8 +56,8 @@ def test_required_public_identity_reports_stale_brand_content(tmp_path: Path) ->
         "missing-required-content",
     ]
     assert {issue.target for issue in report.issues} == {
-        "# DevLoom",
-        "Weave requirements into verified releases",
+        "# RepoSeal",
+        "Seal every change with evidence",
     }
 
 

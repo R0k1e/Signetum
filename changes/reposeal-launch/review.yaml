@@ -1,0 +1,29 @@
+review:
+  schema_version: 1
+  id: reposeal-launch
+  status: active
+  recorded_at: 2026-08-30
+  source:
+    kind: human_direction
+    summary: >-
+      Replace the conflicted DevLoom candidate with RepoSeal, adopt the approved
+      seal-and-repository mark, rename the public GitHub Template, and publish
+      the first formal 2.0.0 release.
+
+  clauses:
+    - id: REPOSEAL-001
+      statement: RepoSeal is the sole current public product identity.
+    - id: REPOSEAL-002
+      statement: The approved seal, repository, Git branch, and verified-check mark is the canonical visual identity.
+    - id: REPOSEAL-003
+      statement: GitHub repository metadata and naming make RepoSeal directly discoverable as an Agent-development Template.
+    - id: REPOSEAL-004
+      statement: The 2.0.0 release identifies one exact delivered and remotely validated source.
+    - id: REPOSEAL-005
+      statement: The GitHub repository page is the product homepage; no separate hosted website is required.
+
+  acceptance:
+    result: pending
+    delivery_commit: null
+    accepted_clauses: []
+    rejected_clauses: []

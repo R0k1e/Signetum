@@ -1,13 +1,13 @@
 # Quickstart
 
-This guide starts with a repository created from the DevLoom
+This guide starts with a repository created from the RepoSeal
 GitHub Template and ends with one explicitly delivered, human-reviewable change.
 
 ## 1. Own the copied repository
 
 Use GitHub's **Use this template** action, clone the new repository, and replace
 the example product facts with your own. The new repository does not retain a
-dependency or synchronization relationship with DevLoom.
+dependency or synchronization relationship with RepoSeal.
 
 ```bash
 mise install

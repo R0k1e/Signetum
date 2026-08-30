@@ -2,9 +2,9 @@
 
 ## Evaluate
 
-- [Why DevLoom](product/why-devloom.md)
+- [Why RepoSeal](product/why-reposeal.md)
 - [Frequently asked questions](product/frequently-asked-questions.md)
-- [DevLoom and specification tools](product/devloom-vs-spec-tools.md)
+- [RepoSeal and specification tools](product/reposeal-and-specification-tools.md)
 - [Root product overview](../README.md)
 
 ## Adopt

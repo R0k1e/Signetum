@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-08-30
 Supersedes: None
-Superseded by: None
+Superseded by: ADP-reposeal-is-the-public-product-identity.md
 
 ## Context
 
