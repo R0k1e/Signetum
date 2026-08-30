@@ -16,6 +16,8 @@ def test_built_wheel_contains_public_resources_and_no_downstream_product_facts()
 
     assert "reposeal/resources/schemas/reposeal-v2.schema.json" in names
     assert "reposeal/resources/profiles/python-default-v1.toml" in names
+    assert "reposeal/resources/schemas/validation-graph-v2.schema.json" in names
+    assert "reposeal/resources/schemas/validation-receipt-v2.schema.json" in names
     assert "reposeal/resources/schemas/contracts/release-metadata.schema.json" in names
     assert "reposeal/resources/skills/repo-dev/SKILL.md" in names
     assert "placeholder_name" not in payload
