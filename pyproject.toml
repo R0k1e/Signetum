@@ -70,6 +70,7 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 "tests/**/*.py" = ["S101"]
 "tests/integration/test_clone_ready_template.py" = ["S101", "S603"]
 "tests/unit/validation/test_repository.py" = ["S101", "S603"]
+"tests/test_batch_admission.py" = ["S101", "S603"]
 # Security-boundary rationale: this lifecycle authority invokes the fixed Git
 # executable with tuple arguments after validating repository identities.
 "src/reposeal/lifecycle.py" = ["S603"]
