@@ -91,3 +91,24 @@ def test_removing_plan_coverage_is_always_detected(clause: str) -> None:
         changed_plans,
     )
     assert "missing-obligation" in {issue.code for issue in report.issues}
+
+
+def test_repository_plan_status_phrases_map_to_typed_lifecycle_states(tmp_path: Path) -> None:
+    approved = tmp_path / "approved.md"
+    approved.write_text(
+        "# Plan\n\nStatus: approved for implementation\n"
+        "Specification: `changes/example/specs/first.yaml`\nBase: `abc`\n\n"
+        "## Obligations\n\n| ID | Clauses | Outcome |\n| --- | --- | --- |\n"
+        "| OBL-1 | REQ-1 | Complete it. |\n",
+        encoding="utf-8",
+    )
+    future = tmp_path / "future.md"
+    future.write_text(
+        approved.read_text(encoding="utf-8").replace(
+            "approved for implementation", "future downstream plan; implementation blocked"
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_plan(approved, "example").status.value == "approved"
+    assert load_plan(future, "example").status.value == "draft"

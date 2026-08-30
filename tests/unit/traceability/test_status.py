@@ -55,3 +55,15 @@ def test_evidence_for_another_commit_does_not_advance_state() -> None:
     projection = project_status(review, (specification,), (plan,), evidence)
     first = next(item for item in projection.clauses if item.clause == "REQ-1")
     assert first.state is DerivedState.IMPLEMENTING
+
+
+def test_pending_acceptance_never_accepts_missing_delivery_evidence() -> None:
+    review = load_review(FIXTURE / "changes/example/review.yaml").model_copy(
+        update={"acceptances": ()}
+    )
+    specification = load_specification(FIXTURE / "changes/example/specs/first.yaml")
+    plan = load_plan(FIXTURE / "changes/example/plans/first.md", "example")
+
+    projection = project_status(review, (specification,), (plan,), EvidenceSnapshot())
+
+    assert projection.clauses[0].state is DerivedState.IMPLEMENTING

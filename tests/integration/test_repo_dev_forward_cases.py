@@ -32,11 +32,7 @@ def evaluate(case: ForwardCase) -> tuple[str, Completion, bool]:
     if case.installed_skill != case.pinned_skill:
         return case.manifest_change_root, Completion.OPEN, False
 
-    uncovered = (
-        case.approved_obligations
-        - case.selected_obligations
-        - case.transferred_obligations
-    )
+    uncovered = case.approved_obligations - case.selected_obligations - case.transferred_obligations
     if uncovered:
         return case.manifest_change_root, Completion.OPEN, False
 

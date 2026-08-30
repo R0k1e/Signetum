@@ -1,5 +1,7 @@
 """Public invariants for check-only CI and exact-tree releases."""
+
 from __future__ import annotations
+
 import re
 from pathlib import Path
 

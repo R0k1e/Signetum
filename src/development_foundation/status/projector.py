@@ -72,7 +72,7 @@ def project_status(
         if delivery_commit is not None:
             state = DerivedState.DELIVERED
             commit = delivery_commit
-        if accepted.get(clause.id) == delivery_commit:
+        if delivery_commit is not None and accepted.get(clause.id) == delivery_commit:
             state = DerivedState.ACCEPTED
         if clause.id in reopened:
             state = DerivedState.REOPENED

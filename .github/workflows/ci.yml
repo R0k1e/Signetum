@@ -21,6 +21,7 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - run: uv python install "${{ matrix.python-version }}"
       - run: uv sync --locked --all-extras --dev
+      - run: uv build
       - run: uv run --no-sync pytest
         env:
           HYPOTHESIS_PROFILE: ci

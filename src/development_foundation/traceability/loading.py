@@ -41,7 +41,13 @@ def load_plan(path: Path, change_id: str) -> Plan:
     in_obligations = False
     for line in text.splitlines():
         if line.startswith("Status:"):
-            fields["status"] = line.partition(":")[2].strip().lower()
+            declared_status = line.partition(":")[2].strip().lower()
+            if declared_status.startswith("approved"):
+                fields["status"] = "approved"
+            elif declared_status.startswith(("draft", "future", "blocked")):
+                fields["status"] = "draft"
+            else:
+                fields["status"] = declared_status
         elif line.startswith("Specification:"):
             fields["specification"] = line.partition(":")[2].strip().strip("`")
         elif line.startswith("Base:"):

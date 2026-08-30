@@ -15,10 +15,7 @@ def _entrypoint_links() -> set[str]:
 
 def test_entrypoint_routes_every_focused_reference() -> None:
     links = _entrypoint_links()
-    resources = {
-        path.relative_to(SKILL).as_posix()
-        for path in (SKILL / "references").glob("*.md")
-    }
+    resources = {path.relative_to(SKILL).as_posix() for path in (SKILL / "references").glob("*.md")}
 
     assert links == resources
     for relative in links:
@@ -26,9 +23,7 @@ def test_entrypoint_routes_every_focused_reference() -> None:
 
 
 def test_generic_skill_contains_no_downstream_authorities() -> None:
-    text = "\n".join(
-        path.read_text(encoding="utf-8") for path in sorted(SKILL.rglob("*.md"))
-    )
+    text = "\n".join(path.read_text(encoding="utf-8") for path in sorted(SKILL.rglob("*.md")))
     forbidden = (
         "PyLM",
         ".agents/repo-dev/repo.yaml",
@@ -46,6 +41,4 @@ def test_generic_skill_contains_no_downstream_authorities() -> None:
 def test_skill_declares_an_immutable_release_version() -> None:
     frontmatter = ENTRYPOINT.read_text(encoding="utf-8").split("---", 2)[1]
 
-    assert re.search(
-        r'^  version: "[0-9]+\.[0-9]+\.[0-9]+"$', frontmatter, re.MULTILINE
-    )
+    assert re.search(r'^  version: "[0-9]+\.[0-9]+\.[0-9]+"$', frontmatter, re.MULTILINE)

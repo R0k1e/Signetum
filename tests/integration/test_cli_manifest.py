@@ -31,3 +31,22 @@ def test_cli_reports_one_json_failure(tmp_path: Path) -> None:
         "error": "unsupported manifest schema: 99",
         "status": "invalid",
     }
+
+
+def test_check_manifest_composes_the_existing_public_contract() -> None:
+    result = CliRunner().invoke(app, ["check", "manifest", "--manifest", str(FIXTURE)])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["status"] == "valid"
+
+
+def test_check_traceability_uses_the_public_query_boundary() -> None:
+    repository = Path(__file__).parents[1] / "fixtures" / "changes" / "valid"
+
+    result = CliRunner().invoke(
+        app,
+        ["check", "traceability", "--repository", str(repository)],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["valid"] is True

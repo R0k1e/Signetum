@@ -30,3 +30,8 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: typos
+        name: typos
+        entry: uv run typos
+        language: system
+        pass_filenames: false

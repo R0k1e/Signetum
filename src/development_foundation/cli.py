@@ -1,6 +1,7 @@
 """Check-only public command line interface."""
 
 import json
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -8,8 +9,13 @@ import typer
 
 from development_foundation.manifest import ManifestError, load_manifest
 from development_foundation.profiles import ProfileError, resolve_profiles
+from development_foundation.status.models import EvidenceSnapshot
+from development_foundation.traceability.boundary import TraceabilityManifest
+from development_foundation.traceability.cli import query
 
 app = typer.Typer(add_completion=False, help="Validate development-foundation contracts.")
+check_app = typer.Typer(add_completion=False, help="Run read-only repository checks.")
+app.add_typer(check_app, name="check")
 
 
 @app.callback()
@@ -39,6 +45,38 @@ def validate(manifest: Annotated[Path, typer.Option(exists=True, dir_okay=False)
             sort_keys=True,
         )
     )
+
+
+@check_app.command("manifest")
+def check_manifest(
+    manifest: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+) -> None:
+    """Validate a repository manifest through the composable check namespace."""
+    validate(manifest)
+
+
+@check_app.command("traceability")
+def check_traceability(
+    repository: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("."),
+    changes_root: Annotated[str, typer.Option()] = "changes",
+    decision_root: Annotated[list[str] | None, typer.Option()] = None,
+    legacy_root: Annotated[list[str] | None, typer.Option()] = None,
+) -> None:
+    """Validate Review, Specification, Plan, and decision relations."""
+    exit_code = query(
+        repository.resolve(),
+        TraceabilityManifest(
+            schema_version=1,
+            changes_root=changes_root,
+            decision_roots=tuple(decision_root or ("docs/decisions",)),
+            legacy_roots=tuple(legacy_root or ()),
+        ),
+        EvidenceSnapshot(),
+        sys.stdout,
+        sys.stderr,
+    )
+    if exit_code:
+        raise typer.Exit(code=int(exit_code))
 
 
 if __name__ == "__main__":
