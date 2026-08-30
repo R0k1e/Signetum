@@ -1,0 +1,17 @@
+specification:
+  schema_version: 1
+  id: template-authority-cleanup/template-authorities
+  version: 1
+  status: approved
+  implementation_authorized: true
+  review:
+    id: template-authority-cleanup
+    clauses: [CLEAN-001, CLEAN-002, CLEAN-003]
+  decisions:
+    - docs/decisions/ADP-runtime-and-agent-routing-are-separate.md
+  plan: changes/template-authority-cleanup/plans/template-authorities.md
+  acceptance:
+    - reposeal.yaml contains only runtime and validation configuration.
+    - repo.yaml owns repository paths, policy routing, and delivery configuration.
+    - docs/decisions exists in the rendered Template.
+    - change-open creates one complete draft Change and refuses invalid or existing names.

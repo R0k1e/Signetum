@@ -9,6 +9,10 @@ The specification defines observable behavior and acceptance boundaries. The
 plan maps every covered clause to implementation and behavioral validation.
 Implementation begins only after human confirmation of the specification.
 
+Run `just change-open <kebab-name>` to create the three draft artifacts. The
+content under `examples/` is read-only teaching material; active state exists
+only under `changes/`.
+
 Development uses a plan-owned worktree. `ready` closes a member; `batch-open`
 and `batch-admit` assemble only named members; `final` validates the frozen
 batch once; `batch-deliver` explicitly lands that exact validated source.

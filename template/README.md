@@ -9,7 +9,7 @@ behavioral validation, batch assembly, and explicit delivery.
 ## Start
 
 1. Replace the product facts in `docs/ARCHITECTURE.md`.
-2. Describe the request in `changes/<change>/review.yaml`.
+2. Run `just change-open <kebab-name>` and complete the generated Review.
 3. Confirm the specification before implementation.
 4. Open an isolated worktree with `just workspace-open <branch> <base>`.
 
