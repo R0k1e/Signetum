@@ -2,3 +2,63 @@ schema_version = 1
 identity = "python-default@1"
 authorities = ["python-environment", "python-quality"]
 requires = ["shared-core@1"]
+
+[[tools]]
+name = "mise"
+identity_command = ["mise", "--version"]
+
+[[tools]]
+name = "uv"
+identity_command = ["uv", "--version"]
+
+[[tools]]
+name = "python"
+identity_command = ["uv", "run", "python", "-c", "import platform; print(platform.python_version())"]
+
+[[tools]]
+name = "ruff"
+identity_command = ["uv", "run", "ruff", "--version"]
+
+[[tools]]
+name = "ty"
+identity_command = ["uv", "run", "ty", "--version"]
+
+[[tools]]
+name = "pip-audit"
+identity_command = ["uv", "run", "pip-audit", "--version"]
+
+[[tools]]
+name = "detect-secrets"
+identity_command = ["uv", "run", "detect-secrets", "--version"]
+
+[[shards]]
+name = "profile:python-default@1:ruff"
+command = ["uv", "run", "ruff", "check", "{source}"]
+
+[[shards]]
+name = "profile:python-default@1:ty"
+command = ["uv", "run", "ty", "check", "{source}"]
+
+[[shards]]
+name = "profile:python-default@1:unit"
+command = ["uv", "run", "pytest", "{unit}"]
+
+[[shards]]
+name = "profile:python-default@1:integration"
+command = ["uv", "run", "pytest", "{integration}"]
+
+[[shards]]
+name = "profile:python-default@1:dependency-audit"
+command = ["uv", "run", "pip-audit"]
+
+[[shards]]
+name = "profile:python-default@1:secrets"
+command = ["mise", "run", "python:secrets"]
+
+[[gates]]
+name = "member"
+shards = ["profile:python-default@1:ruff", "profile:python-default@1:ty", "profile:python-default@1:unit", "profile:python-default@1:secrets"]
+
+[[gates]]
+name = "final"
+shards = ["profile:python-default@1:ruff", "profile:python-default@1:ty", "profile:python-default@1:unit", "profile:python-default@1:integration", "profile:python-default@1:dependency-audit", "profile:python-default@1:secrets"]

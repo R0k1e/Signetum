@@ -20,12 +20,15 @@ TOP_LEVEL = frozenset(
         "docs",
         "examples",
         "mise.toml",
+        "pyproject.toml",
+        "reposeal.toml",
         "reposeal.yaml",
+        "src",
+        "tests",
+        "uv.lock",
     }
 )
-FORBIDDEN_NAMES = frozenset(
-    {".claude", ".vscode", "profiles", "schemas", "skills", "src", "tests", "tools"}
-)
+FORBIDDEN_NAMES = frozenset({".claude", ".vscode", "profiles", "schemas", "skills", "tools"})
 
 
 @dataclass(frozen=True)

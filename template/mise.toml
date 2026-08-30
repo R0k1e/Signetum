@@ -3,3 +3,7 @@ just = "1.42.4"
 python = "3.12.14"
 uv = "0.8.15"
 worktrunk = "0.74.0"
+
+[tasks."python:secrets"]
+description = "Fail when a tracked file contains a detected secret"
+run = "git ls-files -z | xargs -0 uv run detect-secrets-hook"

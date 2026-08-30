@@ -21,6 +21,9 @@ class ProfileDeclaration:
     identity: str
     authorities: tuple[str, ...]
     requires: tuple[str, ...] = ()
+    tools: tuple[dict[str, object], ...] = ()
+    shards: tuple[dict[str, object], ...] = ()
+    gates: tuple[dict[str, object], ...] = ()
 
 
 class _ProfileResource(BaseModel):
