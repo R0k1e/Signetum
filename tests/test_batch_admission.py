@@ -32,7 +32,9 @@ def test_delivery_branch_names_are_refused() -> None:
 
 
 @pytest.mark.parametrize("return_code", [0, 1])
-def test_ancestor_query_has_two_valid_outcomes(monkeypatch, tmp_path: Path, return_code: int) -> None:
+def test_ancestor_query_has_two_valid_outcomes(
+    monkeypatch, tmp_path: Path, return_code: int
+) -> None:
     module = _load_module()
 
     class Completed:

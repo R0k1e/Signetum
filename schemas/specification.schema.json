@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://development-foundation.invalid/schemas/specification/v1",
+  "title": "Specification",
+  "type": "object",
+  "required": ["schema_version", "id", "version", "status", "implementation_authorized", "review", "plan"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "version": {"type": "integer", "minimum": 1},
+    "status": {"enum": ["draft", "approved", "withdrawn", "superseded"]},
+    "implementation_authorized": {"type": "boolean"},
+    "review": {"type": "object"},
+    "plan": {"type": "string", "minLength": 1},
+    "ownership": {"type": "array"},
+    "deferrals": {"type": "array"},
+    "supersedes": {"type": "array"}
+  }
+}

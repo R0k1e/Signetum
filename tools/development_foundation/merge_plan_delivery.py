@@ -109,19 +109,52 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     }
 
 
+def continue_batch(batch: Path) -> dict[str, object]:
+    merge_head = Path(_git(batch, "rev-parse", "--git-path", "MERGE_HEAD"))
+    if not merge_head.is_absolute():
+        merge_head = batch / merge_head
+    if not merge_head.is_file():
+        raise AdmissionError("batch has no merge to continue")
+    unmerged = _git(batch, "diff", "--name-only", "--diff-filter=U")
+    if unmerged:
+        raise AdmissionError(f"unresolved merge paths: {unmerged}")
+    staged = _git(batch, "diff", "--cached", "--name-only")
+    if not staged:
+        raise AdmissionError("batch continuation has no staged resolution")
+    completed = subprocess.run(
+        ("git", "-C", str(batch), "commit", "--no-edit"),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
+    return {
+        "schema_version": 1,
+        "status": "continued",
+        "batch": str(batch),
+        "batch_commit": _git(batch, "rev-parse", "HEAD"),
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
     admission = commands.add_parser("batch-admit")
     admission.add_argument("--batch", type=Path, required=True)
     admission.add_argument("--member", type=Path, action="append", required=True)
+    continuation = commands.add_parser("batch-continue")
+    continuation.add_argument("--batch", type=Path, required=True)
     return parser
 
 
 def main() -> int:
     arguments = _parser().parse_args()
     try:
-        result = admit(arguments.batch.resolve(), tuple(arguments.member))
+        if arguments.command == "batch-admit":
+            result = admit(arguments.batch.resolve(), tuple(arguments.member))
+        else:
+            result = continue_batch(arguments.batch.resolve())
     except AdmissionError as error:
         print(
             json.dumps(
