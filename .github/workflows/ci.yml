@@ -43,6 +43,7 @@ jobs:
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync ty check
       - run: uv run --no-sync pre-commit run typos --all-files
+      - run: uv run --no-sync foundation check product-surface --repository .
   security:
     runs-on: ubuntu-latest
     steps:

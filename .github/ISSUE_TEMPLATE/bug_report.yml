@@ -1,0 +1,39 @@
+name: Bug report
+description: Report observable Foundation behavior that violates a public contract.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include vulnerabilities, credentials, or private repository data. Use the private security reporting path for security issues.
+  - type: input
+    id: revision
+    attributes:
+      label: Foundation revision
+      description: Release version or exact commit.
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Public boundary and reproduction
+      description: Name the command or workflow, exact inputs, and minimal reproduction.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected observable behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Validation evidence
+      description: Include bounded output with secrets and machine-specific paths removed.

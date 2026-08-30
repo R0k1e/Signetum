@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from development_foundation import release
 from development_foundation.cli import app
+from development_foundation.traceability.boundary import RepositoryInventory
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "repository.yaml"
 
@@ -51,6 +52,60 @@ def test_check_traceability_uses_the_public_query_boundary() -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.stdout)["valid"] is True
+
+
+def test_check_product_surface_reports_one_versioned_result() -> None:
+    repository = Path(__file__).parents[2]
+
+    result = CliRunner().invoke(
+        app,
+        ["check", "product-surface", "--repository", str(repository)],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "issues": [],
+        "schema_version": 1,
+        "valid": True,
+    }
+
+
+def test_check_product_surface_rejects_an_incomplete_inventory(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        "development_foundation.cli.GitInventoryProvider.read",
+        lambda self, repository: RepositoryInventory(paths=frozenset()),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["check", "product-surface", "--repository", str(tmp_path)],
+    )
+
+    assert result.exit_code == 3
+    payload = json.loads(result.stdout)
+    assert payload["valid"] is False
+    assert payload["issues"][0]["code"] == "missing-required-asset"
+
+
+def test_check_product_surface_maps_inventory_failure_to_invocation_result(
+    monkeypatch, tmp_path: Path
+) -> None:
+    def fail(self, repository: Path) -> RepositoryInventory:
+        raise OSError("inventory unavailable")
+
+    monkeypatch.setattr("development_foundation.cli.GitInventoryProvider.read", fail)
+
+    result = CliRunner().invoke(
+        app,
+        ["check", "product-surface", "--repository", str(tmp_path)],
+    )
+
+    assert result.exit_code == 2
+    assert json.loads(result.stdout) == {
+        "error": "inventory unavailable",
+        "schema_version": 1,
+        "status": "invalid",
+    }
 
 
 def test_release_preflight_reports_a_versioned_failure(monkeypatch, tmp_path: Path) -> None:

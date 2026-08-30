@@ -18,6 +18,12 @@ repos:
         args: [--check]
   - repo: local
     hooks:
+      - id: product-surface
+        name: product-surface
+        entry: uv run foundation check product-surface --repository .
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: ty
         name: ty
         entry: uv run ty check

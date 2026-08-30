@@ -1,9 +1,15 @@
 # Architecture
 
-This repository publishes a versioned development foundation, not a generated
-application template. The foundation distribution validates immutable schema
-and profile identities; consuming repositories retain ownership of all product
-facts and lifecycle state.
+This repository is the independently versioned source of a standalone GitHub
+Template for governed, Agent-native development. GitHub copies it once when a
+new repository is created; the created repository then owns its product facts,
+lifecycle state, package, schemas, profiles, and policy without an update or
+synchronization relationship to this repository.
+
+Within this Template, the `development_foundation` distribution validates
+immutable schema and profile identities and exposes check-only repository
+contracts. It is an internal product authority and release artifact, not a
+cross-repository upgrade channel.
 
 Responsibility documents:
 
