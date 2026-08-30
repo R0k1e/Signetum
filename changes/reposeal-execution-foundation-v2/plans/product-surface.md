@@ -13,4 +13,3 @@ Base: `engine@9e0964e474df395e3222641e27bc9e27008f81f8`
 
 Documentation validation checks local links, English/Chinese equivalence, exact
 Template inventory, and clean-room workflow examples.
-

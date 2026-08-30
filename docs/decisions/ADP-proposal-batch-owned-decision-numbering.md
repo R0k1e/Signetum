@@ -21,4 +21,3 @@ delivery base invalidates numbering and final evidence.
 - Parallel members cannot independently collide on the next number.
 - Final validation observes only formal decision identities.
 - Delivery can prove which base authorized the allocated number range.
-

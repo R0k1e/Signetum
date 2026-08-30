@@ -17,4 +17,3 @@ acceptance = [
 [specification.review]
 id = "reposeal-execution-foundation-v2"
 clauses = ["EXEC-001", "EXEC-002", "EXEC-007"]
-
