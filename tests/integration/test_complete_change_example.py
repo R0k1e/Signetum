@@ -9,7 +9,7 @@ from reposeal.traceability.boundary import (
 )
 from reposeal.traceability.cli import ExitCode, query
 
-ROOT = Path(__file__).parents[2]
+ROOT = Path(__file__).parents[2] / "template"
 
 
 class ExampleInventory:

@@ -1,7 +1,7 @@
 # Second Plan
 
 Status: approved
-Specification: `changes/example/specs/second.yaml`
+Specification: `changes/example/specs/second.toml`
 Base: `base-1`
 
 ## Obligations

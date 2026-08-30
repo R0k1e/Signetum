@@ -6,6 +6,8 @@ from pathlib import PurePosixPath
 from pydantic import Field
 
 from reposeal.change.models import (
+    AcceptanceResult,
+    ClauseDisposition,
     FrozenModel,
     Plan,
     Review,
@@ -42,6 +44,7 @@ class TraceabilityValidator:
         review: Review,
         specifications: tuple[tuple[str, Specification], ...],
         plans: tuple[tuple[str, Plan], ...],
+        review_ids: frozenset[str] | None = None,
     ) -> TraceabilityReport:
         issues: list[TraceabilityIssue] = []
         if review.schema_version != 1:
@@ -55,17 +58,19 @@ class TraceabilityValidator:
             )
 
         clause_ids = {clause.id for clause in review.clauses}
-        exclusions = {exclusion.clause for exclusion in review.exclusions}
+        clauses_by_id = {clause.id: clause for clause in review.clauses}
+        out_of_scope = {
+            clause.id
+            for clause in review.clauses
+            if clause.disposition is ClauseDisposition.OUT_OF_SCOPE
+        }
         approved = tuple(
             (path, specification)
             for path, specification in specifications
             if specification.status is SpecificationStatus.APPROVED
         )
         owners = Counter(
-            clause
-            for _, specification in approved
-            for clause in specification.owned_clauses
-            if clause not in {deferral.clause for deferral in specification.deferrals}
+            clause for _, specification in approved for clause in specification.owned_clauses
         )
         specification_by_id = {
             specification.id: specification for _, specification in specifications
@@ -99,6 +104,15 @@ class TraceabilityValidator:
                             path,
                             "specification.review.clauses",
                             f"unknown clause {clause}",
+                        )
+                    )
+                elif clauses_by_id[clause].specification != specification.id:
+                    issues.append(
+                        self._issue(
+                            "ownership-mismatch",
+                            path,
+                            "specification.review.clauses",
+                            f"Review does not assign {clause} to {specification.id}",
                         )
                     )
             if (
@@ -145,18 +159,30 @@ class TraceabilityValidator:
                 covered = {
                     clause for obligation in plan.obligations for clause in obligation.clauses
                 }
-                for clause in specification.owned_clauses:
-                    if clause not in covered and clause not in {
-                        item.clause for item in specification.deferrals
-                    }:
-                        issues.append(
-                            self._issue(
-                                "missing-obligation",
-                                specification.plan,
-                                "plan.obligations",
-                                f"no obligation covers {clause}",
-                            )
+                expected = {
+                    clause
+                    for clause in specification.owned_clauses
+                    if clauses_by_id.get(clause) is not None
+                    and clauses_by_id[clause].disposition is ClauseDisposition.COVERED
+                }
+                for clause in sorted(expected - covered):
+                    issues.append(
+                        self._issue(
+                            "missing-obligation",
+                            specification.plan,
+                            "plan.obligations",
+                            f"no obligation covers {clause}",
                         )
+                    )
+                for clause in sorted(covered - expected):
+                    issues.append(
+                        self._issue(
+                            "unexpected-obligation",
+                            specification.plan,
+                            "plan.obligations",
+                            f"obligation covers non-owned or non-covered clause {clause}",
+                        )
+                    )
             for decision in specification.decisions:
                 if not inventory.contains(decision):
                     issues.append(
@@ -179,7 +205,63 @@ class TraceabilityValidator:
                         )
                     )
 
-        for clause in sorted(clause_ids - exclusions):
+        for clause in review.clauses:
+            if clause.disposition in {
+                ClauseDisposition.COVERED,
+                ClauseDisposition.DEFERRED,
+            }:
+                if clause.specification is None or clause.specification not in specification_by_id:
+                    issues.append(
+                        self._issue(
+                            "missing-specification",
+                            review_path,
+                            "review.clauses",
+                            f"{clause.id} has no existing Specification",
+                        )
+                    )
+                if clause.reason is not None:
+                    issues.append(
+                        self._issue(
+                            "unexpected-disposition-reason",
+                            review_path,
+                            "review.clauses",
+                            f"{clause.id} is not out of scope",
+                        )
+                    )
+            else:
+                if clause.reason is None or not clause.reason.strip():
+                    issues.append(
+                        self._issue(
+                            "missing-out-of-scope-reason",
+                            review_path,
+                            "review.clauses",
+                            f"{clause.id} requires a reason",
+                        )
+                    )
+                if clause.specification is not None or owners[clause.id]:
+                    issues.append(
+                        self._issue(
+                            "out-of-scope-owned",
+                            review_path,
+                            "review.clauses",
+                            f"{clause.id} must not have a Specification owner",
+                        )
+                    )
+            if clause.disposition is ClauseDisposition.DEFERRED and review.status.value in {
+                "complete",
+                "completed",
+                "closed",
+            }:
+                issues.append(
+                    self._issue(
+                        "unresolved-deferral",
+                        review_path,
+                        "review.clauses",
+                        f"completed Review still defers {clause.id}",
+                    )
+                )
+
+        for clause in sorted(clause_ids - out_of_scope):
             count = owners[clause]
             if count != 1:
                 code = "missing-owner" if count == 0 else "duplicate-owner"
@@ -191,29 +273,79 @@ class TraceabilityValidator:
                         f"{clause} has {count} current owners",
                     )
                 )
-        for clause in exclusions:
-            if clause not in clause_ids:
+        acceptance = review.acceptance
+        if acceptance.result is AcceptanceResult.PENDING:
+            if (
+                acceptance.delivery_commit
+                or acceptance.accepted_clauses
+                or acceptance.rejected_clauses
+            ):
                 issues.append(
                     self._issue(
-                        "unknown-exclusion",
+                        "invalid-pending-acceptance",
                         review_path,
-                        "review.exclusions",
-                        f"unknown clause {clause}",
+                        "review.acceptance",
+                        "pending acceptance cannot claim delivery results",
                     )
                 )
-        accepted_deliveries = {
-            clause: acceptance.delivery_commit
-            for acceptance in review.acceptances
-            for clause in acceptance.accepted_clauses
-        }
-        for reopen in review.reopenings:
-            if accepted_deliveries.get(reopen.clause) != reopen.delivery_commit:
+        else:
+            if not acceptance.delivery_commit:
                 issues.append(
                     self._issue(
-                        "invalid-reopen",
+                        "acceptance-without-delivery",
                         review_path,
-                        "review.reopenings",
-                        "reopen has no matching prior acceptance",
+                        "review.acceptance.delivery_commit",
+                        "acceptance requires a delivery identity",
+                    )
+                )
+            decided = set(acceptance.accepted_clauses) | set(acceptance.rejected_clauses)
+            unknown = decided - clause_ids
+            for clause in sorted(unknown):
+                issues.append(
+                    self._issue(
+                        "unknown-acceptance-clause",
+                        review_path,
+                        "review.acceptance",
+                        clause,
+                    )
+                )
+            if set(acceptance.accepted_clauses) & set(acceptance.rejected_clauses):
+                issues.append(
+                    self._issue(
+                        "conflicting-acceptance",
+                        review_path,
+                        "review.acceptance",
+                        "a clause cannot be accepted and rejected",
+                    )
+                )
+            if acceptance.result in {AcceptanceResult.REJECTED, AcceptanceResult.REOPENED}:
+                if not acceptance.rejected_clauses or not acceptance.linked_change:
+                    issues.append(
+                        self._issue(
+                            "missing-linked-change",
+                            review_path,
+                            "review.acceptance.linked_change",
+                            "rejected or reopened clauses require a new linked Change",
+                        )
+                    )
+                elif acceptance.linked_change == review.id or (
+                    review_ids is not None and acceptance.linked_change not in review_ids
+                ):
+                    issues.append(
+                        self._issue(
+                            "dangling-linked-change",
+                            review_path,
+                            "review.acceptance.linked_change",
+                            "continuation must name another active TOML Change",
+                        )
+                    )
+            elif acceptance.linked_change is not None:
+                issues.append(
+                    self._issue(
+                        "unexpected-linked-change",
+                        review_path,
+                        "review.acceptance.linked_change",
+                        "accepted result cannot link a continuation Change",
                     )
                 )
         for root in manifest.legacy_roots:

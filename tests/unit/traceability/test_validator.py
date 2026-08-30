@@ -3,7 +3,15 @@ from pathlib import Path
 from hypothesis import given
 from hypothesis import strategies as st
 
-from reposeal.change.models import Plan, Review, Specification
+from reposeal.change.models import (
+    AcceptanceResult,
+    ClauseDisposition,
+    Plan,
+    Review,
+    ReviewAcceptance,
+    ReviewStatus,
+    Specification,
+)
 from reposeal.traceability.boundary import (
     RepositoryInventory,
     TraceabilityManifest,
@@ -25,10 +33,10 @@ def _documents() -> tuple[
     tuple[tuple[str, Plan], ...],
     RepositoryInventory,
 ]:
-    review_path = "changes/example/review.yaml"
+    review_path = "changes/example/review.toml"
     specification_paths = (
-        "changes/example/specs/first.yaml",
-        "changes/example/specs/second.yaml",
+        "changes/example/specs/first.toml",
+        "changes/example/specs/second.toml",
     )
     plan_paths = (
         "changes/example/plans/first.md",
@@ -97,7 +105,7 @@ def test_repository_plan_status_phrases_map_to_typed_lifecycle_states(tmp_path: 
     approved = tmp_path / "approved.md"
     approved.write_text(
         "# Plan\n\nStatus: approved for implementation\n"
-        "Specification: `changes/example/specs/first.yaml`\nBase: `abc`\n\n"
+        "Specification: `changes/example/specs/first.toml`\nBase: `abc`\n\n"
         "## Obligations\n\n| ID | Clauses | Outcome |\n| --- | --- | --- |\n"
         "| OBL-1 | REQ-1 | Complete it. |\n",
         encoding="utf-8",
@@ -112,3 +120,65 @@ def test_repository_plan_status_phrases_map_to_typed_lifecycle_states(tmp_path: 
 
     assert load_plan(approved, "example").status.value == "approved"
     assert load_plan(future, "example").status.value == "draft"
+
+
+def test_out_of_scope_clause_requires_reason_and_no_owner() -> None:
+    review_path, review, specifications, plans, inventory = _documents()
+    clause = review.clauses[0].model_copy(update={"disposition": ClauseDisposition.OUT_OF_SCOPE})
+    changed = review.model_copy(update={"clauses": (clause, *review.clauses[1:])})
+
+    report = TraceabilityValidator().validate(
+        TraceabilityManifest(schema_version=1),
+        inventory,
+        review_path,
+        changed,
+        specifications,
+        plans,
+    )
+
+    assert {issue.code for issue in report.issues} >= {
+        "missing-out-of-scope-reason",
+        "out-of-scope-owned",
+    }
+
+
+def test_completed_review_cannot_leave_a_deferred_clause() -> None:
+    review_path, review, specifications, plans, inventory = _documents()
+    clause = review.clauses[0].model_copy(update={"disposition": ClauseDisposition.DEFERRED})
+    changed = review.model_copy(
+        update={"status": ReviewStatus.COMPLETED, "clauses": (clause, *review.clauses[1:])}
+    )
+
+    report = TraceabilityValidator().validate(
+        TraceabilityManifest(schema_version=1),
+        inventory,
+        review_path,
+        changed,
+        specifications,
+        plans,
+    )
+
+    assert "unresolved-deferral" in {issue.code for issue in report.issues}
+
+
+def test_rejection_requires_an_existing_new_change() -> None:
+    review_path, review, specifications, plans, inventory = _documents()
+    acceptance = ReviewAcceptance(
+        result=AcceptanceResult.REJECTED,
+        delivery_commit="delivery-1",
+        rejected_clauses=("REQ-1",),
+        linked_change="follow-up",
+    )
+    changed = review.model_copy(update={"acceptance": acceptance})
+
+    report = TraceabilityValidator().validate(
+        TraceabilityManifest(schema_version=1),
+        inventory,
+        review_path,
+        changed,
+        specifications,
+        plans,
+        frozenset({"example"}),
+    )
+
+    assert "dangling-linked-change" in {issue.code for issue in report.issues}

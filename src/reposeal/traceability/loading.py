@@ -1,9 +1,9 @@
 """Boundary parsing for Review, Specification, and Markdown Plan documents."""
 
 import re
+import tomllib
 from pathlib import Path
 
-import yaml
 from pydantic import TypeAdapter, ValidationError
 
 from reposeal.change.models import Plan, Review, Specification
@@ -18,15 +18,12 @@ def _mapping(document: object, key: str) -> dict[str, object]:
 
 
 def load_review(path: Path) -> Review:
-    raw = _mapping(yaml.safe_load(path.read_text(encoding="utf-8")), "review")
-    acceptance = _MAPPING.validate_python(raw.pop("acceptance", {}))
-    if acceptance.get("delivery_commit") is not None:
-        raw["acceptances"] = (acceptance,)
+    raw = _mapping(tomllib.loads(path.read_text(encoding="utf-8")), "review")
     return Review.model_validate(raw, strict=False)
 
 
 def load_specification(path: Path) -> Specification:
-    raw = _mapping(yaml.safe_load(path.read_text(encoding="utf-8")), "specification")
+    raw = _mapping(tomllib.loads(path.read_text(encoding="utf-8")), "specification")
     known = set(Specification.model_fields)
     extensions = {key: value for key, value in raw.items() if key not in known}
     normalized = {key: value for key, value in raw.items() if key in known}
@@ -52,7 +49,9 @@ def load_plan(path: Path, change_id: str) -> Plan:
             fields["specification"] = line.partition(":")[2].strip().strip("`")
         elif line.startswith("Base:"):
             fields["approved_base"] = line.partition(":")[2].strip().strip("`")
-        elif line.strip() == "## Obligations":
+        elif line.startswith("## "):
+            in_obligations = line.strip() == "## Obligations"
+        elif line.startswith("| Obligation | Clauses | Outcome |"):
             in_obligations = True
         elif in_obligations and (match := _TABLE_ROW.match(line)):
             obligation_id, clauses, outcome = (item.strip() for item in match.groups())

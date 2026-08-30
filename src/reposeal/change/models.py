@@ -20,6 +20,9 @@ class FrozenModel(BaseModel):
 class ReviewStatus(StrEnum):
     DRAFT = "draft"
     ACTIVE = "active"
+    APPROVED = "approved"
+    COMPLETE = "complete"
+    COMPLETED = "completed"
     CLOSED = "closed"
 
 
@@ -40,9 +43,18 @@ class ReviewSource(FrozenModel):
     summary: str = Field(min_length=1)
 
 
+class ClauseDisposition(StrEnum):
+    COVERED = "covered"
+    DEFERRED = "deferred"
+    OUT_OF_SCOPE = "out_of_scope"
+
+
 class Clause(FrozenModel):
     id: ClauseId
     statement: str = Field(min_length=1)
+    disposition: ClauseDisposition = ClauseDisposition.COVERED
+    specification: Identifier | None = None
+    reason: str | None = None
 
 
 class HumanAuthority(FrozenModel):
@@ -79,12 +91,10 @@ class Review(FrozenModel):
     schema_version: int = Field(ge=1)
     id: Identifier
     status: ReviewStatus
-    recorded_at: date
+    recorded_at: date | None = None
     source: ReviewSource
     clauses: tuple[Clause, ...] = Field(min_length=1)
-    exclusions: tuple[ClauseExclusion, ...] = ()
-    acceptances: tuple[Acceptance, ...] = ()
-    reopenings: tuple[Reopen, ...] = ()
+    acceptance: "ReviewAcceptance" = Field(default_factory=lambda: ReviewAcceptance())
 
     @model_validator(mode="after")
     def unique_clauses(self) -> "Review":
@@ -92,6 +102,21 @@ class Review(FrozenModel):
         if len(identifiers) != len(set(identifiers)):
             raise ValueError("review clause identifiers must be unique")
         return self
+
+
+class AcceptanceResult(StrEnum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    REOPENED = "reopened"
+
+
+class ReviewAcceptance(FrozenModel):
+    result: AcceptanceResult = AcceptanceResult.PENDING
+    delivery_commit: str | None = None
+    accepted_clauses: tuple[ClauseId, ...] = ()
+    rejected_clauses: tuple[ClauseId, ...] = ()
+    linked_change: Identifier | None = None
 
 
 class ReviewReference(FrozenModel):
