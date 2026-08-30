@@ -33,6 +33,9 @@ class _ProfileResource(BaseModel):
     identity: str
     authorities: tuple[str, ...]
     requires: tuple[str, ...] = ()
+    tools: tuple[dict[str, object], ...] = ()
+    shards: tuple[dict[str, object], ...] = ()
+    gates: tuple[dict[str, object], ...] = ()
 
 
 _PROFILE_DOCUMENT = TypeAdapter(dict[str, object])
