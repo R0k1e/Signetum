@@ -1,0 +1,18 @@
+[specification]
+schema_version = 1
+id = "reposeal-execution-foundation-v2/product-surface"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-language-neutral-composable-execution.md"]
+plan = "changes/reposeal-execution-foundation-v2/plans/product-surface.md"
+acceptance = [
+  "English and Chinese README files lead with the user problems and observable RepoSeal workflow.",
+  "Documentation describes a language-neutral Core, composable profiles, and the batteries-included Python default without claiming built-in TypeScript or Rust profiles before they exist.",
+  "A concise v0.1 to v0.2 guide explains the intentional configuration, receipt, workspace, and ADP changes without compatibility shims.",
+]
+
+[specification.review]
+id = "reposeal-execution-foundation-v2"
+clauses = ["EXEC-008"]
+

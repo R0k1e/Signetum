@@ -1,0 +1,18 @@
+[specification]
+schema_version = 1
+id = "reposeal-execution-foundation-v2/validation-evidence"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-language-neutral-composable-execution.md"]
+plan = "changes/reposeal-execution-foundation-v2/plans/validation-evidence.md"
+acceptance = [
+  "Member and final gates resolve one deterministic validation graph from Core, enabled profiles, and repository additions.",
+  "Receipts bind the exact commit, tree, configuration, enabled profiles, graph, declared lockfiles, tool identities, and executed gates or shards.",
+  "Shard evidence from different identities cannot be combined and stale receipts cannot authorize delivery.",
+]
+
+[specification.review]
+id = "reposeal-execution-foundation-v2"
+clauses = ["EXEC-004"]
+
