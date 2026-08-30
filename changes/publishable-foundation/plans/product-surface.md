@@ -76,6 +76,9 @@ docs/ARCHITECTURE.md
 docs/architecture/repository-foundation.md
 .pre-commit-config.yaml
 .github/workflows/ci.yml
+.pre-commit-config.yaml
+tools/development_foundation/merge_plan_delivery.py
+tests/test_batch_admission.py
 ```
 
 ## Behavior evidence

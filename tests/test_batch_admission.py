@@ -64,11 +64,36 @@ def test_delivery_finds_the_receipt_bound_to_the_expected_tip(monkeypatch, tmp_p
 
     monkeypatch.setattr(module, "_require_clean", lambda path: None)
     monkeypatch.setattr(module, "_receipt_root", lambda path: receipts)
+    monkeypatch.setattr(module, "_branch", lambda path: "main")
+    remote_tips = iter(("base", "expected"))
+    monkeypatch.setattr(module, "_remote_branch_tip", lambda path, branch: next(remote_tips))
+    monkeypatch.setattr(
+        module,
+        "_delivery_provenance",
+        lambda repository, base, tip: (
+            [
+                {
+                    "branch": "member",
+                    "original": "member-tip",
+                    "integrated": "merge-tip",
+                    "summary": "deliver behavior",
+                }
+            ],
+            ["changes/example/plans/example.md"],
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_cleanup_delivered_worktrees",
+        lambda target, source, members: ([str(source)], []),
+    )
+
+    target_heads = iter(("base", "expected"))
 
     def fake_git(repository: Path, *arguments: str, **kwargs: object) -> str:
         if arguments == ("rev-parse", "HEAD"):
-            return "expected" if repository == source else "base"
-        if arguments[0] == "merge":
+            return "expected" if repository == source else next(target_heads)
+        if arguments[0] in {"merge", "push"}:
             return ""
         raise AssertionError(arguments)
 
@@ -77,3 +102,61 @@ def test_delivery_finds_the_receipt_bound_to_the_expected_tip(monkeypatch, tmp_p
     result = module.batch_deliver(source, target, "base", "expected")
 
     assert result["status"] == "delivered"
+    assert result["remote"] == "expected"
+    assert result["plans"] == ["changes/example/plans/example.md"]
+    assert result["validation"]["source"] == "expected"
+
+
+def test_gate_builds_release_inputs_before_running_repository_checks(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+    commands: list[tuple[str, ...]] = []
+
+    class Completed:
+        returncode = 0
+
+    def record(command: tuple[str, ...], **kwargs: object) -> Completed:
+        commands.append(command)
+        return Completed()
+
+    monkeypatch.setattr(module.subprocess, "run", record)
+
+    module._run_gate(tmp_path)
+
+    assert commands == [
+        ("uv", "build"),
+        ("uv", "run", "pre-commit", "run", "--all-files"),
+    ]
+
+
+def test_delivery_provenance_reads_named_member_and_plan_trailer(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+    responses = {
+        ("rev-list", "--reverse", "--first-parent", "--merges", "base..tip"): "merge-1",
+        ("show", "-s", "--format=%P", "merge-1"): "base member-tip",
+        ("show", "-s", "--format=%s", "merge-1"): "merge: admit impl/member",
+        ("show", "-s", "--format=%s", "member-tip"): "feat: deliver member",
+        ("show", "-s", "--format=%B", "member-tip"): (
+            "feat: deliver member\n\nDelivers: changes/example/plans/member.md\n"
+        ),
+    }
+    monkeypatch.setattr(
+        module,
+        "_git",
+        lambda repository, *arguments, **kwargs: responses[arguments],
+    )
+
+    members, plans = module._delivery_provenance(tmp_path, "base", "tip")
+
+    assert members == [
+        {
+            "branch": "impl/member",
+            "original": "member-tip",
+            "integrated": "merge-1",
+            "summary": "feat: deliver member",
+        }
+    ]
+    assert plans == ["changes/example/plans/member.md"]
