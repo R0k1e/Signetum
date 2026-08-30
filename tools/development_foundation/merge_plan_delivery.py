@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -33,13 +34,14 @@ def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> P
 
 
 def _run_gate(repository: Path) -> None:
-    completed = subprocess.run(
+    commands = (
+        ("uv", "build"),
         ("uv", "run", "pre-commit", "run", "--all-files"),
-        cwd=repository,
-        check=False,
     )
-    if completed.returncode:
-        raise AdmissionError("repository validation failed")
+    for command in commands:
+        completed = subprocess.run(command, cwd=repository, check=False)
+        if completed.returncode:
+            raise AdmissionError("repository validation failed")
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -237,21 +239,148 @@ def batch_deliver(
     final_receipts = sorted(_receipt_root(source).glob("final-*.json"))
     if not final_receipts:
         raise AdmissionError("no final receipt exists")
-    matching_receipt = any(
-        (payload := json.loads(path.read_text(encoding="utf-8"))).get("source") == expected_tip
-        and payload.get("valid") is True
-        for path in final_receipts
+    matching_receipt = next(
+        (
+            path
+            for path in final_receipts
+            if (payload := json.loads(path.read_text(encoding="utf-8"))).get("source")
+            == expected_tip
+            and payload.get("valid") is True
+        ),
+        None,
     )
-    if not matching_receipt:
+    if matching_receipt is None:
         raise AdmissionError("final receipt does not bind the expected batch tip")
+
+    target_branch = _branch(target)
+    remote_before = _remote_branch_tip(target, target_branch)
+    if remote_before != expected_base:
+        raise AdmissionError("remote delivery branch differs from expected base")
+
+    members, plans = _delivery_provenance(source, expected_base, expected_tip)
     _git(target, "merge", "--ff-only", expected_tip)
+    delivery_commit = _git(target, "rev-parse", "HEAD")
+    _git(target, "push", "origin", f"HEAD:refs/heads/{target_branch}")
+    remote_after = _remote_branch_tip(target, target_branch)
+    if remote_after != delivery_commit:
+        raise AdmissionError("remote delivery confirmation differs from delivered commit")
+
+    removed_worktrees, retained_worktrees = _cleanup_delivered_worktrees(target, source, members)
     return {
         "schema_version": 1,
         "status": "delivered",
+        "base": expected_base,
         "source": expected_tip,
         "target": str(target),
-        "delivery_commit": _git(target, "rev-parse", "HEAD"),
+        "target_branch": target_branch,
+        "delivery_commit": delivery_commit,
+        "remote": remote_after,
+        "members": members,
+        "plans": plans,
+        "validation": {"final_receipt": str(matching_receipt), "source": expected_tip},
+        "removed_worktrees": removed_worktrees,
+        "retained_worktrees": retained_worktrees,
     }
+
+
+def _remote_branch_tip(repository: Path, branch: str) -> str:
+    completed = subprocess.run(
+        ("git", "-C", str(repository), "ls-remote", "--heads", "origin", branch),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise AdmissionError(completed.stderr.strip() or "remote branch lookup failed")
+    lines = tuple(line for line in completed.stdout.splitlines() if line.strip())
+    if len(lines) != 1:
+        raise AdmissionError(f"remote branch identity is not unique: {branch}")
+    return lines[0].split()[0]
+
+
+def _delivery_provenance(
+    repository: Path, expected_base: str, expected_tip: str
+) -> tuple[list[dict[str, str]], list[str]]:
+    merge_commits = tuple(
+        filter(
+            None,
+            _git(
+                repository,
+                "rev-list",
+                "--reverse",
+                "--first-parent",
+                "--merges",
+                f"{expected_base}..{expected_tip}",
+            ).splitlines(),
+        )
+    )
+    members: list[dict[str, str]] = []
+    plans: set[str] = set()
+    for merge_commit in merge_commits:
+        parents = _git(repository, "show", "-s", "--format=%P", merge_commit).split()
+        if len(parents) != 2:
+            raise AdmissionError("batch contains a merge without exactly one admitted member")
+        subject = _git(repository, "show", "-s", "--format=%s", merge_commit)
+        prefix = "merge: admit "
+        if not subject.startswith(prefix):
+            raise AdmissionError("batch contains an unrecognized merge authority")
+        original = parents[1]
+        summary = _git(repository, "show", "-s", "--format=%s", original)
+        body = _git(repository, "show", "-s", "--format=%B", original)
+        for declared in re.findall(r"^Delivers:\s*(.+)$", body, re.MULTILINE):
+            plans.update(item.strip() for item in declared.split(",") if item.strip())
+        members.append(
+            {
+                "branch": subject.removeprefix(prefix),
+                "original": original,
+                "integrated": merge_commit,
+                "summary": summary,
+            }
+        )
+    if not members:
+        raise AdmissionError("batch contains no admitted member provenance")
+    return members, sorted(plans)
+
+
+def _worktree_branches(repository: Path) -> dict[str, Path]:
+    output = _git(repository, "worktree", "list", "--porcelain")
+    result: dict[str, Path] = {}
+    current_path: Path | None = None
+    for line in output.splitlines():
+        if line.startswith("worktree "):
+            current_path = Path(line.removeprefix("worktree ")).resolve()
+        elif line.startswith("branch refs/heads/") and current_path is not None:
+            result[line.removeprefix("branch refs/heads/")] = current_path
+    return result
+
+
+def _cleanup_delivered_worktrees(
+    target: Path, source: Path, members: list[dict[str, str]]
+) -> tuple[list[str], list[dict[str, str]]]:
+    worktrees = _worktree_branches(target)
+    removed: list[str] = []
+    retained: list[dict[str, str]] = []
+    latest_members = {member["branch"]: member for member in members}
+    for branch, member in latest_members.items():
+        path = worktrees.get(branch)
+        if path is None:
+            continue
+        try:
+            _require_clean(path)
+            if _git(path, "rev-parse", "HEAD") != member["original"]:
+                retained.append({"branch": branch, "worktree": str(path), "reason": "advanced"})
+                continue
+            _git(target, "worktree", "remove", str(path))
+            _git(target, "branch", "-d", branch)
+            removed.append(str(path))
+        except AdmissionError as error:
+            retained.append({"branch": branch, "worktree": str(path), "reason": str(error)})
+
+    source_branch = _branch(source)
+    _git(target, "worktree", "remove", str(source))
+    _git(target, "branch", "-d", source_branch)
+    removed.append(str(source))
+    return removed, retained
 
 
 def _parser() -> argparse.ArgumentParser:

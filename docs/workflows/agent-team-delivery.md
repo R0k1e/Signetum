@@ -34,7 +34,7 @@ approved base
 The delivery result is machine-readable and reports:
 
 - approved base;
-- each member branch, original commit, integrated commit, patch identity, and summary;
+- each member branch, original commit, integrated commit, and summary;
 - delivered Plan paths;
 - exact validated batch tip and final receipt;
 - resulting delivery and remote commit;
