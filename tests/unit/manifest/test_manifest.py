@@ -63,3 +63,79 @@ def test_invalid_manifest_is_rejected(tmp_path: Path, name: str, text: str, mess
 
     with pytest.raises(ManifestError, match=message):
         load_manifest(path)
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        ('enabled = ["not-versioned"]', "profile identity must be immutable"),
+        (
+            'enabled = ["python-default@1"]\n'
+            '[profiles.replacements]\n"python-default@1" = "python-default@1"',
+            "a profile cannot replace itself",
+        ),
+    ],
+)
+def test_profile_composition_errors_fail_closed(tmp_path: Path, extra: str, message: str) -> None:
+    path = tmp_path / "reposeal.toml"
+    path.write_text(
+        f"""schema_version = 2
+[reposeal]
+protocol = 2
+template_version = "0.2.0"
+[profiles]
+{extra}
+[repository]
+architecture = "docs/ARCHITECTURE.md"
+specifications = "changes"
+plans = "changes"
+decisions = "docs/decisions"
+delivery_state = ".reposeal/delivery"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match=message):
+        load_manifest(path)
+
+
+@pytest.mark.parametrize(
+    ("rule", "message"),
+    [
+        ('name = "Invalid"\npaths = ["src/**"]', "impact rule name must be namespaced"),
+        ('name = "valid.rule"\npaths = ["../outside"]', "impact path must be"),
+        (
+            'name = "same.rule"\npaths = ["src/**"]\n'
+            '[[impact.rules]]\nname = "same.rule"\npaths = ["tests/**"]',
+            "impact.rules names must be unique",
+        ),
+    ],
+)
+def test_impact_contract_rejects_ambiguous_or_escaping_rules(
+    tmp_path: Path, rule: str, message: str
+) -> None:
+    path = tmp_path / "reposeal.toml"
+    path.write_text(
+        f"""schema_version = 2
+[reposeal]
+protocol = 2
+template_version = "0.2.0"
+[repository]
+architecture = "docs/ARCHITECTURE.md"
+specifications = "changes"
+plans = "changes"
+decisions = "docs/decisions"
+delivery_state = ".reposeal/delivery"
+[[impact.rules]]
+{rule}
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match=message):
+        load_manifest(path)
+
+
+def test_missing_configuration_is_an_invocation_error(tmp_path: Path) -> None:
+    with pytest.raises(ManifestError):
+        load_manifest(tmp_path / "reposeal.toml")
