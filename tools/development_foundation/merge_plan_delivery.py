@@ -10,6 +10,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from shutil import which
 
 
 class AdmissionError(ValueError):
@@ -37,6 +38,10 @@ def _run_gate(repository: Path) -> None:
     commands = (
         ("uv", "build"),
         ("uv", "run", "pre-commit", "run", "--all-files"),
+        ("uv", "run", "--no-sync", "ruff", "check", "."),
+        ("uv", "run", "--no-sync", "ruff", "format", "--check", "."),
+        ("uv", "run", "--no-sync", "bandit", "-r", "src"),
+        ("uv", "run", "--no-sync", "pip-audit"),
     )
     for command in commands:
         completed = subprocess.run(command, cwd=repository, check=False)
@@ -93,8 +98,9 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
 
 
 def _git(repository: Path, *arguments: str, check: bool = True) -> str:
+    git = _git_executable()
     completed = subprocess.run(
-        ("git", "-C", str(repository), *arguments),
+        (git, "-C", str(repository), *arguments),
         check=False,
         capture_output=True,
         text=True,
@@ -119,8 +125,9 @@ def _branch(worktree: Path) -> str:
 
 
 def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
+    git = _git_executable()
     completed = subprocess.run(
-        ("git", "-C", str(repository), "merge-base", "--is-ancestor", ancestor, descendant),
+        (git, "-C", str(repository), "merge-base", "--is-ancestor", ancestor, descendant),
         check=False,
         capture_output=True,
         text=True,
@@ -150,9 +157,10 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         if _is_ancestor(batch, member_tip, batch_tip):
             unchanged.append(record)
             continue
+        git = _git_executable()
         completed = subprocess.run(
             (
-                "git",
+                git,
                 "-C",
                 str(batch),
                 "merge",
@@ -200,8 +208,9 @@ def continue_batch(batch: Path) -> dict[str, object]:
     staged = _git(batch, "diff", "--cached", "--name-only")
     if not staged:
         raise AdmissionError("batch continuation has no staged resolution")
+    git = _git_executable()
     completed = subprocess.run(
-        ("git", "-C", str(batch), "commit", "--no-edit"),
+        (git, "-C", str(batch), "commit", "--no-edit"),
         check=False,
         capture_output=True,
         text=True,
@@ -284,8 +293,9 @@ def batch_deliver(
 
 
 def _remote_branch_tip(repository: Path, branch: str) -> str:
+    git = _git_executable()
     completed = subprocess.run(
-        ("git", "-C", str(repository), "ls-remote", "--heads", "origin", branch),
+        (git, "-C", str(repository), "ls-remote", "--heads", "origin", branch),
         check=False,
         capture_output=True,
         text=True,
@@ -296,6 +306,13 @@ def _remote_branch_tip(repository: Path, branch: str) -> str:
     if len(lines) != 1:
         raise AdmissionError(f"remote branch identity is not unique: {branch}")
     return lines[0].split()[0]
+
+
+def _git_executable() -> str:
+    executable = which("git")
+    if executable is None:
+        raise AdmissionError("git executable is unavailable")
+    return executable
 
 
 def _delivery_provenance(

@@ -70,6 +70,10 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 # Security-boundary rationale: this lifecycle authority invokes the fixed Git
 # executable with tuple arguments after validating repository identities.
 "tools/development_foundation/merge_plan_delivery.py" = ["S603"]
+# Security-boundary rationale: both adapters resolve Git to an absolute host
+# executable and pass validated tuple arguments without a shell.
+"src/development_foundation/release/__init__.py" = ["S603"]
+"src/development_foundation/traceability/boundary.py" = ["S603"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

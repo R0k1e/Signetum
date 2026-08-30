@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from shutil import which
 
@@ -62,7 +62,7 @@ def preflight(repository: Path, source: str) -> ReleaseMetadata:
     git = which("git")
     if git is None:
         raise ReleaseError("git executable is unavailable")
-    completed = subprocess.run(  # noqa: S603
+    completed = subprocess.run(  # nosec B603
         (git, "-C", str(repository), "rev-parse", "HEAD"),
         check=True,
         capture_output=True,
@@ -70,7 +70,7 @@ def preflight(repository: Path, source: str) -> ReleaseMetadata:
     )
     if completed.stdout.strip() != source:
         raise ReleaseError("release source differs from HEAD")
-    dirty = subprocess.run(  # noqa: S603
+    dirty = subprocess.run(  # nosec B603
         (git, "-C", str(repository), "status", "--porcelain"),
         check=True,
         capture_output=True,
@@ -78,7 +78,7 @@ def preflight(repository: Path, source: str) -> ReleaseMetadata:
     )
     if dirty.stdout:
         raise ReleaseError("release source worktree is dirty")
-    common = subprocess.run(  # noqa: S603
+    common = subprocess.run(  # nosec B603
         (git, "-C", str(repository), "rev-parse", "--git-common-dir"),
         check=True,
         capture_output=True,

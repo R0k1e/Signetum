@@ -127,6 +127,10 @@ def test_gate_builds_release_inputs_before_running_repository_checks(
     assert commands == [
         ("uv", "build"),
         ("uv", "run", "pre-commit", "run", "--all-files"),
+        ("uv", "run", "--no-sync", "ruff", "check", "."),
+        ("uv", "run", "--no-sync", "ruff", "format", "--check", "."),
+        ("uv", "run", "--no-sync", "bandit", "-r", "src"),
+        ("uv", "run", "--no-sync", "pip-audit"),
     ]
 
 
