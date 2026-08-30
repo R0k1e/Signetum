@@ -22,7 +22,8 @@ on chat history, an Agent's memory, or an unstructured collection of scripts.
 The default branch is a rendered, clone-ready Template. A repository created
 from it owns its copy and evolves independently; there is no upstream
 synchronization contract. RepoSeal engine development stays on the `engine`
-branch and is consumed only through an exact released package pin.
+branch; the rendered Template carries only its reviewed, standard-library
+lifecycle runtime and does not install the RepoSeal package.
 
 ## What it provides
 

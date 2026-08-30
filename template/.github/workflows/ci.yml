@@ -10,5 +10,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uvx --from reposeal==3.0.0 reposeal check manifest --manifest reposeal.yaml
-      - run: uvx --from reposeal==3.0.0 reposeal check traceability --repository .
+      - run: uv run --no-project python .agents/repo-dev/runtime/lifecycle.py final

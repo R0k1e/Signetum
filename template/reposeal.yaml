@@ -1,14 +1,15 @@
-schema_version: 1
-reposeal:
-  version: 3.0.0
-  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-profiles:
-  - shared-core@1
-  - git-worktrunk@1
-repository:
-  architecture: docs/ARCHITECTURE.md
-  specifications: changes
-  plans: changes
-  decisions: docs/decisions
-  validation: just final
-  delivery_state: .reposeal/delivery
+{
+  "schema_version": 1,
+  "runtime": ".agents/repo-dev/runtime/lifecycle.py",
+  "repository": {
+    "architecture": "docs/ARCHITECTURE.md",
+    "specifications": "changes",
+    "plans": "changes",
+    "decisions": "docs/decisions",
+    "delivery_state": ".reposeal/delivery"
+  },
+  "validation": {
+    "member": [["git", "diff", "--check"]],
+    "final": [["git", "diff", "--check"]]
+  }
+}

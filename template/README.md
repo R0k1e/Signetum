@@ -14,9 +14,9 @@ behavioral validation, batch assembly, and explicit delivery.
 4. Open an isolated worktree with `just workspace-open <branch> <base>`.
 
 The eight public lifecycle operations are documented in
-[`docs/development-lifecycle.md`](docs/development-lifecycle.md). RepoSeal is
-version-pinned in `reposeal.yaml` and the `Justfile`; the cloned repository
-does not contain RepoSeal's engine source or maintainer history.
+[`docs/development-lifecycle.md`](docs/development-lifecycle.md). They run from
+the repository-owned standard-library runtime; cloning does not install a
+RepoSeal package or copy RepoSeal's engine source and maintainer history.
 
 ## What this starter guarantees
 

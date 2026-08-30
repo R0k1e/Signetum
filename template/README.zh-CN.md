@@ -13,8 +13,8 @@
 4. 运行 `just workspace-open <branch> <base>` 创建隔离工作树。
 
 八个公开生命周期操作见
-[`docs/development-lifecycle.md`](docs/development-lifecycle.md)。RepoSeal 的版本固定在
-`reposeal.yaml` 和 `Justfile` 中；克隆得到的仓库不包含 RepoSeal 的引擎源码和维护历史。
+[`docs/development-lifecycle.md`](docs/development-lifecycle.md)。它们由仓库自带的标准库运行时执行；
+克隆后不需要安装 RepoSeal 包，也不会带入 RepoSeal 的引擎源码和维护历史。
 
 ## 这个模板保证什么
 
