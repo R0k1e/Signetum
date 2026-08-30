@@ -45,6 +45,7 @@ def test_template_enables_installable_python_default() -> None:
 
 def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
     lifecycle = json.loads((ROOT / "template/reposeal.yaml").read_text())
+    workflow = (ROOT / "template/.github/workflows/ci.yml").read_text()
 
     member = lifecycle["validation"]["member"]
     final = lifecycle["validation"]["final"]
@@ -62,6 +63,10 @@ def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
 
     assert all(command in member for command in expected_member)
     assert all(command in final for command in (*expected_member, *expected_final))
+    assert "- run: uv sync --locked" in workflow
+    assert (
+        "- run: uv run --no-project python .agents/repo-dev/runtime/lifecycle.py final" in workflow
+    )
 
 
 def test_template_render_has_identical_inventory(tmp_path: Path) -> None:
