@@ -1,11 +1,11 @@
 set positional-arguments
 
 _reposeal *args:
-    uv run --no-project python .agents/repo-dev/runtime/lifecycle.py {{args}}
+    mise exec -- uv run --no-project python .agents/repo-dev/runtime/lifecycle.py {{args}}
 
 # Authoring utility; not a lifecycle operation.
 change-open name:
-    uv run --no-project python .agents/repo-dev/runtime/change_open.py {{name}}
+    mise exec -- uv run --no-project python .agents/repo-dev/runtime/change_open.py {{name}}
 
 workspace-open branch base:
     just _reposeal workspace-open {{branch}} {{base}}
