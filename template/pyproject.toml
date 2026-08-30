@@ -8,7 +8,7 @@ dependencies = []
 dev = [
   "detect-secrets==1.5.0",
   "pip-audit==2.9.0",
-  "pytest==8.4.2",
+  "pytest==9.1.1",
   "ruff==0.14.10",
   "ty==0.0.1a33",
 ]
