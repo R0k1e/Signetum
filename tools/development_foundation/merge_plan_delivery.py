@@ -237,8 +237,12 @@ def batch_deliver(
     final_receipts = sorted(_receipt_root(source).glob("final-*.json"))
     if not final_receipts:
         raise AdmissionError("no final receipt exists")
-    latest = json.loads(final_receipts[-1].read_text(encoding="utf-8"))
-    if latest.get("source") != expected_tip or latest.get("valid") is not True:
+    matching_receipt = any(
+        (payload := json.loads(path.read_text(encoding="utf-8"))).get("source") == expected_tip
+        and payload.get("valid") is True
+        for path in final_receipts
+    )
+    if not matching_receipt:
         raise AdmissionError("final receipt does not bind the expected batch tip")
     _git(target, "merge", "--ff-only", expected_tip)
     return {
