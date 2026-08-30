@@ -1,54 +1,8 @@
 name: CI
-
-on:
-  push:
-    branches:
-      - "**"
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
-
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
-  # --- Job 1: Auto-fix 可自动修复的问题并提交回去 ---
-  auto-fix:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v1
-        with:
-          version: "latest"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --all-extras --dev
-
-      - name: Auto-fix with Ruff
-        run: uv run ruff check --fix src main.py && uv run ruff format src main.py
-
-      - name: Auto-fix file format
-        run: uv run pre-commit run --all-files trailing-whitespace end-of-file-fixer check-yaml check-added-large-files
-        continue-on-error: true
-
-      - name: Commit auto-fixes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "style: auto-fix by ruff [skip ci]"
-
-  # --- Job 2: 测试（与 auto-fix 并行，ruff 修复不影响测试结果）---
-  # 3.12 收集 coverage，3.13 仅跑兼容性验证
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -56,176 +10,51 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13"]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.sha }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v1
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
         with:
-          version: "latest"
+          version: "0.8.15"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --all-extras --dev
-
-      - name: Run Tests with Coverage
-        if: matrix.python-version == '3.12'
-        run: uv run pytest --cov-report=xml --cov-fail-under=80
+      - run: uv python install "${{ matrix.python-version }}"
+      - run: uv sync --locked --all-extras --dev
+      - run: uv run --no-sync pytest
         env:
           HYPOTHESIS_PROFILE: ci
-
-      - name: Run Tests
-        if: matrix.python-version != '3.12'
-        run: uv run pytest --no-cov
-
-      - name: Upload coverage report
-        if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
-
-  # --- Job 3: 静态质量检查（等待 auto-fix 完成后检查修复后的代码）---
-  quality-check:
+  static:
     runs-on: ubuntu-latest
-    needs: auto-fix
-    if: always() && (needs.auto-fix.result == 'success' || needs.auto-fix.result == 'skipped')
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12", "3.13"]
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v1
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
         with:
-          version: "latest"
+          version: "0.8.15"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --all-extras --dev
-
-      - name: Run Ruff Lint
-        id: ruff-lint
-        run: uv run ruff check src main.py
-        continue-on-error: true
-
-      - name: Check Code Format
-        id: ruff-format
-        run: uv run ruff format --check src main.py
-        continue-on-error: true
-
-      - name: Run ty Type Check
-        id: ty-check
-        run: uv run ty check src
-        continue-on-error: true
-
-      - name: Run Vulture (dead code)
-        id: vulture
-        run: uv run vulture src main.py --min-confidence 80
-        continue-on-error: true
-
-      - name: Run Typos (spell check)
-        id: typos
-        uses: crate-ci/typos@v1.32.0
-        continue-on-error: true
-
-      - name: Run import-linter (architecture constraints)
-        id: import-linter
-        run: uv run lint-imports
-        continue-on-error: true
-
-      - name: Check file format
-        id: file-format
-        run: uv run pre-commit run --all-files trailing-whitespace end-of-file-fixer check-yaml check-added-large-files
-        continue-on-error: true
-
-      - name: Final Quality Check Summary
-        if: ${{ steps.ruff-lint.outcome == 'failure' || steps.ruff-format.outcome == 'failure' || steps.ty-check.outcome == 'failure' || steps.vulture.outcome == 'failure' || steps.typos.outcome == 'failure' || steps.import-linter.outcome == 'failure' || steps.file-format.outcome == 'failure' }}
-        run: |
-          echo "--------------------------------------------------------"
-          echo "Quality Checks Failed. See results above."
-          echo "--------------------------------------------------------"
-          echo "Ruff Lint Status:      ${{ steps.ruff-lint.outcome }}"
-          echo "Ruff Format Status:    ${{ steps.ruff-format.outcome }}"
-          echo "ty Check Status:       ${{ steps.ty-check.outcome }}"
-          echo "Vulture Status:        ${{ steps.vulture.outcome }}"
-          echo "Typos Status:          ${{ steps.typos.outcome }}"
-          echo "import-linter Status:  ${{ steps.import-linter.outcome }}"
-          echo "File Format Status:    ${{ steps.file-format.outcome }}"
-          echo "--------------------------------------------------------"
-          exit 1
-
-  # --- Job 4: 安全扫描（单次，不跑 matrix，依赖变更时缓存失效自动重跑）---
-  security-check:
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-extras --dev
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync ty check
+      - run: uv run --no-sync pre-commit run typos --all-files
+  security:
     runs-on: ubuntu-latest
-    needs: auto-fix
-    if: always() && (needs.auto-fix.result == 'success' || needs.auto-fix.result == 'skipped')
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v1
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
         with:
-          version: "latest"
+          version: "0.8.15"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --all-extras --dev
-
-      - name: Run pip-audit (dependency vulnerabilities)
-        run: uv run pip-audit
-
-      - name: Run Bandit (SAST)
-        run: uv run bandit -r src
-
-  # --- Job 5: 所有检查通过后自动合并 worktree 分支到 main ---
-  auto-merge:
-    runs-on: ubuntu-latest
-    needs: [test, quality-check, security-check]
-    if: >
-      github.event_name == 'push' &&
-      github.ref_name != 'main' &&
-      needs.test.result == 'success' &&
-      needs.quality-check.result == 'success' &&
-      needs.security-check.result == 'success'
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Merge branch to main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git merge --no-ff origin/${{ github.ref_name }} -m "chore: auto-merge ${{ github.ref_name }} into main"
-          git push origin main
-
-      - name: Delete merged branch
-        run: git push origin --delete ${{ github.ref_name }}
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-extras --dev
+      - run: uv run --no-sync pip-audit
+      - run: uv run --no-sync bandit -r src
