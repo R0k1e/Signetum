@@ -34,7 +34,7 @@ def test_template_enables_installable_python_default() -> None:
     project = (ROOT / "template/pyproject.toml").read_text()
 
     assert 'enabled = ["python-default@1", "git-worktrunk@1"]' in manifest
-    assert 'python = "3.12.8"' in toolchain
+    assert 'python = "3.12.14"' in toolchain
     assert 'uv = "0.8.15"' in toolchain
     for tool in ("ruff", "ty", "pytest", "pip-audit", "detect-secrets"):
         assert tool in project
