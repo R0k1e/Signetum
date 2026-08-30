@@ -113,7 +113,7 @@ def test_gate_builds_release_inputs_before_running_repository_checks(
 
     module._run_gate(tmp_path)
 
-    assert commands == [
+    assert [command[3:] for command in commands] == [
         ("uv", "build"),
         ("uv", "run", "pre-commit", "run", "--all-files"),
         ("uv", "run", "--no-sync", "ruff", "check", "."),
@@ -121,6 +121,7 @@ def test_gate_builds_release_inputs_before_running_repository_checks(
         ("uv", "run", "--no-sync", "bandit", "-r", "src"),
         ("uv", "run", "--no-sync", "pip-audit"),
     ]
+    assert all(command[1:3] == ("exec", "--") for command in commands)
 
 
 def test_delivery_provenance_reads_named_member_and_plan_trailer(
