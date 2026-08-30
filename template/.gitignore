@@ -1,0 +1,12 @@
+.DS_Store
+.env
+.idea/
+.reposeal/delivery/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+build/
+dist/
+*.egg-info/
+*.py[cod]

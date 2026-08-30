@@ -3,8 +3,8 @@ from subprocess import CalledProcessError, CompletedProcess
 
 import pytest
 
-from development_foundation.traceability import boundary
-from development_foundation.traceability.boundary import (
+from reposeal.traceability import boundary
+from reposeal.traceability.boundary import (
     GitInventoryProvider,
     ReferenceResolver,
     RepositoryInventory,

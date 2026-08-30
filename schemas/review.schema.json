@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://development-foundation.invalid/schemas/review/v1",
+  "$id": "https://development-reposeal.invalid/schemas/review/v1",
   "title": "Review",
   "type": "object",
   "additionalProperties": false,

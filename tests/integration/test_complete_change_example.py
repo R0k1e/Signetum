@@ -2,12 +2,12 @@ import io
 import json
 from pathlib import Path
 
-from development_foundation.status.models import EvidenceSnapshot
-from development_foundation.traceability.boundary import (
+from reposeal.status.models import EvidenceSnapshot
+from reposeal.traceability.boundary import (
     RepositoryInventory,
     TraceabilityManifest,
 )
-from development_foundation.traceability.cli import ExitCode, query
+from reposeal.traceability.cli import ExitCode, query
 
 ROOT = Path(__file__).parents[2]
 

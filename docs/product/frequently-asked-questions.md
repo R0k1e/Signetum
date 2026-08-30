@@ -58,11 +58,11 @@ isolated Agent work, validation identity, batch composition, delivery
 provenance, and post-delivery acceptance. See
 [RepoSeal and specification tools](reposeal-and-specification-tools.md).
 
-## Why are the package and command still called `development_foundation` and `foundation`?
+## What are the package and command called?
 
-Those are internal machine protocol identifiers, not competing product names.
-Keeping them explicit avoids silently breaking package imports, scripts,
-schemas, fixtures, and release artifacts during a public-brand change.
+The distribution, Python import, and command are all named `reposeal`. Version
+3 intentionally removes the earlier `development_foundation` and `foundation`
+identities instead of keeping compatibility aliases.
 
 ## Does `final` automatically deliver?
 

@@ -1,20 +1,20 @@
 # Architecture
 
-This repository is the independently versioned source of RepoSeal, a standalone
-GitHub Template for governed, Agent-native development. GitHub copies it once when a
-new repository is created; the created repository then owns its product facts,
-lifecycle state, package, schemas, profiles, and policy without an update or
-synchronization relationship to this repository.
+This branch is the independently versioned engine source of RepoSeal. It owns
+the Python package, schemas, profiles, skill, tests, release automation, and
+the canonical clone-ready source under `template/`. The default branch is a
+deterministically rendered Template artifact; it does not contain this engine
+or its governance history.
 
-RepoSeal is the public product identity. Within this Template, the
-`development_foundation` distribution and `foundation` CLI validate immutable
+RepoSeal is the public product identity. Within this engine, the
+`reposeal` distribution and `reposeal` CLI validate immutable
 schema and profile identities and expose check-only repository
-contracts. It is an internal product authority and release artifact, not a
-cross-repository upgrade channel.
+contracts and lifecycle operations. A Template pins one exact released package;
+existing repositories adopt later releases only as explicit local changes.
 
 Responsibility documents:
 
-- [Repository foundation](architecture/repository-foundation.md) defines the
+- [RepoSeal engine](architecture/repository-reposeal.md) defines the
   package, manifest, profile, and adapter boundaries.
 - [Validation and delivery](architecture/validation-and-delivery.md) defines
   check-only evidence and explicit delivery responsibilities.

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reposeal.invalid/schemas/repository-manifest-v1.schema.json",
+  "title": "RepoSeal repository manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "reposeal", "profiles", "repository"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "reposeal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "digest"],
+      "properties": {
+        "version": {"type": "string"},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "profiles": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "repository": {"type": "object"}
+  }
+}

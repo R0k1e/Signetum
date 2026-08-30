@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from development_foundation.evidence import CheckResult, RepositoryAdapter, run_check
-from development_foundation.manifest import load_manifest
+from reposeal.evidence import CheckResult, RepositoryAdapter, run_check
+from reposeal.manifest import load_manifest
 
 
 @dataclass(frozen=True)

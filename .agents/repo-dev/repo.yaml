@@ -1,6 +1,6 @@
 repository:
   schema_version: 1
-  product: development-foundation
+  product: reposeal
   architecture: docs/ARCHITECTURE.md
   environment:
     authority: uv
@@ -8,8 +8,8 @@ repository:
     lock: uv.lock
   policy:
     mandatory:
-      - group: foundation
-        reference: .agents/repo-dev/references/foundation.md
+      - group: reposeal
+        reference: .agents/repo-dev/references/reposeal.md
     selectors:
       - group: python-uv
         intents: [implementation, validation, bootstrap]
@@ -23,8 +23,8 @@ repository:
     specifications: changes/*/specs/*.yaml
     plans: changes/*/plans/*.md
     decisions: docs/decisions/*.md
-    manifest_schema: development_foundation.resources.schemas
-    profiles: development_foundation.resources.profiles
+    manifest_schema: reposeal.resources.schemas
+    profiles: reposeal.resources.profiles
   validation:
     targeted: uv run pytest tests/unit tests/integration/test_cli_manifest.py
     complete: uv run pre-commit run --all-files

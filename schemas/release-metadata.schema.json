@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://development-foundation.invalid/schemas/release-metadata/v1",
+  "$id": "https://development-reposeal.invalid/schemas/release-metadata/v1",
   "title": "Development Foundation release metadata",
   "type": "object",
   "additionalProperties": false,
@@ -17,7 +17,7 @@
         "required": ["name", "version", "digest"],
         "properties": {
           "name": {"enum": ["package", "schemas", "repo-dev"]},
-          "version": {"type": "string", "const": "2.0.0"},
+          "version": {"type": "string", "const": "3.0.0"},
           "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
         }
       }

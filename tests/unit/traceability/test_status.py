@@ -1,14 +1,14 @@
 from pathlib import Path
 
-from development_foundation.status.models import (
+from reposeal.status.models import (
     DeliveryObservation,
     DerivedState,
     EvidenceSnapshot,
     IntegrationObservation,
     MemberObservation,
 )
-from development_foundation.status.projector import project_status
-from development_foundation.traceability.loading import (
+from reposeal.status.projector import project_status
+from reposeal.traceability.loading import (
     load_plan,
     load_review,
     load_specification,

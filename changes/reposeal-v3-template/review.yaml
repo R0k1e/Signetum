@@ -1,0 +1,32 @@
+review:
+  schema_version: 1
+  id: reposeal-v3-template
+  status: active
+  recorded_at: 2026-08-30
+  source:
+    kind: human_direction
+    summary: >-
+      Make RepoSeal a clone-ready, language-neutral Agent development base.
+      Separate RepoSeal's own engine source and governance history from the
+      minimal default-branch Template, add a Chinese README, and require that a
+      new user can begin without deleting RepoSeal maintainer files.
+  clauses:
+    - id: V3-001
+      statement: A repository copied from RepoSeal is immediately usable without deleting or renaming RepoSeal maintainer content.
+    - id: V3-002
+      statement: RepoSeal engine source, tests, decisions, and development history live outside the default Template worktree.
+    - id: V3-003
+      statement: The Template does not reserve the user's root src, tests, tools, schemas, profiles, pyproject, or lockfile paths.
+    - id: V3-004
+      statement: English and Simplified Chinese README files provide equivalent adoption guidance.
+    - id: V3-005
+      statement: The Template has no tracked editor state, vendor-specific stale adapter, or RepoSeal historical change package.
+    - id: V3-006
+      statement: One deterministic Template source renders the default branch and clean-room validation rejects drift or forbidden files.
+    - id: V3-007
+      statement: The released reposeal package owns schemas, profiles, validation, lifecycle, and template rendering.
+  acceptance:
+    result: pending
+    delivery_commit: null
+    accepted_clauses: []
+    rejected_clauses: []

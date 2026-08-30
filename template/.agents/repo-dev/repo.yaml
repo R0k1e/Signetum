@@ -1,0 +1,21 @@
+schema_version: 1
+product: replace-with-product-name
+architecture: docs/ARCHITECTURE.md
+policy:
+  mandatory:
+    - group: lifecycle
+      reference: .agents/repo-dev/references/lifecycle.md
+    - group: safety
+      reference: .agents/repo-dev/references/safety.md
+  routes:
+    - group: application
+      intents: [implementation, bugfix, refactor, test]
+      paths: ["**"]
+      reference: .agents/repo-dev/references/application.md
+validation:
+  changed: just changed
+  ready: just ready
+  final: just final
+delivery:
+  branch: product
+  state: .reposeal/delivery

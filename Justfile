@@ -1,7 +1,7 @@
 set positional-arguments
 
 _lifecycle *args:
-    uv run python tools/development_foundation/merge_plan_delivery.py {{args}}
+    uv run reposeal lifecycle {{args}}
 
 workspace-open branch base:
     just _lifecycle workspace-open {{branch}} {{base}}

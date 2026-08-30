@@ -19,9 +19,10 @@ testing is making parallel delivery unnecessarily slow.
 
 It gives a repository one inspectable development lifecycle instead of relying
 on chat history, an Agent's memory, or an unstructured collection of scripts.
-The Template is copied once. A repository created from it owns its copy and
-evolves independently; there is no upstream synchronization or upgrade
-contract.
+The default branch is a rendered, clone-ready Template. A repository created
+from it owns its copy and evolves independently; there is no upstream
+synchronization contract. RepoSeal engine development stays on the `engine`
+branch and is consumed only through an exact released package pin.
 
 ## What it provides
 
@@ -88,15 +89,14 @@ A complete, non-authoritative teaching artifact is available under
 
 ```bash
 uv sync --locked
-uv run foundation check product-surface --repository .
-uv run foundation check traceability --repository .
+uv run reposeal check product-surface --repository .
+uv run reposeal check traceability --repository .
 uv run pytest
 uv build
 ```
 
-The internal `foundation` CLI emits one JSON result and exits nonzero for
-invalid contracts. RepoSeal is the product identity; `development_foundation`
-and `foundation` are stable machine protocol identifiers. See
+The `reposeal` CLI emits one JSON result and exits nonzero for invalid
+contracts. RepoSeal is both the product and machine protocol identity. See
 [Architecture](docs/ARCHITECTURE.md) for current responsibility boundaries.
 
 ## Project boundaries

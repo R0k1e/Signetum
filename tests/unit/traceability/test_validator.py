@@ -3,17 +3,17 @@ from pathlib import Path
 from hypothesis import given
 from hypothesis import strategies as st
 
-from development_foundation.change.models import Plan, Review, Specification
-from development_foundation.traceability.boundary import (
+from reposeal.change.models import Plan, Review, Specification
+from reposeal.traceability.boundary import (
     RepositoryInventory,
     TraceabilityManifest,
 )
-from development_foundation.traceability.loading import (
+from reposeal.traceability.loading import (
     load_plan,
     load_review,
     load_specification,
 )
-from development_foundation.traceability.validator import TraceabilityValidator
+from reposeal.traceability.validator import TraceabilityValidator
 
 FIXTURE = Path("tests/fixtures/changes/valid")
 

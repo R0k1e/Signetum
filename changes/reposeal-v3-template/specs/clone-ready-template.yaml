@@ -1,0 +1,45 @@
+specification:
+  schema_version: 1
+  id: reposeal-v3-template/clone-ready-template
+  version: 1
+  status: approved
+  implementation_authorized: true
+  review:
+    id: reposeal-v3-template
+    clauses: [V3-001, V3-002, V3-003, V3-004, V3-005, V3-006, V3-007]
+  decisions:
+    - docs/decisions/ADP-reposeal-engine-and-template-are-separate-branches.md
+  plan: changes/reposeal-v3-template/plans/clone-ready-template.md
+  invariants:
+    - main is the rendered clone-ready Template and engine is the RepoSeal source authority
+    - engine/template is the sole Template source
+    - main is never hand-edited
+    - a Template checkout contains no RepoSeal implementation or maintainer provenance
+    - the Template calls one exact immutable reposeal package version
+    - created repositories remain independent and receive no automatic update
+    - the eight lifecycle operations remain the only public development protocol
+  scenarios:
+    - id: clone-and-start
+      given: a fresh repository copied from the rendered Template
+      when: an Agent reads AGENTS.md and opens the first governed workspace
+      then:
+        - no cleanup step is required
+        - no user application root is preclaimed by RepoSeal
+        - the exact pinned RepoSeal engine executes the lifecycle
+    - id: reject-maintainer-leakage
+      given: a rendered Template contains editor state, engine source, maintainer history, or an undeclared root
+      when: clean-room validation runs
+      then:
+        - validation fails and names the forbidden path
+  removed_or_forbidden:
+    - .vscode and .claude in the Template
+    - a hidden .reposeal source tree in the Template
+    - RepoSeal engine src, tests, tools, schemas, skills, profiles, decisions, or changes in the Template
+    - a root pyproject.toml or uv.lock owned by RepoSeal in the Template
+    - direct manual changes to the rendered main branch
+  acceptance:
+    - repository engine validation passes after the reposeal package rename
+    - Template inventory equals its declared allowlist
+    - English and Chinese README links resolve
+    - a clean-room rendered repository completes the lifecycle smoke path
+    - built package contains schemas, profiles, and Template source

@@ -1,6 +1,6 @@
 from importlib.resources import files
 
-from development_foundation.resources import profiles, schemas
+from reposeal.resources import profiles, schemas
 
 
 def test_schema_and_profile_resources_are_packaged() -> None:
