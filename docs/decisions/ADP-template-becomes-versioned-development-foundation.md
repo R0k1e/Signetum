@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-08-28
 Supersedes: None
-Superseded by: None
+Superseded by: ADP-foundation-is-a-standalone-template.md
 
 ## Context
 
