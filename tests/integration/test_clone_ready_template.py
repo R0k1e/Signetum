@@ -51,7 +51,7 @@ def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
     expected_member = [
         ["uv", "run", "--no-sync", "ruff", "check", "."],
         ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
-        ["uv", "run", "--no-sync", "ty", "check"],
+        ["uv", "run", "--no-sync", "ty", "check", "src"],
         ["uv", "run", "--no-sync", "pytest", "tests/unit"],
         ["mise", "run", "python:secrets"],
     ]

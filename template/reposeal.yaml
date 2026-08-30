@@ -7,7 +7,7 @@
       ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"],
       ["uv", "run", "--no-sync", "ruff", "check", "."],
       ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
-      ["uv", "run", "--no-sync", "ty", "check"],
+      ["uv", "run", "--no-sync", "ty", "check", "src"],
       ["uv", "run", "--no-sync", "pytest", "tests/unit"],
       ["mise", "run", "python:secrets"]
     ],
@@ -16,7 +16,7 @@
       ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"],
       ["uv", "run", "--no-sync", "ruff", "check", "."],
       ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
-      ["uv", "run", "--no-sync", "ty", "check"],
+      ["uv", "run", "--no-sync", "ty", "check", "src"],
       ["uv", "run", "--no-sync", "pytest", "tests/unit"],
       ["uv", "run", "--no-sync", "pytest", "tests/integration"],
       ["uv", "run", "--no-sync", "pip-audit"],
