@@ -2,7 +2,7 @@
 
 from pathlib import Path, PurePosixPath
 from shutil import which
-from subprocess import CalledProcessError, run
+from subprocess import CalledProcessError, run  # nosec B404
 from typing import Protocol
 
 from pydantic import Field
@@ -44,7 +44,7 @@ class GitInventoryProvider:
         if executable is None:
             raise OSError("git executable is unavailable")
         try:
-            completed = run(  # noqa: S603 -- executable is resolved by the host PATH.
+            completed = run(  # nosec B603
                 [
                     executable,
                     "ls-files",
