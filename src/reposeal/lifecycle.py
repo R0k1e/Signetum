@@ -6,7 +6,7 @@ import argparse
 import hashlib
 import json
 import re
-import subprocess
+import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,7 +44,7 @@ def _run_gate(repository: Path) -> None:
         ("uv", "run", "--no-sync", "pip-audit"),
     )
     for command in commands:
-        completed = subprocess.run(command, cwd=repository, check=False)
+        completed = subprocess.run(command, cwd=repository, check=False)  # nosec B603
         if completed.returncode:
             raise AdmissionError("repository validation failed")
 
@@ -99,7 +99,7 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
 
 def _git(repository: Path, *arguments: str, check: bool = True) -> str:
     git = _git_executable()
-    completed = subprocess.run(
+    completed = subprocess.run(  # nosec B603
         (git, "-C", str(repository), *arguments),
         check=False,
         capture_output=True,
@@ -126,7 +126,7 @@ def _branch(worktree: Path) -> str:
 
 def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
     git = _git_executable()
-    completed = subprocess.run(
+    completed = subprocess.run(  # nosec B603
         (git, "-C", str(repository), "merge-base", "--is-ancestor", ancestor, descendant),
         check=False,
         capture_output=True,
@@ -158,7 +158,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             unchanged.append(record)
             continue
         git = _git_executable()
-        completed = subprocess.run(
+        completed = subprocess.run(  # nosec B603
             (
                 git,
                 "-C",
@@ -209,7 +209,7 @@ def continue_batch(batch: Path) -> dict[str, object]:
     if not staged:
         raise AdmissionError("batch continuation has no staged resolution")
     git = _git_executable()
-    completed = subprocess.run(
+    completed = subprocess.run(  # nosec B603
         (git, "-C", str(batch), "commit", "--no-edit"),
         check=False,
         capture_output=True,
@@ -294,7 +294,7 @@ def batch_deliver(
 
 def _remote_branch_tip(repository: Path, branch: str) -> str:
     git = _git_executable()
-    completed = subprocess.run(
+    completed = subprocess.run(  # nosec B603
         (git, "-C", str(repository), "ls-remote", "--heads", "origin", branch),
         check=False,
         capture_output=True,
