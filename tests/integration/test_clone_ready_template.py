@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -40,6 +41,27 @@ def test_template_enables_installable_python_default() -> None:
         assert tool in project
     assert (ROOT / "template/tests/unit/test_application.py").is_file()
     assert (ROOT / "template/tests/integration/test_application.py").is_file()
+
+
+def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
+    lifecycle = json.loads((ROOT / "template/reposeal.yaml").read_text())
+
+    member = lifecycle["validation"]["member"]
+    final = lifecycle["validation"]["final"]
+    expected_member = [
+        ["uv", "run", "--no-sync", "ruff", "check", "."],
+        ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
+        ["uv", "run", "--no-sync", "ty", "check", "src"],
+        ["uv", "run", "--no-sync", "pytest", "tests/unit"],
+        ["mise", "run", "python:secrets"],
+    ]
+    expected_final = [
+        ["uv", "run", "--no-sync", "pytest", "tests/integration"],
+        ["uv", "run", "--no-sync", "pip-audit"],
+    ]
+
+    assert all(command in member for command in expected_member)
+    assert all(command in final for command in (*expected_member, *expected_final))
 
 
 def test_template_render_has_identical_inventory(tmp_path: Path) -> None:
@@ -118,6 +140,9 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> No
         ("git", "config", "user.email", "reposeal@example.invalid"),
         ("git", "add", "."),
         ("git", "commit", "-m", "initial template"),
+        ("mise", "trust", "mise.toml"),
+        ("mise", "install"),
+        ("uv", "sync", "--locked"),
     ):
         subprocess.run(command, cwd=rendered, check=True, capture_output=True)
 
