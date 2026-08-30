@@ -19,8 +19,12 @@ package = false
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
+[tool.ruff]
+line-length = 100
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+".agents/repo-dev/runtime/lifecycle.py" = ["S603"]
