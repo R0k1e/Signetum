@@ -13,7 +13,6 @@ class ChangeOpenError(ValueError):
 
 
 def open_change(repository: Path, name: str) -> dict[str, object]:
-    """Create a draft Review, Specification, and Plan for one safe identity."""
     if re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*", name) is None:
         raise ChangeOpenError("name must be lowercase kebab-case")
     root = repository.resolve()
@@ -21,11 +20,11 @@ def open_change(repository: Path, name: str) -> dict[str, object]:
     if target.exists():
         raise ChangeOpenError(f"change already exists: changes/{name}")
 
-    specification = target / "specs" / "change.yaml"
+    specification = target / "specs" / "change.toml"
     plan = target / "plans" / "change.md"
     specification.parent.mkdir(parents=True)
     plan.parent.mkdir()
-    review = target / "review.yaml"
+    review = target / "review.toml"
     review.write_text(_review(name), encoding="utf-8")
     specification.write_text(_specification(name), encoding="utf-8")
     plan.write_text(_plan(name), encoding="utf-8")
@@ -38,46 +37,50 @@ def open_change(repository: Path, name: str) -> dict[str, object]:
 
 
 def _review(name: str) -> str:
-    return f"""review:
-  schema_version: 1
-  id: {name}
-  status: draft
-  source:
-    kind: human_direction
-    summary: TODO
-  clauses:
-    - id: REQ-001
-      statement: TODO describe one independently verifiable need.
-  acceptance:
-    result: pending
-    delivery_commit: null
-    accepted_clauses: []
-    rejected_clauses: []
-"""
+    return f'''[review]
+schema_version = 1
+id = "{name}"
+status = "draft"
+
+[review.source]
+kind = "human_direction"
+summary = "TODO"
+
+[[review.clauses]]
+id = "REQ-001"
+statement = "TODO describe one independently verifiable need."
+disposition = "covered"
+specification = "{name}/change"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []
+'''
 
 
 def _specification(name: str) -> str:
-    return f"""specification:
-  schema_version: 1
-  id: {name}/change
-  version: 1
-  status: draft
-  implementation_authorized: false
-  review:
-    id: {name}
-    clauses: [REQ-001]
-  decisions: []
-  plan: changes/{name}/plans/change.md
-  acceptance:
-    - TODO describe observable behavior.
-"""
+    return f'''[specification]
+schema_version = 1
+id = "{name}/change"
+version = 1
+status = "draft"
+implementation_authorized = false
+decisions = []
+plan = "changes/{name}/plans/change.md"
+acceptance = ["TODO describe observable behavior."]
+
+[specification.review]
+id = "{name}"
+clauses = ["REQ-001"]
+'''
 
 
 def _plan(name: str) -> str:
     return f"""# {name} plan
 
 Status: draft
-Specification: `changes/{name}/specs/change.yaml`
+Specification: `changes/{name}/specs/change.toml`
 Base: TODO
 
 | Obligation | Clauses | Outcome |
