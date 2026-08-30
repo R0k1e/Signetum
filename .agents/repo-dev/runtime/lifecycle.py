@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
@@ -15,6 +17,112 @@ from shutil import which
 
 class AdmissionError(ValueError):
     """The requested member cannot be admitted safely."""
+
+
+@dataclass(frozen=True)
+class WorkspaceIdentity:
+    branch: str
+    path: Path
+    head: str
+    dirty: bool
+
+
+def _mise_executable() -> str:
+    executable = which("mise")
+    if executable is None:
+        raise AdmissionError(
+            "Mise executable is unavailable; install Mise and run `mise install` in the repository"
+        )
+    return executable
+
+
+def _run_tool(
+    repository: Path, command: tuple[str, ...], *, capture_output: bool = True
+) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy()
+    for name in tuple(environment):
+        if name.startswith("GIT_") or name in {
+            "PYTHONHOME",
+            "PYTHONPATH",
+            "UV_PROJECT_ENVIRONMENT",
+            "VIRTUAL_ENV",
+        }:
+            environment.pop(name)
+    environment["MISE_TRUSTED_CONFIG_PATHS"] = str(repository.resolve())
+    completed = subprocess.run(  # nosec B603
+        (_mise_executable(), "exec", "--", *command),
+        cwd=repository,
+        check=False,
+        capture_output=capture_output,
+        env=environment,
+        text=True,
+    )
+    if completed.returncode != 0:
+        diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
+        detail = diagnostic or f"Mise could not execute {command[0]}"
+        raise AdmissionError(f"{detail}; run `mise install` in the repository")
+    return completed
+
+
+def _worktrunk(
+    repository: Path, arguments: tuple[str, ...], *, json_output: bool = False
+) -> object:
+    completed = _run_tool(
+        repository,
+        (
+            "wt",
+            "-C",
+            str(repository),
+            "--yes",
+            "--config-set",
+            "list.json-schema=2",
+            *arguments,
+        ),
+    )
+    if not json_output:
+        return completed.stdout
+    try:
+        return json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise AdmissionError(f"invalid Worktrunk JSON: {error.msg}") from error
+
+
+def _worktrees(repository: Path) -> tuple[WorkspaceIdentity, ...]:
+    payload = _worktrunk(repository, ("list", "--format=json"), json_output=True)
+    if not isinstance(payload, dict) or payload.get("schema") != 2:
+        raise AdmissionError("invalid Worktrunk JSON: expected schema 2 envelope")
+    items = payload.get("items")
+    if not isinstance(items, list):
+        raise AdmissionError("invalid Worktrunk JSON: items must be a list")
+    result: list[WorkspaceIdentity] = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("worktree"), dict):
+            continue
+        branch, head, worktree = item.get("branch"), item.get("head"), item["worktree"]
+        changes = worktree.get("changes")
+        if (
+            not isinstance(branch, str)
+            or not isinstance(head, dict)
+            or not isinstance(head.get("sha"), str)
+            or not isinstance(worktree.get("path"), str)
+            or not isinstance(changes, dict)
+        ):
+            raise AdmissionError("invalid Worktrunk JSON: incomplete registered workspace identity")
+        dirty = any(
+            changes.get(name) is True
+            for name in ("staged", "modified", "untracked", "renamed", "deleted", "conflicted")
+        )
+        result.append(
+            WorkspaceIdentity(branch, Path(worktree["path"]).resolve(), head["sha"], dirty)
+        )
+    return tuple(result)
+
+
+def _registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:
+    matches = tuple(workspace for workspace in _worktrees(repository) if workspace.branch == branch)
+    if len(matches) != 1:
+        raise AdmissionError(f"Worktrunk did not report one registered workspace for {branch}")
+    return matches[0]
 
 
 def _receipt_root(repository: Path) -> Path:
@@ -50,23 +158,36 @@ def _run_gate(repository: Path, kind: str) -> None:
             or not all(isinstance(argument, str) and argument for argument in command)
         ):
             raise AdmissionError(f"validation.{kind} commands must be non-empty argv lists")
-        completed = subprocess.run(tuple(command), cwd=repository, check=False)  # nosec B603
-        if completed.returncode:
-            raise AdmissionError("repository validation failed")
+        _run_tool(repository, tuple(command), capture_output=False)
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
     root = Path(_git(repository, "rev-parse", "--show-toplevel"))
-    destination = root.parent / f"{root.name}-{branch.replace('/', '-')}"
-    if destination.exists():
-        raise AdmissionError(f"workspace path already exists: {destination}")
-    _git(root, "worktree", "add", "-b", branch, str(destination), base)
+    source = _git(root, "rev-parse", base)
+    _worktrunk(
+        root,
+        (
+            "switch",
+            "--create",
+            branch,
+            "--base",
+            base,
+            "--no-hooks",
+            "--no-cd",
+            "--format=json",
+        ),
+        json_output=True,
+    )
+    workspace = _registered_workspace(root, branch)
+    if workspace.head != source:
+        raise AdmissionError("Worktrunk workspace does not match the exact approved base")
     return {
         "schema_version": 1,
         "status": "opened",
         "branch": branch,
         "base": base,
-        "worktree": str(destination),
+        "source": source,
+        "worktree": str(workspace.path),
     }
 
 
@@ -90,12 +211,18 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
     source = _git(repository, "rev-parse", "HEAD")
     if base is not None and source == _git(repository, "rev-parse", base):
         raise AdmissionError("source has no commits beyond the approved base")
+    evidence_base = _batch_base(repository, source) if kind == "final" else None
+    if kind == "final":
+        proposals = _proposal_paths(repository)
+        if proposals:
+            raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
+        _require_numbering_base(repository, evidence_base, source)
     _run_gate(repository, "member" if kind == "member" else "final")
     payload = {
         "schema_version": 1,
         "kind": kind,
         "source": source,
-        "base": _git(repository, "rev-parse", base) if base else None,
+        "base": _git(repository, "rev-parse", base) if base else evidence_base,
         "validated_at": datetime.now(UTC).isoformat(),
         "valid": True,
     }
@@ -143,13 +270,146 @@ def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
     return completed.returncode == 0
 
 
+def _commit_plans(repository: Path, commit: str) -> tuple[str, ...]:
+    body = _git(repository, "show", "-s", "--format=%B", commit)
+    return tuple(
+        sorted(
+            {
+                item.strip()
+                for declared in re.findall(r"^Delivers:\s*(.+)$", body, re.MULTILINE)
+                for item in declared.split(",")
+                if item.strip()
+            }
+        )
+    )
+
+
+def _ready_evidence(repository: Path, source: str, base: str) -> str:
+    matches: list[str] = []
+    for path in sorted(_receipt_root(repository).glob("member-*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (
+            payload.get("kind") == "member"
+            and payload.get("source") == source
+            and payload.get("base") == base
+            and payload.get("valid") is True
+        ):
+            matches.append(path.name)
+    if not matches:
+        raise AdmissionError("member has no ready evidence for its exact commit and base")
+    return matches[-1]
+
+
+def _stable_patch_id(repository: Path, base: str, source: str) -> str:
+    git = _git_executable()
+    diff = subprocess.run(  # nosec B603
+        (git, "-C", str(repository), "diff", "--binary", f"{base}..{source}"),
+        check=False,
+        capture_output=True,
+    )
+    if diff.returncode != 0:
+        raise AdmissionError(diff.stderr.decode(errors="replace").strip() or "git diff failed")
+    identified = subprocess.run(  # nosec B603
+        (git, "patch-id", "--stable"), input=diff.stdout, check=False, capture_output=True
+    )
+    if identified.returncode != 0:
+        raise AdmissionError(
+            identified.stderr.decode(errors="replace").strip() or "stable patch-id failed"
+        )
+    output = identified.stdout.decode().split()
+    if not output:
+        raise AdmissionError("member has no stable patch identity")
+    return output[0]
+
+
+def _proposal_paths(repository: Path) -> tuple[str, ...]:
+    return tuple(
+        line for line in _git(repository, "ls-files", "*ADP-proposal-*.md").splitlines() if line
+    )
+
+
+def _batch_base(repository: Path, tip: str) -> str | None:
+    history = _git(repository, "log", "--first-parent", "--format=%B%x00", tip)
+    marker = re.search(r"^RepoSeal-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
+    if marker:
+        return marker.group(1)
+    merges = _git(repository, "rev-list", "--first-parent", "--merges", tip).splitlines()
+    for commit in merges:
+        message = _git(repository, "show", "-s", "--format=%B", commit)
+        match = re.search(r"^RepoSeal-Base:\s*(\S+)$", message, re.MULTILINE)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _require_numbering_base(repository: Path, base: str | None, tip: str) -> None:
+    if base is None:
+        return
+    messages = _git(repository, "log", "--first-parent", "--format=%B%x00", f"{base}..{tip}")
+    numbering_bases = re.findall(r"^RepoSeal-Decision-Base:\s*(\S+)$", messages, re.MULTILINE)
+    if numbering_bases and set(numbering_bases) != {base}:
+        raise AdmissionError("decision numbering is bound to a different delivery base")
+
+
+def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
+    proposals = _proposal_paths(batch)
+    if not proposals:
+        return []
+    base_names = _git(batch, "ls-tree", "-r", "--name-only", base).splitlines()
+    used = [
+        int(match.group(1))
+        for path in (*base_names, *_git(batch, "ls-files").splitlines())
+        if (match := re.search(r"(?:^|/)ADP-(\d{4})-[^/]+\.md$", path))
+    ]
+    next_number = max(used, default=0) + 1
+    rewrites: list[dict[str, str]] = []
+    for proposal in sorted(proposals):
+        proposal_path = Path(proposal)
+        slug = proposal_path.name.removeprefix("ADP-proposal-")
+        formal_path = proposal_path.with_name(f"ADP-{next_number:04d}-{slug}")
+        if (batch / formal_path).exists():
+            raise AdmissionError(f"formal decision already exists: {formal_path}")
+        _git(batch, "mv", proposal, formal_path.as_posix())
+        tracked = tuple(filter(None, _git(batch, "ls-files").splitlines()))
+        old_name = proposal_path.name
+        new_name = formal_path.name
+        for relative in tracked:
+            candidate = batch / relative
+            if not candidate.is_file():
+                continue
+            try:
+                content = candidate.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            rewritten = content.replace(proposal, formal_path.as_posix()).replace(
+                old_name, new_name
+            )
+            if rewritten != content:
+                candidate.write_text(rewritten, encoding="utf-8")
+        rewrites.append({"proposal": proposal, "formal": formal_path.as_posix()})
+        next_number += 1
+    _git(batch, "add", "-u")
+    _git(
+        batch,
+        "commit",
+        "-m",
+        "reposeal: allocate formal decision identities",
+        "-m",
+        f"RepoSeal-Decision-Base: {base}",
+    )
+    return rewrites
+
+
 def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     _require_clean(batch)
     batch_branch = _branch(batch)
     if batch_branch in {"main", "master", "product"}:
         raise AdmissionError(f"refusing batch admission on delivery branch: {batch_branch}")
 
-    admitted: list[dict[str, str]] = []
+    admitted: list[dict[str, object]] = []
     unchanged: list[dict[str, str]] = []
     for raw_member in members:
         member = raw_member.resolve()
@@ -159,10 +419,27 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         member_branch = _branch(member)
         member_tip = _git(member, "rev-parse", "HEAD")
         batch_tip = _git(batch, "rev-parse", "HEAD")
-        record = {"branch": member_branch, "commit": member_tip, "worktree": str(member)}
+        plans = _commit_plans(member, member_tip)
+        if not plans:
+            raise AdmissionError("member commit has no Delivers Plan trailer")
+        record = {"branch": member_branch, "original": member_tip, "worktree": str(member)}
         if _is_ancestor(batch, member_tip, batch_tip):
             unchanged.append(record)
             continue
+        batch_base = _batch_base(batch, batch_tip) or batch_tip
+        ready_evidence = _ready_evidence(member, member_tip, batch_base)
+        patch_id = _stable_patch_id(member, batch_base, member_tip)
+        message = "\n".join(
+            (
+                f"merge: admit {member_branch}",
+                "",
+                f"RepoSeal-Base: {batch_base}",
+                f"RepoSeal-Original: {member_tip}",
+                f"RepoSeal-Patch-ID: {patch_id}",
+                f"RepoSeal-Ready-Evidence: {ready_evidence}",
+                *(f"RepoSeal-Plan: {plan}" for plan in plans),
+            )
+        )
         git = _git_executable()
         completed = subprocess.run(  # nosec B603
             (
@@ -173,7 +450,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
                 "--no-ff",
                 member_tip,
                 "-m",
-                f"merge: admit {member_branch}",
+                message,
             ),
             check=False,
             capture_output=True,
@@ -189,8 +466,18 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             }
             print(json.dumps(result, sort_keys=True))
             raise SystemExit(3)
-        admitted.append(record)
+        admission_commit = _git(batch, "rev-parse", "HEAD")
+        admitted.append(
+            {
+                **record,
+                "patch_id": patch_id,
+                "ready_evidence": ready_evidence,
+                "plan": list(plans),
+                "admission_commit": admission_commit,
+            }
+        )
 
+    decisions = _number_proposals(batch, _batch_base(batch, _git(batch, "rev-parse", "HEAD")) or "")
     return {
         "schema_version": 1,
         "status": "admitted",
@@ -199,6 +486,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
         "admitted": admitted,
         "unchanged": unchanged,
+        "decisions": decisions,
     }
 
 
@@ -223,11 +511,18 @@ def continue_batch(batch: Path) -> dict[str, object]:
     )
     if completed.returncode != 0:
         raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
+    committed = _git(batch, "rev-parse", "HEAD")
+    batch_base = _batch_base(batch, committed)
+    if batch_base is None:
+        raise AdmissionError("continued admission has no approved batch base")
+    decisions = _number_proposals(batch, batch_base)
     return {
         "schema_version": 1,
         "status": "continued",
         "batch": str(batch),
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
+        "admission_commit": committed,
+        "decisions": decisions,
     }
 
 
@@ -235,9 +530,18 @@ def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]
     _require_clean(repository)
     stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     branch = f"batch/{stamp}"
-    root = Path(_git(repository, "rev-parse", "--show-toplevel"))
-    batch = root.parent / f"{root.name}-batch-{stamp}"
-    _git(root, "worktree", "add", "-b", branch, str(batch), "HEAD")
+    approved_base = _git(repository, "rev-parse", "HEAD")
+    opened = workspace_open(repository, branch, "HEAD")
+    batch = Path(str(opened["worktree"]))
+    _git(
+        batch,
+        "commit",
+        "--allow-empty",
+        "-m",
+        "reposeal: open provenance batch",
+        "-m",
+        f"RepoSeal-Batch-Format: 1\nRepoSeal-Batch-Base: {approved_base}",
+    )
     result = admit(batch, members)
     return {**result, "status": "opened", "worktree": str(batch)}
 
@@ -251,6 +555,8 @@ def batch_deliver(
         raise AdmissionError("source tip differs from expected batch tip")
     if _git(target, "rev-parse", "HEAD") != expected_base:
         raise AdmissionError("target tip differs from expected base")
+    if _batch_base(source, expected_tip) != expected_base:
+        raise AdmissionError("batch numbering and provenance differ from expected base")
     final_receipts = sorted(_receipt_root(source).glob("final-*.json"))
     if not final_receipts:
         raise AdmissionError("no final receipt exists")
@@ -260,6 +566,7 @@ def batch_deliver(
             for path in final_receipts
             if (payload := json.loads(path.read_text(encoding="utf-8"))).get("source")
             == expected_tip
+            and payload.get("base") == expected_base
             and payload.get("valid") is True
         ),
         None,
@@ -348,15 +655,24 @@ def _delivery_provenance(
         if not subject.startswith(prefix):
             raise AdmissionError("batch contains an unrecognized merge authority")
         original = parents[1]
+        body = _git(repository, "show", "-s", "--format=%B", merge_commit)
+        fields = {
+            key: value
+            for key, value in re.findall(r"^RepoSeal-([^:]+):\s*(.+)$", body, re.MULTILINE)
+        }
+        if fields.get("Original") != original:
+            raise AdmissionError("admission provenance original does not match merge parent")
         summary = _git(repository, "show", "-s", "--format=%s", original)
-        body = _git(repository, "show", "-s", "--format=%B", original)
-        for declared in re.findall(r"^Delivers:\s*(.+)$", body, re.MULTILINE):
-            plans.update(item.strip() for item in declared.split(",") if item.strip())
+        member_plans = re.findall(r"^RepoSeal-Plan:\s*(.+)$", body, re.MULTILINE)
+        plans.update(member_plans)
         members.append(
             {
                 "branch": subject.removeprefix(prefix),
                 "original": original,
-                "integrated": merge_commit,
+                "patch_id": fields.get("Patch-ID", ""),
+                "ready_evidence": fields.get("Ready-Evidence", ""),
+                "plan": ",".join(member_plans),
+                "admission_commit": merge_commit,
                 "summary": summary,
             }
         )
@@ -365,44 +681,41 @@ def _delivery_provenance(
     return members, sorted(plans)
 
 
-def _worktree_branches(repository: Path) -> dict[str, Path]:
-    output = _git(repository, "worktree", "list", "--porcelain")
-    result: dict[str, Path] = {}
-    current_path: Path | None = None
-    for line in output.splitlines():
-        if line.startswith("worktree "):
-            current_path = Path(line.removeprefix("worktree ")).resolve()
-        elif line.startswith("branch refs/heads/") and current_path is not None:
-            result[line.removeprefix("branch refs/heads/")] = current_path
-    return result
+def _remove_workspace(repository: Path, workspace: WorkspaceIdentity) -> None:
+    _worktrunk(repository, ("remove", str(workspace.path)))
 
 
 def _cleanup_delivered_worktrees(
     target: Path, source: Path, members: list[dict[str, str]]
 ) -> tuple[list[str], list[dict[str, str]]]:
-    worktrees = _worktree_branches(target)
+    worktrees = {workspace.branch: workspace for workspace in _worktrees(target)}
     removed: list[str] = []
     retained: list[dict[str, str]] = []
     latest_members = {member["branch"]: member for member in members}
     for branch, member in latest_members.items():
-        path = worktrees.get(branch)
-        if path is None:
+        workspace = worktrees.get(branch)
+        if workspace is None:
             continue
-        try:
-            _require_clean(path)
-            if _git(path, "rev-parse", "HEAD") != member["original"]:
-                retained.append({"branch": branch, "worktree": str(path), "reason": "advanced"})
-                continue
-            _git(target, "worktree", "remove", str(path))
-            _git(target, "branch", "-d", branch)
-            removed.append(str(path))
-        except AdmissionError as error:
-            retained.append({"branch": branch, "worktree": str(path), "reason": str(error)})
-
-    source_branch = _branch(source)
-    _git(target, "worktree", "remove", str(source))
-    _git(target, "branch", "-d", source_branch)
-    removed.append(str(source))
+        if workspace.dirty:
+            retained.append({"branch": branch, "worktree": str(workspace.path), "reason": "dirty"})
+            continue
+        if workspace.head != member["original"]:
+            retained.append(
+                {"branch": branch, "worktree": str(workspace.path), "reason": "advanced"}
+            )
+            continue
+        _remove_workspace(target, workspace)
+        removed.append(str(workspace.path))
+    source_matches = tuple(
+        workspace for workspace in worktrees.values() if workspace.path == source.resolve()
+    )
+    if len(source_matches) != 1:
+        raise AdmissionError("batch source is not one registered Worktrunk workspace")
+    source_workspace = source_matches[0]
+    if source_workspace.dirty:
+        raise AdmissionError("batch source became dirty before Worktrunk removal")
+    _remove_workspace(target, source_workspace)
+    removed.append(str(source_workspace.path))
     return removed, retained
 
 

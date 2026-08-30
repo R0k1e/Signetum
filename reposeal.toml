@@ -1,0 +1,35 @@
+schema_version = 2
+
+[reposeal]
+protocol = 2
+template_version = "0.2.0"
+
+[profiles]
+enabled = ["python-default@1", "git-worktrunk@1"]
+
+[repository]
+architecture = "docs/ARCHITECTURE.md"
+specifications = "changes/*/specs/*.toml"
+plans = "changes/*/plans/*.md"
+decisions = "docs/decisions"
+delivery_state = ".reposeal/delivery"
+lockfiles = ["uv.lock"]
+
+[[impact.rules]]
+name = "python.source"
+paths = ["src/**"]
+profiles = ["python-default@1"]
+gates = ["member", "final"]
+
+[[impact.rules]]
+name = "python.unit"
+paths = ["tests/unit/**"]
+profiles = ["python-default@1"]
+gates = ["member", "final"]
+
+[[impact.rules]]
+name = "python.integration"
+paths = ["tests/integration/**"]
+profiles = ["python-default@1"]
+gates = ["final"]
+requires_final = true
