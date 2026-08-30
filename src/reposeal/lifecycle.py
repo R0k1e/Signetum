@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
@@ -15,6 +17,114 @@ from shutil import which
 
 class AdmissionError(ValueError):
     """The requested member cannot be admitted safely."""
+
+
+@dataclass(frozen=True)
+class WorkspaceIdentity:
+    """One registered Worktrunk workspace identity."""
+
+    branch: str
+    path: Path
+    head: str
+    dirty: bool
+
+
+def _mise_executable() -> str:
+    executable = which("mise")
+    if executable is None:
+        raise AdmissionError(
+            "Mise executable is unavailable; install Mise and run `mise install` in the repository"
+        )
+    return executable
+
+
+def _run_tool(
+    repository: Path, command: tuple[str, ...], *, capture_output: bool = True
+) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy()
+    for name in tuple(environment):
+        if name.startswith("GIT_") or name in {
+            "PYTHONHOME",
+            "PYTHONPATH",
+            "UV_PROJECT_ENVIRONMENT",
+            "VIRTUAL_ENV",
+        }:
+            environment.pop(name)
+    environment["MISE_TRUSTED_CONFIG_PATHS"] = str(repository.resolve())
+    completed = subprocess.run(  # nosec B603
+        (_mise_executable(), "exec", "--", *command),
+        cwd=repository,
+        check=False,
+        capture_output=capture_output,
+        env=environment,
+        text=True,
+    )
+    if completed.returncode != 0:
+        diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
+        detail = diagnostic or f"Mise could not execute {command[0]}"
+        raise AdmissionError(f"{detail}; run `mise install` in the repository")
+    return completed
+
+
+def _worktrunk(
+    repository: Path, arguments: tuple[str, ...], *, json_output: bool = False
+) -> object:
+    command = (
+        "wt",
+        "-C",
+        str(repository),
+        "--yes",
+        "--config-set",
+        "list.json-schema=2",
+        *arguments,
+    )
+    completed = _run_tool(repository, command)
+    if not json_output:
+        return completed.stdout
+    try:
+        return json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise AdmissionError(f"invalid Worktrunk JSON: {error.msg}") from error
+
+
+def _worktrees(repository: Path) -> tuple[WorkspaceIdentity, ...]:
+    payload = _worktrunk(repository, ("list", "--format=json"), json_output=True)
+    if not isinstance(payload, dict) or payload.get("schema") != 2:
+        raise AdmissionError("invalid Worktrunk JSON: expected schema 2 envelope")
+    items = payload.get("items")
+    if not isinstance(items, list):
+        raise AdmissionError("invalid Worktrunk JSON: items must be a list")
+    result: list[WorkspaceIdentity] = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("worktree"), dict):
+            continue
+        branch = item.get("branch")
+        head = item.get("head")
+        worktree = item["worktree"]
+        changes = worktree.get("changes")
+        if (
+            not isinstance(branch, str)
+            or not isinstance(head, dict)
+            or not isinstance(head.get("sha"), str)
+            or not isinstance(worktree.get("path"), str)
+            or not isinstance(changes, dict)
+        ):
+            raise AdmissionError("invalid Worktrunk JSON: incomplete registered workspace identity")
+        dirty = any(
+            changes.get(name) is True
+            for name in ("staged", "modified", "untracked", "renamed", "deleted", "conflicted")
+        )
+        result.append(
+            WorkspaceIdentity(branch, Path(worktree["path"]).resolve(), head["sha"], dirty)
+        )
+    return tuple(result)
+
+
+def _registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:
+    matches = tuple(workspace for workspace in _worktrees(repository) if workspace.branch == branch)
+    if len(matches) != 1:
+        raise AdmissionError(f"Worktrunk did not report one registered workspace for {branch}")
+    return matches[0]
 
 
 def _receipt_root(repository: Path) -> Path:
@@ -44,23 +154,36 @@ def _run_gate(repository: Path) -> None:
         ("uv", "run", "--no-sync", "pip-audit"),
     )
     for command in commands:
-        completed = subprocess.run(command, cwd=repository, check=False)  # nosec B603
-        if completed.returncode:
-            raise AdmissionError("repository validation failed")
+        _run_tool(repository, command, capture_output=False)
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
     root = Path(_git(repository, "rev-parse", "--show-toplevel"))
-    destination = root.parent / f"{root.name}-{branch.replace('/', '-')}"
-    if destination.exists():
-        raise AdmissionError(f"workspace path already exists: {destination}")
-    _git(root, "worktree", "add", "-b", branch, str(destination), base)
+    source = _git(root, "rev-parse", base)
+    _worktrunk(
+        root,
+        (
+            "switch",
+            "--create",
+            branch,
+            "--base",
+            base,
+            "--no-hooks",
+            "--no-cd",
+            "--format=json",
+        ),
+        json_output=True,
+    )
+    workspace = _registered_workspace(root, branch)
+    if workspace.head != source:
+        raise AdmissionError("Worktrunk workspace does not match the exact approved base")
     return {
         "schema_version": 1,
         "status": "opened",
         "branch": branch,
         "base": base,
-        "worktree": str(destination),
+        "source": source,
+        "worktree": str(workspace.path),
     }
 
 
@@ -406,10 +529,9 @@ def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]
     _require_clean(repository)
     stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     branch = f"batch/{stamp}"
-    root = Path(_git(repository, "rev-parse", "--show-toplevel"))
-    batch = root.parent / f"{root.name}-batch-{stamp}"
-    approved_base = _git(root, "rev-parse", "HEAD")
-    _git(root, "worktree", "add", "-b", branch, str(batch), approved_base)
+    approved_base = _git(repository, "rev-parse", "HEAD")
+    opened = workspace_open(repository, branch, "HEAD")
+    batch = Path(str(opened["worktree"]))
     _git(
         batch,
         "commit",
@@ -558,44 +680,43 @@ def _delivery_provenance(
     return members, sorted(plans)
 
 
-def _worktree_branches(repository: Path) -> dict[str, Path]:
-    output = _git(repository, "worktree", "list", "--porcelain")
-    result: dict[str, Path] = {}
-    current_path: Path | None = None
-    for line in output.splitlines():
-        if line.startswith("worktree "):
-            current_path = Path(line.removeprefix("worktree ")).resolve()
-        elif line.startswith("branch refs/heads/") and current_path is not None:
-            result[line.removeprefix("branch refs/heads/")] = current_path
-    return result
+def _remove_workspace(repository: Path, workspace: WorkspaceIdentity) -> None:
+    _worktrunk(repository, ("remove", str(workspace.path)))
 
 
 def _cleanup_delivered_worktrees(
     target: Path, source: Path, members: list[dict[str, str]]
 ) -> tuple[list[str], list[dict[str, str]]]:
-    worktrees = _worktree_branches(target)
+    worktrees = {workspace.branch: workspace for workspace in _worktrees(target)}
     removed: list[str] = []
     retained: list[dict[str, str]] = []
     latest_members = {member["branch"]: member for member in members}
     for branch, member in latest_members.items():
-        path = worktrees.get(branch)
-        if path is None:
+        workspace = worktrees.get(branch)
+        if workspace is None:
             continue
-        try:
-            _require_clean(path)
-            if _git(path, "rev-parse", "HEAD") != member["original"]:
-                retained.append({"branch": branch, "worktree": str(path), "reason": "advanced"})
-                continue
-            _git(target, "worktree", "remove", str(path))
-            _git(target, "branch", "-d", branch)
-            removed.append(str(path))
-        except AdmissionError as error:
-            retained.append({"branch": branch, "worktree": str(path), "reason": str(error)})
+        if workspace.dirty:
+            retained.append({"branch": branch, "worktree": str(workspace.path), "reason": "dirty"})
+            continue
+        if workspace.head != member["original"]:
+            retained.append(
+                {"branch": branch, "worktree": str(workspace.path), "reason": "advanced"}
+            )
+            continue
+        _remove_workspace(target, workspace)
+        removed.append(str(workspace.path))
 
-    source_branch = _branch(source)
-    _git(target, "worktree", "remove", str(source))
-    _git(target, "branch", "-d", source_branch)
-    removed.append(str(source))
+    source_path = source.resolve()
+    source_matches = tuple(
+        workspace for workspace in worktrees.values() if workspace.path == source_path
+    )
+    if len(source_matches) != 1:
+        raise AdmissionError("batch source is not one registered Worktrunk workspace")
+    source_workspace = source_matches[0]
+    if source_workspace.dirty:
+        raise AdmissionError("batch source became dirty before Worktrunk removal")
+    _remove_workspace(target, source_workspace)
+    removed.append(str(source_workspace.path))
     return removed, retained
 
 
