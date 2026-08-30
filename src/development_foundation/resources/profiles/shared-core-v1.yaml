@@ -1,5 +1,0 @@
-schema_version: 1
-identity: shared-core@1
-authorities:
-  - foundation-contracts
-requires: []

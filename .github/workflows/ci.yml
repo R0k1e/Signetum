@@ -1,62 +1,13 @@
-name: CI
-on: [push, pull_request, workflow_dispatch]
-permissions:
-  contents: read
+name: RepoSeal
+
+on:
+  pull_request:
+  push:
+
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12", "3.13"]
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
-        with:
-          version: "0.8.15"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-      - run: uv python install "${{ matrix.python-version }}"
-      - run: uv sync --locked --all-extras --dev
-      - run: uv build
-      - run: uv run --no-sync pytest
-        env:
-          HYPOTHESIS_PROFILE: ci
-  static:
+  contracts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
-        with:
-          version: "0.8.15"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-      - run: uv python install 3.12
-      - run: uv sync --locked --all-extras --dev
-      - run: uv run --no-sync ruff check .
-      - run: uv run --no-sync ruff format --check .
-      - run: uv run --no-sync ty check
-      - run: uv run --no-sync pre-commit run typos --all-files
-      - run: uv run --no-sync foundation check product-surface --repository .
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
-        with:
-          version: "0.8.15"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-      - run: uv python install 3.12
-      - run: uv sync --locked --all-extras --dev
-      - run: uv run --no-sync pip-audit
-      - run: uv run --no-sync bandit -r src
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --no-project python .agents/repo-dev/runtime/lifecycle.py final

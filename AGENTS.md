@@ -1,16 +1,31 @@
 # Repository Agent Contract
 
-Before planning, editing, or running repository commands, read
-`docs/ARCHITECTURE.md`, `.agents/repo-dev/repo.yaml`, and every policy selected
-by task intent or affected paths. Report the selected policy groups and reasons
-before repository operations.
+Before planning, editing, or running repository commands:
 
-Use `uv` for Python commands. Keep active work in a plan-owned worktree.
-Validation is check-only; delivery requires an explicit request. Never use
-stash, destructive reset/restore/clean, force push, direct merge, or ad-hoc
-worktree deletion. Preserve unrelated changes and keep credentials, caches,
-receipts, and local paths out of Git.
+1. Read `docs/ARCHITECTURE.md` and its linked responsibility documents.
+2. Read `.agents/repo-dev/repo.yaml`.
+3. Load every mandatory policy and every policy selected by intent or path.
+4. Emit a bounded routing manifest with each selected group and its reason.
 
-Specifications own behavior, and Plans cannot narrow them. Accepted decisions
-must precede architecture, process, or security changes. Use English for code
-and technical documents. Use Chinese for user discussion.
+Behavior changes require a human-confirmed specification. Architecture,
+process, and security decisions require an accepted standalone decision.
+Develop in a plan-owned worktree; keep the delivery worktree clean. Preserve
+unrelated changes. Use the repository-declared environment authority and
+behavioral tests. Never hide a deferred requirement in prose: point it to an
+active specification. Delivery is explicit and is the only operation allowed
+to mutate the delivery worktree.
+
+The public lifecycle has exactly eight operations:
+
+```text
+workspace-open <branch> <base>
+changed <base> [--explain]
+ready <base>
+batch-open --member <worktree-path> [--member <worktree-path> ...]
+batch-admit <batch> --member <worktree-path> [--member <worktree-path> ...]
+batch-continue <batch>
+final
+batch-deliver <source> <target> <expected-base> <expected-batch-tip>
+```
+
+Use English for repository artifacts and the user's language for discussion.

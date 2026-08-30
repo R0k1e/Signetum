@@ -1,23 +1,22 @@
 # Architecture
 
-This repository is the independently versioned source of RepoSeal, a standalone
-GitHub Template for governed, Agent-native development. GitHub copies it once when a
-new repository is created; the created repository then owns its product facts,
-lifecycle state, package, schemas, profiles, and policy without an update or
-synchronization relationship to this repository.
+This file is the first discovery authority for every Agent. Replace the
+bracketed facts when the repository is created; keep the responsibility links
+stable as the product evolves.
 
-RepoSeal is the public product identity. Within this Template, the
-`development_foundation` distribution and `foundation` CLI validate immutable
-schema and profile identities and expose check-only repository
-contracts. It is an internal product authority and release artifact, not a
-cross-repository upgrade channel.
+## Product boundary
 
-Responsibility documents:
+- Product: `[name and user-visible purpose]`
+- Public entry points: `[CLI, API, UI, jobs, or libraries]`
+- Production implementation roots: `[paths]`
+- Test roots: `[paths]`
+- Environment authority: `[mise, uv, npm, cargo, or another repository-owned tool]`
 
-- [Repository foundation](architecture/repository-foundation.md) defines the
-  package, manifest, profile, and adapter boundaries.
-- [Validation and delivery](architecture/validation-and-delivery.md) defines
-  check-only evidence and explicit delivery responsibilities.
+## Responsibilities
 
-Approved architecture decisions live in `docs/decisions/`. Active work is
-governed by stable change packages under `changes/`.
+- [Development lifecycle](development-lifecycle.md)
+- [Agent-team delivery](agent-team-delivery.md)
+- [Customization](customizing.md)
+
+Search all production and test implementations before changing an authority.
+Extend one owner and remove superseded implementations and compatibility paths.
