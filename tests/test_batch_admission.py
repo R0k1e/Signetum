@@ -135,6 +135,7 @@ def test_gate_builds_release_inputs_before_running_repository_checks(
         commands.append(command)
         return Completed()
 
+    monkeypatch.setattr(module, "_mise_executable", lambda: "mise")
     monkeypatch.setattr(module.subprocess, "run", record)
 
     module._run_gate(tmp_path)
