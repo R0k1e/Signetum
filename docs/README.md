@@ -24,3 +24,4 @@
 - [Security](../SECURITY.md)
 - [Changelog](../CHANGELOG.md)
 - [Architecture decisions](decisions/README.md)
+- [Maintainer release guide](maintainers/releasing.md)

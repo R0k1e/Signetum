@@ -1,5 +1,8 @@
 # Development Foundation
 
+[![CI](https://github.com/R0k1e/Python_CICD_Repo_Template/actions/workflows/ci.yml/badge.svg)](https://github.com/R0k1e/Python_CICD_Repo_Template/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+
 Development Foundation is an agent-native GitHub Template that turns recorded
 requirements into traceable, parallel, behavior-verified delivery.
 
@@ -92,3 +95,5 @@ The CLI emits one JSON result and exits nonzero for invalid contracts. See
 
 See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md),
 [Changelog](CHANGELOG.md), and the [Apache-2.0 license](LICENSE).
+Maintainers should follow the [release guide](docs/maintainers/releasing.md)
+before creating a version tag or publishing artifacts.

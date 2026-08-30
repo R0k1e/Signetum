@@ -62,6 +62,7 @@ SECURITY.md
 docs/concepts/development-lifecycle.md
 docs/workflows/agent-team-delivery.md
 docs/guides/customizing-the-template.md
+docs/maintainers/releasing.md
 examples/complete-change/**
 src/development_foundation/product_surface.py
 tests/unit/product_surface/test_validator.py

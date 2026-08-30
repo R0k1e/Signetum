@@ -24,6 +24,7 @@ REQUIRED_PRODUCT_PATHS = (
     "docs/product/frequently-asked-questions.md",
     "docs/workflows/agent-team-delivery.md",
     "docs/guides/customizing-the-template.md",
+    "docs/maintainers/releasing.md",
     "examples/complete-change/README.md",
     "examples/complete-change/review.yaml",
     "examples/complete-change/specs/greeting.yaml",
