@@ -1,4 +1,4 @@
-from application import greeting
+from application import greeting  # ty: ignore[unresolved-import]
 
 
 def test_application_public_boundary() -> None:

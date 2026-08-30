@@ -28,9 +28,7 @@ TOP_LEVEL = frozenset(
         "uv.lock",
     }
 )
-FORBIDDEN_NAMES = frozenset(
-    {".claude", ".vscode", "profiles", "schemas", "skills", "tools"}
-)
+FORBIDDEN_NAMES = frozenset({".claude", ".vscode", "profiles", "schemas", "skills", "tools"})
 
 
 @dataclass(frozen=True)

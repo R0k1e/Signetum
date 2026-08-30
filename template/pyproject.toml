@@ -20,6 +20,7 @@ package = false
 pythonpath = ["src"]
 
 [tool.ruff]
+cache-dir = "../.ruff_cache"
 line-length = 100
 
 [tool.ruff.lint]

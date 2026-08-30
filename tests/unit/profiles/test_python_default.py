@@ -18,9 +18,7 @@ def test_python_default_contributes_configurable_validation_mapping() -> None:
         "packages/worker",
     ]
     assert shards["profile:python-default@1:unit"]["command"][-1:] == ["checks/unit"]
-    assert shards["profile:python-default@1:integration"]["command"][-1:] == [
-        "checks/integration"
-    ]
+    assert shards["profile:python-default@1:integration"]["command"][-1:] == ["checks/integration"]
     assert "profile:python-default@1:dependency-audit" in gates["final"]
     assert "profile:python-default@1:secrets" in gates["member"]
 
@@ -39,6 +37,5 @@ def test_python_default_mapping_is_independent_of_other_profiles() -> None:
         "uv",
     }
     assert all(
-        shard["name"].startswith("profile:python-default@1:")
-        for shard in configuration["shards"]
+        shard["name"].startswith("profile:python-default@1:") for shard in configuration["shards"]
     )

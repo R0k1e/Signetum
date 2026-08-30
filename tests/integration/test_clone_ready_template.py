@@ -62,7 +62,7 @@ def test_template_reports_missing_extra_forbidden_and_symlink(tmp_path: Path) ->
             path.write_text("", encoding="utf-8")
         else:
             path.mkdir()
-    (source / "src").mkdir()
+    (source / "tools").mkdir()
     (source / "linked").symlink_to(source / "LICENSE")
 
     report = validate_template(source)
