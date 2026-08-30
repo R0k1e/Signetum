@@ -1,0 +1,17 @@
+[specification]
+schema_version = 1
+id = "reposeal-execution-foundation-v2/python-default"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-language-neutral-composable-execution.md"]
+plan = "changes/reposeal-execution-foundation-v2/plans/python-default.md"
+acceptance = [
+  "A freshly rendered Template enables python-default and can install its pinned tools through Mise and uv.",
+  "The Python profile contributes namespaced Ruff, ty, unit, integration, dependency-audit, and secret-detection gates without adding language branches to Core.",
+  "A repository can disable Python and declare another language profile, or compose Python with additional profiles, without changing lifecycle commands.",
+]
+
+[specification.review]
+id = "reposeal-execution-foundation-v2"
+clauses = ["EXEC-003"]

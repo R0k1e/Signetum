@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reposeal.invalid/schemas/reposeal-v2.schema.json",
+  "title": "RepoSeal repository configuration v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "reposeal", "repository"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "reposeal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "template_version"],
+      "properties": {
+        "protocol": {"type": "integer", "minimum": 2},
+        "template_version": {"type": "string"}
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "array", "items": {"$ref": "#/$defs/profile"}, "uniqueItems": true},
+        "replacements": {
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/profile"},
+          "additionalProperties": {"$ref": "#/$defs/profile"}
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architecture", "specifications", "plans", "decisions", "delivery_state"],
+      "properties": {
+        "architecture": {"$ref": "#/$defs/path"},
+        "specifications": {"$ref": "#/$defs/path"},
+        "plans": {"$ref": "#/$defs/path"},
+        "decisions": {"$ref": "#/$defs/path"},
+        "delivery_state": {"$ref": "#/$defs/path"},
+        "lockfiles": {"type": "array", "items": {"$ref": "#/$defs/path"}, "uniqueItems": true}
+      }
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "paths"],
+            "properties": {
+              "name": {"type": "string", "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$"},
+              "paths": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/path"}},
+              "profiles": {"type": "array", "items": {"$ref": "#/$defs/profile"}},
+              "gates": {"type": "array", "items": {"type": "string"}},
+              "shards": {"type": "array", "items": {"type": "string"}},
+              "requires_final": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "path": {"type": "string", "minLength": 1, "not": {"pattern": "(^/|(^|/)\\.\\.(/|$))"}},
+    "profile": {"type": "string", "pattern": "^[a-z][a-z0-9-]*@[1-9][0-9]*$"}
+  }
+}

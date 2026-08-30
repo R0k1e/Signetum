@@ -1,0 +1,4 @@
+schema_version = 1
+identity = "python-default@1"
+authorities = ["python-environment", "python-quality"]
+requires = ["shared-core@1"]

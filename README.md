@@ -42,6 +42,11 @@ RepoSeal can mechanically prove coverage for requirements that were recorded,
 the exact tree that was validated, and what entered a delivery. It cannot prove
 that natural language was interpreted perfectly or that software is defect-free.
 
+The Core is language-neutral. A repository can compose multiple language
+profiles without changing the lifecycle; the public Template enables a
+batteries-included Python default with uv, Ruff, ty, behavioral tests, and
+security checks.
+
 ## The lifecycle
 
 ```text
@@ -82,6 +87,8 @@ See the [documentation map](docs/README.md), [why RepoSeal exists](docs/product/
 and [frequently asked questions](docs/product/frequently-asked-questions.md)
 for evaluation and comparison. If you already use a specification tool, read
 [RepoSeal and specification tools](docs/product/reposeal-and-specification-tools.md).
+Copied v0.1 repositories can use the explicit
+[v0.2 adoption guide](docs/guides/upgrading-v0.1-to-v0.2.md).
 
 A complete, non-authoritative teaching artifact is available under
 [`examples/complete-change`](examples/complete-change/README.md).

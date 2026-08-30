@@ -1,0 +1,17 @@
+[specification]
+schema_version = 1
+id = "reposeal-execution-foundation-v2/toolchain-and-workspaces"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-mise-and-worktrunk-authorities.md"]
+plan = "changes/reposeal-execution-foundation-v2/plans/toolchain-and-workspaces.md"
+acceptance = [
+  "Mise is the external tool version and execution authority while each language ecosystem owns its locked project dependencies.",
+  "Worktrunk is the only workspace creation, discovery, and removal backend; RepoSeal remains the lifecycle admission authority.",
+  "The copied runtime stays repository-owned and does not import or install the RepoSeal distribution.",
+]
+
+[specification.review]
+id = "reposeal-execution-foundation-v2"
+clauses = ["EXEC-006"]

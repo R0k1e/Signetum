@@ -3,8 +3,8 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.resources import files
+from tomllib import loads
 
-import yaml
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from reposeal.resources import profiles as profile_resources
@@ -34,9 +34,9 @@ class _ProfileResource(BaseModel):
 
 _PROFILE_DOCUMENT = TypeAdapter(dict[str, object])
 _RESOURCE_NAMES = (
-    "shared-core-v1.yaml",
-    "python-uv-v1.yaml",
-    "git-worktrunk-v1.yaml",
+    "shared-core-v1.toml",
+    "python-default-v1.toml",
+    "git-worktrunk-v1.toml",
 )
 
 
@@ -44,9 +44,7 @@ def _catalog() -> dict[str, ProfileDeclaration]:
     declarations: dict[str, ProfileDeclaration] = {}
     for resource_name in _RESOURCE_NAMES:
         resource = files(profile_resources) / resource_name
-        document = _PROFILE_DOCUMENT.validate_python(
-            yaml.safe_load(resource.read_text(encoding="utf-8"))
-        )
+        document = _PROFILE_DOCUMENT.validate_python(loads(resource.read_text(encoding="utf-8")))
         parsed = _ProfileResource.model_validate(document)
         declaration = ProfileDeclaration(parsed.identity, parsed.authorities, parsed.requires)
         declarations[declaration.identity] = declaration
@@ -56,6 +54,7 @@ def _catalog() -> dict[str, ProfileDeclaration]:
 def resolve_profiles(
     selected: tuple[str, ...],
     *,
+    replacements: Mapping[str, str] | None = None,
     catalog: Mapping[str, ProfileDeclaration] | None = None,
 ) -> tuple[ProfileDeclaration, ...]:
     """Resolve only selected profiles and their declared dependencies."""
@@ -84,8 +83,12 @@ def resolve_profiles(
         visiting.remove(identity)
         resolved.append(declaration)
 
+    configured_replacements = dict(replacements or {})
+    unknown_targets = set(configured_replacements).difference(selected)
+    if unknown_targets:
+        raise ProfileError(f"replacement target is not enabled: {sorted(unknown_targets)[0]}")
     for identity in selected:
-        add(identity, dependency=False)
+        add(configured_replacements.get(identity, identity), dependency=False)
     return tuple(resolved)
 
 

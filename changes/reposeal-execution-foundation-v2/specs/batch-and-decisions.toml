@@ -1,0 +1,17 @@
+[specification]
+schema_version = 1
+id = "reposeal-execution-foundation-v2/batch-and-decisions"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-batch-owned-decision-numbering.md"]
+plan = "changes/reposeal-execution-foundation-v2/plans/batch-and-decisions.md"
+acceptance = [
+  "Every admitted member is represented by its branch, original commit, stable patch identity, ready evidence, Plan, and admission commit.",
+  "Member worktrees may create only proposal ADPs; a batch deterministically assigns formal numbers and rewrites governed references before final validation.",
+  "A changed delivery base invalidates numbering and final evidence, while historical numbering gaps remain valid.",
+]
+
+[specification.review]
+id = "reposeal-execution-foundation-v2"
+clauses = ["EXEC-005"]
