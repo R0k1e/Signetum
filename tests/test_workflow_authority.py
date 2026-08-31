@@ -62,5 +62,20 @@ def test_release_validates_and_publishes_exact_tagged_tree() -> None:
 def test_retired_mutating_workflow_has_no_active_path() -> None:
     assert {path.name for path in WORKFLOWS.glob("*.yml")} == {
         "ci.yml",
+        "pages.yml",
         "release.yml",
     }
+
+
+def test_pages_deploys_only_the_engine_owned_exact_artifact() -> None:
+    workflow = _read("pages.yml")
+    required = (
+        "branches: [engine]",
+        "workflow_dispatch:",
+        "uv run --no-sync reposeal site build",
+        "path: .pages-artifact",
+        "pages: write",
+        "id-token: write",
+    )
+    assert all(value in workflow for value in required)
+    assert "template/" not in workflow

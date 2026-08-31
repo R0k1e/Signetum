@@ -1,0 +1,57 @@
+[specification]
+schema_version = 1
+id = "public-product-site/engine-owned-pages"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-engine-owned-product-site.md"]
+plan = "changes/public-product-site/plans/engine-owned-pages.md"
+intent = [
+  "give humans and search systems one canonical RepoSeal product page",
+  "keep the public Template free of RepoSeal marketing and brand assets",
+  "deploy a static site from exact validated engine source",
+]
+
+[specification.review]
+id = "public-product-site"
+clauses = ["SITE-001", "SITE-002", "SITE-003", "SITE-004", "SITE-005"]
+
+[[specification.scenarios]]
+id = "understand_in_one_minute"
+given = "a visitor who knows coding Agents but not RepoSeal"
+when = "the English or Chinese landing page is opened on desktop or mobile"
+then = [
+  "the first viewport identifies RepoSeal and its primary outcome",
+  "the page explains the six product outcomes, lifecycle, boundaries, and primary call to action",
+  "the visitor can open the GitHub Template and current Release",
+]
+
+[[specification.scenarios]]
+id = "machine_discovery"
+given = "a crawler reads the public page"
+when = "it inspects visible text and metadata"
+then = [
+  "canonical and hreflang links identify English and Simplified Chinese pages",
+  "Open Graph and social metadata use the canonical RepoSeal preview",
+  "JSON-LD identifies RepoSeal as a free DeveloperApplication and links its source and release",
+  "robots.txt and sitemap.xml expose only public product pages",
+]
+
+[[specification.scenarios]]
+id = "template_isolation"
+given = "the site is built and main is rendered"
+when = "inventories are compared"
+then = [
+  "site source and generated output exist only on engine or the Pages deployment artifact",
+  "main and template contain no site directory, product logo, Pages workflow, or marketing runtime",
+]
+
+[specification.negative_contract]
+removed_or_forbidden = [
+  "site or brand files in template or rendered main",
+  "deploying the engine repository tree as the Pages artifact",
+  "analytics, cookies, forms, user tracking, or third-party JavaScript",
+  "claims not supported by shipped repository behavior",
+  "unversioned reusable GitHub Actions",
+  "a Node or framework dependency for a static product page",
+]

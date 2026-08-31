@@ -12,6 +12,7 @@ from reposeal.manifest import ManifestError, load_manifest
 from reposeal.product_surface import validate_product_surface
 from reposeal.profiles import ProfileError, resolve_profiles
 from reposeal.release import ReleaseError, preflight
+from reposeal.site import build_site
 from reposeal.status.models import EvidenceSnapshot
 from reposeal.template import render_template, validate_template
 from reposeal.traceability.boundary import GitInventoryProvider, TraceabilityManifest
@@ -24,6 +25,22 @@ release_app = typer.Typer(add_completion=False, help="Verify immutable release c
 app.add_typer(release_app, name="release")
 template_app = typer.Typer(add_completion=False, help="Check or render the public Template.")
 app.add_typer(template_app, name="template")
+site_app = typer.Typer(add_completion=False, help="Build the engine-owned product site.")
+app.add_typer(site_app, name="site")
+
+
+@site_app.command("build")
+def site_build(
+    repository: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("."),
+    destination: Annotated[Path, typer.Option()] = Path(".pages-artifact"),
+) -> None:
+    """Build an exact, disposable GitHub Pages artifact."""
+    try:
+        files = build_site(repository.resolve(), destination.resolve())
+    except (OSError, ValueError) as error:
+        typer.echo(json.dumps({"error": str(error), "status": "invalid"}, sort_keys=True))
+        raise typer.Exit(code=3) from error
+    typer.echo(json.dumps({"files": len(files), "status": "built"}, sort_keys=True))
 
 
 @app.command(

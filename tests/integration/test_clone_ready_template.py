@@ -1,7 +1,7 @@
-import json
 import subprocess
 import sys
 from pathlib import Path
+from tomllib import loads
 
 import pytest
 from typer.testing import CliRunner
@@ -20,6 +20,7 @@ def test_template_is_minimal_and_clone_ready() -> None:
     assert "README.md" in report.files
     assert "README.zh-CN.md" in report.files
     assert "changes/.gitkeep" in report.files
+    assert "reposeal.yaml" not in report.files
     template_text = "\n".join(
         path.read_text(encoding="utf-8", errors="replace")
         for path in (ROOT / "template").rglob("*")
@@ -44,7 +45,7 @@ def test_template_enables_installable_python_default() -> None:
 
 
 def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
-    lifecycle = json.loads((ROOT / "template/reposeal.yaml").read_text())
+    lifecycle = loads((ROOT / "template/reposeal.toml").read_text())
     workflow = (ROOT / "template/.github/workflows/ci.yml").read_text()
 
     member = lifecycle["validation"]["member"]

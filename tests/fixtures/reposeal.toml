@@ -21,3 +21,7 @@ paths = ["src/**"]
 profiles = ["python-default@1"]
 gates = ["python.type", "python.unit"]
 shards = ["python.unit"]
+
+[validation]
+member = [["git", "diff", "--check"]]
+final = [["mise", "run", "python:secrets"]]
