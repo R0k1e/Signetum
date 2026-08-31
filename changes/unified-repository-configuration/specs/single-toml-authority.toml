@@ -4,7 +4,7 @@ id = "unified-repository-configuration/single-toml-authority"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-proposal-unify-runtime-configuration.md"]
+decisions = ["docs/decisions/ADP-0005-unify-runtime-configuration.md"]
 plan = "changes/unified-repository-configuration/plans/single-toml-authority.md"
 intent = [
   "make reposeal.toml the one visible repository configuration boundary",
