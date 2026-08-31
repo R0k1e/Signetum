@@ -28,10 +28,15 @@ def test_site_build_emits_an_exact_public_artifact(tmp_path: Path) -> None:
         "styles.css",
         "zh-CN/index.html",
     }
-    assert {path.relative_to(destination).as_posix() for path in destination.rglob("*") if path.is_file()} == set(files)
-    assert hashlib.sha256((destination / "assets/reposeal-mark.png").read_bytes()).digest() == hashlib.sha256(
-        (ROOT / "assets/brand/reposeal-mark.png").read_bytes()
-    ).digest()
+    assert {
+        path.relative_to(destination).as_posix()
+        for path in destination.rglob("*")
+        if path.is_file()
+    } == set(files)
+    assert (
+        hashlib.sha256((destination / "assets/reposeal-mark.png").read_bytes()).digest()
+        == hashlib.sha256((ROOT / "assets/brand/reposeal-mark.png").read_bytes()).digest()
+    )
 
 
 @pytest.mark.parametrize(
