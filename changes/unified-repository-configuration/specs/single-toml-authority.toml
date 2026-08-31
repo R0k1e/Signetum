@@ -1,0 +1,54 @@
+[specification]
+schema_version = 1
+id = "unified-repository-configuration/single-toml-authority"
+version = 1
+status = "proposed"
+implementation_authorized = false
+decisions = ["docs/decisions/ADP-proposal-unify-runtime-configuration.md"]
+plan = "changes/unified-repository-configuration/plans/single-toml-authority.md"
+intent = [
+  "make reposeal.toml the one visible repository configuration boundary",
+  "preserve strict shell-free member and final command execution",
+  "delete reposeal.yaml and every compatibility path",
+]
+
+[specification.review]
+id = "unified-repository-configuration"
+clauses = ["CONFIG-001", "CONFIG-002", "CONFIG-003", "CONFIG-004"]
+
+[[specification.scenarios]]
+id = "one_configuration_file"
+given = "a freshly rendered RepoSeal Template"
+when = "a human or Agent inspects repository configuration"
+then = [
+  "reposeal.toml contains identity, profiles, repository bindings, impact rules, and lifecycle validation commands",
+  "reposeal.yaml is absent",
+]
+
+[[specification.scenarios]]
+id = "strict_validation_commands"
+given = "member and final command arrays declared in reposeal.toml"
+when = "the copied runtime loads and executes one gate"
+then = [
+  "every command is a non-empty array of non-empty strings",
+  "commands execute through Mise without a shell",
+  "missing, malformed, or unsupported validation configuration fails closed",
+]
+
+[[specification.scenarios]]
+id = "self_contained_runtime"
+given = "a repository created from the Template with its locked environment installed"
+when = "it invokes any of the eight lifecycle operations"
+then = [
+  "the standard-library runtime reads reposeal.toml with tomllib",
+  "the RepoSeal engine package is not installed or imported",
+]
+
+[specification.negative_contract]
+removed_or_forbidden = [
+  "reposeal.yaml in the engine Template or rendered main inventory",
+  "JSON or YAML fallback parsing for repository configuration",
+  "duplicate validation commands in another manifest",
+  "shell command strings",
+  "implicit language inference inside lifecycle Core",
+]
