@@ -16,6 +16,8 @@ def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
     assert manifest.repository.architecture == "docs/ARCHITECTURE.md"
     assert manifest.profiles.enabled == ("python-default@1", "git-worktrunk@1")
     assert manifest.impact.rules[0].gates == ("python.type", "python.unit")
+    assert manifest.validation.member[0] == ("git", "diff", "--check")
+    assert manifest.validation.final[-1] == ("mise", "run", "python:secrets")
 
 
 @pytest.mark.parametrize(
@@ -139,3 +141,39 @@ delivery_state = ".reposeal/delivery"
 def test_missing_configuration_is_an_invocation_error(tmp_path: Path) -> None:
     with pytest.raises(ManifestError):
         load_manifest(tmp_path / "reposeal.toml")
+
+
+@pytest.mark.parametrize(
+    ("validation", "message"),
+    [
+        ('member = []\nfinal = [["git", "diff", "--check"]]', "must contain at least one"),
+        ('member = ["git diff --check"]\nfinal = [["git", "diff", "--check"]]', "valid array"),
+        (
+            'member = [["git", "diff", "--check"]]\nfinal = [["git", ""]]',
+            "non-empty strings",
+        ),
+    ],
+)
+def test_validation_commands_are_strict_shell_free_argv(
+    tmp_path: Path, validation: str, message: str
+) -> None:
+    path = tmp_path / "reposeal.toml"
+    path.write_text(
+        f'''schema_version = 2
+[reposeal]
+protocol = 2
+template_version = "0.2.0"
+[repository]
+architecture = "docs/ARCHITECTURE.md"
+specifications = "changes"
+plans = "changes"
+decisions = "docs/decisions"
+delivery_state = ".reposeal/delivery"
+[validation]
+{validation}
+''',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match=message):
+        load_manifest(path)
