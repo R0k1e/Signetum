@@ -147,7 +147,10 @@ def test_missing_configuration_is_an_invocation_error(tmp_path: Path) -> None:
     ("validation", "message"),
     [
         ('member = []\nfinal = [["git", "diff", "--check"]]', "must contain at least one"),
-        ('member = ["git diff --check"]\nfinal = [["git", "diff", "--check"]]', "valid array"),
+        (
+            'member = ["git diff --check"]\nfinal = [["git", "diff", "--check"]]',
+            "valid argv arrays",
+        ),
         (
             'member = [["git", "diff", "--check"]]\nfinal = [["git", ""]]',
             "non-empty strings",
@@ -159,7 +162,7 @@ def test_validation_commands_are_strict_shell_free_argv(
 ) -> None:
     path = tmp_path / "reposeal.toml"
     path.write_text(
-        f'''schema_version = 2
+        f"""schema_version = 2
 [reposeal]
 protocol = 2
 template_version = "0.2.0"
@@ -171,7 +174,7 @@ decisions = "docs/decisions"
 delivery_state = ".reposeal/delivery"
 [validation]
 {validation}
-''',
+""",
         encoding="utf-8",
     )
 

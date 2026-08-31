@@ -135,7 +135,9 @@ class ValidationCommands(BaseModel):
         for command in value:
             if not isinstance(command, list):
                 raise ValueError(f"validation.{field_name} must contain valid argv arrays")
-            if not command or not all(isinstance(argument, str) and argument for argument in command):
+            if not command or not all(
+                isinstance(argument, str) and argument for argument in command
+            ):
                 raise ValueError(
                     f"validation.{field_name} argv arrays must contain non-empty strings"
                 )
