@@ -118,6 +118,30 @@ class ImpactConfiguration(BaseModel):
         return value
 
 
+class ValidationCommands(BaseModel):
+    """Strict shell-free commands for the two validation boundaries."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    member: tuple[tuple[str, ...], ...]
+    final: tuple[tuple[str, ...], ...]
+
+    @field_validator("member", "final", mode="before")
+    @classmethod
+    def validate_commands(cls, value: object, info: object) -> object:
+        field_name = getattr(info, "field_name", "commands")
+        if not isinstance(value, list) or not value:
+            raise ValueError(f"validation.{field_name} must contain at least one command")
+        for command in value:
+            if not isinstance(command, list):
+                raise ValueError(f"validation.{field_name} must contain valid argv arrays")
+            if not command or not all(isinstance(argument, str) and argument for argument in command):
+                raise ValueError(
+                    f"validation.{field_name} argv arrays must contain non-empty strings"
+                )
+        return value
+
+
 class RepositoryManifest(BaseModel):
     """Supported language-neutral version-two repository configuration."""
 
@@ -128,6 +152,7 @@ class RepositoryManifest(BaseModel):
     profiles: ProfileSelection = Field(default_factory=ProfileSelection)
     repository: RepositoryBindings
     impact: ImpactConfiguration = Field(default_factory=ImpactConfiguration)
+    validation: ValidationCommands
 
 
 _MAPPING = TypeAdapter(dict[str, object])
@@ -167,5 +192,6 @@ __all__ = [
     "RepoSealIdentity",
     "RepositoryBindings",
     "RepositoryManifest",
+    "ValidationCommands",
     "load_manifest",
 ]

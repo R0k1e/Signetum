@@ -9,6 +9,7 @@ import os
 import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
+import tomllib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -143,11 +144,13 @@ def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> P
 
 
 def _run_gate(repository: Path, kind: str) -> None:
-    manifest = repository / "reposeal.yaml"
+    manifest = repository / "reposeal.toml"
     try:
-        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        if data.get("schema_version") != 2:
+            raise AdmissionError("unsupported reposeal.toml schema")
         commands = data["validation"][kind]
-    except (OSError, KeyError, TypeError, json.JSONDecodeError) as error:
+    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
         raise AdmissionError(f"invalid validation authority: {error}") from error
     if not isinstance(commands, list) or not commands:
         raise AdmissionError(f"validation.{kind} must contain at least one command")

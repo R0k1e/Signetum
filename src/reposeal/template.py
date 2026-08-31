@@ -22,7 +22,6 @@ TOP_LEVEL = frozenset(
         "mise.toml",
         "pyproject.toml",
         "reposeal.toml",
-        "reposeal.yaml",
         "src",
         "tests",
         "uv.lock",
