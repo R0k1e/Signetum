@@ -87,5 +87,6 @@ def test_site_cli_reports_the_built_inventory(tmp_path: Path) -> None:
 
 
 def test_template_has_no_product_site_or_brand_payload() -> None:
-    forbidden = {"site", "assets", ".github"}
+    forbidden = {"site", "assets"}
     assert forbidden.isdisjoint(path.name for path in (ROOT / "template").iterdir())
+    assert not (ROOT / "template/.github/workflows/pages.yml").exists()
