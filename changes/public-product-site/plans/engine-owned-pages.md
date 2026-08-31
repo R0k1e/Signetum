@@ -1,6 +1,6 @@
 # Engine-owned RepoSeal product site
 
-Status: proposed for human confirmation
+Status: approved for implementation
 Specification: `changes/public-product-site/specs/engine-owned-pages.toml`
 Base: `engine@6101ec0f709378bd3260c48d3163aeea2a0931de`
 

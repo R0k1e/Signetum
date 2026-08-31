@@ -1,6 +1,6 @@
 # The engine owns a separately deployed RepoSeal product site
 
-Status: Proposed
+Status: Accepted
 Review date: 2026-08-31
 Supersedes: ADP-reposeal-is-the-public-product-identity.md
 Superseded by: None

@@ -1,6 +1,6 @@
 # One TOML repository configuration authority
 
-Status: proposed for human confirmation
+Status: approved for implementation
 Specification: `changes/unified-repository-configuration/specs/single-toml-authority.toml`
 Base: `engine@6101ec0f709378bd3260c48d3163aeea2a0931de`
 

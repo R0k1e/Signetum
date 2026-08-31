@@ -2,8 +2,8 @@
 schema_version = 1
 id = "unified-repository-configuration/single-toml-authority"
 version = 1
-status = "proposed"
-implementation_authorized = false
+status = "approved"
+implementation_authorized = true
 decisions = ["docs/decisions/ADP-proposal-unify-runtime-configuration.md"]
 plan = "changes/unified-repository-configuration/plans/single-toml-authority.md"
 intent = [
