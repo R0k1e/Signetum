@@ -172,6 +172,9 @@ def reconciliation_summary(repository: Path, change_ids: tuple[str, ...]) -> dic
     changes: list[dict[str, object]] = []
     pending: list[str] = []
     deviation_count = 0
+    extra_work: list[str] = []
+    unfinished_work: list[str] = []
+    authority_updates: set[str] = set()
     for change_id in sorted(set(change_ids)):
         states = read_states(repository, change_id)
         rows: list[dict[str, object]] = []
@@ -181,6 +184,11 @@ def reconciliation_summary(repository: Path, change_ids: tuple[str, ...]) -> dic
                 pending.append(f"{change_id}/{state.discovered.id}")
             else:
                 _validate_resolution(repository, state)
+                authority_updates.update(state.resolution.targets)
+                if state.resolution.resolution == ResolutionKind.DEFERRED:
+                    unfinished_work.append(f"{change_id}/{state.discovered.id}")
+            if state.discovered.classification == DeviationClass.SAFE_SUPPORTING_CHANGE:
+                extra_work.append(f"{change_id}/{state.discovered.id}")
             rows.append(
                 {
                     "id": state.discovered.id,
@@ -199,7 +207,13 @@ def reconciliation_summary(repository: Path, change_ids: tuple[str, ...]) -> dic
         changes.append({"change_id": change_id, "deviations": rows})
     if pending:
         raise DeviationError(f"unresolved deviations: {', '.join(pending)}")
-    return {"changes": changes, "deviation_count": deviation_count}
+    return {
+        "changes": changes,
+        "deviation_count": deviation_count,
+        "extra_work": extra_work,
+        "unfinished_work": unfinished_work,
+        "authority_updates": sorted(authority_updates),
+    }
 
 
 def approval_view(repository: Path, change_id: str) -> dict[str, object]:
@@ -212,7 +226,21 @@ def approval_view(repository: Path, change_id: str) -> dict[str, object]:
     clauses = review.get("clauses")
     if not isinstance(clauses, list):
         raise DeviationError("Review clauses are unavailable")
-    commitments = [item.get("statement") for item in clauses if isinstance(item, dict)]
+    commitments = [
+        item.get("statement")
+        for item in clauses
+        if isinstance(item, dict) and item.get("disposition") == "covered"
+    ]
+    non_goals = [
+        {"statement": item.get("statement"), "reason": item.get("reason")}
+        for item in clauses
+        if isinstance(item, dict) and item.get("disposition") == "out_of_scope"
+    ]
+    deferred = [
+        item.get("statement")
+        for item in clauses
+        if isinstance(item, dict) and item.get("disposition") == "deferred"
+    ]
     if not commitments or not all(isinstance(item, str) and item for item in commitments):
         raise DeviationError("Review commitments are invalid")
     specs = sorted((change / "specs").glob("*.toml"))
@@ -235,6 +263,8 @@ def approval_view(repository: Path, change_id: str) -> dict[str, object]:
         "status": "approval",
         "change_id": change_id,
         "outcomes": commitments,
+        "non_goals": non_goals,
+        "deferred": deferred,
         "acceptance": evidence,
         "autonomy": {
             "continue": ["implementation_clarification", "safe_supporting_change"],

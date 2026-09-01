@@ -137,6 +137,7 @@ def test_approval_view_projects_approved_change(repository: Path) -> None:
 [[review.clauses]]
 id = "REQ-001"
 statement = "The user receives one review."
+disposition = "covered"
 """,
         encoding="utf-8",
     )
