@@ -60,7 +60,6 @@ class RepositoryBindings(BaseModel):
     specifications: str
     plans: str
     decisions: str
-    delivery_state: str
     lockfiles: tuple[str, ...] = ()
 
     @field_validator("*")

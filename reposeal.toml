@@ -1,0 +1,58 @@
+schema_version = 2
+
+[reposeal]
+protocol = 2
+template_version = "0.2.0"
+
+[profiles]
+enabled = ["python-default@1", "git-worktrunk@1"]
+
+[repository]
+architecture = "docs/ARCHITECTURE.md"
+specifications = "changes/*/specs/*.toml"
+plans = "changes/*/plans/*.md"
+decisions = "docs/decisions"
+lockfiles = ["uv.lock"]
+
+[[impact.rules]]
+name = "engine.source"
+paths = ["src/**"]
+profiles = ["python-default@1"]
+gates = ["member", "final"]
+
+[[impact.rules]]
+name = "engine.unit"
+paths = ["tests/unit/**"]
+profiles = ["python-default@1"]
+gates = ["member", "final"]
+
+[[impact.rules]]
+name = "engine.integration"
+paths = ["tests/integration/**", "tests/test_*.py", "template/**"]
+profiles = ["python-default@1"]
+gates = ["final"]
+requires_final = true
+
+[[impact.rules]]
+name = "engine.governance"
+paths = ["changes/**", "docs/**", "AGENTS.md", ".agents/**", "reposeal.toml"]
+gates = ["final"]
+requires_final = true
+
+[validation]
+member = [
+  ["uv", "build"],
+  ["uv", "run", "pre-commit", "run", "--all-files"],
+  ["uv", "run", "--no-sync", "ruff", "check", "."],
+  ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
+  ["uv", "run", "--no-sync", "bandit", "-r", "src"],
+  ["uv", "run", "--no-sync", "pip-audit"],
+]
+final = [
+  ["uv", "build"],
+  ["uv", "run", "pre-commit", "run", "--all-files"],
+  ["uv", "run", "--no-sync", "ruff", "check", "."],
+  ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
+  ["uv", "run", "--no-sync", "bandit", "-r", "src"],
+  ["uv", "run", "--no-sync", "pip-audit"],
+]

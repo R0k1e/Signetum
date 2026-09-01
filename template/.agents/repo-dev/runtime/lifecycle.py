@@ -12,6 +12,7 @@ import sys
 import tomllib
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from fnmatch import fnmatch
 from pathlib import Path
 from shutil import which
 
@@ -130,8 +131,8 @@ def _receipt_root(repository: Path) -> Path:
     common = Path(_git(repository, "rev-parse", "--git-common-dir"))
     if not common.is_absolute():
         common = repository / common
-    root = common.resolve() / "reposeal-receipts"
-    root.mkdir(exist_ok=True)
+    root = common.resolve() / "reposeal" / "validation"
+    root.mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -198,13 +199,50 @@ def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
     files = tuple(
         filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
     )
+    try:
+        manifest = tomllib.loads((repository / "reposeal.toml").read_text(encoding="utf-8"))
+        rules = manifest["impact"]["rules"]
+    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
+        raise AdmissionError(f"invalid impact authority: {error}") from error
+    matched: list[dict[str, object]] = []
+    unexplained: list[str] = []
+    for path in files:
+        selected = [
+            rule
+            for rule in rules
+            if any(
+                fnmatch(path, pattern)
+                or (pattern.endswith("/**") and path == pattern.removesuffix("/**"))
+                for pattern in rule.get("paths", ())
+            )
+        ]
+        if not selected:
+            unexplained.append(path)
+        for rule in selected:
+            if rule not in matched:
+                matched.append(rule)
+
+    def union(field: str) -> list[str]:
+        values: list[str] = []
+        for rule in matched:
+            for value in rule.get(field, ()):
+                if value not in values:
+                    values.append(value)
+        return values
+
     return {
         "schema_version": 1,
         "status": "changed",
         "base": base,
         "source": _git(repository, "rev-parse", "HEAD"),
         "files": files,
-        "requires_final": bool(files),
+        "rules": [rule["name"] for rule in matched],
+        "profiles": union("profiles"),
+        "gates": union("gates"),
+        "shards": union("shards"),
+        "unexplained": unexplained,
+        "requires_final": bool(unexplained)
+        or any(rule.get("requires_final") is True for rule in matched),
         "explain": explain,
     }
 
@@ -222,7 +260,7 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
         _require_numbering_base(repository, evidence_base, source)
     _run_gate(repository, "member" if kind == "member" else "final")
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": kind,
         "source": source,
         "base": _git(repository, "rev-parse", base) if base else evidence_base,

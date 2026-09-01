@@ -12,7 +12,6 @@ architecture = "docs/ARCHITECTURE.md"
 specifications = "changes/*/specs/*.toml"
 plans = "changes/*/plans/*.md"
 decisions = "docs/decisions"
-delivery_state = ".reposeal/delivery"
 lockfiles = ["uv.lock"]
 
 [[impact.rules]]

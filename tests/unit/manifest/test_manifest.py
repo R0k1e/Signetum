@@ -36,7 +36,6 @@ architecture = "docs/ARCHITECTURE.md"
 specifications = "changes"
 plans = "changes"
 decisions = "docs/decisions"
-delivery_state = ".reposeal/delivery"
 """,
             "reposeal.template_version must be semantic",
         ),
@@ -53,7 +52,6 @@ architecture = "docs/ARCHITECTURE.md"
 specifications = "changes"
 plans = "changes"
 decisions = "docs/decisions"
-delivery_state = ".reposeal/delivery"
 """,
             "profiles.enabled must contain unique identities",
         ),
@@ -92,7 +90,6 @@ architecture = "docs/ARCHITECTURE.md"
 specifications = "changes"
 plans = "changes"
 decisions = "docs/decisions"
-delivery_state = ".reposeal/delivery"
 """,
         encoding="utf-8",
     )
@@ -127,7 +124,6 @@ architecture = "docs/ARCHITECTURE.md"
 specifications = "changes"
 plans = "changes"
 decisions = "docs/decisions"
-delivery_state = ".reposeal/delivery"
 [[impact.rules]]
 {rule}
 """,
@@ -171,7 +167,6 @@ architecture = "docs/ARCHITECTURE.md"
 specifications = "changes"
 plans = "changes"
 decisions = "docs/decisions"
-delivery_state = ".reposeal/delivery"
 [validation]
 {validation}
 """,

@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "files": ["src/service.py"],
+      "gates": ["member", "final"],
+      "profiles": ["python-default@1"],
+      "requires_final": false,
+      "rules": ["python.source"],
+      "shards": [],
+      "unexplained": []
+    },
+    {
+      "files": ["README.md"],
+      "gates": [],
+      "profiles": [],
+      "requires_final": true,
+      "rules": [],
+      "shards": [],
+      "unexplained": ["README.md"]
+    }
+  ]
+}

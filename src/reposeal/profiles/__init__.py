@@ -52,7 +52,14 @@ def _catalog() -> dict[str, ProfileDeclaration]:
         resource = files(profile_resources) / resource_name
         document = _PROFILE_DOCUMENT.validate_python(loads(resource.read_text(encoding="utf-8")))
         parsed = _ProfileResource.model_validate(document)
-        declaration = ProfileDeclaration(parsed.identity, parsed.authorities, parsed.requires)
+        declaration = ProfileDeclaration(
+            parsed.identity,
+            parsed.authorities,
+            parsed.requires,
+            parsed.tools,
+            parsed.shards,
+            parsed.gates,
+        )
         declarations[declaration.identity] = declaration
     return declarations
 

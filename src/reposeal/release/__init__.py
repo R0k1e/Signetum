@@ -87,7 +87,7 @@ def preflight(repository: Path, source: str) -> ReleaseMetadata:
     common_path = Path(common)
     if not common_path.is_absolute():
         common_path = repository / common_path
-    receipts = sorted((common_path.resolve() / "reposeal-receipts").glob("final-*.json"))
+    receipts = sorted((common_path.resolve() / "reposeal" / "validation").glob("final-*.json"))
     if not receipts:
         raise ReleaseError("final receipt is absent")
     if not any(
