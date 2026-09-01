@@ -267,7 +267,6 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
     lifecycle_receipt.write_text(
         json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
     )
-    receipt_path.unlink()
     return {
         **payload,
         "status": "ready" if kind == "member" else "final",
