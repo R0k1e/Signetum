@@ -6,7 +6,7 @@
       "profiles": ["python-default@1"],
       "requires_final": false,
       "rules": ["python.source"],
-      "shards": [],
+      "shards": ["python.unit"],
       "unexplained": []
     },
     {
