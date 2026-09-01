@@ -4,6 +4,7 @@ import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from shutil import which
 
 import pytest
 
@@ -23,8 +24,11 @@ from reposeal.deviations import (
 
 
 def _git(repository: Path, *arguments: str) -> str:
-    return subprocess.run(  # noqa: S603
-        ("git", "-C", str(repository), *arguments),
+    executable = which("git")
+    if executable is None:
+        raise RuntimeError("Git executable is unavailable")
+    return subprocess.run(  # nosec B603
+        (executable, "-C", str(repository), *arguments),
         check=True,
         capture_output=True,
         text=True,
