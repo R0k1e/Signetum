@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -205,6 +206,97 @@ def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:
     assert (rendered / "changes/first-change/plans/change.md").is_file()
     assert duplicate.returncode == 2
     assert invalid.returncode == 2
+
+
+def test_rendered_template_retains_and_reconciles_execution_deviations(tmp_path: Path) -> None:
+    rendered = tmp_path / "repository"
+    render_template(ROOT / "template", rendered)
+    for command in (
+        ("git", "init", "-b", "main"),
+        ("git", "config", "user.name", "RepoSeal test"),
+        ("git", "config", "user.email", "reposeal@example.invalid"),
+        (sys.executable, ".agents/repo-dev/runtime/change_open.py", "first-change"),
+    ):
+        subprocess.run(command, cwd=rendered, check=True, capture_output=True)
+    specification = rendered / "changes/first-change/specs/change.toml"
+    specification.write_text(
+        specification.read_text(encoding="utf-8")
+        .replace('status = "draft"', 'status = "approved"')
+        .replace("implementation_authorized = false", "implementation_authorized = true"),
+        encoding="utf-8",
+    )
+    runtime = rendered / ".agents/repo-dev/runtime/deviations.py"
+
+    approval = subprocess.run(
+        (sys.executable, "-I", str(runtime), "approval", "--change", "first-change"),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    recorded = subprocess.run(
+        (
+            sys.executable,
+            "-I",
+            str(runtime),
+            "record",
+            "--change",
+            "first-change",
+            "--id",
+            "DEV-001",
+            "--member",
+            "impl/first-change",
+            "--class",
+            "implementation_clarification",
+            "--summary",
+            "The implementation authority is elsewhere.",
+            "--commitment",
+            "Preserve the approved behavior.",
+            "--action",
+            "Reuse the existing authority.",
+            "--impact",
+            "No public behavior changes.",
+        ),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    resolved = subprocess.run(
+        (
+            sys.executable,
+            "-I",
+            str(runtime),
+            "resolve",
+            "--change",
+            "first-change",
+            "--id",
+            "DEV-001",
+            "--member",
+            "impl/first-change",
+            "--resolution",
+            "no_authority_change",
+            "--reason",
+            "The approved behavior and authority are unchanged.",
+        ),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    status = subprocess.run(
+        (sys.executable, "-I", str(runtime), "status", "--change", "first-change"),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(approval.stdout)["status"] == "approval"
+    assert json.loads(recorded.stdout)["status"] == "recorded"
+    assert json.loads(resolved.stdout)["status"] == "resolved"
+    assert json.loads(status.stdout)["deviation_count"] == 1
+    assert not (rendered / ".reposeal").exists()
 
 
 def _traceability(
