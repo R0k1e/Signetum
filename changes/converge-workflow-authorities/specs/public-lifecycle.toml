@@ -1,0 +1,19 @@
+[specification]
+schema_version = 1
+id = "converge-workflow-authorities/public-lifecycle"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-0006-public-lifecycle-consumes-v2-authorities.md"]
+plan = "changes/converge-workflow-authorities/plans/public-lifecycle.md"
+acceptance = [
+  "changed returns matched rules, profiles, gates, shards, unexplained paths, and requires_final without running a validation command.",
+  "ready and final execute only the commands selected by the active manifest and write schema-version-two receipts below the Git common directory.",
+  "The obsolete delivery_state field and reposeal-receipts directory authority are removed without a compatibility fallback.",
+  "Shared contract vectors exercise both the engine lifecycle and the copied Template runtime for impact and state-root behavior.",
+  "Documentation names engine release version and Template revision as separate identities.",
+]
+
+[specification.review]
+id = "converge-workflow-authorities"
+clauses = ["FLOW-001", "FLOW-002", "FLOW-003", "FLOW-004", "FLOW-005"]
