@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -15,6 +14,18 @@ from pathlib import Path
 from shutil import which
 
 from reposeal.deviations import DeviationError, approval_view, reconciliation_summary
+from reposeal.impact import select_impact
+from reposeal.manifest import RepositoryManifest, load_manifest
+from reposeal.profiles import resolve_profiles
+from reposeal.validation import (
+    GateDeclaration,
+    GraphContribution,
+    ToolDeclaration,
+    ValidationShard,
+    resolve_validation_graph,
+)
+from reposeal.validation.execution import ValidationInputs, execute_gate
+from reposeal.validation.repository import ReceiptStore, RepositoryValidationAdapter
 
 
 class AdmissionError(ValueError):
@@ -129,34 +140,48 @@ def _registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:
     return matches[0]
 
 
-def _receipt_root(repository: Path) -> Path:
+def _state_root(repository: Path) -> Path:
     common = Path(_git(repository, "rev-parse", "--git-common-dir"))
     if not common.is_absolute():
         common = repository / common
-    root = common.resolve() / "reposeal-receipts"
-    root.mkdir(exist_ok=True)
+    root = common.resolve() / "reposeal"
+    root.mkdir(parents=True, exist_ok=True)
     return root
 
 
-def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> Path:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
-    identity = hashlib.sha256(encoded.encode()).hexdigest()
-    target = _receipt_root(repository) / f"{kind}-{identity}.json"
-    target.write_text(encoded, encoding="utf-8")
-    return target
+def _receipt_root(repository: Path) -> Path:
+    root = _state_root(repository) / "validation"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
-def _run_gate(repository: Path) -> None:
-    commands = (
-        ("uv", "build"),
-        ("uv", "run", "pre-commit", "run", "--all-files"),
-        ("uv", "run", "--no-sync", "ruff", "check", "."),
-        ("uv", "run", "--no-sync", "ruff", "format", "--check", "."),
-        ("uv", "run", "--no-sync", "bandit", "-r", "src"),
-        ("uv", "run", "--no-sync", "pip-audit"),
+def _runtime_validation(repository: Path, manifest: RepositoryManifest):
+    resolved = resolve_profiles(
+        manifest.profiles.enabled, replacements=manifest.profiles.replacements
     )
-    for command in commands:
-        _run_tool(repository, command, capture_output=False)
+    shards: list[ValidationShard] = []
+    gates: list[GateDeclaration] = []
+    for gate, commands in (
+        ("member", manifest.validation.member),
+        ("final", manifest.validation.final),
+    ):
+        names: list[str] = []
+        for index, command in enumerate(commands, start=1):
+            name = f"repository:manifest:{gate}-{index}"
+            names.append(name)
+            shards.append(ValidationShard(name, command))
+        gates.append(GateDeclaration(gate, tuple(names)))
+    graph = resolve_validation_graph(
+        (GraphContribution("repository", tuple(shards), tuple(gates)),)
+    )
+    executables = sorted({command[0] for shard in shards for command in (shard.command,)})
+    inputs = ValidationInputs(
+        "reposeal.toml",
+        tuple(sorted(profile.identity for profile in resolved)),
+        tuple(sorted(manifest.repository.lockfiles)),
+        tuple(ToolDeclaration(name, (name, "--version")) for name in executables),
+    )
+    return graph, inputs
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -193,13 +218,20 @@ def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
     files = tuple(
         filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
     )
+    manifest = load_manifest(repository / "reposeal.toml")
+    selection = select_impact(files, manifest.impact.rules)
     return {
         "schema_version": 1,
         "status": "changed",
         "base": base,
         "source": _git(repository, "rev-parse", "HEAD"),
         "files": files,
-        "requires_final": bool(files),
+        "rules": selection.rules,
+        "profiles": selection.profiles,
+        "gates": selection.gates,
+        "shards": selection.shards,
+        "unexplained": selection.unexplained,
+        "requires_final": selection.requires_final,
         "explain": explain,
     }
 
@@ -228,24 +260,37 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
     else:
         reconciliation = None
         approvals = None
-    _run_gate(repository)
+    manifest = load_manifest(repository / "reposeal.toml")
+    graph, inputs = _runtime_validation(repository, manifest)
+    gate = "member" if kind == "member" else "final"
+    adapter = RepositoryValidationAdapter(repository)
+    receipt = execute_gate(graph, gate, inputs, adapter)
+    receipt_path = ReceiptStore(_receipt_root(repository)).write(gate, receipt)
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": kind,
         "source": source,
         "base": _git(repository, "rev-parse", base) if base else evidence_base,
         "validated_at": datetime.now(UTC).isoformat(),
         "valid": True,
+        "evidence": json.loads(receipt.to_json()),
     }
     if reconciliation is not None and approvals is not None:
         payload["delivery_review"] = {
             "approvals": approvals,
             "reconciliation": reconciliation,
         }
-    receipt = _write_receipt(repository, kind, payload)
-    return {**payload, "status": "ready" if kind == "member" else "final", "receipt": str(receipt)}
-
-
+    lifecycle_receipt = receipt_path.with_name(
+        receipt_path.name.replace(f"{gate}-", f"{gate}-lifecycle-")
+    )
+    lifecycle_receipt.write_text(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
+    )
+    return {
+        **payload,
+        "status": "ready" if kind == "member" else "final",
+        "receipt": str(lifecycle_receipt),
+    }
 def _git(repository: Path, *arguments: str, check: bool = True) -> str:
     git = _git_executable()
     completed = subprocess.run(  # nosec B603

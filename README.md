@@ -1,5 +1,10 @@
 # RepoSeal
 
+The RepoSeal engine and the rendered Template use independent semantic
+versions. The package version identifies an engine release; `template_version`
+identifies the clone-ready repository revision and does not mirror the package
+number.
+
 <p align="center">
   <img src="assets/brand/reposeal-mark-256.png" width="180" alt="RepoSeal logo: a seal holding a verified repository with a Git branch on its flipper">
 </p>

@@ -1,0 +1,43 @@
+[review]
+schema_version = 1
+id = "converge-workflow-authorities"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "Repair the public RepoSeal workflow so its shipped lifecycle actually uses the declared impact, validation, evidence, and local-state authorities."
+
+[[review.clauses]]
+id = "FLOW-001"
+statement = "changed must explain the actual diff through the manifest impact rules without executing validation."
+disposition = "covered"
+specification = "converge-workflow-authorities/public-lifecycle"
+
+[[review.clauses]]
+id = "FLOW-002"
+statement = "ready and final must execute the repository-declared validation authority and persist exact version-two evidence instead of a second hard-coded gate and version-one receipt."
+disposition = "covered"
+specification = "converge-workflow-authorities/public-lifecycle"
+
+[[review.clauses]]
+id = "FLOW-003"
+statement = "All machine-local RepoSeal state must live below one Git common-directory root and no tracked manifest field may claim to own local delivery state."
+disposition = "covered"
+specification = "converge-workflow-authorities/public-lifecycle"
+
+[[review.clauses]]
+id = "FLOW-004"
+statement = "The engine and self-contained Template runtimes must pass shared observable lifecycle contract vectors while remaining independently deployable."
+disposition = "covered"
+specification = "converge-workflow-authorities/public-lifecycle"
+
+[[review.clauses]]
+id = "FLOW-005"
+statement = "Public documentation must distinguish the independently versioned RepoSeal engine release from the Template revision."
+disposition = "covered"
+specification = "converge-workflow-authorities/public-lifecycle"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

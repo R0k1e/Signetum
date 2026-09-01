@@ -70,4 +70,5 @@ See [`docs/development-lifecycle.md`](docs/development-lifecycle.md),
 
 RepoSeal is not an Agent runtime, coding model, hosted CI service, or
 Specification generator. The copied runtime is repository-owned and does not
-install the RepoSeal package. Template version: `v0.2.0`.
+install the RepoSeal package. Template revision: `v0.2.0`; it is independent
+from the RepoSeal engine package version.

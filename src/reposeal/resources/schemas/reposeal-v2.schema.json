@@ -31,13 +31,12 @@
     "repository": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["architecture", "specifications", "plans", "decisions", "delivery_state"],
+      "required": ["architecture", "specifications", "plans", "decisions"],
       "properties": {
         "architecture": {"$ref": "#/$defs/path"},
         "specifications": {"$ref": "#/$defs/path"},
         "plans": {"$ref": "#/$defs/path"},
         "decisions": {"$ref": "#/$defs/path"},
-        "delivery_state": {"$ref": "#/$defs/path"},
         "lockfiles": {"type": "array", "items": {"$ref": "#/$defs/path"}, "uniqueItems": true}
       }
     },

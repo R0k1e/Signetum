@@ -26,8 +26,8 @@ def test_preflight_requires_exact_clean_source_and_final_receipt(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     repository = Path(__file__).resolve().parents[3]
-    receipt_root = tmp_path / "reposeal-receipts"
-    receipt_root.mkdir()
+    receipt_root = tmp_path / "reposeal" / "validation"
+    receipt_root.mkdir(parents=True)
     (receipt_root / "final-proof.json").write_text(
         '{"source":"abc","valid":true}\n', encoding="utf-8"
     )
