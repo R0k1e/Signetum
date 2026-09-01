@@ -15,6 +15,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from deviations import DeviationError, approval_view, reconciliation_summary
+
 
 class AdmissionError(ValueError):
     """The requested member cannot be admitted safely."""
@@ -220,6 +223,19 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
         if proposals:
             raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
         _require_numbering_base(repository, evidence_base, source)
+        if evidence_base is None:
+            change_ids: tuple[str, ...] = ()
+        else:
+            _, plans = _delivery_provenance(repository, evidence_base, source)
+            change_ids = _change_ids_from_plans(tuple(plans))
+        try:
+            reconciliation = reconciliation_summary(repository, change_ids)
+            approvals = [approval_view(repository, change_id) for change_id in change_ids]
+        except DeviationError as error:
+            raise AdmissionError(f"deviation reconciliation failed: {error}") from error
+    else:
+        reconciliation = None
+        approvals = None
     _run_gate(repository, "member" if kind == "member" else "final")
     payload = {
         "schema_version": 1,
@@ -229,6 +245,11 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
         "validated_at": datetime.now(UTC).isoformat(),
         "valid": True,
     }
+    if reconciliation is not None and approvals is not None:
+        payload["delivery_review"] = {
+            "approvals": approvals,
+            "reconciliation": reconciliation,
+        }
     receipt = _write_receipt(repository, kind, payload)
     return {**payload, "status": "ready" if kind == "member" else "final", "receipt": str(receipt)}
 
@@ -285,6 +306,18 @@ def _commit_plans(repository: Path, commit: str) -> tuple[str, ...]:
             }
         )
     )
+
+
+def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
+    change_ids: set[str] = set()
+    for plan in plans:
+        path = Path(plan)
+        if len(path.parts) < 4 or path.parts[0] != "changes" or path.parts[2] != "plans":
+            raise AdmissionError(f"Plan is outside one active Change: {plan}")
+        change_ids.add(path.parts[1])
+    if not change_ids:
+        raise AdmissionError("batch carries no active Change identity")
+    return tuple(sorted(change_ids))
 
 
 def _ready_evidence(repository: Path, source: str, base: str) -> str:

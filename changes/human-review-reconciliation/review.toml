@@ -1,0 +1,44 @@
+[review]
+schema_version = 1
+id = "human-review-reconciliation"
+status = "approved"
+recorded_at = "2026-09-01"
+
+[review.source]
+kind = "human_direction"
+summary = "Bracket Agent execution with readable human approval and delivery review while retaining execution deviations in one deterministic RepoSeal-owned ledger and reconciling them into durable authorities."
+
+[[review.clauses]]
+id = "HRI-001"
+statement = "Before implementation, the Agent presents one concise approval view of intended behavior, included and excluded scope, acceptance evidence, and execution autonomy."
+disposition = "covered"
+specification = "human-review-reconciliation/human-review"
+
+[[review.clauses]]
+id = "HRI-002"
+statement = "Every execution deviation that may matter at delivery is recorded in one deterministic RepoSeal-owned per-change ledger shared across worktrees and excluded from the rendered Template."
+disposition = "covered"
+specification = "human-review-reconciliation/human-review"
+
+[[review.clauses]]
+id = "HRI-003"
+statement = "Before final validation, retained deviations are reconciled into the applicable Specification, Decision, architecture authority, or behavior test, or receive an explicit terminal disposition."
+disposition = "covered"
+specification = "human-review-reconciliation/human-review"
+
+[[review.clauses]]
+id = "HRI-004"
+statement = "After final validation and before delivery, the Agent presents one concise review comparing the approved commitment with delivered behavior, evidence, deviations, authority updates, extra work, and unfinished work."
+disposition = "covered"
+specification = "human-review-reconciliation/human-review"
+
+[[review.clauses]]
+id = "HRI-005"
+statement = "RepoSeal retains exactly eight public lifecycle operations, check-only final validation, explicit delivery authorization, and independent engine and Template authorities."
+disposition = "covered"
+specification = "human-review-reconciliation/human-review"
+
+[review.acceptance]
+result = "accepted"
+accepted_clauses = ["HRI-001", "HRI-002", "HRI-003", "HRI-004", "HRI-005"]
+rejected_clauses = []
