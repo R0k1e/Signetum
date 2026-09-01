@@ -19,9 +19,8 @@ from reposeal.profiles import resolve_profiles
 from reposeal.validation import (
     GateDeclaration,
     GraphContribution,
-    ValidationConfiguration,
+    ToolDeclaration,
     ValidationShard,
-    resolve_tools,
     resolve_validation_graph,
 )
 from reposeal.validation.execution import ValidationInputs, execute_gate
@@ -159,13 +158,6 @@ def _runtime_validation(repository: Path, manifest: RepositoryManifest):
     resolved = resolve_profiles(
         manifest.profiles.enabled, replacements=manifest.profiles.replacements
     )
-    configurations = tuple(
-        ValidationConfiguration.from_mapping(
-            profile.identity,
-            {"tools": profile.tools, "shards": profile.shards, "gates": profile.gates},
-        )
-        for profile in resolved
-    )
     shards: list[ValidationShard] = []
     gates: list[GateDeclaration] = []
     for gate, commands in (
@@ -181,11 +173,12 @@ def _runtime_validation(repository: Path, manifest: RepositoryManifest):
     graph = resolve_validation_graph(
         (GraphContribution("repository", tuple(shards), tuple(gates)),)
     )
+    executables = sorted({command[0] for shard in shards for command in (shard.command,)})
     inputs = ValidationInputs(
         "reposeal.toml",
         tuple(sorted(profile.identity for profile in resolved)),
         tuple(sorted(manifest.repository.lockfiles)),
-        resolve_tools(configurations),
+        tuple(ToolDeclaration(name, (name, "--version")) for name in executables),
     )
     return graph, inputs
 
