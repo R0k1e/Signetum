@@ -2,8 +2,8 @@
 schema_version = 1
 id = "human-review-reconciliation/human-review"
 version = 1
-status = "proposed"
-implementation_authorized = false
+status = "approved"
+implementation_authorized = true
 decisions = ["docs/decisions/ADP-human-review-brackets-reconciled-execution.md"]
 plan = "changes/human-review-reconciliation/plans/human-review.md"
 acceptance = [
@@ -38,4 +38,3 @@ authority_feedback = "A retained deviation is not closed by prose alone; it reso
 decision_feedback = "A contradiction with an accepted Decision requires an approved clarification or explicit supersession relationship before final validation."
 member_survival = "Member records remain available through batch admission and delivered-worktree cleanup."
 human_readability = "Approval and delivery views lead with observable outcomes and do not require internal identifiers to understand the decision."
-

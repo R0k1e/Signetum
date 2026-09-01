@@ -1,6 +1,6 @@
 # ADP: human review brackets reconciled execution
 
-Status: Proposed
+Status: Accepted
 Review date: 2026-09-01
 Supersedes: None
 Superseded by: None
@@ -110,6 +110,5 @@ local ledgers are never rendered.
 
 ## Approval
 
-Pending human approval of this repository decision artifact. The human has
-approved the direction and requested implementation in both RepoSeal and PyLM.
-
+Human-approved on 2026-09-01. The user directed implementation in RepoSeal and
+PyLM, with process completion preceding any further gap alignment.

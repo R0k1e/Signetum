@@ -1,6 +1,6 @@
 # Add human review and deviation reconciliation
 
-Status: proposed
+Status: approved for implementation
 Review: `changes/human-review-reconciliation/review.toml`
 Specification: `changes/human-review-reconciliation/specs/human-review.toml`
 Decision: `docs/decisions/ADP-human-review-brackets-reconciled-execution.md`
