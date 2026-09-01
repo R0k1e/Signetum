@@ -27,7 +27,7 @@ def _git(repository: Path, *arguments: str) -> str:
     executable = which("git")
     if executable is None:
         raise RuntimeError("Git executable is unavailable")
-    return subprocess.run(  # nosec B603
+    return subprocess.run(  # nosec B603  # noqa: S603
         (executable, "-C", str(repository), *arguments),
         check=True,
         capture_output=True,
