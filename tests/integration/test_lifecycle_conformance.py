@@ -57,7 +57,12 @@ def test_changed_contract_vectors_are_shared(
             "unexplained",
             "requires_final",
         ):
-            assert observed[field] == vector[field]
+            value = observed[field]
+            assert (
+                list(value) == vector[field]
+                if isinstance(value, (list, tuple))
+                else value == vector[field]
+            )
 
 
 @pytest.mark.parametrize("runtime", (engine_lifecycle, _template_lifecycle()))

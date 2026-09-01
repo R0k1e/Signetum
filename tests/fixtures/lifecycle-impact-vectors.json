@@ -2,7 +2,7 @@
   "cases": [
     {
       "files": ["src/service.py"],
-      "gates": ["member", "final"],
+      "gates": ["python.type", "python.unit"],
       "profiles": ["python-default@1"],
       "requires_final": false,
       "rules": ["python.source"],

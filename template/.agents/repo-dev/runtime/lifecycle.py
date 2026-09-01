@@ -225,7 +225,12 @@ def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
     def union(field: str) -> list[str]:
         values: list[str] = []
         for rule in matched:
-            for value in rule.get(field, ()):
+            raw_values = rule.get(field, [])
+            if not isinstance(raw_values, list):
+                raise AdmissionError(f"impact rule {field} must be an array")
+            for value in raw_values:
+                if not isinstance(value, str):
+                    raise AdmissionError(f"impact rule {field} values must be strings")
                 if value not in values:
                     values.append(value)
         return values

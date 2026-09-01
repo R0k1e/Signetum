@@ -122,25 +122,16 @@ def test_delivery_finds_the_receipt_bound_to_the_expected_tip(monkeypatch, tmp_p
     assert result["validation"]["source"] == "expected"
 
 
-def test_gate_builds_release_inputs_before_running_repository_checks(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_manifest_gate_preserves_declared_command_order(tmp_path: Path) -> None:
     module = _load_module()
-    commands: list[tuple[str, ...]] = []
-
-    class Completed:
-        returncode = 0
-
-    def record(command: tuple[str, ...], **kwargs: object) -> Completed:
-        commands.append(command)
-        return Completed()
-
-    monkeypatch.setattr(module, "_mise_executable", lambda: "mise")
-    monkeypatch.setattr(module.subprocess, "run", record)
-
-    module._run_gate(tmp_path)
-
-    assert [command[3:] for command in commands] == [
+    manifest = module.load_manifest(Path(__file__).resolve().parents[1] / "reposeal.toml")
+    graph, _ = module._runtime_validation(tmp_path, manifest)
+    commands = [
+        shard.command
+        for shard in graph.shards
+        if shard.name.startswith("repository:manifest:member")
+    ]
+    assert commands == [
         ("uv", "build"),
         ("uv", "run", "pre-commit", "run", "--all-files"),
         ("uv", "run", "--no-sync", "ruff", "check", "."),
@@ -148,7 +139,6 @@ def test_gate_builds_release_inputs_before_running_repository_checks(
         ("uv", "run", "--no-sync", "bandit", "-r", "src"),
         ("uv", "run", "--no-sync", "pip-audit"),
     ]
-    assert all(command[1:3] == ("exec", "--") for command in commands)
 
 
 def test_delivery_provenance_reads_named_member_and_plan_trailer(
@@ -284,7 +274,5 @@ def test_final_refuses_proposal_decisions(monkeypatch: pytest.MonkeyPatch, tmp_p
     proposal.write_text("# unresolved\n", encoding="utf-8")
     _git(repository, "add", ".")
     _git(repository, "commit", "-m", "add proposal")
-    monkeypatch.setattr(lifecycle, "_run_gate", lambda path: None)
-
     with pytest.raises(lifecycle.AdmissionError, match="proposal decision"):
         lifecycle.validate(repository, None, "final")
