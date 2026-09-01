@@ -3,6 +3,8 @@ schema_version = 2
 [reposeal]
 protocol = 2
 template_version = "0.2.0"
+evidence_protocol = "reposeal.validation-evidence@3"
+evidence_schema_digest = "sha256:9e7d13fcbc9a31aeb7c06f4cfc76790116cf0cb98bf1c4ecbbd23f48ba64ea4d"
 
 [profiles]
 enabled = ["python-default@1", "git-worktrunk@1"]
@@ -18,39 +20,72 @@ lockfiles = ["uv.lock"]
 name = "python.source"
 paths = ["src/**"]
 profiles = ["python-default@1"]
-gates = ["member", "final"]
+shards = ["python:ruff", "python:format", "python:ty", "python:unit"]
 
 [[impact.rules]]
 name = "python.unit"
 paths = ["tests/unit/**"]
 profiles = ["python-default@1"]
-gates = ["member", "final"]
+shards = ["python:unit"]
 
 [[impact.rules]]
 name = "python.integration"
 paths = ["tests/integration/**"]
 profiles = ["python-default@1"]
-gates = ["final"]
+shards = ["python:integration"]
 requires_final = true
 
 [validation]
-member = [
-  ["git", "diff", "--check"],
-  ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"],
-  ["uv", "run", "--no-sync", "ruff", "check", "."],
-  ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
-  ["uv", "run", "--no-sync", "ty", "check", "src"],
-  ["uv", "run", "--no-sync", "pytest", "tests/unit"],
-  ["mise", "run", "python:secrets"],
-]
-final = [
-  ["git", "diff", "--check"],
-  ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"],
-  ["uv", "run", "--no-sync", "ruff", "check", "."],
-  ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
-  ["uv", "run", "--no-sync", "ty", "check", "src"],
-  ["uv", "run", "--no-sync", "pytest", "tests/unit"],
-  ["uv", "run", "--no-sync", "pytest", "tests/integration"],
-  ["uv", "run", "--no-sync", "pip-audit"],
-  ["mise", "run", "python:secrets"],
-]
+member_required = ["repository:diff", "repository:traceability", "python:unit", "python:secrets"]
+
+[[validation.tools]]
+name = "uv"
+identity_command = ["uv", "--version"]
+
+[[validation.tools]]
+name = "mise"
+identity_command = ["mise", "--version"]
+
+[[validation.shards]]
+name = "repository:diff"
+command = ["git", "diff", "--check"]
+
+[[validation.shards]]
+name = "repository:traceability"
+command = ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"]
+
+[[validation.shards]]
+name = "python:ruff"
+command = ["uv", "run", "--no-sync", "ruff", "check", "."]
+
+[[validation.shards]]
+name = "python:format"
+command = ["uv", "run", "--no-sync", "ruff", "format", "--check", "."]
+
+[[validation.shards]]
+name = "python:ty"
+command = ["uv", "run", "--no-sync", "ty", "check", "src"]
+
+[[validation.shards]]
+name = "python:unit"
+command = ["uv", "run", "--no-sync", "pytest", "tests/unit"]
+
+[[validation.shards]]
+name = "python:integration"
+command = ["uv", "run", "--no-sync", "pytest", "tests/integration"]
+
+[[validation.shards]]
+name = "python:audit"
+command = ["uv", "run", "--no-sync", "pip-audit"]
+
+[[validation.shards]]
+name = "python:secrets"
+command = ["mise", "run", "python:secrets"]
+
+[[validation.gates]]
+name = "member"
+shards = ["repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:secrets"]
+
+[[validation.gates]]
+name = "final"
+shards = ["repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:integration", "python:audit", "python:secrets"]

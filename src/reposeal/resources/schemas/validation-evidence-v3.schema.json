@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reposeal.dev/protocols/validation-evidence/v3",
+  "title": "RepoSeal validation evidence v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "protocol", "schema_digest", "identity", "selection", "execution", "completeness", "provenance", "extensions", "valid"],
+  "properties": {
+    "schema_version": {"const": 3},
+    "protocol": {"const": "reposeal.validation-evidence@3"},
+    "schema_digest": {"$ref": "#/$defs/digest"},
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "tree", "base", "configuration", "profiles", "graph", "lockfiles", "tools"],
+      "properties": {
+        "commit": {"$ref": "#/$defs/gitIdentity"},
+        "tree": {"$ref": "#/$defs/gitIdentity"},
+        "base": {"anyOf": [{"$ref": "#/$defs/gitIdentity"}, {"type": "null"}]},
+        "configuration": {"$ref": "#/$defs/artifact"},
+        "profiles": {"$ref": "#/$defs/uniqueStrings"},
+        "graph": {"$ref": "#/$defs/digest"},
+        "lockfiles": {"type": "array", "items": {"$ref": "#/$defs/artifact"}, "uniqueItems": true},
+        "tools": {"type": "array", "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["name", "identity"], "properties": {"name": {"type": "string", "minLength": 1}, "identity": {"type": "string", "minLength": 1}}}}
+      }
+    },
+    "selection": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "object", "additionalProperties": false, "required": ["changed_paths_digest", "rules", "profiles", "gates", "shards", "modified_tests", "external_obligations", "unexplained", "requires_final", "reasons"], "properties": {
+          "changed_paths_digest": {"$ref": "#/$defs/digest"},
+          "rules": {"$ref": "#/$defs/uniqueStrings"},
+          "profiles": {"$ref": "#/$defs/uniqueStrings"},
+          "gates": {"$ref": "#/$defs/uniqueStrings"},
+          "shards": {"$ref": "#/$defs/uniqueStrings"},
+          "modified_tests": {"$ref": "#/$defs/uniqueStrings"},
+          "external_obligations": {"$ref": "#/$defs/uniqueStrings"},
+          "unexplained": {"$ref": "#/$defs/uniqueStrings"},
+          "requires_final": {"type": "boolean"},
+          "reasons": {"$ref": "#/$defs/uniqueStrings"}
+        }}
+      ]
+    },
+    "execution": {"type": "object", "additionalProperties": false, "required": ["gates", "shards", "external_obligations"], "properties": {"gates": {"$ref": "#/$defs/uniqueStrings"}, "shards": {"$ref": "#/$defs/uniqueStrings"}, "external_obligations": {"$ref": "#/$defs/uniqueStrings"}}},
+    "completeness": {"type": "object", "additionalProperties": false, "required": ["member", "final", "required_shards"], "properties": {"member": {"type": "boolean"}, "final": {"type": "boolean"}, "required_shards": {"$ref": "#/$defs/uniqueStrings"}}},
+    "provenance": {"type": "object", "additionalProperties": false, "required": ["stable_patch_id"], "properties": {"stable_patch_id": {"anyOf": [{"$ref": "#/$defs/gitIdentity"}, {"type": "null"}]}}},
+    "extensions": {"type": "object"},
+    "valid": {"const": true}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "gitIdentity": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+    "uniqueStrings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["path", "digest"], "properties": {"path": {"type": "string", "minLength": 1}, "digest": {"$ref": "#/$defs/digest"}}}
+  }
+}

@@ -49,22 +49,18 @@ def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
     lifecycle = loads((ROOT / "template/reposeal.toml").read_text())
     workflow = (ROOT / "template/.github/workflows/ci.yml").read_text()
 
-    member = lifecycle["validation"]["member"]
-    final = lifecycle["validation"]["final"]
-    expected_member = [
-        ["uv", "run", "--no-sync", "ruff", "check", "."],
-        ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
-        ["uv", "run", "--no-sync", "ty", "check", "src"],
-        ["uv", "run", "--no-sync", "pytest", "tests/unit"],
-        ["mise", "run", "python:secrets"],
-    ]
-    expected_final = [
-        ["uv", "run", "--no-sync", "pytest", "tests/integration"],
-        ["uv", "run", "--no-sync", "pip-audit"],
-    ]
+    shards = {item["name"]: item["command"] for item in lifecycle["validation"]["shards"]}
+    gates = {item["name"]: item["shards"] for item in lifecycle["validation"]["gates"]}
 
-    assert all(command in member for command in expected_member)
-    assert all(command in final for command in (*expected_member, *expected_final))
+    assert set(lifecycle["validation"]["member_required"]) == {
+        "repository:diff",
+        "repository:traceability",
+        "python:unit",
+        "python:secrets",
+    }
+    assert shards["python:ty"] == ["uv", "run", "--no-sync", "ty", "check", "src"]
+    assert "python:integration" not in gates["member"]
+    assert {"python:integration", "python:audit"}.issubset(gates["final"])
     assert "- run: uv sync --locked" in workflow
     assert (
         "- run: uv run --no-project python .agents/repo-dev/runtime/lifecycle.py final" in workflow

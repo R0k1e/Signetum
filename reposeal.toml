@@ -3,6 +3,8 @@ schema_version = 2
 [reposeal]
 protocol = 2
 template_version = "0.2.0"
+evidence_protocol = "reposeal.validation-evidence@3"
+evidence_schema_digest = "sha256:9e7d13fcbc9a31aeb7c06f4cfc76790116cf0cb98bf1c4ecbbd23f48ba64ea4d"
 
 [profiles]
 enabled = ["python-default@1", "git-worktrunk@1"]
@@ -18,41 +20,66 @@ lockfiles = ["uv.lock"]
 name = "engine.source"
 paths = ["src/**"]
 profiles = ["python-default@1"]
-gates = ["member", "final"]
+shards = ["engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
 
 [[impact.rules]]
 name = "engine.unit"
 paths = ["tests/unit/**"]
 profiles = ["python-default@1"]
-gates = ["member", "final"]
+shards = ["engine:pytest"]
 
 [[impact.rules]]
 name = "engine.integration"
 paths = ["tests/**", "template/**"]
 profiles = ["python-default@1"]
-gates = ["final"]
+shards = ["engine:pytest"]
 requires_final = true
 
 [[impact.rules]]
 name = "engine.governance"
 paths = ["changes/**", "docs/**", "README.md", "AGENTS.md", ".agents/**", "reposeal.toml"]
-gates = ["final"]
+shards = ["engine:precommit"]
 requires_final = true
 
 [validation]
-member = [
-  ["uv", "build"],
-  ["uv", "run", "pre-commit", "run", "--all-files"],
-  ["uv", "run", "--no-sync", "ruff", "check", "."],
-  ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
-  ["uv", "run", "--no-sync", "bandit", "-r", "src"],
-  ["uv", "run", "--no-sync", "pip-audit"],
-]
-final = [
-  ["uv", "build"],
-  ["uv", "run", "pre-commit", "run", "--all-files"],
-  ["uv", "run", "--no-sync", "ruff", "check", "."],
-  ["uv", "run", "--no-sync", "ruff", "format", "--check", "."],
-  ["uv", "run", "--no-sync", "bandit", "-r", "src"],
-  ["uv", "run", "--no-sync", "pip-audit"],
-]
+member_required = ["engine:build", "engine:pytest"]
+
+[[validation.tools]]
+name = "uv"
+identity_command = ["uv", "--version"]
+
+[[validation.shards]]
+name = "engine:build"
+command = ["uv", "build"]
+
+[[validation.shards]]
+name = "engine:precommit"
+command = ["uv", "run", "pre-commit", "run", "--all-files"]
+
+[[validation.shards]]
+name = "engine:ruff"
+command = ["uv", "run", "--no-sync", "ruff", "check", "."]
+
+[[validation.shards]]
+name = "engine:format"
+command = ["uv", "run", "--no-sync", "ruff", "format", "--check", "."]
+
+[[validation.shards]]
+name = "engine:bandit"
+command = ["uv", "run", "--no-sync", "bandit", "-r", "src"]
+
+[[validation.shards]]
+name = "engine:pytest"
+command = ["uv", "run", "pytest"]
+
+[[validation.shards]]
+name = "engine:audit"
+command = ["uv", "run", "--no-sync", "pip-audit"]
+
+[[validation.gates]]
+name = "member"
+shards = ["engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
+
+[[validation.gates]]
+name = "final"
+shards = ["engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]

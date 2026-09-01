@@ -10,6 +10,9 @@ from shutil import which
 from reposeal.evidence.receipts import (
     EvidenceReceipt,
     ReceiptError,
+    ValidationCompleteness,
+    ValidationExecution,
+    ValidationProvenance,
     verify_gate_evidence,
 )
 from reposeal.validation import ToolDeclaration, ValidationGraph, ValidationShard
@@ -145,10 +148,17 @@ def verify_repository_gate(
     adapter.require_clean()
     expected_identity = build_evidence_identity(graph, inputs, adapter)
     expected = EvidenceReceipt(
-        schema_version=2,
+        schema_version=3,
+        protocol="reposeal.validation-evidence@3",
+        schema_digest=inputs.schema_digest,
         identity=expected_identity,
-        executed_gates=(gate,),
-        executed_shards=tuple(sorted(graph.execution_order(gate))),
+        selection=inputs.selection,
+        execution=ValidationExecution((gate,), tuple(sorted(graph.execution_order(gate)))),
+        completeness=ValidationCompleteness(
+            gate == "member", gate == "final", tuple(sorted(graph.execution_order(gate)))
+        ),
+        provenance=ValidationProvenance(),
+        extensions={},
         valid=True,
     )
     return ReceiptStore(receipt_root).matching(gate, expected)

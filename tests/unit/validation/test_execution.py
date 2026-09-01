@@ -69,7 +69,7 @@ def test_gate_executes_dependencies_and_binds_every_declared_input() -> None:
     receipt = execute_gate(_graph(), "final", _inputs(), adapter)
 
     assert adapter.executed == ["core:static", "repository:test"]
-    assert receipt.executed_shards == ("core:static", "repository:test")
+    assert receipt.execution.shards == ("core:static", "repository:test")
     assert receipt.identity.configuration.path == "reposeal.toml"
     assert tuple(lock.path for lock in receipt.identity.lockfiles) == ("uv.lock",)
     assert receipt.identity.tools[0].identity == "uv 0.8.14"

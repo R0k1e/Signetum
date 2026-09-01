@@ -16,12 +16,30 @@ class RepoSealIdentity(BaseModel):
 
     protocol: int = Field(strict=True, ge=2)
     template_version: str
+    evidence_protocol: str = "reposeal.validation-evidence@3"
+    evidence_schema_digest: str = (
+        "sha256:9e7d13fcbc9a31aeb7c06f4cfc76790116cf0cb98bf1c4ecbbd23f48ba64ea4d"
+    )
 
     @field_validator("template_version")
     @classmethod
     def validate_template_version(cls, value: str) -> str:
         if fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", value) is None:
             raise ValueError("reposeal.template_version must be semantic")
+        return value
+
+    @field_validator("evidence_protocol")
+    @classmethod
+    def validate_evidence_protocol(cls, value: str) -> str:
+        if value != "reposeal.validation-evidence@3":
+            raise ValueError(f"unsupported evidence protocol: {value}")
+        return value
+
+    @field_validator("evidence_schema_digest")
+    @classmethod
+    def validate_evidence_schema_digest(cls, value: str) -> str:
+        if fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
+            raise ValueError("evidence schema digest must be sha256")
         return value
 
 
@@ -117,29 +135,53 @@ class ImpactConfiguration(BaseModel):
         return value
 
 
+class ValidationTool(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    identity_command: tuple[str, ...]
+
+
+class ValidationShard(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    command: tuple[str, ...]
+    requires: tuple[str, ...] = ()
+
+
+class ValidationGate(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str
+    shards: tuple[str, ...]
+
+
 class ValidationCommands(BaseModel):
-    """Strict shell-free commands for the two validation boundaries."""
+    """Strict named validation graph and member completeness boundary."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    member: tuple[tuple[str, ...], ...]
-    final: tuple[tuple[str, ...], ...]
+    tools: tuple[ValidationTool, ...] = ()
+    shards: tuple[ValidationShard, ...]
+    gates: tuple[ValidationGate, ...]
+    member_required: tuple[str, ...] = ()
 
-    @field_validator("member", "final", mode="before")
+    @field_validator("shards")
     @classmethod
-    def validate_commands(cls, value: object, info: object) -> object:
-        field_name = getattr(info, "field_name", "commands")
-        if not isinstance(value, list) or not value:
-            raise ValueError(f"validation.{field_name} must contain at least one command")
-        for command in value:
-            if not isinstance(command, list):
-                raise ValueError(f"validation.{field_name} must contain valid argv arrays")
-            if not command or not all(
-                isinstance(argument, str) and argument for argument in command
-            ):
-                raise ValueError(
-                    f"validation.{field_name} argv arrays must contain non-empty strings"
-                )
+    def validate_unique_shards(
+        cls, value: tuple[ValidationShard, ...]
+    ) -> tuple[ValidationShard, ...]:
+        if not value or len(value) != len({item.name for item in value}):
+            raise ValueError("validation.shards must contain unique named shards")
+        return value
+
+    @field_validator("gates")
+    @classmethod
+    def validate_unique_gates(cls, value: tuple[ValidationGate, ...]) -> tuple[ValidationGate, ...]:
+        names = {item.name for item in value}
+        if len(value) != len(names) or "member" not in names or "final" not in names:
+            raise ValueError("validation.gates must contain unique member and final gates")
         return value
 
 
@@ -194,5 +236,8 @@ __all__ = [
     "RepositoryBindings",
     "RepositoryManifest",
     "ValidationCommands",
+    "ValidationGate",
+    "ValidationShard",
+    "ValidationTool",
     "load_manifest",
 ]

@@ -147,25 +147,75 @@ def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> P
     return target
 
 
-def _run_gate(repository: Path, kind: str) -> None:
+def _manifest(repository: Path) -> dict[str, object]:
     manifest = repository / "reposeal.toml"
     try:
         data = tomllib.loads(manifest.read_text(encoding="utf-8"))
         if data.get("schema_version") != 2:
             raise AdmissionError("unsupported reposeal.toml schema")
-        commands = data["validation"][kind]
     except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
         raise AdmissionError(f"invalid validation authority: {error}") from error
-    if not isinstance(commands, list) or not commands:
-        raise AdmissionError(f"validation.{kind} must contain at least one command")
-    for command in commands:
+    return data
+
+
+def _mapping(value: object, label: str) -> dict[str, object]:
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        raise AdmissionError(f"{label} must be an object")
+    return value
+
+
+def _array(value: object, label: str) -> list[object]:
+    if not isinstance(value, list):
+        raise AdmissionError(f"{label} must be an array")
+    return value
+
+
+def _strings(value: object, label: str) -> list[str]:
+    raw = _array(value, label)
+    result: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            raise AdmissionError(f"{label} must contain strings")
+        result.append(item)
+    return result
+
+
+def _run_gate(
+    repository: Path, kind: str, selected_shards: tuple[str, ...] | None = None
+) -> tuple[str, ...]:
+    data = _manifest(repository)
+    validation = data.get("validation")
+    if not isinstance(validation, dict):
+        raise AdmissionError("validation graph is unavailable")
+    raw_shards = validation.get("shards")
+    raw_gates = validation.get("gates")
+    if not isinstance(raw_shards, list) or not isinstance(raw_gates, list):
+        raise AdmissionError("validation graph must contain shards and gates")
+    commands: dict[str, tuple[str, ...]] = {}
+    for shard in raw_shards:
+        if not isinstance(shard, dict) or not isinstance(shard.get("name"), str):
+            raise AdmissionError("validation shard is invalid")
+        command = shard.get("command")
         if (
             not isinstance(command, list)
             or not command
             or not all(isinstance(argument, str) and argument for argument in command)
         ):
-            raise AdmissionError(f"validation.{kind} commands must be non-empty argv lists")
-        _run_tool(repository, tuple(command), capture_output=False)
+            raise AdmissionError("validation shard commands must be non-empty argv lists")
+        commands[shard["name"]] = tuple(command)
+    gate = next(
+        (item for item in raw_gates if isinstance(item, dict) and item.get("name") == kind),
+        None,
+    )
+    if gate is None or not isinstance(gate.get("shards"), list):
+        raise AdmissionError(f"validation gate is unavailable: {kind}")
+    names = tuple(gate["shards"]) if selected_shards is None else selected_shards
+    for name in names:
+        command = commands.get(name)
+        if command is None:
+            raise AdmissionError(f"validation shard is unavailable: {name}")
+        _run_tool(repository, command, capture_output=False)
+    return names
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -203,8 +253,9 @@ def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
         filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
     )
     try:
-        manifest = tomllib.loads((repository / "reposeal.toml").read_text(encoding="utf-8"))
-        rules = manifest["impact"]["rules"]
+        manifest = _manifest(repository)
+        impact = _mapping(manifest.get("impact"), "impact")
+        rules = [_mapping(item, "impact rule") for item in _array(impact["rules"], "impact.rules")]
     except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
         raise AdmissionError(f"invalid impact authority: {error}") from error
     matched: list[dict[str, object]] = []
@@ -216,7 +267,7 @@ def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
             if any(
                 fnmatch(path, pattern)
                 or (pattern.endswith("/**") and path == pattern.removesuffix("/**"))
-                for pattern in rule.get("paths", ())
+                for pattern in _strings(rule.get("paths", []), "impact.paths")
             )
         ]
         if not selected:
@@ -238,19 +289,37 @@ def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
                     values.append(value)
         return values
 
+    selection = {
+        "changed_paths_digest": "sha256:"
+        + hashlib.sha256(json.dumps(files, separators=(",", ":")).encode()).hexdigest(),
+        "rules": [rule["name"] for rule in matched],
+        "profiles": union("profiles"),
+        "gates": union("gates"),
+        "shards": union("shards"),
+        "modified_tests": [
+            path
+            for path in files
+            if path.startswith("tests/") or "/tests/" in path or Path(path).name.startswith("test_")
+        ],
+        "external_obligations": [],
+        "unexplained": unexplained,
+        "requires_final": bool(unexplained)
+        or any(rule.get("requires_final") is True for rule in matched),
+        "reasons": [f"impact rule {rule['name']} matched" for rule in matched],
+    }
     return {
         "schema_version": 1,
         "status": "changed",
         "base": base,
         "source": _git(repository, "rev-parse", "HEAD"),
         "files": files,
-        "rules": [rule["name"] for rule in matched],
-        "profiles": union("profiles"),
-        "gates": union("gates"),
-        "shards": union("shards"),
-        "unexplained": unexplained,
-        "requires_final": bool(unexplained)
-        or any(rule.get("requires_final") is True for rule in matched),
+        "selection": selection,
+        "rules": selection["rules"],
+        "profiles": selection["profiles"],
+        "gates": selection["gates"],
+        "shards": selection["shards"],
+        "unexplained": selection["unexplained"],
+        "requires_final": selection["requires_final"],
         "explain": explain,
     }
 
@@ -279,14 +348,90 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
     else:
         reconciliation = None
         approvals = None
-    _run_gate(repository, "member" if kind == "member" else "final")
+    gate = "member" if kind == "member" else "final"
+    manifest = _manifest(repository)
+    selection = changed(repository, base, True)["selection"] if base is not None else None
+    selected_shards: tuple[str, ...] | None = None
+    if isinstance(selection, dict):
+        validation = _mapping(manifest.get("validation"), "validation")
+        required = _strings(validation.get("member_required", []), "member_required")
+        for name in selection["shards"]:
+            if name not in required:
+                required.append(name)
+        raw_gates = validation["gates"]
+        if not isinstance(raw_gates, list):
+            raise AdmissionError("validation.gates must be an array")
+        gates = {
+            str(gate["name"]): _strings(gate["shards"], "gate.shards")
+            for item in raw_gates
+            for gate in (_mapping(item, "validation gate"),)
+        }
+        for name in selection["gates"]:
+            for shard in gates.get(name, ()):
+                if shard not in required:
+                    required.append(shard)
+        if selection["unexplained"]:
+            for shard in gates["member"]:
+                if shard not in required:
+                    required.append(shard)
+        selected_shards = tuple(required)
+    executed_shards = _run_gate(repository, gate, selected_shards)
+    configuration = (repository / "reposeal.toml").read_bytes()
+    profiles = _mapping(manifest.get("profiles", {}), "profiles")
+    repository_config = _mapping(manifest.get("repository"), "repository")
+    reposeal_config = _mapping(manifest.get("reposeal"), "reposeal")
+    validation_config = _mapping(manifest.get("validation"), "validation")
+    identity = {
+        "commit": source,
+        "tree": _git(repository, "rev-parse", "HEAD^{tree}"),
+        "base": _git(repository, "rev-parse", base) if base else evidence_base,
+        "configuration": {
+            "path": "reposeal.toml",
+            "digest": "sha256:" + hashlib.sha256(configuration).hexdigest(),
+        },
+        "profiles": sorted(_strings(profiles.get("enabled", []), "profiles.enabled")),
+        "graph": "sha256:"
+        + hashlib.sha256(
+            json.dumps(validation_config, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "lockfiles": [
+            {
+                "path": path,
+                "digest": "sha256:" + hashlib.sha256((repository / path).read_bytes()).hexdigest(),
+            }
+            for path in sorted(
+                _strings(repository_config.get("lockfiles", []), "repository.lockfiles")
+            )
+        ],
+        "tools": [],
+    }
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "kind": kind,
         "source": source,
         "base": _git(repository, "rev-parse", base) if base else evidence_base,
         "validated_at": datetime.now(UTC).isoformat(),
         "valid": True,
+        "evidence": {
+            "schema_version": 3,
+            "protocol": reposeal_config["evidence_protocol"],
+            "schema_digest": reposeal_config["evidence_schema_digest"],
+            "identity": identity,
+            "selection": selection,
+            "execution": {
+                "gates": [gate],
+                "shards": sorted(executed_shards),
+                "external_obligations": [],
+            },
+            "completeness": {
+                "member": gate == "member",
+                "final": gate == "final",
+                "required_shards": sorted(executed_shards),
+            },
+            "provenance": {"stable_patch_id": None},
+            "extensions": {},
+            "valid": True,
+        },
     }
     if reconciliation is not None and approvals is not None:
         payload["delivery_review"] = {

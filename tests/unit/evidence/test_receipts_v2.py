@@ -9,15 +9,20 @@ from reposeal.evidence.receipts import (
     EvidenceReceipt,
     ReceiptError,
     ToolIdentity,
+    ValidationCompleteness,
+    ValidationExecution,
+    ValidationProvenance,
     combine_shard_evidence,
     verify_gate_evidence,
 )
+from reposeal.resources.schemas import evidence_schema_digest
 
 
 def _identity() -> EvidenceIdentity:
     return EvidenceIdentity(
         commit="a" * 40,
         tree="b" * 40,
+        base="f" * 40,
         configuration=ArtifactIdentity("reposeal.toml", "sha256:" + "c" * 64),
         profiles=("python-default@2",),
         graph="sha256:" + "d" * 64,
@@ -27,7 +32,28 @@ def _identity() -> EvidenceIdentity:
 
 
 def _shard(identity: EvidenceIdentity, name: str) -> EvidenceReceipt:
-    return EvidenceReceipt.shard(identity=identity, shard=name)
+    return EvidenceReceipt.shard(
+        identity=identity,
+        shard=name,
+        protocol="reposeal.validation-evidence@3",
+        schema_digest="sha256:" + "9" * 64,
+        selection=None,
+    )
+
+
+def _gate(identity: EvidenceIdentity, gate: str, shards: tuple[str, ...]) -> EvidenceReceipt:
+    return EvidenceReceipt(
+        3,
+        "reposeal.validation-evidence@3",
+        "sha256:" + "9" * 64,
+        identity,
+        None,
+        ValidationExecution((gate,), shards),
+        ValidationCompleteness(gate == "member", gate == "final", shards),
+        ValidationProvenance(),
+        {},
+        True,
+    )
 
 
 @pytest.mark.parametrize(
@@ -75,10 +101,16 @@ def test_complete_shards_compose_one_exact_gate_receipt() -> None:
         ),
     )
 
-    assert receipt.schema_version == 2
-    assert receipt.executed_gates == ("final",)
-    assert receipt.executed_shards == ("core:static", "profile:python@test")
+    assert receipt.schema_version == 3
+    assert receipt.execution.gates == ("final",)
+    assert receipt.execution.shards == ("core:static", "profile:python@test")
     verify_gate_evidence(receipt, expected_identity=identity, gate="final")
+
+
+def test_canonical_schema_digest_is_the_manifest_protocol_identity() -> None:
+    assert evidence_schema_digest() == (
+        "sha256:9e7d13fcbc9a31aeb7c06f4cfc76790116cf0cb98bf1c4ecbbd23f48ba64ea4d"
+    )
 
 
 def test_stale_gate_receipt_cannot_authorize_an_exact_tree() -> None:
@@ -98,7 +130,7 @@ def test_stale_gate_receipt_cannot_authorize_an_exact_tree() -> None:
 
 
 def test_receipt_json_round_trip_retains_the_complete_identity() -> None:
-    receipt = EvidenceReceipt.shard(identity=_identity(), shard="core:static")
+    receipt = _shard(_identity(), "core:static")
 
     assert EvidenceReceipt.from_json(receipt.to_json()) == receipt
 
@@ -122,7 +154,7 @@ def test_combination_rejects_duplicate_unexpected_and_non_atomic_evidence() -> N
                 _shard(identity, "other:test"),
             ),
         )
-    gate_receipt = EvidenceReceipt(2, identity, ("member",), ("core:static",), True)
+    gate_receipt = _gate(identity, "member", ("core:static",))
     with pytest.raises(ReceiptError, match="only atomic shard evidence"):
         combine_shard_evidence(
             gate="final", required_shards=("core:static",), receipts=(gate_receipt,)
@@ -138,16 +170,23 @@ def test_combination_rejects_duplicate_unexpected_and_non_atomic_evidence() -> N
         lambda: EvidenceIdentity(
             "bad",
             "b" * 40,
+            None,
             ArtifactIdentity("config", "sha256:" + "a" * 64),
             (),
             "sha256:" + "b" * 64,
             (),
             (),
         ),
-        lambda: EvidenceReceipt(1, _identity(), (), ("core:test",), True),
-        lambda: EvidenceReceipt(2, _identity(), (), ("core:test",), False),
-        lambda: EvidenceReceipt(2, _identity(), ("final", "final"), ("core:test",), True),
-        lambda: EvidenceReceipt(2, _identity(), (), ("core:test", "core:test"), True),
+        lambda: replace(_gate(_identity(), "final", ("core:test",)), schema_version=2),
+        lambda: replace(_gate(_identity(), "final", ("core:test",)), valid=False),
+        lambda: replace(
+            _gate(_identity(), "final", ("core:test",)),
+            execution=ValidationExecution(("final", "final"), ("core:test",)),
+        ),
+        lambda: replace(
+            _gate(_identity(), "final", ("core:test",)),
+            execution=ValidationExecution(("final",), ("core:test", "core:test")),
+        ),
     ],
 )
 def test_receipt_values_fail_closed(operation: Callable[[], object]) -> None:

@@ -7,6 +7,8 @@ import json
 import re
 from dataclasses import asdict, dataclass
 
+from pydantic import JsonValue
+
 
 class ReceiptError(ValueError):
     """Evidence cannot prove the requested exact validation."""
@@ -52,6 +54,7 @@ class EvidenceIdentity:
 
     commit: str
     tree: str
+    base: str | None
     configuration: ArtifactIdentity
     profiles: tuple[str, ...]
     graph: str
@@ -61,6 +64,8 @@ class EvidenceIdentity:
     def __post_init__(self) -> None:
         if _COMMIT.fullmatch(self.commit) is None or _COMMIT.fullmatch(self.tree) is None:
             raise ReceiptError("commit and tree must be exact hexadecimal identities")
+        if self.base is not None and _COMMIT.fullmatch(self.base) is None:
+            raise ReceiptError("base must be an exact hexadecimal identity")
         if _SHA256.fullmatch(self.graph) is None:
             raise ReceiptError("validation graph digest must be sha256")
         if self.profiles != tuple(sorted(set(self.profiles))):
@@ -77,28 +82,109 @@ class EvidenceIdentity:
 
 
 @dataclass(frozen=True)
+class ValidationSelection:
+    changed_paths_digest: str
+    rules: tuple[str, ...]
+    profiles: tuple[str, ...]
+    gates: tuple[str, ...]
+    shards: tuple[str, ...]
+    modified_tests: tuple[str, ...]
+    external_obligations: tuple[str, ...]
+    unexplained: tuple[str, ...]
+    requires_final: bool
+    reasons: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if _SHA256.fullmatch(self.changed_paths_digest) is None:
+            raise ReceiptError("changed paths digest must be sha256")
+        for field in (
+            self.rules,
+            self.profiles,
+            self.gates,
+            self.shards,
+            self.modified_tests,
+            self.external_obligations,
+            self.unexplained,
+            self.reasons,
+        ):
+            if len(field) != len(set(field)):
+                raise ReceiptError("selection values must be unique")
+
+
+@dataclass(frozen=True)
+class ValidationExecution:
+    gates: tuple[str, ...]
+    shards: tuple[str, ...]
+    external_obligations: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ValidationCompleteness:
+    member: bool
+    final: bool
+    required_shards: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ValidationProvenance:
+    stable_patch_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.stable_patch_id is not None and _COMMIT.fullmatch(self.stable_patch_id) is None:
+            raise ReceiptError("stable patch id must be hexadecimal")
+
+
+@dataclass(frozen=True)
 class EvidenceReceipt:
     """Successful evidence for exact shards and any composed named gate."""
 
     schema_version: int
+    protocol: str
+    schema_digest: str
     identity: EvidenceIdentity
-    executed_gates: tuple[str, ...]
-    executed_shards: tuple[str, ...]
+    selection: ValidationSelection | None
+    execution: ValidationExecution
+    completeness: ValidationCompleteness
+    provenance: ValidationProvenance
+    extensions: dict[str, JsonValue]
     valid: bool
 
     def __post_init__(self) -> None:
-        if self.schema_version != 2:
+        if self.schema_version != 3:
             raise ReceiptError(f"unsupported receipt schema: {self.schema_version}")
+        if self.protocol != "reposeal.validation-evidence@3":
+            raise ReceiptError(f"unsupported evidence protocol: {self.protocol}")
+        if _SHA256.fullmatch(self.schema_digest) is None:
+            raise ReceiptError("schema digest must be sha256")
         if not self.valid:
             raise ReceiptError("unsuccessful execution is not reusable evidence")
-        if self.executed_gates != tuple(sorted(set(self.executed_gates))):
+        if self.execution.gates != tuple(sorted(set(self.execution.gates))):
             raise ReceiptError("executed gates must be unique and sorted")
-        if self.executed_shards != tuple(sorted(set(self.executed_shards))):
+        if self.execution.shards != tuple(sorted(set(self.execution.shards))):
             raise ReceiptError("executed shards must be unique and sorted")
 
     @classmethod
-    def shard(cls, *, identity: EvidenceIdentity, shard: str) -> EvidenceReceipt:
-        return cls(2, identity, (), (shard,), True)
+    def shard(
+        cls,
+        *,
+        identity: EvidenceIdentity,
+        shard: str,
+        protocol: str,
+        schema_digest: str,
+        selection: ValidationSelection | None,
+    ) -> EvidenceReceipt:
+        return cls(
+            3,
+            protocol,
+            schema_digest,
+            identity,
+            selection,
+            ValidationExecution((), (shard,)),
+            ValidationCompleteness(False, False, (shard,)),
+            ValidationProvenance(),
+            {},
+            True,
+        )
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=True, separators=(",", ":")) + "\n"
@@ -110,17 +196,46 @@ class EvidenceReceipt:
             identity = raw["identity"]
             return cls(
                 schema_version=raw["schema_version"],
+                protocol=raw["protocol"],
+                schema_digest=raw["schema_digest"],
                 identity=EvidenceIdentity(
                     commit=identity["commit"],
                     tree=identity["tree"],
+                    base=identity["base"],
                     configuration=ArtifactIdentity(**identity["configuration"]),
                     profiles=tuple(identity["profiles"]),
                     graph=identity["graph"],
                     lockfiles=tuple(ArtifactIdentity(**item) for item in identity["lockfiles"]),
                     tools=tuple(ToolIdentity(**item) for item in identity["tools"]),
                 ),
-                executed_gates=tuple(raw["executed_gates"]),
-                executed_shards=tuple(raw["executed_shards"]),
+                selection=(
+                    ValidationSelection(
+                        changed_paths_digest=raw["selection"]["changed_paths_digest"],
+                        rules=tuple(raw["selection"]["rules"]),
+                        profiles=tuple(raw["selection"]["profiles"]),
+                        gates=tuple(raw["selection"]["gates"]),
+                        shards=tuple(raw["selection"]["shards"]),
+                        modified_tests=tuple(raw["selection"]["modified_tests"]),
+                        external_obligations=tuple(raw["selection"]["external_obligations"]),
+                        unexplained=tuple(raw["selection"]["unexplained"]),
+                        requires_final=raw["selection"]["requires_final"],
+                        reasons=tuple(raw["selection"]["reasons"]),
+                    )
+                    if raw["selection"] is not None
+                    else None
+                ),
+                execution=ValidationExecution(
+                    gates=tuple(raw["execution"]["gates"]),
+                    shards=tuple(raw["execution"]["shards"]),
+                    external_obligations=tuple(raw["execution"]["external_obligations"]),
+                ),
+                completeness=ValidationCompleteness(
+                    member=raw["completeness"]["member"],
+                    final=raw["completeness"]["final"],
+                    required_shards=tuple(raw["completeness"]["required_shards"]),
+                ),
+                provenance=ValidationProvenance(**raw["provenance"]),
+                extensions=raw["extensions"],
                 valid=raw["valid"],
             )
         except (KeyError, TypeError, json.JSONDecodeError) as error:
@@ -139,9 +254,9 @@ def combine_shard_evidence(
     for receipt in receipts:
         if receipt.identity != identity:
             raise ReceiptError("shard evidence identity differs")
-        if receipt.executed_gates or len(receipt.executed_shards) != 1:
+        if receipt.execution.gates or len(receipt.execution.shards) != 1:
             raise ReceiptError("only atomic shard evidence can be combined")
-        shard = receipt.executed_shards[0]
+        shard = receipt.execution.shards[0]
         if shard in observed:
             raise ReceiptError(f"duplicate shard evidence: {shard}")
         observed.add(shard)
@@ -152,7 +267,19 @@ def combine_shard_evidence(
         raise ReceiptError(f"missing shard evidence: {', '.join(sorted(missing))}")
     if unexpected:
         raise ReceiptError(f"unexpected shard evidence: {', '.join(sorted(unexpected))}")
-    return EvidenceReceipt(2, identity, (gate,), tuple(sorted(observed)), True)
+    first = receipts[0]
+    return EvidenceReceipt(
+        3,
+        first.protocol,
+        first.schema_digest,
+        identity,
+        first.selection,
+        ValidationExecution((gate,), tuple(sorted(observed))),
+        ValidationCompleteness(gate == "member", gate == "final", tuple(sorted(required))),
+        first.provenance,
+        first.extensions,
+        True,
+    )
 
 
 def verify_gate_evidence(
@@ -162,7 +289,7 @@ def verify_gate_evidence(
 
     if receipt.identity != expected_identity:
         raise ReceiptError("gate evidence identity differs")
-    if receipt.executed_gates != (gate,):
+    if receipt.execution.gates != (gate,):
         raise ReceiptError(f"receipt does not prove gate: {gate}")
 
 
@@ -172,6 +299,10 @@ __all__ = [
     "EvidenceReceipt",
     "ReceiptError",
     "ToolIdentity",
+    "ValidationCompleteness",
+    "ValidationExecution",
+    "ValidationProvenance",
+    "ValidationSelection",
     "combine_shard_evidence",
     "verify_gate_evidence",
 ]

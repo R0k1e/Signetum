@@ -1,0 +1,37 @@
+[review]
+schema_version = 1
+id = "unified-validation-evidence"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "Extract incremental and complete validation into RepoSeal and converge RepoSeal and PyLM on one evidence protocol that retains the strengths of both implementations."
+
+[[review.clauses]]
+id = "EVIDENCE-001"
+statement = "RepoSeal changed produces a deterministic validation selection and ready executes that selection rather than an unrelated fixed member suite."
+disposition = "covered"
+specification = "unified-validation-evidence/selection-and-evidence"
+
+[[review.clauses]]
+id = "EVIDENCE-002"
+statement = "RepoSeal final executes the complete graph once on the frozen batch independently of member selection."
+disposition = "covered"
+specification = "unified-validation-evidence/selection-and-evidence"
+
+[[review.clauses]]
+id = "EVIDENCE-003"
+statement = "RepoSeal and PyLM use one versioned evidence protocol covering identity, selection, execution, completeness, and namespaced repository extensions."
+disposition = "covered"
+specification = "unified-validation-evidence/selection-and-evidence"
+
+[[review.clauses]]
+id = "EVIDENCE-004"
+statement = "Language and repository-specific scheduling remains in profiles or adapters rather than entering RepoSeal Core."
+disposition = "covered"
+specification = "unified-validation-evidence/selection-and-evidence"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

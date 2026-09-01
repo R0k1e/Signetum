@@ -4,7 +4,7 @@ import pytest
 
 from reposeal.manifest import ManifestError, load_manifest
 
-FIXTURE = Path(__file__).parents[2] / "fixtures" / "reposeal.toml"
+FIXTURE = Path(__file__).parents[3] / "template" / "reposeal.toml"
 
 
 def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
@@ -15,9 +15,14 @@ def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
     assert manifest.reposeal.template_version == "0.2.0"
     assert manifest.repository.architecture == "docs/ARCHITECTURE.md"
     assert manifest.profiles.enabled == ("python-default@1", "git-worktrunk@1")
-    assert manifest.impact.rules[0].gates == ("python.type", "python.unit")
-    assert manifest.validation.member[0] == ("git", "diff", "--check")
-    assert manifest.validation.final[-1] == ("mise", "run", "python:secrets")
+    assert manifest.impact.rules[0].shards == (
+        "python:ruff",
+        "python:format",
+        "python:ty",
+        "python:unit",
+    )
+    assert manifest.validation.shards[0].name == "repository:diff"
+    assert manifest.validation.gates[-1].name == "final"
 
 
 @pytest.mark.parametrize(
@@ -142,18 +147,15 @@ def test_missing_configuration_is_an_invocation_error(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("validation", "message"),
     [
-        ('member = []\nfinal = [["git", "diff", "--check"]]', "must contain at least one"),
+        ("shards = []\ngates = []", "unique named shards"),
         (
-            'member = ["git diff --check"]\nfinal = [["git", "diff", "--check"]]',
-            "valid argv arrays",
-        ),
-        (
-            'member = [["git", "diff", "--check"]]\nfinal = [["git", ""]]',
-            "non-empty strings",
+            '[[validation.shards]]\nname = "repo:one"\ncommand = ["git", "diff"]\n'
+            '[[validation.gates]]\nname = "member"\nshards = ["repo:one"]',
+            "member and final gates",
         ),
     ],
 )
-def test_validation_commands_are_strict_shell_free_argv(
+def test_validation_graph_is_strict_and_named(
     tmp_path: Path, validation: str, message: str
 ) -> None:
     path = tmp_path / "reposeal.toml"

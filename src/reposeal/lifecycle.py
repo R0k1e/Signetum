@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -14,6 +15,7 @@ from pathlib import Path
 from shutil import which
 
 from reposeal.deviations import DeviationError, approval_view, reconciliation_summary
+from reposeal.evidence.receipts import ValidationSelection
 from reposeal.impact import select_impact
 from reposeal.manifest import RepositoryManifest, load_manifest
 from reposeal.profiles import resolve_profiles
@@ -155,33 +157,75 @@ def _receipt_root(repository: Path) -> Path:
     return root
 
 
-def _runtime_validation(repository: Path, manifest: RepositoryManifest):
+def _runtime_validation(
+    manifest: RepositoryManifest, *, member_shards: tuple[str, ...] | None = None
+):
     resolved = resolve_profiles(
         manifest.profiles.enabled, replacements=manifest.profiles.replacements
     )
-    shards: list[ValidationShard] = []
-    gates: list[GateDeclaration] = []
-    for gate, commands in (
-        ("member", manifest.validation.member),
-        ("final", manifest.validation.final),
-    ):
-        names: list[str] = []
-        for index, command in enumerate(commands, start=1):
-            name = f"repository:manifest:{gate}-{index}"
-            names.append(name)
-            shards.append(ValidationShard(name, command))
-        gates.append(GateDeclaration(gate, tuple(names)))
+    shards = [
+        ValidationShard(item.name, item.command, item.requires)
+        for item in manifest.validation.shards
+    ]
+    gates = [GateDeclaration(item.name, item.shards) for item in manifest.validation.gates]
+    if member_shards is not None:
+        gates = [item for item in gates if item.name != "member"]
+        gates.append(GateDeclaration("member", member_shards))
     graph = resolve_validation_graph(
         (GraphContribution("repository", tuple(shards), tuple(gates)),)
     )
-    executables = sorted({command[0] for shard in shards for command in (shard.command,)})
     inputs = ValidationInputs(
         "reposeal.toml",
         tuple(sorted(profile.identity for profile in resolved)),
         tuple(sorted(manifest.repository.lockfiles)),
-        tuple(ToolDeclaration(name, (name, "--version")) for name in executables),
+        tuple(
+            ToolDeclaration(item.name, item.identity_command) for item in manifest.validation.tools
+        ),
     )
     return graph, inputs
+
+
+def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> ValidationSelection:
+    files = tuple(
+        filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
+    )
+    impact = select_impact(files, manifest.impact.rules)
+    encoded = json.dumps(files, separators=(",", ":")).encode()
+    modified_tests = tuple(
+        path
+        for path in files
+        if path.startswith("tests/") or "/tests/" in path or Path(path).name.startswith("test_")
+    )
+    reasons = tuple(f"impact rule {name} matched" for name in impact.rules)
+    return ValidationSelection(
+        changed_paths_digest="sha256:" + hashlib.sha256(encoded).hexdigest(),
+        rules=impact.rules,
+        profiles=impact.profiles,
+        gates=impact.gates,
+        shards=impact.shards,
+        modified_tests=modified_tests,
+        external_obligations=(),
+        unexplained=impact.unexplained,
+        requires_final=impact.requires_final,
+        reasons=reasons,
+    )
+
+
+def _member_shards(manifest: RepositoryManifest, selection: ValidationSelection) -> tuple[str, ...]:
+    gate_shards = {gate.name: gate.shards for gate in manifest.validation.gates}
+    selected: list[str] = list(manifest.validation.member_required)
+    for shard in selection.shards:
+        if shard not in selected:
+            selected.append(shard)
+    for gate in selection.gates:
+        for shard in gate_shards.get(gate, ()):
+            if shard not in selected:
+                selected.append(shard)
+    if selection.unexplained:
+        for shard in gate_shards["member"]:
+            if shard not in selected:
+                selected.append(shard)
+    return tuple(selected)
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -215,23 +259,24 @@ def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object
 
 
 def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
+    manifest = load_manifest(repository / "reposeal.toml")
+    selected = _selection(repository, base, manifest)
     files = tuple(
         filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
     )
-    manifest = load_manifest(repository / "reposeal.toml")
-    selection = select_impact(files, manifest.impact.rules)
     return {
         "schema_version": 1,
         "status": "changed",
         "base": base,
         "source": _git(repository, "rev-parse", "HEAD"),
         "files": files,
-        "rules": selection.rules,
-        "profiles": selection.profiles,
-        "gates": selection.gates,
-        "shards": selection.shards,
-        "unexplained": selection.unexplained,
-        "requires_final": selection.requires_final,
+        "selection": json.loads(json.dumps(selected.__dict__)),
+        "rules": selected.rules,
+        "profiles": selected.profiles,
+        "gates": selected.gates,
+        "shards": selected.shards,
+        "unexplained": selected.unexplained,
+        "requires_final": selected.requires_final,
         "explain": explain,
     }
 
@@ -261,8 +306,19 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
         reconciliation = None
         approvals = None
     manifest = load_manifest(repository / "reposeal.toml")
-    graph, inputs = _runtime_validation(repository, manifest)
     gate = "member" if kind == "member" else "final"
+    selected = _selection(repository, base, manifest) if base is not None else None
+    member_shards = _member_shards(manifest, selected) if selected is not None else None
+    graph, initial_inputs = _runtime_validation(manifest, member_shards=member_shards)
+    inputs = ValidationInputs(
+        initial_inputs.configuration_path,
+        initial_inputs.profiles,
+        initial_inputs.lockfiles,
+        initial_inputs.tools,
+        base=_git(repository, "rev-parse", base) if base else evidence_base,
+        selection=selected,
+        schema_digest=manifest.reposeal.evidence_schema_digest,
+    )
     adapter = RepositoryValidationAdapter(repository)
     receipt = execute_gate(graph, gate, inputs, adapter)
     receipt_path = ReceiptStore(_receipt_root(repository)).write(gate, receipt)

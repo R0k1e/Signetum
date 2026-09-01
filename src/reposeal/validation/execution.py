@@ -10,6 +10,7 @@ from reposeal.evidence.receipts import (
     EvidenceIdentity,
     EvidenceReceipt,
     ToolIdentity,
+    ValidationSelection,
     combine_shard_evidence,
 )
 from reposeal.validation import ToolDeclaration, ValidationGraph, ValidationShard
@@ -46,6 +47,9 @@ class ValidationInputs:
     profiles: tuple[str, ...]
     lockfiles: tuple[str, ...]
     tools: tuple[ToolDeclaration, ...]
+    base: str | None = None
+    selection: ValidationSelection | None = None
+    schema_digest: str = "sha256:" + "0" * 64
 
     def __post_init__(self) -> None:
         if self.configuration_path != "reposeal.toml":
@@ -77,6 +81,7 @@ def build_evidence_identity(
     return EvidenceIdentity(
         commit=adapter.commit_identity(),
         tree=adapter.tree_identity(),
+        base=inputs.base,
         configuration=configuration,
         profiles=inputs.profiles,
         graph=graph.digest,
@@ -99,7 +104,15 @@ def execute_gate(
     for name in graph.execution_order(gate):
         if not adapter.run_shard(shard_by_name[name]):
             raise ValidationExecutionError(f"validation shard failed: {name}")
-        receipts.append(EvidenceReceipt.shard(identity=identity, shard=name))
+        receipts.append(
+            EvidenceReceipt.shard(
+                identity=identity,
+                shard=name,
+                protocol="reposeal.validation-evidence@3",
+                schema_digest=inputs.schema_digest,
+                selection=inputs.selection,
+            )
+        )
     return combine_shard_evidence(
         gate=gate,
         required_shards=graph.execution_order(gate),

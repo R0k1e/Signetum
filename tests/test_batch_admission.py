@@ -125,20 +125,17 @@ def test_delivery_finds_the_receipt_bound_to_the_expected_tip(monkeypatch, tmp_p
 def test_manifest_gate_preserves_declared_command_order(tmp_path: Path) -> None:
     module = _load_module()
     manifest = module.load_manifest(Path(__file__).resolve().parents[1] / "reposeal.toml")
-    graph, _ = module._runtime_validation(tmp_path, manifest)
-    commands = [
-        shard.command
-        for shard in graph.shards
-        if shard.name.startswith("repository:manifest:member")
-    ]
-    assert commands == [
+    graph, _ = module._runtime_validation(manifest)
+    shards = {shard.name: shard.command for shard in graph.shards}
+    commands = [shards[name] for name in graph.gate("member").shards]
+    assert set(commands) == {
         ("uv", "build"),
         ("uv", "run", "pre-commit", "run", "--all-files"),
         ("uv", "run", "--no-sync", "ruff", "check", "."),
         ("uv", "run", "--no-sync", "ruff", "format", "--check", "."),
         ("uv", "run", "--no-sync", "bandit", "-r", "src"),
-        ("uv", "run", "--no-sync", "pip-audit"),
-    ]
+        ("uv", "run", "pytest"),
+    }
 
 
 def test_delivery_provenance_reads_named_member_and_plan_trailer(

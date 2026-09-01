@@ -1,0 +1,19 @@
+[specification]
+schema_version = 1
+id = "unified-validation-evidence/selection-and-evidence"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-unified-validation-evidence.md"]
+plan = "changes/unified-validation-evidence/plans/selection-and-evidence.md"
+acceptance = [
+  "Selection records changed-path identity, matched rules, selected profiles, gates and shards, modified tests, external obligations, unexplained paths, requires_final, and human-readable reasons without executing validation.",
+  "Member execution consumes the exact selection for the same commit and base, satisfies profile completeness requirements, and records every executed shard and external obligation result.",
+  "Final ignores member narrowing and executes the declared complete graph exactly once on the frozen batch tip.",
+  "Evidence v3 binds source identity, configuration, profiles, graph, lockfiles, tools, selection, execution, completeness, provenance, and namespaced extensions.",
+  "RepoSeal, its self-contained Template runtime, and the PyLM adapter pass common protocol vectors and identify the same schema digest.",
+]
+
+[specification.review]
+id = "unified-validation-evidence"
+clauses = ["EVIDENCE-001", "EVIDENCE-002", "EVIDENCE-003", "EVIDENCE-004"]

@@ -40,7 +40,7 @@ def test_changed_contract_vectors_are_shared(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     (tmp_path / "reposeal.toml").write_text(
-        (ROOT / "tests" / "fixtures" / "reposeal.toml").read_text(encoding="utf-8"),
+        (ROOT / "template" / "reposeal.toml").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     vectors = json.loads(

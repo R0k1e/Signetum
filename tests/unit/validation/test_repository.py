@@ -8,6 +8,9 @@ from reposeal.evidence.receipts import (
     EvidenceIdentity,
     EvidenceReceipt,
     ReceiptError,
+    ValidationCompleteness,
+    ValidationExecution,
+    ValidationProvenance,
 )
 from reposeal.validation import (
     GateDeclaration,
@@ -29,31 +32,49 @@ def test_receipt_store_reuses_only_exact_gate_evidence(tmp_path: Path) -> None:
     identity = EvidenceIdentity(
         commit="a" * 40,
         tree="b" * 40,
+        base=None,
         configuration=ArtifactIdentity("reposeal.toml", "sha256:" + "c" * 64),
         profiles=(),
         graph="sha256:" + "d" * 64,
         lockfiles=(),
         tools=(),
     )
-    receipt = EvidenceReceipt(2, identity, ("final",), ("core:static",), True)
+    receipt = EvidenceReceipt(
+        3,
+        "reposeal.validation-evidence@3",
+        "sha256:" + "9" * 64,
+        identity,
+        None,
+        ValidationExecution(("final",), ("core:static",)),
+        ValidationCompleteness(False, True, ("core:static",)),
+        ValidationProvenance(),
+        {},
+        True,
+    )
     store = ReceiptStore(tmp_path)
     written = store.write("final", receipt)
 
     assert store.matching("final", receipt) == written
 
     different = EvidenceReceipt(
-        2,
+        3,
+        receipt.protocol,
+        receipt.schema_digest,
         EvidenceIdentity(
             commit="e" * 40,
             tree=identity.tree,
+            base=None,
             configuration=identity.configuration,
             profiles=(),
             graph=identity.graph,
             lockfiles=(),
             tools=(),
         ),
-        ("final",),
-        ("core:static",),
+        None,
+        receipt.execution,
+        receipt.completeness,
+        receipt.provenance,
+        {},
         True,
     )
     with pytest.raises(ReceiptError, match="no exact final receipt"):
