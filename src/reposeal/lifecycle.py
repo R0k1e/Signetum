@@ -291,6 +291,8 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
         "status": "ready" if kind == "member" else "final",
         "receipt": str(lifecycle_receipt),
     }
+
+
 def _git(repository: Path, *arguments: str, check: bool = True) -> str:
     git = _git_executable()
     completed = subprocess.run(  # nosec B603
