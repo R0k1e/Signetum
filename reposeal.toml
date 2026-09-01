@@ -28,14 +28,14 @@ gates = ["member", "final"]
 
 [[impact.rules]]
 name = "engine.integration"
-paths = ["tests/integration/**", "tests/test_*.py", "template/**"]
+paths = ["tests/**", "template/**"]
 profiles = ["python-default@1"]
 gates = ["final"]
 requires_final = true
 
 [[impact.rules]]
 name = "engine.governance"
-paths = ["changes/**", "docs/**", "AGENTS.md", ".agents/**", "reposeal.toml"]
+paths = ["changes/**", "docs/**", "README.md", "AGENTS.md", ".agents/**", "reposeal.toml"]
 gates = ["final"]
 requires_final = true
 
