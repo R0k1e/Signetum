@@ -42,4 +42,3 @@ specification = "human-review-reconciliation/human-review"
 result = "accepted"
 accepted_clauses = ["HRI-001", "HRI-002", "HRI-003", "HRI-004", "HRI-005"]
 rejected_clauses = []
-
