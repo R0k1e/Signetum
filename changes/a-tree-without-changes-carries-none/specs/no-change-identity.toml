@@ -4,7 +4,7 @@ id = "a-tree-without-changes-carries-none/no-change-identity"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-a-tree-without-changes-carries-none.md"]
+decisions = ["docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md"]
 plan = "changes/a-tree-without-changes-carries-none/plans/no-change-identity.md"
 acceptance = [
   "Admission accepts a member commit carrying no Plan trailer when the member tree hosts no change package.",

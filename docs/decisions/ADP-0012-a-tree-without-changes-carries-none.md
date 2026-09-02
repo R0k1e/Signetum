@@ -1,6 +1,6 @@
 # A tree which hosts no Change carries no Change identity
 
-Status: Proposed
+Status: Accepted
 Review date: 2026-09-02
 Supersedes: None
 Superseded by: None
