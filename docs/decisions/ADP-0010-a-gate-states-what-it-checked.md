@@ -1,6 +1,6 @@
 # A gate states what it checked, and a citation states what it obtained
 
-Status: Proposed
+Status: Accepted
 Review date: 2026-09-02
 Supersedes: None
 Superseded by: None

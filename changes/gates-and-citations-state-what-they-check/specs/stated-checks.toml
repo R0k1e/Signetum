@@ -4,7 +4,7 @@ id = "gates-and-citations-state-what-they-check/stated-checks"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-a-gate-states-what-it-checked.md"]
+decisions = ["docs/decisions/ADP-0010-a-gate-states-what-it-checked.md"]
 plan = "changes/gates-and-citations-state-what-they-check/plans/stated-checks.md"
 acceptance = [
   "Traceability refuses a specification citing a decision which is absent, not accepted, or superseded, and names which of the three it is.",
