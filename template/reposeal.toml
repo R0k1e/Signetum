@@ -63,6 +63,10 @@ name = "mise"
 identity_command = ["mise", "--version"]
 
 [[validation.shards]]
+name = "python:sync"
+command = ["uv", "sync", "--locked"]
+
+[[validation.shards]]
 name = "repository:diff"
 command = ["git", "diff", "--check"]
 
@@ -73,22 +77,27 @@ command = ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/trac
 [[validation.shards]]
 name = "python:ruff"
 command = ["uv", "run", "--no-sync", "ruff", "check", "."]
+requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:format"
 command = ["uv", "run", "--no-sync", "ruff", "format", "--check", "."]
+requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:ty"
 command = ["uv", "run", "--no-sync", "ty", "check", "src"]
+requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:unit"
 command = ["uv", "run", "--no-sync", "pytest", "tests/unit"]
+requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:integration"
 command = ["uv", "run", "--no-sync", "pytest", "tests/integration"]
+requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:audit"
@@ -101,15 +110,17 @@ findings_command = [
   "python",
   ".agents/repo-dev/runtime/pip_audit_findings.py",
 ]
+requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:secrets"
 command = ["mise", "run", "python:secrets"]
+requires = ["python:sync"]
 
 [[validation.gates]]
 name = "member"
-shards = ["repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:secrets"]
+shards = ["python:sync", "repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:secrets"]
 
 [[validation.gates]]
 name = "final"
-shards = ["repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:integration", "python:audit", "python:secrets"]
+shards = ["python:sync", "repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:integration", "python:audit", "python:secrets"]

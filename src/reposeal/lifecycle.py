@@ -17,7 +17,7 @@ from shutil import which
 from reposeal.deviations import DeviationError, approval_view, reconciliation_summary
 from reposeal.evidence.receipts import EvidenceReceipt, ReceiptError, ValidationSelection
 from reposeal.impact import select_impact
-from reposeal.manifest import RepositoryManifest, load_manifest
+from reposeal.manifest import ManifestError, RepositoryManifest, load_manifest
 from reposeal.profiles import resolve_profiles
 from reposeal.validation import (
     GateDeclaration,
@@ -27,7 +27,11 @@ from reposeal.validation import (
     command_digest,
     resolve_validation_graph,
 )
-from reposeal.validation.execution import ValidationInputs, execute_gate
+from reposeal.validation.execution import (
+    ValidationExecutionError,
+    ValidationInputs,
+    execute_gate,
+)
 from reposeal.validation.repository import ReceiptStore, RepositoryValidationAdapter
 from reposeal.waivers import WaiverError, load_waivers
 
@@ -955,7 +959,9 @@ def main(arguments: list[str] | None = None) -> int:
                 parsed.expected_base,
                 parsed.expected_batch_tip,
             )
-    except AdmissionError as error:
+    except (AdmissionError, ManifestError, ValidationExecutionError) as error:
+        # A refused operation is still one JSON result on stdout, never a
+        # traceback: a failing gate is an ordinary outcome of the contract.
         print(
             json.dumps(
                 {"schema_version": 1, "status": "refused", "reason": str(error)},
