@@ -11,7 +11,7 @@ import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tomllib
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from shutil import which
@@ -42,7 +42,11 @@ def _mise_executable() -> str:
 
 
 def _run_tool(
-    repository: Path, command: tuple[str, ...], *, capture_output: bool = True
+    repository: Path,
+    command: tuple[str, ...],
+    *,
+    capture_output: bool = True,
+    required: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     for name in tuple(environment):
@@ -62,6 +66,8 @@ def _run_tool(
         env=environment,
         text=True,
     )
+    if not required:
+        return completed
     if completed.returncode != 0:
         diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
         detail = diagnostic or f"Mise could not execute {command[0]}"
@@ -180,9 +186,198 @@ def _strings(value: object, label: str) -> list[str]:
     return result
 
 
+def _command_digest(command: tuple[str, ...]) -> str:
+    encoded = json.dumps(list(command), separators=(",", ":")).encode()
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _parse_findings(document: str) -> list[dict[str, str]]:
+    """Read the tool-neutral findings document a world shard must emit."""
+
+    try:
+        raw = json.loads(document)
+    except json.JSONDecodeError as error:
+        raise AdmissionError(f"findings document is not JSON: {error.msg}") from error
+    if not isinstance(raw, dict) or raw.get("schema_version") != 1:
+        raise AdmissionError("unsupported findings document")
+    entries = raw.get("findings")
+    if not isinstance(entries, list):
+        raise AdmissionError("findings must be an array")
+    findings: list[dict[str, str]] = []
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != {"id", "locator", "summary"}:
+            raise AdmissionError("each finding declares exactly id, locator, and summary")
+        if not all(isinstance(entry[field], str) and entry[field] for field in entry):
+            raise AdmissionError("finding fields must be non-empty strings")
+        findings.append({key: str(value) for key, value in entry.items()})
+    return findings
+
+
+@dataclass(frozen=True)
+class _Waiver:
+    """One tracked, approved, expiring exception for named world findings."""
+
+    id: str
+    shard: str
+    findings: tuple[str, ...]
+    expires: date
+
+
+@dataclass(frozen=True)
+class _Coverage:
+    """Why a failing world shard was or was not covered."""
+
+    covered: bool
+    waivers: tuple[str, ...]
+    findings: tuple[str, ...]
+    uncovered: tuple[str, ...]
+    expired: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _Shard:
+    """One declared validation shard and how its verdict is determined."""
+
+    name: str
+    command: tuple[str, ...]
+    evidence: str
+    findings_command: tuple[str, ...]
+
+
+def _load_waivers(repository: Path) -> tuple[_Waiver, ...]:
+    """Read every tracked, human-approved world finding waiver."""
+
+    waivers: list[_Waiver] = []
+    identities: set[str] = set()
+    for path in sorted(repository.glob("changes/*/waivers/*.toml")):
+        relative = path.relative_to(repository).as_posix()
+        try:
+            document = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError) as error:
+            raise AdmissionError(f"{relative}: {error}") from error
+        if set(document) != {"waiver"}:
+            raise AdmissionError(f"{relative}: file must declare exactly one [waiver] table")
+        waiver = _mapping(document["waiver"], "waiver")
+        missing = {"schema_version", "id", "shard", "findings", "reason", "approved_by", "expires"}
+        missing -= set(waiver)
+        if missing:
+            raise AdmissionError(f"{relative}: waiver is missing {', '.join(sorted(missing))}")
+        if waiver["schema_version"] != 1:
+            raise AdmissionError(f"{relative}: unsupported waiver schema")
+        expires = waiver["expires"]
+        if isinstance(expires, str):
+            try:
+                expires = date.fromisoformat(expires)
+            except ValueError as error:
+                raise AdmissionError(f"{relative}: waiver expiry must be a date") from error
+        if not isinstance(expires, date):
+            raise AdmissionError(f"{relative}: waiver expiry must be a date")
+        identity = str(waiver["id"])
+        if identity in identities:
+            raise AdmissionError(f"duplicate waiver identities: {identity}")
+        identities.add(identity)
+        waivers.append(
+            _Waiver(
+                identity,
+                str(waiver["shard"]),
+                tuple(_strings(waiver["findings"], "waiver.findings")),
+                expires,
+            )
+        )
+    return tuple(waivers)
+
+
+def _cover_findings(
+    shard: str,
+    findings: list[dict[str, str]],
+    waivers: tuple[_Waiver, ...],
+    today: date,
+) -> _Coverage:
+    """Decide whether live authority covers every reported finding."""
+
+    applicable = [item for item in waivers if item.shard == shard]
+    reported = tuple(sorted({finding["id"] for finding in findings}))
+    used: set[str] = set()
+    uncovered: list[str] = []
+    expired: set[str] = set()
+    for identifier in reported:
+        covering = sorted(
+            item.id for item in applicable if identifier in item.findings and item.expires >= today
+        )
+        if covering:
+            used.update(covering)
+            continue
+        uncovered.append(identifier)
+        expired.update(
+            item.id for item in applicable if identifier in item.findings and item.expires < today
+        )
+    return _Coverage(
+        covered=bool(reported) and not uncovered,
+        waivers=tuple(sorted(used)),
+        findings=reported,
+        uncovered=tuple(uncovered),
+        expired=tuple(sorted(expired)),
+    )
+
+
+def _member_shards(
+    manifest: dict[str, object], selection: dict[str, object]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the member shards to execute and the world shards left to final.
+
+    Member closure stays a function of the observed tree, so a world shard
+    reached through an impact rule or a composed gate is deferred rather than
+    allowed to make an unrelated member unclosable.
+    """
+
+    validation = _mapping(manifest.get("validation"), "validation")
+    raw_shards = validation["shards"]
+    if not isinstance(raw_shards, list):
+        raise AdmissionError("validation.shards must be an array")
+    world = {
+        str(shard["name"])
+        for item in raw_shards
+        for shard in (_mapping(item, "validation shard"),)
+        if shard.get("evidence", "tree") == "world"
+    }
+    raw_gates = validation["gates"]
+    if not isinstance(raw_gates, list):
+        raise AdmissionError("validation.gates must be an array")
+    gates = {
+        str(gate["name"]): _strings(gate["shards"], "gate.shards")
+        for item in raw_gates
+        for gate in (_mapping(item, "validation gate"),)
+    }
+    selected = _strings(validation.get("member_required", []), "member_required")
+    deferred: list[str] = []
+
+    def admit(name: str) -> None:
+        if name in world:
+            if name not in deferred:
+                deferred.append(name)
+        elif name not in selected:
+            selected.append(name)
+
+    for name in _strings(selection["shards"], "selection.shards"):
+        admit(name)
+    for name in _strings(selection["gates"], "selection.gates"):
+        for shard_name in gates.get(name, ()):
+            admit(shard_name)
+    if selection["unexplained"]:
+        for shard_name in gates["member"]:
+            admit(shard_name)
+    return tuple(selected), tuple(sorted(deferred))
+
+
 def _run_gate(
     repository: Path, kind: str, selected_shards: tuple[str, ...] | None = None
-) -> tuple[str, ...]:
+) -> list[dict[str, object]]:
+    """Execute one gate and return the outcome recorded for every shard.
+
+    Every shard whose dependencies held runs even after an earlier shard
+    failed, so one run reports every independent problem it can observe.
+    """
+
     data = _manifest(repository)
     validation = data.get("validation")
     if not isinstance(validation, dict):
@@ -191,7 +386,7 @@ def _run_gate(
     raw_gates = validation.get("gates")
     if not isinstance(raw_shards, list) or not isinstance(raw_gates, list):
         raise AdmissionError("validation graph must contain shards and gates")
-    commands: dict[str, tuple[str, ...]] = {}
+    declared: dict[str, _Shard] = {}
     for shard in raw_shards:
         if not isinstance(shard, dict) or not isinstance(shard.get("name"), str):
             raise AdmissionError("validation shard is invalid")
@@ -202,7 +397,15 @@ def _run_gate(
             or not all(isinstance(argument, str) and argument for argument in command)
         ):
             raise AdmissionError("validation shard commands must be non-empty argv lists")
-        commands[shard["name"]] = tuple(command)
+        evidence = str(shard.get("evidence", "tree"))
+        if evidence not in ("tree", "world"):
+            raise AdmissionError(f"unsupported evidence class: {shard['name']}")
+        findings_command = tuple(
+            _strings(shard.get("findings_command", []), "shard.findings_command")
+        )
+        if findings_command and evidence != "world":
+            raise AdmissionError(f"only a world shard reports findings: {shard['name']}")
+        declared[shard["name"]] = _Shard(shard["name"], tuple(command), evidence, findings_command)
     gate = next(
         (item for item in raw_gates if isinstance(item, dict) and item.get("name") == kind),
         None,
@@ -210,12 +413,56 @@ def _run_gate(
     if gate is None or not isinstance(gate.get("shards"), list):
         raise AdmissionError(f"validation gate is unavailable: {kind}")
     names = tuple(gate["shards"]) if selected_shards is None else selected_shards
+    waivers = _load_waivers(repository)
+    today = datetime.now(UTC).date()
+    outcomes: list[dict[str, object]] = []
+    failures: list[str] = []
     for name in names:
-        command = commands.get(name)
-        if command is None:
+        shard = declared.get(name)
+        if shard is None:
             raise AdmissionError(f"validation shard is unavailable: {name}")
-        _run_tool(repository, command, capture_output=False)
-    return names
+        observed_at = datetime.now(UTC).isoformat() if shard.evidence == "world" else None
+        completed = _run_tool(repository, shard.command, capture_output=False, required=False)
+        outcome: dict[str, object] = {
+            "name": name,
+            "command_digest": _command_digest(shard.command),
+            "evidence": shard.evidence,
+            "status": "passed",
+            "observed_at": observed_at,
+            "waivers": [],
+            "findings": [],
+        }
+        if completed.returncode == 0:
+            outcomes.append(outcome)
+            continue
+        if shard.evidence != "world":
+            failures.append(f"validation shard failed: {name}")
+            continue
+        if not shard.findings_command:
+            failures.append(f"world shard failed and declares no findings command: {name}")
+            continue
+        reported = _run_tool(repository, shard.findings_command, required=False)
+        try:
+            findings = _parse_findings(reported.stdout)
+        except AdmissionError as error:
+            failures.append(f"{name}: {error}")
+            continue
+        coverage = _cover_findings(name, findings, waivers, today)
+        if not coverage.covered:
+            detail = [f"world shard {name} reported unwaived findings"]
+            if coverage.uncovered:
+                detail.append("uncovered: " + ", ".join(coverage.uncovered))
+            if coverage.expired:
+                detail.append("expired waivers: " + ", ".join(coverage.expired))
+            failures.append("; ".join(detail))
+            continue
+        outcome["status"] = "waived"
+        outcome["waivers"] = list(coverage.waivers)
+        outcome["findings"] = list(coverage.findings)
+        outcomes.append(outcome)
+    if failures:
+        raise AdmissionError("; ".join(failures))
+    return sorted(outcomes, key=lambda item: str(item["name"]))
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -353,29 +600,14 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
     selection = changed(repository, base, True)["selection"] if base is not None else None
     selected_shards: tuple[str, ...] | None = None
     if isinstance(selection, dict):
-        validation = _mapping(manifest.get("validation"), "validation")
-        required = _strings(validation.get("member_required", []), "member_required")
-        for name in selection["shards"]:
-            if name not in required:
-                required.append(name)
-        raw_gates = validation["gates"]
-        if not isinstance(raw_gates, list):
-            raise AdmissionError("validation.gates must be an array")
-        gates = {
-            str(gate["name"]): _strings(gate["shards"], "gate.shards")
-            for item in raw_gates
-            for gate in (_mapping(item, "validation gate"),)
-        }
-        for name in selection["gates"]:
-            for shard in gates.get(name, ()):
-                if shard not in required:
-                    required.append(shard)
-        if selection["unexplained"]:
-            for shard in gates["member"]:
-                if shard not in required:
-                    required.append(shard)
-        selected_shards = tuple(required)
-    executed_shards = _run_gate(repository, gate, selected_shards)
+        selected_shards, deferred = _member_shards(manifest, selection)
+        if deferred:
+            selection = dict(selection)
+            selection["reasons"] = list(selection["reasons"]) + [
+                f"world shard {name} deferred to final" for name in deferred
+            ]
+    outcomes = _run_gate(repository, gate, selected_shards)
+    executed_shards = [str(outcome["name"]) for outcome in outcomes]
     configuration = (repository / "reposeal.toml").read_bytes()
     profiles = _mapping(manifest.get("profiles", {}), "profiles")
     repository_config = _mapping(manifest.get("repository"), "repository")
@@ -420,13 +652,16 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
             "selection": selection,
             "execution": {
                 "gates": [gate],
-                "shards": sorted(executed_shards),
+                "shards": outcomes,
                 "external_obligations": [],
             },
             "completeness": {
                 "member": gate == "member",
                 "final": gate == "final",
                 "required_shards": sorted(executed_shards),
+                "world_shards": sorted(
+                    str(outcome["name"]) for outcome in outcomes if outcome["evidence"] == "world"
+                ),
             },
             "provenance": {"stable_patch_id": None},
             "extensions": {},
@@ -508,23 +743,48 @@ def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(sorted(change_ids))
 
 
-def _ready_evidence(repository: Path, source: str, base: str) -> str:
-    matches: list[str] = []
-    for path in sorted(_receipt_root(repository).glob("member-*.json")):
+def _admission_evidence(member: Path, tip: str, base: str) -> str:
+    """Locate evidence proving what this member's own selection requires.
+
+    Evidence is matched by observed tree and by shard command digest, never by
+    commit identity, receipt gate, or shard name: an amended trailer, an
+    equivalent rebase, a renamed shard, and a completed final gate all prove
+    the same work.
+    """
+
+    manifest = _manifest(member)
+    selection = changed(member, base, True)["selection"]
+    if not isinstance(selection, dict):
+        raise AdmissionError("member selection is unavailable")
+    required_names, _ = _member_shards(manifest, selection)
+    validation = _mapping(manifest.get("validation"), "validation")
+    raw_shards = validation["shards"]
+    if not isinstance(raw_shards, list):
+        raise AdmissionError("validation.shards must be an array")
+    commands = {
+        str(shard["name"]): tuple(_strings(shard["command"], "shard.command"))
+        for item in raw_shards
+        for shard in (_mapping(item, "validation shard"),)
+    }
+    required = {_command_digest(commands[name]) for name in required_names}
+    tree = _git(member, "rev-parse", f"{tip}^{{tree}}")
+    for path in sorted(_receipt_root(member).glob("*-lifecycle-*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            evidence = payload["evidence"]
+            proven = {str(outcome["command_digest"]) for outcome in evidence["execution"]["shards"]}
+        except (OSError, json.JSONDecodeError, KeyError, TypeError):
             continue
-        if (
-            payload.get("kind") == "member"
-            and payload.get("source") == source
-            and payload.get("base") == base
-            and payload.get("valid") is True
-        ):
-            matches.append(path.name)
-    if not matches:
-        raise AdmissionError("member has no ready evidence for its exact commit and base")
-    return matches[-1]
+        if evidence["identity"]["tree"] != tree or evidence.get("valid") is not True:
+            continue
+        if required <= proven:
+            return path.name
+    if selection["requires_final"]:
+        rules = ",".join(_strings(selection["rules"], "selection.rules"))
+        return "deferred:requires-final:" + (rules or "unexplained")
+    raise AdmissionError(
+        "member has no evidence proving its selected validation for the exact tree"
+    )
 
 
 def _stable_patch_id(repository: Path, base: str, source: str) -> str:
@@ -651,7 +911,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             unchanged.append(record)
             continue
         batch_base = _batch_base(batch, batch_tip) or batch_tip
-        ready_evidence = _ready_evidence(member, member_tip, batch_base)
+        ready_evidence = _admission_evidence(member, member_tip, batch_base)
         patch_id = _stable_patch_id(member, batch_base, member_tip)
         message = "\n".join(
             (

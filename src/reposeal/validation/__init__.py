@@ -26,6 +26,16 @@ def _tuple_of_strings(value: object, field: str) -> tuple[str, ...]:
     return result
 
 
+EVIDENCE_CLASSES = ("tree", "world")
+
+
+def command_digest(command: Sequence[str]) -> str:
+    """Identify one exact argv independently of the shard name carrying it."""
+
+    encoded = json.dumps(list(command), separators=(",", ":")).encode()
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
 @dataclass(frozen=True)
 class ValidationShard:
     """One independently executable, namespaced unit of validation."""
@@ -33,6 +43,8 @@ class ValidationShard:
     name: str
     command: tuple[str, ...]
     requires: tuple[str, ...] = ()
+    evidence: str = "tree"
+    findings_command: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if _NAME.fullmatch(self.name) is None:
@@ -41,6 +53,18 @@ class ValidationShard:
             raise ValidationGraphError(f"shard command must be non-empty: {self.name}")
         if len(self.requires) != len(set(self.requires)):
             raise ValidationGraphError(f"duplicate shard dependency: {self.name}")
+        if self.evidence not in EVIDENCE_CLASSES:
+            raise ValidationGraphError(f"unsupported evidence class: {self.name}")
+        if self.findings_command and self.evidence != "world":
+            raise ValidationGraphError(f"only a world shard reports findings: {self.name}")
+        if self.findings_command and any(not argument for argument in self.findings_command):
+            raise ValidationGraphError(f"findings command must be non-empty: {self.name}")
+
+    @property
+    def digest(self) -> str:
+        """Return the exact command identity proven by executing this shard."""
+
+        return command_digest(self.command)
 
 
 @dataclass(frozen=True)
@@ -110,11 +134,16 @@ class ValidationConfiguration:
             name = raw.get("name")
             if not isinstance(name, str):
                 raise ValidationGraphError("shard.name must be a string")
+            evidence = raw.get("evidence", "tree")
+            if not isinstance(evidence, str):
+                raise ValidationGraphError("shard.evidence must be a string")
             shards.append(
                 ValidationShard(
                     name,
                     _tuple_of_strings(raw.get("command"), "shard.command"),
                     _tuple_of_strings(raw.get("requires", ()), "shard.requires"),
+                    evidence,
+                    _tuple_of_strings(raw.get("findings_command", ()), "shard.findings_command"),
                 )
             )
 
@@ -221,6 +250,8 @@ def resolve_validation_graph(
         "shards": [
             {
                 "command": shard.command,
+                "evidence": shard.evidence,
+                "findings_command": shard.findings_command,
                 "name": shard.name,
                 "requires": tuple(sorted(shard.requires)),
             }
@@ -234,7 +265,14 @@ def resolve_validation_graph(
         "sha256:" + hashlib.sha256(encoded).hexdigest(),
     )
     for gate in resolved_gates:
-        graph.execution_order(gate.name)
+        order = graph.execution_order(gate.name)
+        if gate.name != "member":
+            continue
+        world = tuple(name for name in order if shards[name].evidence == "world")
+        if world:
+            raise ValidationGraphError(
+                "member closure cannot depend on world state: " + ", ".join(sorted(world))
+            )
     return graph
 
 
@@ -257,6 +295,7 @@ def resolve_tools(configurations: Sequence[ValidationConfiguration]) -> tuple[To
 
 
 __all__ = [
+    "EVIDENCE_CLASSES",
     "GateDeclaration",
     "GraphContribution",
     "ResolvedGate",
@@ -265,6 +304,7 @@ __all__ = [
     "ValidationGraph",
     "ValidationGraphError",
     "ValidationShard",
+    "command_digest",
     "resolve_tools",
     "resolve_validation_graph",
 ]

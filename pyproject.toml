@@ -21,6 +21,7 @@ reposeal = "reposeal.cli:app"
 dev = [
     "bandit>=1.9",
     "hypothesis>=6.0",
+    "jsonschema>=4.23",
     "pip-audit>=2.9",
     "pre-commit>=4.3",
     "pytest>=8.4",
@@ -75,6 +76,10 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 # executable with tuple arguments after validating repository identities.
 "src/reposeal/lifecycle.py" = ["S603"]
 "template/.agents/repo-dev/runtime/lifecycle.py" = ["S603"]
+"template/.agents/repo-dev/runtime/pip_audit_findings.py" = ["S603"]
+# Security-boundary rationale: the profile adapter resolves pip-audit to an
+# absolute host executable and passes a fixed argument tuple without a shell.
+"src/reposeal/profiles/pip_audit.py" = ["S603"]
 # Security-boundary rationale: both adapters resolve Git to an absolute host
 # executable and pass validated tuple arguments without a shell.
 "src/reposeal/release/__init__.py" = ["S603"]

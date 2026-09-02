@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import replace
+from hashlib import sha256
 
 import pytest
 
@@ -8,6 +9,7 @@ from reposeal.evidence.receipts import (
     EvidenceIdentity,
     EvidenceReceipt,
     ReceiptError,
+    ShardOutcome,
     ToolIdentity,
     ValidationCompleteness,
     ValidationExecution,
@@ -31,10 +33,15 @@ def _identity() -> EvidenceIdentity:
     )
 
 
+def _outcome(name: str) -> ShardOutcome:
+    digest = "sha256:" + sha256(name.encode()).hexdigest()
+    return ShardOutcome(name, digest, "tree", "passed")
+
+
 def _shard(identity: EvidenceIdentity, name: str) -> EvidenceReceipt:
     return EvidenceReceipt.shard(
         identity=identity,
-        shard=name,
+        shard=_outcome(name),
         protocol="reposeal.validation-evidence@3",
         schema_digest="sha256:" + "9" * 64,
         selection=None,
@@ -48,7 +55,7 @@ def _gate(identity: EvidenceIdentity, gate: str, shards: tuple[str, ...]) -> Evi
         "sha256:" + "9" * 64,
         identity,
         None,
-        ValidationExecution((gate,), shards),
+        ValidationExecution((gate,), tuple(_outcome(name) for name in shards)),
         ValidationCompleteness(gate == "member", gate == "final", shards),
         ValidationProvenance(),
         {},
@@ -103,13 +110,13 @@ def test_complete_shards_compose_one_exact_gate_receipt() -> None:
 
     assert receipt.schema_version == 3
     assert receipt.execution.gates == ("final",)
-    assert receipt.execution.shards == ("core:static", "profile:python@test")
+    assert receipt.execution.names == ("core:static", "profile:python@test")
     verify_gate_evidence(receipt, expected_identity=identity, gate="final")
 
 
 def test_canonical_schema_digest_is_the_manifest_protocol_identity() -> None:
     assert evidence_schema_digest() == (
-        "sha256:9e7d13fcbc9a31aeb7c06f4cfc76790116cf0cb98bf1c4ecbbd23f48ba64ea4d"
+        "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
     )
 
 
@@ -181,14 +188,86 @@ def test_combination_rejects_duplicate_unexpected_and_non_atomic_evidence() -> N
         lambda: replace(_gate(_identity(), "final", ("core:test",)), valid=False),
         lambda: replace(
             _gate(_identity(), "final", ("core:test",)),
-            execution=ValidationExecution(("final", "final"), ("core:test",)),
+            execution=ValidationExecution(("final", "final"), (_outcome("core:test"),)),
         ),
         lambda: replace(
             _gate(_identity(), "final", ("core:test",)),
-            execution=ValidationExecution(("final",), ("core:test", "core:test")),
+            execution=ValidationExecution(
+                ("final",), (_outcome("core:test"), _outcome("core:test"))
+            ),
         ),
     ],
 )
 def test_receipt_values_fail_closed(operation: Callable[[], object]) -> None:
     with pytest.raises(ReceiptError):
         operation()
+
+
+def _world(status: str, **overrides: object) -> ShardOutcome:
+    values: dict[str, object] = {
+        "name": "engine:audit",
+        "command_digest": "sha256:" + "7" * 64,
+        "evidence": "world",
+        "status": status,
+        "observed_at": "2026-09-02T00:00:00+00:00",
+        "waivers": ("audit-example",),
+        "findings": ("GHSA-aaaa-bbbb-cccc",),
+    }
+    values.update(overrides)
+    return ShardOutcome(**values)  # type: ignore[arg-type]
+
+
+def test_a_waived_world_outcome_names_its_authority_and_its_findings() -> None:
+    outcome = _world("waived")
+
+    assert outcome.waivers == ("audit-example",)
+    assert outcome.findings == ("GHSA-aaaa-bbbb-cccc",)
+    assert outcome.observed_at is not None
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        pytest.param(lambda: _world("waived", evidence="tree"), id="tree-cannot-be-waived"),
+        pytest.param(lambda: _world("waived", waivers=()), id="waived-needs-authority"),
+        pytest.param(lambda: _world("waived", findings=()), id="waived-needs-findings"),
+        pytest.param(lambda: _world("passed"), id="passed-carries-no-findings"),
+        pytest.param(lambda: _world("waived", observed_at=None), id="world-records-observation"),
+        pytest.param(
+            lambda: ShardOutcome("t", "sha256:" + "8" * 64, "tree", "passed", "2026-09-02"),
+            id="tree-observes-nothing",
+        ),
+        pytest.param(
+            lambda: ShardOutcome("t", "sha256:" + "8" * 64, "quantum", "passed"),
+            id="unsupported-evidence-class",
+        ),
+        pytest.param(
+            lambda: ShardOutcome("t", "sha256:" + "8" * 64, "tree", "skipped"),
+            id="unsupported-status",
+        ),
+        pytest.param(
+            lambda: ShardOutcome("t", "not-a-digest", "tree", "passed"),
+            id="command-digest-is-required",
+        ),
+    ],
+)
+def test_shard_outcomes_fail_closed(operation: Callable[[], object]) -> None:
+    with pytest.raises(ReceiptError):
+        operation()
+
+
+def test_completeness_cannot_name_a_world_shard_which_never_ran() -> None:
+    identity = _identity()
+    with pytest.raises(ReceiptError, match="world shard which was not executed"):
+        EvidenceReceipt(
+            3,
+            "reposeal.validation-evidence@3",
+            "sha256:" + "9" * 64,
+            identity,
+            None,
+            ValidationExecution(("final",), (_outcome("core:static"),)),
+            ValidationCompleteness(False, True, ("core:static",), ("engine:audit",)),
+            ValidationProvenance(),
+            {},
+            True,
+        )

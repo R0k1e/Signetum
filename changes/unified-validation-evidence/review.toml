@@ -31,6 +31,30 @@ statement = "Language and repository-specific scheduling remains in profiles or 
 disposition = "covered"
 specification = "unified-validation-evidence/selection-and-evidence"
 
+[[review.clauses]]
+id = "EVIDENCE-005"
+statement = "Every validation shard declares whether its verdict is a function of the observed tree alone or of mutable state outside it, and the member gate accepts only tree-determined shards."
+disposition = "covered"
+specification = "unified-validation-evidence/selection-and-evidence"
+
+[[review.clauses]]
+id = "EVIDENCE-006"
+statement = "A failing world shard is admitted only when every finding it reports is covered by an unexpired, human-approved waiver tracked in the repository, and evidence records the waived result separately from a passed result."
+disposition = "covered"
+specification = "unified-validation-evidence/selection-and-evidence"
+
+[[review.clauses]]
+id = "EVIDENCE-007"
+statement = "Member admission requires durable evidence proving the shard commands the member selection requires for its exact tree, rather than one specific receipt bound to a commit identity."
+disposition = "covered"
+specification = "unified-validation-evidence/selection-and-evidence"
+
+[[review.clauses]]
+id = "EVIDENCE-008"
+statement = "The published repository and evidence schemas are enforced against the repository's own manifests and produced evidence, and mutable external state is audited on a schedule rather than only on change."
+disposition = "covered"
+specification = "unified-validation-evidence/selection-and-evidence"
+
 [review.acceptance]
 result = "pending"
 accepted_clauses = []

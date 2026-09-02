@@ -1,4 +1,4 @@
-"""Receipt v2 identities and shard evidence composition."""
+"""Evidence v3 identities, shard outcomes, and gate composition."""
 
 from __future__ import annotations
 
@@ -111,11 +111,63 @@ class ValidationSelection:
                 raise ReceiptError("selection values must be unique")
 
 
+EVIDENCE_CLASSES = ("tree", "world")
+SHARD_STATUSES = ("passed", "waived")
+
+
+@dataclass(frozen=True)
+class ShardOutcome:
+    """One executed shard, its exact command, and how it succeeded."""
+
+    name: str
+    command_digest: str
+    evidence: str
+    status: str
+    observed_at: str | None = None
+    waivers: tuple[str, ...] = ()
+    findings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ReceiptError("shard outcome name must be non-empty")
+        if _SHA256.fullmatch(self.command_digest) is None:
+            raise ReceiptError(f"shard command digest must be sha256: {self.name}")
+        if self.evidence not in EVIDENCE_CLASSES:
+            raise ReceiptError(f"unsupported evidence class: {self.evidence}")
+        if self.status not in SHARD_STATUSES:
+            raise ReceiptError(f"unsupported shard status: {self.status}")
+        if (self.evidence == "world") != (self.observed_at is not None):
+            raise ReceiptError(
+                f"only a world shard records when it observed the world: {self.name}"
+            )
+        if self.status == "waived" and self.evidence != "world":
+            raise ReceiptError(f"only a world shard can be waived: {self.name}")
+        if self.status == "waived" and not (self.waivers and self.findings):
+            raise ReceiptError(f"a waived shard names its waivers and findings: {self.name}")
+        if self.status == "passed" and (self.waivers or self.findings):
+            raise ReceiptError(f"a passed shard carries no waived findings: {self.name}")
+        for field in (self.waivers, self.findings):
+            if field != tuple(sorted(set(field))):
+                raise ReceiptError(f"waiver and finding identities must be unique: {self.name}")
+
+
 @dataclass(frozen=True)
 class ValidationExecution:
     gates: tuple[str, ...]
-    shards: tuple[str, ...]
+    shards: tuple[ShardOutcome, ...]
     external_obligations: tuple[str, ...] = ()
+
+    @property
+    def names(self) -> tuple[str, ...]:
+        """Return the executed shard names in recorded order."""
+
+        return tuple(outcome.name for outcome in self.shards)
+
+    @property
+    def command_digests(self) -> frozenset[str]:
+        """Return every proven shard command, independently of shard naming."""
+
+        return frozenset(outcome.command_digest for outcome in self.shards)
 
 
 @dataclass(frozen=True)
@@ -123,6 +175,7 @@ class ValidationCompleteness:
     member: bool
     final: bool
     required_shards: tuple[str, ...]
+    world_shards: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -160,19 +213,24 @@ class EvidenceReceipt:
             raise ReceiptError("unsuccessful execution is not reusable evidence")
         if self.execution.gates != tuple(sorted(set(self.execution.gates))):
             raise ReceiptError("executed gates must be unique and sorted")
-        if self.execution.shards != tuple(sorted(set(self.execution.shards))):
+        names = self.execution.names
+        if names != tuple(sorted(set(names))):
             raise ReceiptError("executed shards must be unique and sorted")
+        world = {outcome.name for outcome in self.execution.shards if outcome.evidence == "world"}
+        if set(self.completeness.world_shards) - world:
+            raise ReceiptError("completeness names a world shard which was not executed")
 
     @classmethod
     def shard(
         cls,
         *,
         identity: EvidenceIdentity,
-        shard: str,
+        shard: ShardOutcome,
         protocol: str,
         schema_digest: str,
         selection: ValidationSelection | None,
     ) -> EvidenceReceipt:
+        world = (shard.name,) if shard.evidence == "world" else ()
         return cls(
             3,
             protocol,
@@ -180,7 +238,7 @@ class EvidenceReceipt:
             identity,
             selection,
             ValidationExecution((), (shard,)),
-            ValidationCompleteness(False, False, (shard,)),
+            ValidationCompleteness(False, False, (shard.name,), world),
             ValidationProvenance(),
             {},
             True,
@@ -226,13 +284,25 @@ class EvidenceReceipt:
                 ),
                 execution=ValidationExecution(
                     gates=tuple(raw["execution"]["gates"]),
-                    shards=tuple(raw["execution"]["shards"]),
+                    shards=tuple(
+                        ShardOutcome(
+                            name=item["name"],
+                            command_digest=item["command_digest"],
+                            evidence=item["evidence"],
+                            status=item["status"],
+                            observed_at=item["observed_at"],
+                            waivers=tuple(item["waivers"]),
+                            findings=tuple(item["findings"]),
+                        )
+                        for item in raw["execution"]["shards"]
+                    ),
                     external_obligations=tuple(raw["execution"]["external_obligations"]),
                 ),
                 completeness=ValidationCompleteness(
                     member=raw["completeness"]["member"],
                     final=raw["completeness"]["final"],
                     required_shards=tuple(raw["completeness"]["required_shards"]),
+                    world_shards=tuple(raw["completeness"]["world_shards"]),
                 ),
                 provenance=ValidationProvenance(**raw["provenance"]),
                 extensions=raw["extensions"],
@@ -250,17 +320,18 @@ def combine_shard_evidence(
     if not receipts:
         raise ReceiptError("missing shard evidence")
     identity = receipts[0].identity
-    observed: set[str] = set()
+    outcomes: dict[str, ShardOutcome] = {}
     for receipt in receipts:
         if receipt.identity != identity:
             raise ReceiptError("shard evidence identity differs")
         if receipt.execution.gates or len(receipt.execution.shards) != 1:
             raise ReceiptError("only atomic shard evidence can be combined")
-        shard = receipt.execution.shards[0]
-        if shard in observed:
-            raise ReceiptError(f"duplicate shard evidence: {shard}")
-        observed.add(shard)
+        outcome = receipt.execution.shards[0]
+        if outcome.name in outcomes:
+            raise ReceiptError(f"duplicate shard evidence: {outcome.name}")
+        outcomes[outcome.name] = outcome
     required = set(required_shards)
+    observed = set(outcomes)
     missing = required - observed
     unexpected = observed - required
     if missing:
@@ -268,14 +339,16 @@ def combine_shard_evidence(
     if unexpected:
         raise ReceiptError(f"unexpected shard evidence: {', '.join(sorted(unexpected))}")
     first = receipts[0]
+    ordered = tuple(outcomes[name] for name in sorted(outcomes))
+    world = tuple(outcome.name for outcome in ordered if outcome.evidence == "world")
     return EvidenceReceipt(
         3,
         first.protocol,
         first.schema_digest,
         identity,
         first.selection,
-        ValidationExecution((gate,), tuple(sorted(observed))),
-        ValidationCompleteness(gate == "member", gate == "final", tuple(sorted(required))),
+        ValidationExecution((gate,), ordered),
+        ValidationCompleteness(gate == "member", gate == "final", tuple(sorted(required)), world),
         first.provenance,
         first.extensions,
         True,
@@ -294,10 +367,13 @@ def verify_gate_evidence(
 
 
 __all__ = [
+    "EVIDENCE_CLASSES",
+    "SHARD_STATUSES",
     "ArtifactIdentity",
     "EvidenceIdentity",
     "EvidenceReceipt",
     "ReceiptError",
+    "ShardOutcome",
     "ToolIdentity",
     "ValidationCompleteness",
     "ValidationExecution",

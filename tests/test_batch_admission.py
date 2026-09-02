@@ -28,14 +28,109 @@ def _git(repository: Path, *arguments: str) -> str:
     ).stdout.strip()
 
 
+MANIFEST = """schema_version = 2
+
+[reposeal]
+protocol = 2
+template_version = "0.2.0"
+
+[repository]
+architecture = "docs/ARCHITECTURE.md"
+specifications = "changes/*/specs/*.toml"
+plans = "changes/*/plans/*.md"
+decisions = "docs/decisions"
+
+[[impact.rules]]
+name = "everything"
+paths = ["**"]
+shards = ["repo:check"]
+
+[[impact.rules]]
+name = "governance"
+paths = ["docs/**"]
+requires_final = true
+
+[validation]
+member_required = ["repo:check"]
+
+[[validation.shards]]
+name = "repo:check"
+command = ["true"]
+
+[[validation.gates]]
+name = "member"
+shards = ["repo:check"]
+
+[[validation.gates]]
+name = "final"
+shards = ["repo:check"]
+"""
+
+MEMBER_COMMAND = ("true",)
+
+
 def _repository(path: Path) -> Path:
     path.mkdir()
     _git(path, "init", "-b", "main")
     _git(path, "config", "user.name", "RepoSeal Tests")
     _git(path, "config", "user.email", "reposeal@example.invalid")
     (path / "seed.txt").write_text("seed\n", encoding="utf-8")
+    (path / "reposeal.toml").write_text(MANIFEST, encoding="utf-8")
     _git(path, "add", ".")
     _git(path, "commit", "-m", "seed")
+    return path
+
+
+def _evidence_receipt(
+    member: Path, name: str, *, gate: str, tree: str, commands: tuple[tuple[str, ...], ...]
+) -> Path:
+    """Write one durable lifecycle receipt proving the given shard commands."""
+
+    evidence = {
+        "schema_version": 3,
+        "protocol": "reposeal.validation-evidence@3",
+        "schema_digest": "sha256:" + "9" * 64,
+        "identity": {
+            "commit": "a" * 40,
+            "tree": tree,
+            "base": None,
+            "configuration": {"path": "reposeal.toml", "digest": "sha256:" + "1" * 64},
+            "profiles": [],
+            "graph": "sha256:" + "2" * 64,
+            "lockfiles": [],
+            "tools": [],
+        },
+        "selection": None,
+        "execution": {
+            "gates": [gate],
+            "shards": [
+                {
+                    "name": f"repo:proven-{index}",
+                    "command_digest": lifecycle.command_digest(command),
+                    "evidence": "tree",
+                    "status": "passed",
+                    "observed_at": None,
+                    "waivers": [],
+                    "findings": [],
+                }
+                for index, command in enumerate(commands)
+            ],
+            "external_obligations": [],
+        },
+        "completeness": {
+            "member": gate == "member",
+            "final": gate == "final",
+            "required_shards": [f"repo:proven-{index}" for index in range(len(commands))],
+            "world_shards": [],
+        },
+        "provenance": {"stable_patch_id": None},
+        "extensions": {},
+        "valid": True,
+    }
+    path = lifecycle._receipt_root(member) / name
+    path.write_text(
+        json.dumps({"kind": gate, "valid": True, "evidence": evidence}), encoding="utf-8"
+    )
     return path
 
 
@@ -196,11 +291,12 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     _git(member, "add", ".")
     _git(member, "commit", "-m", f"deliver member\n\nDelivers: {plan}")
     member_tip = _git(member, "rev-parse", "HEAD")
-    receipts = lifecycle._receipt_root(member)
-    ready = receipts / "member-ready.json"
-    ready.write_text(
-        json.dumps({"kind": "member", "source": member_tip, "base": base, "valid": True}),
-        encoding="utf-8",
+    _evidence_receipt(
+        member,
+        "member-lifecycle-ready.json",
+        gate="member",
+        tree=_git(member, "rev-parse", "HEAD^{tree}"),
+        commands=(MEMBER_COMMAND,),
     )
 
     result = lifecycle.admit(batch, (member,))
@@ -216,7 +312,7 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     admitted = admitted_members[0]
     assert admitted["branch"] == "impl/member"
     assert admitted["original"] == member_tip
-    assert admitted["ready_evidence"] == "member-ready.json"
+    assert admitted["ready_evidence"] == "member-lifecycle-ready.json"
     assert admitted["plan"] == [plan]
     assert admitted["patch_id"]
     assert admitted["admission_commit"]
@@ -236,9 +332,12 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     _git(member, "add", ".")
     _git(member, "commit", "-m", f"extend member\n\nDelivers: {plan}")
     advanced_tip = _git(member, "rev-parse", "HEAD")
-    (receipts / "member-advanced.json").write_text(
-        json.dumps({"kind": "member", "source": advanced_tip, "base": base, "valid": True}),
-        encoding="utf-8",
+    _evidence_receipt(
+        member,
+        "member-lifecycle-advanced.json",
+        gate="member",
+        tree=_git(member, "rev-parse", "HEAD^{tree}"),
+        commands=(MEMBER_COMMAND,),
     )
     incremental = lifecycle.admit(batch, (member,))
     incremental_members = incremental["admitted"]
@@ -273,3 +372,85 @@ def test_final_refuses_proposal_decisions(monkeypatch: pytest.MonkeyPatch, tmp_p
     _git(repository, "commit", "-m", "add proposal")
     with pytest.raises(lifecycle.AdmissionError, match="proposal decision"):
         lifecycle.validate(repository, None, "final")
+
+
+def _member_and_batch(tmp_path: Path, *, path: str = "src/feature.txt") -> tuple[Path, Path, str]:
+    repository = _repository(tmp_path / "repository")
+    base = _git(repository, "rev-parse", "HEAD")
+    member = tmp_path / "member"
+    batch = tmp_path / "batch"
+    _git(repository, "worktree", "add", "-b", "impl/member", str(member), base)
+    _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    target = member / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("work\n", encoding="utf-8")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "deliver member\n\nDelivers: changes/example/plans/member.md")
+    return member, batch, base
+
+
+def test_a_completed_final_gate_satisfies_member_admission(tmp_path: Path) -> None:
+    member, batch, _ = _member_and_batch(tmp_path)
+    _evidence_receipt(
+        member,
+        "final-lifecycle-frozen.json",
+        gate="final",
+        tree=_git(member, "rev-parse", "HEAD^{tree}"),
+        commands=(MEMBER_COMMAND, ("extra",)),
+    )
+
+    result = lifecycle.admit(batch, (member,))
+
+    admitted = result["admitted"]
+    assert isinstance(admitted, list)
+    assert admitted[0]["ready_evidence"] == "final-lifecycle-frozen.json"
+
+
+def test_evidence_survives_a_commit_which_did_not_change_the_tree(tmp_path: Path) -> None:
+    member, batch, _ = _member_and_batch(tmp_path)
+    tree = _git(member, "rev-parse", "HEAD^{tree}")
+    _evidence_receipt(
+        member,
+        "member-lifecycle-ready.json",
+        gate="member",
+        tree=tree,
+        commands=(MEMBER_COMMAND,),
+    )
+    original = _git(member, "rev-parse", "HEAD")
+    _git(member, "commit", "--amend", "-m", "reworded\n\nDelivers: changes/example/plans/member.md")
+    amended = _git(member, "rev-parse", "HEAD")
+
+    assert amended != original
+    assert _git(member, "rev-parse", "HEAD^{tree}") == tree
+
+    result = lifecycle.admit(batch, (member,))
+
+    admitted = result["admitted"]
+    assert isinstance(admitted, list)
+    assert admitted[0]["original"] == amended
+    assert admitted[0]["ready_evidence"] == "member-lifecycle-ready.json"
+
+
+def test_evidence_proving_the_wrong_commands_is_not_admission(tmp_path: Path) -> None:
+    member, batch, _ = _member_and_batch(tmp_path)
+    _evidence_receipt(
+        member,
+        "member-lifecycle-unrelated.json",
+        gate="member",
+        tree=_git(member, "rev-parse", "HEAD^{tree}"),
+        commands=(("something", "else"),),
+    )
+
+    with pytest.raises(lifecycle.AdmissionError, match="no evidence proving its selected"):
+        lifecycle.admit(batch, (member,))
+
+
+def test_a_member_whose_authority_is_final_records_a_deferred_closure(tmp_path: Path) -> None:
+    member, batch, _ = _member_and_batch(tmp_path, path="docs/note.md")
+
+    result = lifecycle.admit(batch, (member,))
+
+    admitted = result["admitted"]
+    assert isinstance(admitted, list)
+    assert admitted[0]["ready_evidence"].startswith("deferred:requires-final:")
+    assert "governance" in admitted[0]["ready_evidence"]

@@ -50,6 +50,8 @@ command = ["uv", "run", "pytest", "{integration}"]
 [[shards]]
 name = "profile:python-default@1:dependency-audit"
 command = ["uv", "run", "pip-audit"]
+evidence = "world"
+findings_command = ["uv", "run", "reposeal", "findings", "pip-audit"]
 
 [[shards]]
 name = "profile:python-default@1:secrets"

@@ -2,22 +2,34 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 from typing import Protocol
 
 from reposeal.evidence.receipts import (
     ArtifactIdentity,
     EvidenceIdentity,
     EvidenceReceipt,
+    ShardOutcome,
     ToolIdentity,
     ValidationSelection,
     combine_shard_evidence,
 )
+from reposeal.findings import Finding
 from reposeal.validation import ToolDeclaration, ValidationGraph, ValidationShard
+from reposeal.waivers import Waiver, cover_findings
 
 
 class ValidationExecutionError(ValueError):
     """A declared tool or shard could not produce successful evidence."""
+
+
+@dataclass(frozen=True)
+class ShardExecution:
+    """One shard command's verdict and, when it failed, what it reported."""
+
+    succeeded: bool
+    diagnostic: str = ""
 
 
 class ValidationAdapter(Protocol):
@@ -35,8 +47,11 @@ class ValidationAdapter(Protocol):
     def identify_tool(self, tool: ToolDeclaration) -> str:
         """Execute the declared identity command and return its stable output."""
 
-    def run_shard(self, shard: ValidationShard) -> bool:
-        """Execute one shard command and return its success verdict."""
+    def run_shard(self, shard: ValidationShard) -> ShardExecution:
+        """Execute one shard command and return its verdict."""
+
+    def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
+        """Execute a world shard's findings command and parse its document."""
 
 
 @dataclass(frozen=True)
@@ -50,6 +65,8 @@ class ValidationInputs:
     base: str | None = None
     selection: ValidationSelection | None = None
     schema_digest: str = "sha256:" + "0" * 64
+    waivers: tuple[Waiver, ...] = field(default=())
+    today: date | None = None
 
     def __post_init__(self) -> None:
         if self.configuration_path != "reposeal.toml":
@@ -90,29 +107,83 @@ def build_evidence_identity(
     )
 
 
+def _resolve_outcome(
+    shard: ValidationShard,
+    inputs: ValidationInputs,
+    adapter: ValidationAdapter,
+    *,
+    today: date,
+) -> ShardOutcome:
+    """Execute one shard and decide whether it produced reusable evidence."""
+
+    observed_at = datetime.now(UTC).isoformat() if shard.evidence == "world" else None
+    execution = adapter.run_shard(shard)
+    if execution.succeeded:
+        return ShardOutcome(shard.name, shard.digest, shard.evidence, "passed", observed_at)
+    if shard.evidence != "world":
+        raise ValidationExecutionError(f"validation shard failed: {shard.name}")
+    if not shard.findings_command:
+        raise ValidationExecutionError(
+            f"world shard failed and declares no findings command: {shard.name}"
+        )
+    coverage = cover_findings(
+        shard.name, adapter.report_findings(shard), inputs.waivers, today=today
+    )
+    if not coverage.covered:
+        raise ValidationExecutionError(coverage.diagnostic(shard.name))
+    return ShardOutcome(
+        shard.name,
+        shard.digest,
+        "world",
+        "waived",
+        observed_at,
+        coverage.waivers,
+        coverage.findings,
+    )
+
+
 def execute_gate(
     graph: ValidationGraph,
     gate: str,
     inputs: ValidationInputs,
     adapter: ValidationAdapter,
 ) -> EvidenceReceipt:
-    """Execute one resolved gate and compose only its successful shard evidence."""
+    """Execute one resolved gate and compose only its successful shard evidence.
+
+    Every shard whose dependencies held is executed even after an earlier shard
+    failed, so one run reports every independent problem it can observe.
+    """
 
     identity = build_evidence_identity(graph, inputs, adapter)
+    today = inputs.today or datetime.now(UTC).date()
     shard_by_name = {shard.name: shard for shard in graph.shards}
     receipts: list[EvidenceReceipt] = []
+    failures: list[str] = []
+    unproven: set[str] = set()
     for name in graph.execution_order(gate):
-        if not adapter.run_shard(shard_by_name[name]):
-            raise ValidationExecutionError(f"validation shard failed: {name}")
+        shard = shard_by_name[name]
+        blocked = sorted(unproven.intersection(shard.requires))
+        if blocked:
+            unproven.add(name)
+            failures.append(f"{name}: skipped after {', '.join(blocked)}")
+            continue
+        try:
+            outcome = _resolve_outcome(shard, inputs, adapter, today=today)
+        except ValidationExecutionError as error:
+            unproven.add(name)
+            failures.append(str(error))
+            continue
         receipts.append(
             EvidenceReceipt.shard(
                 identity=identity,
-                shard=name,
+                shard=outcome,
                 protocol="reposeal.validation-evidence@3",
                 schema_digest=inputs.schema_digest,
                 selection=inputs.selection,
             )
         )
+    if failures:
+        raise ValidationExecutionError("; ".join(failures))
     return combine_shard_evidence(
         gate=gate,
         required_shards=graph.execution_order(gate),
@@ -121,6 +192,7 @@ def execute_gate(
 
 
 __all__ = [
+    "ShardExecution",
     "ValidationAdapter",
     "ValidationExecutionError",
     "ValidationInputs",

@@ -9,13 +9,13 @@ import os
 import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
 
 from reposeal.deviations import DeviationError, approval_view, reconciliation_summary
-from reposeal.evidence.receipts import ValidationSelection
+from reposeal.evidence.receipts import EvidenceReceipt, ReceiptError, ValidationSelection
 from reposeal.impact import select_impact
 from reposeal.manifest import RepositoryManifest, load_manifest
 from reposeal.profiles import resolve_profiles
@@ -24,10 +24,12 @@ from reposeal.validation import (
     GraphContribution,
     ToolDeclaration,
     ValidationShard,
+    command_digest,
     resolve_validation_graph,
 )
 from reposeal.validation.execution import ValidationInputs, execute_gate
 from reposeal.validation.repository import ReceiptStore, RepositoryValidationAdapter
+from reposeal.waivers import WaiverError, load_waivers
 
 
 class AdmissionError(ValueError):
@@ -164,7 +166,9 @@ def _runtime_validation(
         manifest.profiles.enabled, replacements=manifest.profiles.replacements
     )
     shards = [
-        ValidationShard(item.name, item.command, item.requires)
+        ValidationShard(
+            item.name, item.command, item.requires, item.evidence, item.findings_command
+        )
         for item in manifest.validation.shards
     ]
     gates = [GateDeclaration(item.name, item.shards) for item in manifest.validation.gates]
@@ -211,21 +215,38 @@ def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> Val
     )
 
 
-def _member_shards(manifest: RepositoryManifest, selection: ValidationSelection) -> tuple[str, ...]:
+def _member_shards(
+    manifest: RepositoryManifest, selection: ValidationSelection
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the member shards to execute and the world shards left to final.
+
+    Member closure stays a function of the observed tree, so a world shard
+    reached through an impact rule or a composed gate is deferred rather than
+    allowed to make an unrelated member unclosable.
+    """
+
     gate_shards = {gate.name: gate.shards for gate in manifest.validation.gates}
+    world = {item.name for item in manifest.validation.shards if item.evidence == "world"}
     selected: list[str] = list(manifest.validation.member_required)
+    deferred: list[str] = []
+
+    def admit(name: str) -> None:
+        if name in world:
+            if name not in deferred:
+                deferred.append(name)
+            return
+        if name not in selected:
+            selected.append(name)
+
     for shard in selection.shards:
-        if shard not in selected:
-            selected.append(shard)
+        admit(shard)
     for gate in selection.gates:
         for shard in gate_shards.get(gate, ()):
-            if shard not in selected:
-                selected.append(shard)
+            admit(shard)
     if selection.unexplained:
         for shard in gate_shards["member"]:
-            if shard not in selected:
-                selected.append(shard)
-    return tuple(selected)
+            admit(shard)
+    return tuple(selected), tuple(sorted(deferred))
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -308,8 +329,20 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
     manifest = load_manifest(repository / "reposeal.toml")
     gate = "member" if kind == "member" else "final"
     selected = _selection(repository, base, manifest) if base is not None else None
-    member_shards = _member_shards(manifest, selected) if selected is not None else None
+    member_shards: tuple[str, ...] | None = None
+    if selected is not None:
+        member_shards, deferred = _member_shards(manifest, selected)
+        if deferred:
+            selected = replace(
+                selected,
+                reasons=selected.reasons
+                + tuple(f"world shard {name} deferred to final" for name in deferred),
+            )
     graph, initial_inputs = _runtime_validation(manifest, member_shards=member_shards)
+    try:
+        waivers = load_waivers(repository)
+    except WaiverError as error:
+        raise AdmissionError(f"waiver authority is invalid: {error}") from error
     inputs = ValidationInputs(
         initial_inputs.configuration_path,
         initial_inputs.profiles,
@@ -318,6 +351,7 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
         base=_git(repository, "rev-parse", base) if base else evidence_base,
         selection=selected,
         schema_digest=manifest.reposeal.evidence_schema_digest,
+        waivers=waivers,
     )
     adapter = RepositoryValidationAdapter(repository)
     receipt = execute_gate(graph, gate, inputs, adapter)
@@ -415,23 +449,35 @@ def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(sorted(change_ids))
 
 
-def _ready_evidence(repository: Path, source: str, base: str) -> str:
-    matches: list[str] = []
-    for path in sorted(_receipt_root(repository).glob("member-*.json")):
+def _admission_evidence(member: Path, tip: str, base: str, manifest: RepositoryManifest) -> str:
+    """Locate evidence proving what this member's own selection requires.
+
+    Evidence is matched by observed tree and by shard command digest, never by
+    commit identity, receipt gate, or shard name: an amended trailer, an
+    equivalent rebase, a renamed shard, and a completed final gate all prove
+    the same work.
+    """
+
+    selection = _selection(member, base, manifest)
+    required_names, _ = _member_shards(manifest, selection)
+    declared = {item.name: item.command for item in manifest.validation.shards}
+    required = frozenset(command_digest(declared[name]) for name in required_names)
+    tree = _git(member, "rev-parse", f"{tip}^{{tree}}")
+    for path in sorted(_receipt_root(member).glob("*-lifecycle-*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            receipt = EvidenceReceipt.from_json(json.dumps(payload["evidence"]))
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ReceiptError):
             continue
-        if (
-            payload.get("kind") == "member"
-            and payload.get("source") == source
-            and payload.get("base") == base
-            and payload.get("valid") is True
-        ):
-            matches.append(path.name)
-    if not matches:
-        raise AdmissionError("member has no ready evidence for its exact commit and base")
-    return matches[-1]
+        if receipt.identity.tree != tree or not receipt.valid:
+            continue
+        if required <= receipt.execution.command_digests:
+            return path.name
+    if selection.requires_final:
+        return "deferred:requires-final:" + (",".join(selection.rules) or "unexplained")
+    raise AdmissionError(
+        "member has no evidence proving its selected validation for the exact tree"
+    )
 
 
 def _stable_patch_id(repository: Path, base: str, source: str) -> str:
@@ -561,7 +607,9 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             unchanged.append(record)
             continue
         batch_base = _batch_base(batch, batch_tip) or batch_tip
-        ready_evidence = _ready_evidence(member, member_tip, batch_base)
+        ready_evidence = _admission_evidence(
+            member, member_tip, batch_base, load_manifest(member / "reposeal.toml")
+        )
         patch_id = _stable_patch_id(member, batch_base, member_tip)
         message = "\n".join(
             (

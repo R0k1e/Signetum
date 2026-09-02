@@ -8,6 +8,7 @@ from reposeal.evidence.receipts import (
     EvidenceIdentity,
     EvidenceReceipt,
     ReceiptError,
+    ShardOutcome,
     ValidationCompleteness,
     ValidationExecution,
     ValidationProvenance,
@@ -29,6 +30,7 @@ from reposeal.validation.repository import (
 
 
 def test_receipt_store_reuses_only_exact_gate_evidence(tmp_path: Path) -> None:
+    _outcome = ShardOutcome("core:static", "sha256:" + "4" * 64, "tree", "passed")
     identity = EvidenceIdentity(
         commit="a" * 40,
         tree="b" * 40,
@@ -45,7 +47,7 @@ def test_receipt_store_reuses_only_exact_gate_evidence(tmp_path: Path) -> None:
         "sha256:" + "9" * 64,
         identity,
         None,
-        ValidationExecution(("final",), ("core:static",)),
+        ValidationExecution(("final",), (_outcome,)),
         ValidationCompleteness(False, True, ("core:static",)),
         ValidationProvenance(),
         {},
@@ -54,7 +56,11 @@ def test_receipt_store_reuses_only_exact_gate_evidence(tmp_path: Path) -> None:
     store = ReceiptStore(tmp_path)
     written = store.write("final", receipt)
 
-    assert store.matching("final", receipt) == written
+    proven = frozenset({_outcome.command_digest})
+    assert store.matching("final", identity, proven) == written
+
+    with pytest.raises(ReceiptError, match="proves the required commands"):
+        store.matching("final", identity, frozenset({"sha256:" + "5" * 64}))
 
     different = EvidenceReceipt(
         3,
@@ -77,8 +83,8 @@ def test_receipt_store_reuses_only_exact_gate_evidence(tmp_path: Path) -> None:
         {},
         True,
     )
-    with pytest.raises(ReceiptError, match="no exact final receipt"):
-        store.matching("final", different)
+    with pytest.raises(ReceiptError, match="proves the required commands"):
+        store.matching("final", different.identity, proven)
 
 
 def test_graph_and_inputs_are_plain_manifest_adapter_values() -> None:

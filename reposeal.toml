@@ -4,7 +4,7 @@ schema_version = 2
 protocol = 2
 template_version = "0.2.0"
 evidence_protocol = "reposeal.validation-evidence@3"
-evidence_schema_digest = "sha256:9e7d13fcbc9a31aeb7c06f4cfc76790116cf0cb98bf1c4ecbbd23f48ba64ea4d"
+evidence_schema_digest = "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
 
 [profiles]
 enabled = ["python-default@1", "git-worktrunk@1"]
@@ -75,6 +75,8 @@ command = ["uv", "run", "pytest"]
 [[validation.shards]]
 name = "engine:audit"
 command = ["uv", "run", "--no-sync", "pip-audit"]
+evidence = "world"
+findings_command = ["uv", "run", "--no-sync", "reposeal", "findings", "pip-audit"]
 
 [[validation.gates]]
 name = "member"

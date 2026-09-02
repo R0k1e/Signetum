@@ -3,8 +3,18 @@
 from pathlib import Path
 from re import fullmatch
 from tomllib import TOMLDecodeError, loads
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 
 class ManifestError(ValueError):
@@ -18,7 +28,7 @@ class RepoSealIdentity(BaseModel):
     template_version: str
     evidence_protocol: str = "reposeal.validation-evidence@3"
     evidence_schema_digest: str = (
-        "sha256:9e7d13fcbc9a31aeb7c06f4cfc76790116cf0cb98bf1c4ecbbd23f48ba64ea4d"
+        "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
     )
 
     @field_validator("template_version")
@@ -148,6 +158,17 @@ class ValidationShard(BaseModel):
     name: str
     command: tuple[str, ...]
     requires: tuple[str, ...] = ()
+    evidence: Literal["tree", "world"] = "tree"
+    findings_command: tuple[str, ...] = ()
+
+    @field_validator("findings_command")
+    @classmethod
+    def validate_findings_command(
+        cls, value: tuple[str, ...], info: ValidationInfo
+    ) -> tuple[str, ...]:
+        if value and info.data.get("evidence") != "world":
+            raise ValueError("only a world shard declares a findings command")
+        return value
 
 
 class ValidationGate(BaseModel):
@@ -183,6 +204,26 @@ class ValidationCommands(BaseModel):
         if len(value) != len(names) or "member" not in names or "final" not in names:
             raise ValueError("validation.gates must contain unique member and final gates")
         return value
+
+    @model_validator(mode="after")
+    def validate_member_closure_is_tree_determined(self) -> "ValidationCommands":
+        """Keep member closure independent of state the member does not own."""
+
+        world = {item.name for item in self.shards if item.evidence == "world"}
+        declared = {item.name for item in self.shards}
+        member = next((item.shards for item in self.gates if item.name == "member"), ())
+        for origin, names in (("gates.member", member), ("member_required", self.member_required)):
+            unknown = sorted(set(names) - declared)
+            if unknown:
+                raise ValueError(
+                    f"validation.{origin} names undeclared shards: {', '.join(unknown)}"
+                )
+            blocking = sorted(set(names) & world)
+            if blocking:
+                raise ValueError(
+                    f"validation.{origin} cannot depend on world state: {', '.join(blocking)}"
+                )
+        return self
 
 
 class RepositoryManifest(BaseModel):

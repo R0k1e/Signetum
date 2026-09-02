@@ -7,10 +7,12 @@ from typing import Annotated
 
 import typer
 
+from reposeal.findings import FindingsError
 from reposeal.lifecycle import main as lifecycle_main
 from reposeal.manifest import ManifestError, load_manifest
 from reposeal.product_surface import validate_product_surface
 from reposeal.profiles import ProfileError, resolve_profiles
+from reposeal.profiles.pip_audit import report as pip_audit_report
 from reposeal.release import ReleaseError, preflight
 from reposeal.site import build_site
 from reposeal.status.models import EvidenceSnapshot
@@ -27,6 +29,10 @@ template_app = typer.Typer(add_completion=False, help="Check or render the publi
 app.add_typer(template_app, name="template")
 site_app = typer.Typer(add_completion=False, help="Build the engine-owned product site.")
 app.add_typer(site_app, name="site")
+findings_app = typer.Typer(
+    add_completion=False, help="Report world shard findings as one neutral document."
+)
+app.add_typer(findings_app, name="findings")
 
 
 @site_app.command("build")
@@ -77,6 +83,16 @@ def template_render(
         typer.echo(json.dumps({"error": str(error), "valid": False}, sort_keys=True))
         raise typer.Exit(code=3) from error
     typer.echo(json.dumps({"files": report.files, "valid": True}, sort_keys=True))
+
+
+@findings_app.command("pip-audit")
+def findings_pip_audit() -> None:
+    """Emit the RepoSeal findings document for the current environment."""
+    try:
+        typer.echo(pip_audit_report())
+    except FindingsError as error:
+        typer.echo(json.dumps({"error": str(error), "status": "invalid"}, sort_keys=True))
+        raise typer.Exit(code=2) from error
 
 
 @app.callback()
