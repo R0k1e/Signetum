@@ -239,6 +239,16 @@ def test_manifest_gate_preserves_declared_command_order(tmp_path: Path) -> None:
     commands = [shards[name] for name in graph.gate("member").shards]
     assert set(commands) == {
         ("uv", "sync", "--locked", "--all-extras", "--dev"),
+        (
+            "uv",
+            "run",
+            "--no-sync",
+            "signetum",
+            "check",
+            "traceability",
+            "--repository",
+            ".",
+        ),
         ("uv", "build"),
         ("uv", "run", "pre-commit", "run", "--all-files"),
         ("uv", "run", "--no-sync", "ruff", "check", "."),
@@ -553,3 +563,18 @@ def test_a_named_plan_outside_a_change_is_still_refused(tmp_path: Path) -> None:
 
     with pytest.raises(lifecycle.AdmissionError, match="outside one active Change"):
         lifecycle._change_ids_from_plans(("unified-repository-configuration",))
+
+
+def test_both_gates_run_the_declared_traceability_authority() -> None:
+    """A declared authority which no gate runs is feedback, not a contract."""
+    manifest = lifecycle.load_manifest(Path(__file__).resolve().parents[1] / "signetum.toml")
+    shards = {shard.name: shard for shard in manifest.validation.shards}
+    authority = next(
+        name
+        for name, shard in shards.items()
+        if shard.command[-3:] == ("check", "traceability", "--repository")
+        or "traceability" in shard.command
+    )
+
+    for gate in manifest.validation.gates:
+        assert authority in gate.shards, f"{gate.name} does not run {authority}"

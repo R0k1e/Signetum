@@ -40,5 +40,6 @@ specification = "human-review-reconciliation/human-review"
 
 [review.acceptance]
 result = "accepted"
+delivery_commit = "6930642206c346896866fe17c458ddf39108a99e"
 accepted_clauses = ["HRI-001", "HRI-002", "HRI-003", "HRI-004", "HRI-005"]
 rejected_clauses = []
