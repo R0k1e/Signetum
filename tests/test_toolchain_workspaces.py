@@ -8,7 +8,7 @@ from subprocess import CompletedProcess
 
 import pytest
 
-import reposeal.lifecycle as lifecycle
+import signetum.lifecycle as lifecycle
 
 
 def test_missing_mise_has_an_actionable_noninteractive_diagnostic(monkeypatch) -> None:

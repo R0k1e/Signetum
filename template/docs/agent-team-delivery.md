@@ -24,7 +24,7 @@ uv run --no-project python .agents/repo-dev/runtime/deviations.py resolve ...
 uv run --no-project python .agents/repo-dev/runtime/deviations.py status --change <change-id>
 ```
 
-The runtime owns `.git/reposeal/changes/<change-id>/deviations.jsonl`; Agents
+The runtime owns `.git/signetum/changes/<change-id>/deviations.jsonl`; Agents
 never edit it directly. Ordinary implementation narration does not belong in
 the ledger. `final` is still check-only: it refuses unresolved deviations and
 returns the structured inputs for a concise delivery review. That review

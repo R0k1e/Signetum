@@ -1,7 +1,7 @@
 # Validation and delivery responsibilities
 
 Ordinary validation is read-only and observes one exact commit. Evidence binds
-RepoSeal, schema, profile, commit, and check identities. A successful member
+Signetum, schema, profile, commit, and check identities. A successful member
 check is not batch integration, delivery, or human acceptance.
 
 The member and final gate build the source distribution and wheel before the
@@ -23,7 +23,7 @@ gate rather than letting state the member does not own block its closure. A
 reusable admission credential.
 
 A failing `world` shard runs its declared findings command and reports through
-the tool-neutral RepoSeal findings document; RepoSeal never parses a tool's
+the tool-neutral Signetum findings document; Signetum never parses a tool's
 native output. Each reported finding is matched against the waivers tracked
 under `changes/<change-id>/waivers/`. The shard is `waived` only when every
 reported finding is covered by a waiver that has not expired. An uncovered
@@ -38,12 +38,12 @@ the Plan and implementation together, frozen validation observes that exact
 batch, and explicit delivery retains both as durable provenance.
 
 A workspace owns its base. `workspace-open` records the resolved base under the
-machine-local state root at `reposeal/workspaces/<branch>.json`, and it is
+machine-local state root at `signetum/workspaces/<branch>.json`, and it is
 written once. `changed` and `ready` take no base argument; they read that
 record, and a workspace without one fails as a precondition rather than having
 a base derived for it. A batch is a workspace which declares its members, so it
 carries the same record and its base is read the same way. The
-`RepoSeal-Batch-Base` trailer stays in the provenance commit as durable
+`Signetum-Batch-Base` trailer stays in the provenance commit as durable
 attestation, and delivery refuses a batch whose record and trailer disagree; no
 operation recovers a base by searching commit prose.
 
@@ -71,9 +71,9 @@ check these contracts but does not fix, merge, publish, or delete branches.
 Human control brackets implementation. Before work begins, the approved Review
 and Specifications project one concise approval view containing observable
 outcomes, acceptance evidence, and the execution autonomy boundary. During
-work, delivery-relevant discoveries are appended through the RepoSeal-owned
+work, delivery-relevant discoveries are appended through the Signetum-owned
 deviation API to the repository Git common directory at
-`reposeal/changes/<change-id>/deviations.jsonl`; linked members and the batch
+`signetum/changes/<change-id>/deviations.jsonl`; linked members and the batch
 therefore share one local execution authority without committing it to the
 product tree.
 

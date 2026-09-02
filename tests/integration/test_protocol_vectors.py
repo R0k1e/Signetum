@@ -1,4 +1,4 @@
-"""RepoSeal passes the conformance vectors it publishes for its consumers."""
+"""Signetum passes the conformance vectors it publishes for its consumers."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.protocols import Validator
 
-from reposeal.resources import schemas as schema_resources
-from reposeal.resources import vectors as vector_resources
-from reposeal.resources.schemas import EVIDENCE_PROTOCOL, EVIDENCE_SCHEMA, evidence_schema_digest
+from signetum.resources import schemas as schema_resources
+from signetum.resources import vectors as vector_resources
+from signetum.resources.schemas import EVIDENCE_PROTOCOL, EVIDENCE_SCHEMA, evidence_schema_digest
 
 VECTORS = "validation-evidence-v3.json"
 

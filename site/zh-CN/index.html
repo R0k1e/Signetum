@@ -2,28 +2,28 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>RepoSeal — 让每次变更都有证据</title>
+  <title>Signetum — 让每次变更都有证据</title>
   <meta name="description" content="让 Agent 开发可追溯、可测试、可并行且可解释的仓库开发基座。">
-  <link rel="canonical" href="https://r0k1e.github.io/RepoSeal/zh-CN/">
-  <link rel="alternate" hreflang="zh-CN" href="https://r0k1e.github.io/RepoSeal/zh-CN/">
-  <link rel="alternate" hreflang="en" href="https://r0k1e.github.io/RepoSeal/">
-  <link rel="stylesheet" href="../styles.css"><link rel="icon" href="../assets/reposeal-mark.png">
-  <meta property="og:type" content="website"><meta property="og:title" content="RepoSeal">
+  <link rel="canonical" href="https://r0k1e.github.io/Signetum/zh-CN/">
+  <link rel="alternate" hreflang="zh-CN" href="https://r0k1e.github.io/Signetum/zh-CN/">
+  <link rel="alternate" hreflang="en" href="https://r0k1e.github.io/Signetum/">
+  <link rel="stylesheet" href="../styles.css"><link rel="icon" href="../assets/signetum-mark.png">
+  <meta property="og:type" content="website"><meta property="og:title" content="Signetum">
   <meta property="og:description" content="让每次变更都有证据。">
-  <meta property="og:url" content="https://r0k1e.github.io/RepoSeal/zh-CN/">
-  <meta property="og:image" content="https://r0k1e.github.io/RepoSeal/assets/reposeal-social-preview.png">
+  <meta property="og:url" content="https://r0k1e.github.io/Signetum/zh-CN/">
+  <meta property="og:image" content="https://r0k1e.github.io/Signetum/assets/signetum-social-preview.png">
   <meta name="twitter:card" content="summary_large_image">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type": "SoftwareApplication","name":"RepoSeal","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","url":"https://r0k1e.github.io/RepoSeal/zh-CN/","codeRepository":"https://github.com/r0k1e/RepoSeal","license":"https://www.apache.org/licenses/LICENSE-2.0"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type": "SoftwareApplication","name":"Signetum","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","url":"https://r0k1e.github.io/Signetum/zh-CN/","codeRepository":"https://github.com/r0k1e/Signetum","license":"https://www.apache.org/licenses/LICENSE-2.0"}</script>
 </head>
 <body><div class="wrap">
-  <nav><a class="brand" href="./"><img src="../assets/reposeal-mark.png" alt="">RepoSeal</a><a href="../" lang="en">English</a></nav>
+  <nav><a class="brand" href="./"><img src="../assets/signetum-mark.png" alt="">Signetum</a><a href="../" lang="en">English</a></nav>
   <main>
-    <header class="hero"><div><p class="eyebrow">仓库拥有的 Agent 开发流程</p><h1>让每次变更都有证据。</h1><p class="lede">RepoSeal 把需求、决策、实现、验证和交付连成一套可检查的仓库闭环，让质量不再依赖聊天记录，也不依赖某个 Agent 是否记得全部上下文。</p><div class="actions"><a class="button primary" href="https://github.com/r0k1e/RepoSeal">查看 GitHub</a><a class="button" href="https://github.com/new?template_name=RepoSeal&amp;template_owner=r0k1e">使用模板</a></div></div><img class="seal" src="../assets/reposeal-mark.png" alt="RepoSeal 海豹抱着已验证的仓库文件夹"></header>
+    <header class="hero"><div><p class="eyebrow">仓库拥有的 Agent 开发流程</p><h1>让每次变更都有证据。</h1><p class="lede">Signetum 把需求、决策、实现、验证和交付连成一套可检查的仓库闭环，让质量不再依赖聊天记录，也不依赖某个 Agent 是否记得全部上下文。</p><div class="actions"><a class="button primary" href="https://github.com/r0k1e/Signetum">查看 GitHub</a><a class="button" href="https://github.com/new?template_name=Signetum&amp;template_owner=r0k1e">使用模板</a></div></div><img class="seal" src="../assets/signetum-mark.png" alt="Signetum 海豹抱着已验证的仓库文件夹"></header>
     <section><h2>它解决什么</h2><p class="intro">用少量、明确的仓库权威，让 Agent 工作从第一条诉求到最终验收都可审查。</p><div class="grid">
       <article class="card"><strong>不漏需求</strong>Review 将每条诉求映射到已批准的 Specification，并显式暴露延期项。</article><article class="card"><strong>理解现有实现</strong>架构入口和策略路由要求 Agent 先查清已有权威再修改。</article><article class="card"><strong>降低验证 I/O</strong>按变更路径诊断，只在最终交付树执行一次完整门禁。</article><article class="card"><strong>Agent Team 并行</strong>计划拥有独立 worktree，batch 只组装明确点名的成员。</article><article class="card"><strong>交付可解释</strong>验证收据绑定精确提交，清楚说明每次交付包含什么。</article><article class="card"><strong>质量面向行为</strong>单元与集成测试保护可观察契约，而不是锁死内部实现。</article>
     </div></section>
     <section><h2>一条闭合链路</h2><p class="intro">人的确认保留在关键边界，其余步骤明确、可重复，并由仓库自身定义。</p><ol class="flow"><li>Review</li><li>Specification</li><li>Plan</li><li>Worktree</li><li>Batch</li><li>Final</li><li>Delivery</li><li>Acceptance</li></ol></section>
-    <section><h2>边界清楚</h2><div class="compare"><div><h3>不只是 CI</h3><p>CI 检查一个提交；RepoSeal 还负责需求闭环、并行开发治理和精确交付证据。</p></div><div><h3>补全规格工具</h3><p>规格工具描述期望行为；RepoSeal 把它连接到计划、工作区、验证与交付。</p></div><div><h3>不是 Agent Runtime</h3><p>你可以使用任何编码 Agent。RepoSeal 是随仓库长期存在的开发契约。</p></div></div></section>
-    <section><h2>克隆即可开发</h2><p class="intro">核心保持语言中立且可组合，Python 是已验证的默认配置，uv、Ruff、ty、pytest 与行为门禁均已接通。由模板创建的仓库之后独立演进。</p><div class="actions"><a class="button primary" href="https://github.com/r0k1e/RepoSeal/releases/tag/v0.2.0">查看 v0.2.0 证据</a><a class="button" href="https://github.com/r0k1e/RepoSeal/blob/engine/README.zh-CN.md">阅读中文说明</a></div></section>
-  </main><footer><strong>RepoSeal</strong><span>Apache-2.0 · 每次开发，证据封存。</span></footer>
+    <section><h2>边界清楚</h2><div class="compare"><div><h3>不只是 CI</h3><p>CI 检查一个提交；Signetum 还负责需求闭环、并行开发治理和精确交付证据。</p></div><div><h3>补全规格工具</h3><p>规格工具描述期望行为；Signetum 把它连接到计划、工作区、验证与交付。</p></div><div><h3>不是 Agent Runtime</h3><p>你可以使用任何编码 Agent。Signetum 是随仓库长期存在的开发契约。</p></div></div></section>
+    <section><h2>克隆即可开发</h2><p class="intro">核心保持语言中立且可组合，Python 是已验证的默认配置，uv、Ruff、ty、pytest 与行为门禁均已接通。由模板创建的仓库之后独立演进。</p><div class="actions"><a class="button primary" href="https://github.com/r0k1e/Signetum/releases/tag/v0.2.0">查看 v0.2.0 证据</a><a class="button" href="https://github.com/r0k1e/Signetum/blob/engine/README.zh-CN.md">阅读中文说明</a></div></section>
+  </main><footer><strong>Signetum</strong><span>Apache-2.0 · 每次开发，证据封存。</span></footer>
 </div></body></html>

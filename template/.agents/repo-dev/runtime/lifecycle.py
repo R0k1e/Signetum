@@ -1,4 +1,4 @@
-"""Self-contained lifecycle authority for explicit RepoSeal batch delivery."""
+"""Self-contained lifecycle authority for explicit Signetum batch delivery."""
 
 from __future__ import annotations
 
@@ -141,7 +141,7 @@ def _state_root(repository: Path) -> Path:
     common = Path(_git(repository, "rev-parse", "--git-common-dir"))
     if not common.is_absolute():
         common = repository / common
-    return common.resolve() / "reposeal"
+    return common.resolve() / "signetum"
 
 
 def _receipt_root(repository: Path) -> Path:
@@ -215,11 +215,11 @@ def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> P
 
 
 def _manifest(repository: Path) -> dict[str, object]:
-    manifest = repository / "reposeal.toml"
+    manifest = repository / "signetum.toml"
     try:
         data = tomllib.loads(manifest.read_text(encoding="utf-8"))
         if data.get("schema_version") != 2:
-            raise AdmissionError("unsupported reposeal.toml schema")
+            raise AdmissionError("unsupported signetum.toml schema")
     except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
         raise AdmissionError(f"invalid validation authority: {error}") from error
     return data
@@ -674,17 +674,17 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
             ]
     outcomes = _run_gate(repository, gate, selected_shards)
     executed_shards = [str(outcome["name"]) for outcome in outcomes]
-    configuration = (repository / "reposeal.toml").read_bytes()
+    configuration = (repository / "signetum.toml").read_bytes()
     profiles = _mapping(manifest.get("profiles", {}), "profiles")
     repository_config = _mapping(manifest.get("repository"), "repository")
-    reposeal_config = _mapping(manifest.get("reposeal"), "reposeal")
+    signetum_config = _mapping(manifest.get("signetum"), "signetum")
     validation_config = _mapping(manifest.get("validation"), "validation")
     identity = {
         "commit": source,
         "tree": _git(repository, "rev-parse", "HEAD^{tree}"),
         "base": _git(repository, "rev-parse", base) if base else evidence_base,
         "configuration": {
-            "path": "reposeal.toml",
+            "path": "signetum.toml",
             "digest": "sha256:" + hashlib.sha256(configuration).hexdigest(),
         },
         "profiles": sorted(_strings(profiles.get("enabled", []), "profiles.enabled")),
@@ -712,8 +712,8 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         "valid": True,
         "evidence": {
             "schema_version": 3,
-            "protocol": reposeal_config["evidence_protocol"],
-            "schema_digest": reposeal_config["evidence_schema_digest"],
+            "protocol": signetum_config["evidence_protocol"],
+            "schema_digest": signetum_config["evidence_schema_digest"],
             "identity": identity,
             "selection": selection,
             "execution": {
@@ -905,7 +905,7 @@ def _attested_base(repository: Path, tip: str) -> str | None:
     """
 
     history = _git(repository, "log", "--first-parent", "--format=%B%x00", tip)
-    marker = re.search(r"^RepoSeal-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
+    marker = re.search(r"^Signetum-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
     return marker.group(1) if marker else None
 
 
@@ -913,9 +913,41 @@ def _require_numbering_base(repository: Path, base: str | None, tip: str) -> Non
     if base is None:
         return
     messages = _git(repository, "log", "--first-parent", "--format=%B%x00", f"{base}..{tip}")
-    numbering_bases = re.findall(r"^RepoSeal-Decision-Base:\s*(\S+)$", messages, re.MULTILINE)
+    numbering_bases = re.findall(r"^Signetum-Decision-Base:\s*(\S+)$", messages, re.MULTILINE)
     if numbering_bases and set(numbering_bases) != {base}:
         raise AdmissionError("decision numbering is bound to a different delivery base")
+
+
+def _record_supersession(batch: Path, formal_path: Path) -> None:
+    """Write the reciprocal entry into every decision this one replaces.
+
+    A supersession only the successor records leaves every reader of the
+    replaced decision believing it still stands.
+    """
+
+    decision = batch / formal_path
+    declared = re.search(
+        r"^Supersedes:\s*(.+)$", decision.read_text(encoding="utf-8"), re.MULTILINE
+    )
+    if declared is None:
+        return
+    for reference in (item.strip() for item in declared.group(1).split(",")):
+        if not reference or reference.lower() == "none":
+            continue
+        target = decision.parent / Path(reference).name
+        if not target.is_file():
+            raise AdmissionError(f"decision supersedes an absent decision: {reference}")
+        content = target.read_text(encoding="utf-8")
+        updated, count = re.subn(
+            r"^Superseded by:.*$",
+            f"Superseded by: {formal_path.name}",
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        if count == 0:
+            raise AdmissionError(f"decision declares no supersession field: {reference}")
+        target.write_text(updated, encoding="utf-8")
 
 
 def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
@@ -959,6 +991,7 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
                 )
             if rewritten != content:
                 candidate.write_text(rewritten, encoding="utf-8")
+        _record_supersession(batch, formal_path)
         rewrites.append({"proposal": proposal, "formal": formal_path.as_posix()})
         next_number += 1
     _git(batch, "add", "-u")
@@ -966,9 +999,9 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
         batch,
         "commit",
         "-m",
-        "reposeal: allocate formal decision identities",
+        "signetum: allocate formal decision identities",
         "-m",
-        f"RepoSeal-Decision-Base: {base}",
+        f"Signetum-Decision-Base: {base}",
     )
     return rewrites
 
@@ -1003,11 +1036,11 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             (
                 f"merge: admit {member_branch}",
                 "",
-                f"RepoSeal-Base: {batch_base}",
-                f"RepoSeal-Original: {member_tip}",
-                f"RepoSeal-Patch-ID: {patch_id}",
-                f"RepoSeal-Ready-Evidence: {ready_evidence}",
-                *(f"RepoSeal-Plan: {plan}" for plan in plans),
+                f"Signetum-Base: {batch_base}",
+                f"Signetum-Original: {member_tip}",
+                f"Signetum-Patch-ID: {patch_id}",
+                f"Signetum-Ready-Evidence: {ready_evidence}",
+                *(f"Signetum-Plan: {plan}" for plan in plans),
             )
         )
         git = _git_executable()
@@ -1117,9 +1150,9 @@ def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]
         "commit",
         "--allow-empty",
         "-m",
-        "reposeal: open provenance batch",
+        "signetum: open provenance batch",
         "-m",
-        f"RepoSeal-Batch-Format: 1\nRepoSeal-Batch-Base: {approved_base}",
+        f"Signetum-Batch-Format: 1\nSignetum-Batch-Base: {approved_base}",
     )
     result = admit(batch, members)
     return {**result, "status": "opened", "worktree": str(batch)}
@@ -1240,12 +1273,12 @@ def _delivery_provenance(
         body = _git(repository, "show", "-s", "--format=%B", merge_commit)
         fields = {
             key: value
-            for key, value in re.findall(r"^RepoSeal-([^:]+):\s*(.+)$", body, re.MULTILINE)
+            for key, value in re.findall(r"^Signetum-([^:]+):\s*(.+)$", body, re.MULTILINE)
         }
         if fields.get("Original") != original:
             raise AdmissionError("admission provenance original does not match merge parent")
         summary = _git(repository, "show", "-s", "--format=%s", original)
-        member_plans = re.findall(r"^RepoSeal-Plan:\s*(.+)$", body, re.MULTILINE)
+        member_plans = re.findall(r"^Signetum-Plan:\s*(.+)$", body, re.MULTILINE)
         plans.update(member_plans)
         members.append(
             {

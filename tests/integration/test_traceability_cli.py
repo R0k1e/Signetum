@@ -2,17 +2,17 @@ import io
 import json
 from pathlib import Path
 
-from reposeal.status.models import (
+from signetum.status.models import (
     DeliveryObservation,
     EvidenceSnapshot,
     IntegrationObservation,
     MemberObservation,
 )
-from reposeal.traceability.boundary import (
+from signetum.traceability.boundary import (
     RepositoryInventory,
     TraceabilityManifest,
 )
-from reposeal.traceability.cli import ExitCode, query
+from signetum.traceability.cli import ExitCode, query
 
 FIXTURE = Path("tests/fixtures/changes/valid")
 

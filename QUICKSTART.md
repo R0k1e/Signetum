@@ -1,13 +1,13 @@
 # Quickstart
 
-This guide starts with a repository created from the RepoSeal
+This guide starts with a repository created from the Signetum
 GitHub Template and ends with one explicitly delivered, human-reviewable change.
 
 ## 1. Own the copied repository
 
 Use GitHub's **Use this template** action, clone the new repository, and replace
 the example product facts with your own. The new repository does not retain a
-dependency or synchronization relationship with RepoSeal.
+dependency or synchronization relationship with Signetum.
 
 ```bash
 mise install
@@ -29,7 +29,7 @@ changes/add-health-endpoint/
   plans/health-endpoint.md
 ```
 
-The Review records the human request as atomic clauses. `reposeal.toml`
+The Review records the human request as atomic clauses. `signetum.toml`
 selects one or more language profiles and binds the repository's impact,
 validation, and evidence graph. The approved
 Specification owns observable behavior. The Plan maps every owned clause to an

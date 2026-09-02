@@ -20,7 +20,7 @@ repos:
     hooks:
       - id: product-surface
         name: product-surface
-        entry: uv run reposeal check product-surface --repository .
+        entry: uv run signetum check product-surface --repository .
         language: system
         pass_filenames: false
         always_run: true

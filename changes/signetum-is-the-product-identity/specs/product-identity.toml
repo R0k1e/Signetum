@@ -1,0 +1,20 @@
+[specification]
+schema_version = 1
+id = "signetum-is-the-product-identity/product-identity"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-signetum-is-the-product-identity.md"]
+plan = "changes/signetum-is-the-product-identity/plans/product-identity.md"
+acceptance = [
+  "No shipped source, test, document, asset name, manifest, recipe, or workflow outside the historical record presents the previous identity.",
+  "The evidence protocol identifier and the canonical evidence schema digest are byte-identical to the delivered values a consumer pins.",
+  "Decision files, change package directories, and changelog entries naming a previous identity are unmodified.",
+  "Numbering a proposal which declares a supersession writes the reciprocal entry into the decision it replaces, and a regression proves it.",
+  "Numbering a proposal which supersedes an absent decision, or one declaring no supersession field, is refused rather than silently skipped.",
+  "The complete gate passes on the renamed tree.",
+]
+
+[specification.review]
+id = "signetum-is-the-product-identity"
+clauses = ["NAME-001", "NAME-002", "NAME-003", "NAME-004"]

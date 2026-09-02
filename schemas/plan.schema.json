@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://development-reposeal.invalid/schemas/plan/v1",
+  "$id": "https://development-signetum.invalid/schemas/plan/v1",
   "title": "Plan",
   "type": "object",
   "additionalProperties": false,

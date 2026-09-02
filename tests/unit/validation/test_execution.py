@@ -4,8 +4,8 @@ from datetime import date
 
 import pytest
 
-from reposeal.findings import Finding, FindingsError, parse_findings
-from reposeal.validation import (
+from signetum.findings import Finding, FindingsError, parse_findings
+from signetum.validation import (
     GateDeclaration,
     GraphContribution,
     ToolDeclaration,
@@ -13,13 +13,13 @@ from reposeal.validation import (
     ValidationShard,
     resolve_validation_graph,
 )
-from reposeal.validation.execution import (
+from signetum.validation.execution import (
     ShardExecution,
     ValidationExecutionError,
     ValidationInputs,
     execute_gate,
 )
-from reposeal.waivers import Waiver
+from signetum.waivers import Waiver
 
 
 @dataclass
@@ -35,7 +35,7 @@ class Adapter:
         return "b" * 40
 
     def read_file(self, path: str) -> bytes:
-        return {"reposeal.toml": b"schema_version = 2\n", "uv.lock": b"lock"}[path]
+        return {"signetum.toml": b"schema_version = 2\n", "uv.lock": b"lock"}[path]
 
     def identify_tool(self, tool: ToolDeclaration) -> str:
         return "uv 0.8.14"
@@ -68,7 +68,7 @@ def _graph():
 
 def _inputs() -> ValidationInputs:
     return ValidationInputs(
-        configuration_path="reposeal.toml",
+        configuration_path="signetum.toml",
         profiles=("python-default@2",),
         lockfiles=("uv.lock",),
         tools=(ToolDeclaration("uv", ("uv", "--version")),),
@@ -84,7 +84,7 @@ def test_gate_executes_dependencies_and_binds_every_declared_input() -> None:
     assert receipt.execution.names == ("core:static", "repository:test")
     assert {outcome.status for outcome in receipt.execution.shards} == {"passed"}
     assert {outcome.evidence for outcome in receipt.execution.shards} == {"tree"}
-    assert receipt.identity.configuration.path == "reposeal.toml"
+    assert receipt.identity.configuration.path == "signetum.toml"
     assert tuple(lock.path for lock in receipt.identity.lockfiles) == ("uv.lock",)
     assert receipt.identity.tools[0].identity == "uv 0.8.14"
 
@@ -162,7 +162,7 @@ def _waiver(**overrides: object) -> Waiver:
 
 def _world_inputs(*waivers: Waiver) -> ValidationInputs:
     return ValidationInputs(
-        configuration_path="reposeal.toml",
+        configuration_path="signetum.toml",
         profiles=(),
         lockfiles=("uv.lock",),
         tools=(),
@@ -256,10 +256,10 @@ def test_a_world_shard_without_a_findings_command_cannot_be_waived() -> None:
     "inputs",
     [
         lambda: ValidationInputs("other.toml", (), (), ()),
-        lambda: ValidationInputs("reposeal.toml", ("z@1", "a@1"), (), ()),
-        lambda: ValidationInputs("reposeal.toml", (), ("z.lock", "a.lock"), ()),
+        lambda: ValidationInputs("signetum.toml", ("z@1", "a@1"), (), ()),
+        lambda: ValidationInputs("signetum.toml", (), ("z.lock", "a.lock"), ()),
         lambda: ValidationInputs(
-            "reposeal.toml",
+            "signetum.toml",
             (),
             (),
             (

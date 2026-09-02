@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from reposeal.change.models import Decision, DecisionStatus
-from reposeal.traceability.loading import load_decision
-from reposeal.traceability.validator import decision_corpus_issues
+from signetum.change.models import Decision, DecisionStatus
+from signetum.traceability.loading import load_decision
+from signetum.traceability.validator import decision_corpus_issues
 
 HEADER = """# A decision
 

@@ -1,15 +1,15 @@
 # Frequently asked questions
 
-## What is RepoSeal?
+## What is Signetum?
 
-RepoSeal is an Agent-development repository Template that connects recorded
+Signetum is an Agent-development repository Template that connects recorded
 requirements, approved behavior, repository-aware Plans, isolated parallel
 work, behavior tests, frozen batch validation, explicit delivery, and human
 acceptance in one inspectable lifecycle.
 
-## Is RepoSeal another CI template?
+## Is Signetum another CI template?
 
-No. CI is one validation consumer. RepoSeal also governs requirement capture,
+No. CI is one validation consumer. Signetum also governs requirement capture,
 behavior specifications, implementation Plans, repository discovery, isolated
 Agent work, batch composition, exact validation evidence, delivery provenance,
 acceptance, and recovery.
@@ -50,17 +50,17 @@ No. GitHub Template creation is a one-time copy. The new repository owns and
 customizes its lifecycle independently. A useful later idea can be implemented
 manually there as an ordinary local governed change.
 
-## Is RepoSeal a specification generator?
+## Is Signetum a specification generator?
 
-No. RepoSeal can coexist with a specification authoring tool, but it owns the
+No. Signetum can coexist with a specification authoring tool, but it owns the
 larger repository lifecycle: requirement ownership, implementation obligations,
 isolated Agent work, validation identity, batch composition, delivery
 provenance, and post-delivery acceptance. See
-[RepoSeal and specification tools](reposeal-and-specification-tools.md).
+[Signetum and specification tools](signetum-and-specification-tools.md).
 
 ## What are the package and command called?
 
-The distribution, Python import, and command are all named `reposeal`. Version
+The distribution, Python import, and command are all named `signetum`. Version
 3 intentionally removes the earlier `development_foundation` and `foundation`
 identities instead of keeping compatibility aliases.
 

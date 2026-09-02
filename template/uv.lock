@@ -532,7 +532,7 @@ wheels = [
 ]
 
 [[package]]
-name = "reposeal-python-template"
+name = "signetum-python-template"
 version = "0.1.0"
 source = { virtual = "." }
 

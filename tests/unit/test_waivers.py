@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from reposeal.findings import Finding
-from reposeal.waivers import Waiver, WaiverError, cover_findings, load_waivers
+from signetum.findings import Finding
+from signetum.waivers import Waiver, WaiverError, cover_findings, load_waivers
 
 WAIVER = """[waiver]
 schema_version = 1

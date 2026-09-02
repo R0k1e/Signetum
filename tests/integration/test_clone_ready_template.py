@@ -7,8 +7,8 @@ from tomllib import loads
 import pytest
 from typer.testing import CliRunner
 
-from reposeal.cli import app
-from reposeal.template import TOP_LEVEL, render_template, validate_template
+from signetum.cli import app
+from signetum.template import TOP_LEVEL, render_template, validate_template
 
 ROOT = Path(__file__).parents[2]
 
@@ -21,18 +21,18 @@ def test_template_is_minimal_and_clone_ready() -> None:
     assert "README.md" in report.files
     assert "README.zh-CN.md" in report.files
     assert "changes/.gitkeep" in report.files
-    assert "reposeal.yaml" not in report.files
+    assert "signetum.yaml" not in report.files
     template_text = "\n".join(
         path.read_text(encoding="utf-8", errors="replace")
         for path in (ROOT / "template").rglob("*")
         if path.is_file()
     )
     assert "uvx" not in template_text
-    assert "reposeal==" not in template_text
+    assert "signetum==" not in template_text
 
 
 def test_template_enables_installable_python_default() -> None:
-    manifest = (ROOT / "template/reposeal.toml").read_text()
+    manifest = (ROOT / "template/signetum.toml").read_text()
     toolchain = (ROOT / "template/mise.toml").read_text()
     project = (ROOT / "template/pyproject.toml").read_text()
 
@@ -46,7 +46,7 @@ def test_template_enables_installable_python_default() -> None:
 
 
 def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
-    lifecycle = loads((ROOT / "template/reposeal.toml").read_text())
+    lifecycle = loads((ROOT / "template/signetum.toml").read_text())
     workflow = (ROOT / "template/.github/workflows/ci.yml").read_text()
 
     shards = {item["name"]: item["command"] for item in lifecycle["validation"]["shards"]}
@@ -139,8 +139,8 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> No
     render_template(ROOT / "template", rendered)
     for command in (
         ("git", "init", "-b", "main"),
-        ("git", "config", "user.name", "RepoSeal test"),
-        ("git", "config", "user.email", "reposeal@example.invalid"),
+        ("git", "config", "user.name", "Signetum test"),
+        ("git", "config", "user.email", "signetum@example.invalid"),
         ("git", "add", "."),
         ("git", "commit", "-m", "initial template"),
         ("mise", "trust", "mise.toml"),
@@ -158,7 +158,7 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> No
         capture_output=True,
         text=True,
     ).stdout.strip()
-    record = rendered / ".git/reposeal/workspaces/main.json"
+    record = rendered / ".git/signetum/workspaces/main.json"
     record.parent.mkdir(parents=True, exist_ok=True)
     record.write_text(
         json.dumps(
@@ -233,8 +233,8 @@ def test_rendered_template_retains_and_reconciles_execution_deviations(tmp_path:
     render_template(ROOT / "template", rendered)
     for command in (
         ("git", "init", "-b", "main"),
-        ("git", "config", "user.name", "RepoSeal test"),
-        ("git", "config", "user.email", "reposeal@example.invalid"),
+        ("git", "config", "user.name", "Signetum test"),
+        ("git", "config", "user.email", "signetum@example.invalid"),
         (sys.executable, ".agents/repo-dev/runtime/change_open.py", "first-change"),
     ):
         subprocess.run(command, cwd=rendered, check=True, capture_output=True)
@@ -316,7 +316,7 @@ def test_rendered_template_retains_and_reconciles_execution_deviations(tmp_path:
     assert json.loads(recorded.stdout)["status"] == "recorded"
     assert json.loads(resolved.stdout)["status"] == "resolved"
     assert json.loads(status.stdout)["deviation_count"] == 1
-    assert not (rendered / ".reposeal").exists()
+    assert not (rendered / ".signetum").exists()
 
 
 def _traceability(

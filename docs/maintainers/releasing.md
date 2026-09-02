@@ -24,13 +24,13 @@ Before requesting publication:
 Recommended repository description:
 
 ```text
-RepoSeal seals every change with traceable requirements, repository-aware Agents, isolated parallel work, behavior tests, and explainable delivery.
+Signetum seals every change with traceable requirements, repository-aware Agents, isolated parallel work, behavior tests, and explainable delivery.
 ```
 
 Recommended repository name:
 
 ```text
-RepoSeal
+Signetum
 ```
 
 Recommended topics:

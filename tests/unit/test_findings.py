@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from reposeal.findings import Finding, FindingsError, parse_findings
+from signetum.findings import Finding, FindingsError, parse_findings
 
 
 def _document(*findings: dict[str, str]) -> str:

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from reposeal.evidence.receipts import (
+from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceIdentity,
     EvidenceReceipt,
@@ -13,15 +13,15 @@ from reposeal.evidence.receipts import (
     ValidationExecution,
     ValidationProvenance,
 )
-from reposeal.validation import (
+from signetum.validation import (
     GateDeclaration,
     GraphContribution,
     ToolDeclaration,
     ValidationShard,
     resolve_validation_graph,
 )
-from reposeal.validation.execution import ValidationExecutionError, ValidationInputs
-from reposeal.validation.repository import (
+from signetum.validation.execution import ValidationExecutionError, ValidationInputs
+from signetum.validation.repository import (
     ReceiptStore,
     RepositoryValidationAdapter,
     run_repository_gate,
@@ -35,7 +35,7 @@ def test_receipt_store_reuses_only_exact_gate_evidence(tmp_path: Path) -> None:
         commit="a" * 40,
         tree="b" * 40,
         base=None,
-        configuration=ArtifactIdentity("reposeal.toml", "sha256:" + "c" * 64),
+        configuration=ArtifactIdentity("signetum.toml", "sha256:" + "c" * 64),
         profiles=(),
         graph="sha256:" + "d" * 64,
         lockfiles=(),
@@ -97,21 +97,21 @@ def test_graph_and_inputs_are_plain_manifest_adapter_values() -> None:
             ),
         )
     )
-    inputs = ValidationInputs("reposeal.toml", (), (), ())
+    inputs = ValidationInputs("signetum.toml", (), (), ())
 
     assert graph.execution_order("member") == ("core:static",)
-    assert inputs.configuration_path == "reposeal.toml"
+    assert inputs.configuration_path == "signetum.toml"
 
 
 def _repository(tmp_path: Path) -> Path:
     repository = tmp_path / "repository"
     repository.mkdir()
-    (repository / "reposeal.toml").write_text("schema_version = 2\n", encoding="utf-8")
+    (repository / "signetum.toml").write_text("schema_version = 2\n", encoding="utf-8")
     (repository / "uv.lock").write_text("lock\n", encoding="utf-8")
     for command in (
         ("git", "init", "-b", "main"),
-        ("git", "config", "user.name", "RepoSeal test"),
-        ("git", "config", "user.email", "reposeal@example.invalid"),
+        ("git", "config", "user.name", "Signetum test"),
+        ("git", "config", "user.email", "signetum@example.invalid"),
         ("git", "add", "."),
         ("git", "commit", "-m", "initial"),
     ):
@@ -131,7 +131,7 @@ def test_repository_gate_runs_and_reuses_only_the_exact_tree(tmp_path: Path) -> 
         )
     )
     inputs = ValidationInputs(
-        "reposeal.toml",
+        "signetum.toml",
         (),
         ("uv.lock",),
         (ToolDeclaration("git", ("git", "--version")),),

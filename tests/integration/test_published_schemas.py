@@ -12,7 +12,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.protocols import Validator
 
-from reposeal.evidence.receipts import (
+from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceIdentity,
     EvidenceReceipt,
@@ -21,12 +21,12 @@ from reposeal.evidence.receipts import (
     ValidationExecution,
     ValidationProvenance,
 )
-from reposeal.manifest import load_manifest
-from reposeal.resources import schemas as schema_resources
-from reposeal.resources.schemas import EVIDENCE_PROTOCOL, evidence_schema_digest
+from signetum.manifest import load_manifest
+from signetum.resources import schemas as schema_resources
+from signetum.resources.schemas import EVIDENCE_PROTOCOL, evidence_schema_digest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-MANIFESTS = ("reposeal.toml", "template/reposeal.toml")
+MANIFESTS = ("signetum.toml", "template/signetum.toml")
 
 
 def _schema(name: str) -> Validator:
@@ -45,14 +45,14 @@ def _violations(schema: str, document: object) -> list[str]:
 def test_shipped_manifests_satisfy_the_published_manifest_schema(relative: str) -> None:
     document = tomllib.loads((REPOSITORY / relative).read_text(encoding="utf-8"))
 
-    assert _violations("reposeal-v2.schema.json", document) == []
+    assert _violations("signetum-v2.schema.json", document) == []
 
 
 @pytest.mark.parametrize("relative", MANIFESTS)
 def test_shipped_manifests_identify_the_shipped_evidence_schema(relative: str) -> None:
     manifest = load_manifest(REPOSITORY / relative)
-    assert manifest.reposeal.evidence_protocol == EVIDENCE_PROTOCOL
-    assert manifest.reposeal.evidence_schema_digest == evidence_schema_digest()
+    assert manifest.signetum.evidence_protocol == EVIDENCE_PROTOCOL
+    assert manifest.signetum.evidence_schema_digest == evidence_schema_digest()
 
 
 def _receipt(
@@ -62,7 +62,7 @@ def _receipt(
         commit="a" * 40,
         tree="b" * 40,
         base="c" * 40,
-        configuration=ArtifactIdentity("reposeal.toml", "sha256:" + "1" * 64),
+        configuration=ArtifactIdentity("signetum.toml", "sha256:" + "1" * 64),
         profiles=("python-default@1",),
         graph="sha256:" + "2" * 64,
         lockfiles=(ArtifactIdentity("uv.lock", "sha256:" + "3" * 64),),

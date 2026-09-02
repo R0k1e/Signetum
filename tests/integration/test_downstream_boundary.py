@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from reposeal.evidence import CheckResult, RepositoryAdapter, run_check
-from reposeal.manifest import load_manifest
+from signetum.evidence import CheckResult, RepositoryAdapter, run_check
+from signetum.manifest import load_manifest
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,7 @@ class FixtureAdapter(RepositoryAdapter):
 
 
 def test_repository_facts_reach_only_downstream_adapter() -> None:
-    manifest = load_manifest("template/reposeal.toml")
+    manifest = load_manifest("template/signetum.toml")
 
     result = run_check(manifest, FixtureAdapter())
 

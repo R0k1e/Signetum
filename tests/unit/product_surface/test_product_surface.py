@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from reposeal.product_surface import validate_product_surface
-from reposeal.traceability.boundary import RepositoryInventory
+from signetum.product_surface import validate_product_surface
+from signetum.traceability.boundary import RepositoryInventory
 
 
 def _inventory(*paths: str) -> RepositoryInventory:
@@ -47,7 +47,7 @@ def test_required_public_identity_reports_stale_brand_content(tmp_path: Path) ->
         tmp_path,
         _inventory("README.md"),
         required_paths=("README.md",),
-        required_content={"README.md": ("# RepoSeal", "Seal every change with evidence")},
+        required_content={"README.md": ("# Signetum", "Seal every change with evidence")},
     )
 
     assert report.valid is False
@@ -56,7 +56,7 @@ def test_required_public_identity_reports_stale_brand_content(tmp_path: Path) ->
         "missing-required-content",
     ]
     assert {issue.target for issue in report.issues} == {
-        "# RepoSeal",
+        "# Signetum",
         "Seal every change with evidence",
     }
 

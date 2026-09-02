@@ -5,8 +5,8 @@ import subprocess
 
 import pytest
 
-from reposeal.findings import FindingsError, parse_findings
-from reposeal.profiles import pip_audit
+from signetum.findings import FindingsError, parse_findings
+from signetum.profiles import pip_audit
 
 REPORT = json.dumps(
     {

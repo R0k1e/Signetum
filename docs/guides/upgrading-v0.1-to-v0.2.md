@@ -1,11 +1,11 @@
 # Upgrade a copied v0.1 repository to the v0.2 protocol
 
-Repositories created from RepoSeal own their runtime, so this is a reviewed
+Repositories created from Signetum own their runtime, so this is a reviewed
 local change rather than an upstream pull or package upgrade.
 
 1. Open a Change that records the protocol adoption and its repository-specific
    validation obligations.
-2. Replace `reposeal.yaml` with one `reposeal.toml` v2 authority. Do not retain a
+2. Replace `signetum.yaml` with one `signetum.toml` v2 authority. Do not retain a
    fallback parser.
 3. Select one or more profiles. `python-default@1` reproduces the maintained
    Python defaults; other languages contribute their own namespaced impact,
