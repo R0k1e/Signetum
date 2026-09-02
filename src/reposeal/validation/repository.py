@@ -8,12 +8,15 @@ from pathlib import Path
 from shutil import which
 
 from reposeal.evidence.receipts import (
+    EvidenceIdentity,
     EvidenceReceipt,
     ReceiptError,
     verify_gate_evidence,
 )
+from reposeal.findings import Finding, FindingsError, parse_findings
 from reposeal.validation import ToolDeclaration, ValidationGraph, ValidationShard
 from reposeal.validation.execution import (
+    ShardExecution,
     ValidationExecutionError,
     ValidationInputs,
     build_evidence_identity,
@@ -78,13 +81,35 @@ class RepositoryValidationAdapter:
             raise ValidationExecutionError(f"tool identity is empty: {tool.name}")
         return identity
 
-    def run_shard(self, shard: ValidationShard) -> bool:
+    def run_shard(self, shard: ValidationShard) -> ShardExecution:
         completed = subprocess.run(  # nosec B603
             shard.command,
             cwd=self.repository,
             check=False,
         )
-        return completed.returncode == 0
+        if completed.returncode == 0:
+            return ShardExecution(True)
+        return ShardExecution(False, f"{shard.name} exited {completed.returncode}")
+
+    def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
+        """Run the declared findings command and read the RepoSeal document.
+
+        A findings command reports through its document, not its exit status: a
+        tool which exits nonzero precisely because it found something is the
+        ordinary case.
+        """
+
+        completed = subprocess.run(  # nosec B603
+            shard.findings_command,
+            cwd=self.repository,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        try:
+            return parse_findings(completed.stdout)
+        except FindingsError as error:
+            raise ValidationExecutionError(f"{shard.name}: {error}") from error
 
 
 class ReceiptStore:
@@ -101,20 +126,28 @@ class ReceiptStore:
         destination.write_text(encoded, encoding="utf-8")
         return destination
 
-    def matching(self, gate: str, expected: EvidenceReceipt) -> Path:
+    def matching(
+        self,
+        gate: str,
+        identity: EvidenceIdentity,
+        required_digests: frozenset[str],
+    ) -> Path:
+        """Locate evidence binding this identity and proving these commands.
+
+        Evidence is never matched by whole-document equality. A world shard
+        records when it observed the world, so two honest runs of one gate are
+        never byte-identical.
+        """
+
         for path in sorted(self.root.glob(f"{gate}-*.json")):
             try:
                 observed = EvidenceReceipt.from_json(path.read_text(encoding="utf-8"))
-                verify_gate_evidence(
-                    observed,
-                    expected_identity=expected.identity,
-                    gate=gate,
-                )
+                verify_gate_evidence(observed, expected_identity=identity, gate=gate)
             except (OSError, ReceiptError):
                 continue
-            if observed == expected:
+            if required_digests <= observed.execution.command_digests:
                 return path
-        raise ReceiptError(f"no exact {gate} receipt exists")
+        raise ReceiptError(f"no {gate} receipt proves the required commands")
 
 
 def run_repository_gate(
@@ -139,19 +172,14 @@ def verify_repository_gate(
     inputs: ValidationInputs,
     receipt_root: Path,
 ) -> Path:
-    """Re-observe every bound input and locate only exact successful evidence."""
+    """Re-observe every bound input and locate evidence proving this gate."""
 
     adapter = RepositoryValidationAdapter(repository)
     adapter.require_clean()
     expected_identity = build_evidence_identity(graph, inputs, adapter)
-    expected = EvidenceReceipt(
-        schema_version=2,
-        identity=expected_identity,
-        executed_gates=(gate,),
-        executed_shards=tuple(sorted(graph.execution_order(gate))),
-        valid=True,
-    )
-    return ReceiptStore(receipt_root).matching(gate, expected)
+    order = set(graph.execution_order(gate))
+    required = frozenset(shard.digest for shard in graph.shards if shard.name in order)
+    return ReceiptStore(receipt_root).matching(gate, expected_identity, required)
 
 
 __all__ = [

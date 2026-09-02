@@ -1,5 +1,12 @@
 name: CI
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Mutable advisory state changes without any repository change, so audit it
+    # on a clock as well as on a diff.
+    - cron: "17 3 * * *"
 permissions:
   contents: read
 jobs:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib.resources import files
 from tomllib import loads
-from typing import TypedDict, cast
+from typing import NotRequired, TypedDict, cast
 
 from reposeal.resources import profiles as profile_resources
 
@@ -25,6 +25,8 @@ class ToolMapping(TypedDict):
 class ShardMapping(TypedDict):
     name: str
     command: list[str]
+    evidence: NotRequired[str]
+    findings_command: NotRequired[list[str]]
 
 
 class GateMapping(TypedDict):
@@ -82,12 +84,15 @@ def python_default_validation(
     document = cast(_ProfileDocument, loads(resource.read_text(encoding="utf-8")))
     shards: list[ShardMapping] = []
     for shard in document["shards"]:
-        shards.append(
-            ShardMapping(
-                name=shard["name"],
-                command=_expand(shard["command"], configured_paths),
-            )
+        mapping = ShardMapping(
+            name=shard["name"],
+            command=_expand(shard["command"], configured_paths),
         )
+        if "evidence" in shard:
+            mapping["evidence"] = shard["evidence"]
+        if "findings_command" in shard:
+            mapping["findings_command"] = _expand(shard["findings_command"], configured_paths)
+        shards.append(mapping)
     return PythonDefaultValidation(
         identity=document["identity"],
         tools=document["tools"],

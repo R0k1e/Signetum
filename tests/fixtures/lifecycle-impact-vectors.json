@@ -2,11 +2,11 @@
   "cases": [
     {
       "files": ["src/service.py"],
-      "gates": ["python.type", "python.unit"],
+      "gates": [],
       "profiles": ["python-default@1"],
       "requires_final": false,
       "rules": ["python.source"],
-      "shards": ["python.unit"],
+      "shards": ["python:ruff", "python:format", "python:ty", "python:unit"],
       "unexplained": []
     },
     {

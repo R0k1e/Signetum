@@ -7,7 +7,7 @@ from reposeal import release
 from reposeal.cli import app
 from reposeal.traceability.boundary import RepositoryInventory
 
-FIXTURE = Path(__file__).parents[1] / "fixtures" / "reposeal.toml"
+FIXTURE = Path(__file__).parents[2] / "template" / "reposeal.toml"
 
 
 def test_cli_validates_manifest_through_public_command() -> None:

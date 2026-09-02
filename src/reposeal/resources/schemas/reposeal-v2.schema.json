@@ -4,40 +4,92 @@
   "title": "RepoSeal repository configuration v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "reposeal", "repository"],
+  "required": [
+    "schema_version",
+    "reposeal",
+    "repository",
+    "validation"
+  ],
   "properties": {
-    "schema_version": {"const": 2},
+    "schema_version": {
+      "const": 2
+    },
     "reposeal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocol", "template_version"],
+      "required": [
+        "protocol",
+        "template_version",
+        "evidence_protocol",
+        "evidence_schema_digest"
+      ],
       "properties": {
-        "protocol": {"type": "integer", "minimum": 2},
-        "template_version": {"type": "string"}
+        "protocol": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "template_version": {
+          "type": "string"
+        },
+        "evidence_protocol": {
+          "const": "reposeal.validation-evidence@3"
+        },
+        "evidence_schema_digest": {
+          "$ref": "#/$defs/digest"
+        }
       }
     },
     "profiles": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": {"type": "array", "items": {"$ref": "#/$defs/profile"}, "uniqueItems": true},
+        "enabled": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/profile"
+          },
+          "uniqueItems": true
+        },
         "replacements": {
           "type": "object",
-          "propertyNames": {"$ref": "#/$defs/profile"},
-          "additionalProperties": {"$ref": "#/$defs/profile"}
+          "propertyNames": {
+            "$ref": "#/$defs/profile"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/profile"
+          }
         }
       }
     },
     "repository": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["architecture", "specifications", "plans", "decisions"],
+      "required": [
+        "architecture",
+        "specifications",
+        "plans",
+        "decisions"
+      ],
       "properties": {
-        "architecture": {"$ref": "#/$defs/path"},
-        "specifications": {"$ref": "#/$defs/path"},
-        "plans": {"$ref": "#/$defs/path"},
-        "decisions": {"$ref": "#/$defs/path"},
-        "lockfiles": {"type": "array", "items": {"$ref": "#/$defs/path"}, "uniqueItems": true}
+        "architecture": {
+          "$ref": "#/$defs/path"
+        },
+        "specifications": {
+          "$ref": "#/$defs/path"
+        },
+        "plans": {
+          "$ref": "#/$defs/path"
+        },
+        "decisions": {
+          "$ref": "#/$defs/path"
+        },
+        "lockfiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "uniqueItems": true
+        }
       }
     },
     "impact": {
@@ -49,14 +101,127 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["name", "paths"],
+            "required": [
+              "name",
+              "paths"
+            ],
             "properties": {
-              "name": {"type": "string", "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$"},
-              "paths": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/path"}},
-              "profiles": {"type": "array", "items": {"$ref": "#/$defs/profile"}},
-              "gates": {"type": "array", "items": {"type": "string"}},
-              "shards": {"type": "array", "items": {"type": "string"}},
-              "requires_final": {"type": "boolean"}
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$"
+              },
+              "paths": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/path"
+                }
+              },
+              "profiles": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/profile"
+                }
+              },
+              "gates": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "shards": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "requires_final": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shards",
+        "gates"
+      ],
+      "properties": {
+        "member_required": {
+          "$ref": "#/$defs/uniqueStrings"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "identity_command"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "identity_command": {
+                "$ref": "#/$defs/argv"
+              }
+            }
+          }
+        },
+        "shards": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "command"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "$ref": "#/$defs/argv"
+              },
+              "requires": {
+                "$ref": "#/$defs/uniqueStrings"
+              },
+              "evidence": {
+                "enum": [
+                  "tree",
+                  "world"
+                ]
+              },
+              "findings_command": {
+                "$ref": "#/$defs/argv"
+              }
+            }
+          }
+        },
+        "gates": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "shards"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "shards": {
+                "$ref": "#/$defs/uniqueStrings"
+              }
             }
           }
         }
@@ -64,7 +229,35 @@
     }
   },
   "$defs": {
-    "path": {"type": "string", "minLength": 1, "not": {"pattern": "(^/|(^|/)\\.\\.(/|$))"}},
-    "profile": {"type": "string", "pattern": "^[a-z][a-z0-9-]*@[1-9][0-9]*$"}
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "(^/|(^|/)\\.\\.(/|$))"
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "argv": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "uniqueStrings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "profile": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*@[1-9][0-9]*$"
+    }
   }
 }

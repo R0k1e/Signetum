@@ -1,0 +1,38 @@
+[specification]
+schema_version = 1
+id = "unified-validation-evidence/selection-and-evidence"
+version = 2
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-unified-validation-evidence.md"]
+plan = "changes/unified-validation-evidence/plans/selection-and-evidence.md"
+acceptance = [
+  "Selection records changed-path identity, matched rules, selected profiles, gates and shards, modified tests, external obligations, unexplained paths, requires_final, and human-readable reasons without executing validation.",
+  "Member execution consumes the exact selection for the same commit and base, satisfies profile completeness requirements, and records every executed shard and external obligation result.",
+  "Final ignores member narrowing and executes the declared complete graph exactly once on the frozen batch tip.",
+  "Evidence v3 binds source identity, configuration, profiles, graph, lockfiles, tools, selection, execution, completeness, provenance, and namespaced extensions.",
+  "RepoSeal, its self-contained Template runtime, and the PyLM adapter pass common protocol vectors and identify the same schema digest.",
+  "Every declared shard carries an evidence class of tree or world, and a manifest placing a world shard in the member gate or in member_required is rejected.",
+  "Member narrowing never selects a world shard; a world shard reached through an impact rule is deferred to final and the deferral is recorded in the selection reasons.",
+  "Evidence records each executed shard as a named outcome carrying its command digest, evidence class, status, and, for a world shard, the instant it observed the world.",
+  "A failing world shard without a findings command, with an unparsable findings document, with any uncovered finding, or with only expired coverage fails its gate.",
+  "A failing world shard whose every reported finding is covered by an unexpired tracked waiver is recorded as waived with the covering waiver and finding identities, and the gate succeeds.",
+  "A tracked waiver declares its shard, exact findings, reason, approver, and a mandatory expiry date, and a malformed or duplicated waiver is rejected.",
+  "Admission accepts any durable evidence binding the member's exact tree whose passed or waived shard command digests cover the digests its own selection requires, independently of commit identity, receipt gate, and shard naming.",
+  "Admission accepts a recorded deferred closure naming the justifying rules when the member selection reports requires_final and no covering evidence exists.",
+  "The published repository manifest schema and evidence schema validate the repository's own manifests and a produced receipt, and the manifest evidence schema digest equals the digest of the shipped schema.",
+  "Continuous integration audits mutable external state on a schedule in addition to auditing it on change.",
+]
+
+[specification.review]
+id = "unified-validation-evidence"
+clauses = [
+  "EVIDENCE-001",
+  "EVIDENCE-002",
+  "EVIDENCE-003",
+  "EVIDENCE-004",
+  "EVIDENCE-005",
+  "EVIDENCE-006",
+  "EVIDENCE-007",
+  "EVIDENCE-008",
+]
