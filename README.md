@@ -64,8 +64,8 @@ The repository exposes exactly eight non-interactive operations:
 
 ```text
 workspace-open <branch> <base>
-changed <base> [--explain]
-ready <base>
+changed [--explain]
+ready
 batch-open --member <worktree-path> [--member <worktree-path> ...]
 batch-admit <batch> --member <worktree-path> [--member <worktree-path> ...]
 batch-continue <batch>

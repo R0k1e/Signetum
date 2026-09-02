@@ -1,0 +1,21 @@
+[specification]
+schema_version = 1
+id = "workspace-owns-its-base/workspace-base"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-proposal-a-workspace-owns-its-base.md"]
+plan = "changes/workspace-owns-its-base/plans/workspace-base.md"
+acceptance = [
+  "workspace-open writes a workspace record naming the branch, the resolved base, the workspace kind, and any declared members, and refuses to overwrite an existing record.",
+  "changed and ready accept no base argument and resolve the base from the workspace record for the branch they run on.",
+  "An operation run in a workspace without a record fails with a precondition error naming the missing record.",
+  "batch-open writes a record of kind batch declaring its admitted members, and every batch base read comes from that record.",
+  "Delivery verifies that the batch provenance trailer equals the recorded base and refuses a disagreement.",
+  "No code path recovers a base by searching commit messages for a trailer.",
+  "The engine lifecycle and the self-contained Template runtime expose the same argument-free operations and the same record format.",
+]
+
+[specification.review]
+id = "workspace-owns-its-base"
+clauses = ["BASE-001", "BASE-002", "BASE-003", "BASE-004"]

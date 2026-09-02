@@ -8,7 +8,7 @@ Specification, and exhaustive Plan.
 
 Use `uv` for Python commands and a Plan-owned worktree. Test observable
 contracts, run targeted validation during development, and close a committed
-member with `just ready <base>`.
+member with `just ready`.
 
 A ready member is not permission to deliver. Batch assembly, final validation,
 remote delivery, acceptance, publication, and cleanup remain explicit maintainer

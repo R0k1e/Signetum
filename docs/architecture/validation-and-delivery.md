@@ -37,6 +37,20 @@ Active Plans remain on isolated member branches. Explicit batch assembly brings
 the Plan and implementation together, frozen validation observes that exact
 batch, and explicit delivery retains both as durable provenance.
 
+A workspace owns its base. `workspace-open` records the resolved base under the
+machine-local state root at `reposeal/workspaces/<branch>.json`, and it is
+written once. `changed` and `ready` take no base argument; they read that
+record, and a workspace without one fails as a precondition rather than having
+a base derived for it. A batch is a workspace which declares its members, so it
+carries the same record and its base is read the same way. The
+`RepoSeal-Batch-Base` trailer stays in the provenance commit as durable
+attestation, and delivery refuses a batch whose record and trailer disagree; no
+operation recovers a base by searching commit prose.
+
+A member never follows the delivery branch. Batching exists so members work
+from a frozen base and integrate once, so a base which does not move is the
+property that keeps parallel members independent, not a limitation.
+
 Admission requires an evidence property rather than an evidence artifact:
 durable evidence binding the member's exact tree and proving at least the shard
 commands its own selection requires. Evidence is matched by observed tree and by

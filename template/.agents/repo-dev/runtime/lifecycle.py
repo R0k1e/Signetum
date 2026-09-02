@@ -15,6 +15,7 @@ from datetime import UTC, date, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from shutil import which
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from deviations import DeviationError, approval_view, reconciliation_summary
@@ -136,13 +137,73 @@ def _registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:
     return matches[0]
 
 
-def _receipt_root(repository: Path) -> Path:
+def _state_root(repository: Path) -> Path:
     common = Path(_git(repository, "rev-parse", "--git-common-dir"))
     if not common.is_absolute():
         common = repository / common
-    root = common.resolve() / "reposeal" / "validation"
+    return common.resolve() / "reposeal"
+
+
+def _receipt_root(repository: Path) -> Path:
+    root = _state_root(repository) / "validation"
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def _record_path(repository: Path, branch: str) -> Path:
+    return _state_root(repository) / "workspaces" / f"{quote(branch, safe='')}.json"
+
+
+def _record_workspace(
+    repository: Path, branch: str, base: str, kind: str, members: tuple[str, ...] = ()
+) -> None:
+    path = _record_path(repository, branch)
+    if path.is_file():
+        existing = _read_record(repository, branch)
+        if existing["base"] != base:
+            raise AdmissionError(
+                f"workspace {branch} is already recorded at base {existing['base']}"
+            )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "branch": branch,
+                "base": base,
+                "kind": kind,
+                "members": list(members),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _read_record(repository: Path, branch: str) -> dict[str, object]:
+    path = _record_path(repository, branch)
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        # A base is never guessed. A workspace created before this record
+        # existed is adopted by writing the base a human knows it was cut from.
+        raise AdmissionError(f"workspace {branch} has no recorded base at {path}") from error
+    except (OSError, json.JSONDecodeError) as error:
+        raise AdmissionError(f"workspace record for {branch} is unreadable: {error}") from error
+    if not isinstance(document, dict) or document.get("schema_version") != 1:
+        raise AdmissionError(f"unsupported workspace record schema for {branch}")
+    base = document.get("base")
+    if not isinstance(base, str) or re.fullmatch(r"[0-9a-f]{40,64}", base) is None:
+        raise AdmissionError(f"workspace record for {branch} has no exact base")
+    return document
+
+
+def _recorded_base(repository: Path, branch: str | None = None) -> str:
+    """Return the base this workspace was cut from; the record is the authority."""
+
+    resolved = branch if branch is not None else _branch(repository)
+    return str(_read_record(repository, resolved)["base"])
 
 
 def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> Path:
@@ -485,17 +546,19 @@ def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object
     workspace = _registered_workspace(root, branch)
     if workspace.head != source:
         raise AdmissionError("Worktrunk workspace does not match the exact approved base")
+    _record_workspace(root, branch, source, "member")
     return {
         "schema_version": 1,
         "status": "opened",
         "branch": branch,
-        "base": base,
+        "base": source,
         "source": source,
         "worktree": str(workspace.path),
     }
 
 
-def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
+def changed(repository: Path, explain: bool) -> dict[str, object]:
+    base = _recorded_base(repository)
     files = tuple(
         filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
     )
@@ -571,18 +634,21 @@ def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
     }
 
 
-def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]:
+def validate(repository: Path, kind: str) -> dict[str, object]:
     _require_clean(repository)
     source = _git(repository, "rev-parse", "HEAD")
+    base = None if kind == "final" else _recorded_base(repository)
     if base is not None and source == _git(repository, "rev-parse", base):
         raise AdmissionError("source has no commits beyond the approved base")
-    evidence_base = _batch_base(repository, source) if kind == "final" else None
+    evidence_base = _recorded_base(repository) if kind == "final" else None
     if kind == "final":
         proposals = _proposal_paths(repository)
         if proposals:
             raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
         _require_numbering_base(repository, evidence_base, source)
-        if evidence_base is None:
+        # A batch whose tip is still its base admitted nothing, so it carries
+        # no Change identity to reconcile.
+        if evidence_base is None or evidence_base == source:
             change_ids: tuple[str, ...] = ()
         else:
             _, plans = _delivery_provenance(repository, evidence_base, source)
@@ -597,7 +663,7 @@ def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]
         approvals = None
     gate = "member" if kind == "member" else "final"
     manifest = _manifest(repository)
-    selection = changed(repository, base, True)["selection"] if base is not None else None
+    selection = changed(repository, True)["selection"] if base is not None else None
     selected_shards: tuple[str, ...] | None = None
     if isinstance(selection, dict):
         selected_shards, deferred = _member_shards(manifest, selection)
@@ -743,7 +809,7 @@ def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(sorted(change_ids))
 
 
-def _admission_evidence(member: Path, tip: str, base: str) -> str:
+def _admission_evidence(member: Path, tip: str) -> str:
     """Locate evidence proving what this member's own selection requires.
 
     Evidence is matched by observed tree and by shard command digest, never by
@@ -753,7 +819,7 @@ def _admission_evidence(member: Path, tip: str, base: str) -> str:
     """
 
     manifest = _manifest(member)
-    selection = changed(member, base, True)["selection"]
+    selection = changed(member, True)["selection"]
     if not isinstance(selection, dict):
         raise AdmissionError("member selection is unavailable")
     required_names, _ = _member_shards(manifest, selection)
@@ -815,18 +881,16 @@ def _proposal_paths(repository: Path) -> tuple[str, ...]:
     )
 
 
-def _batch_base(repository: Path, tip: str) -> str | None:
+def _attested_base(repository: Path, tip: str) -> str | None:
+    """Read the base a batch's provenance commit attests to.
+
+    This is the durable attestation, not the authority: operations read the
+    workspace record. Delivery compares the two.
+    """
+
     history = _git(repository, "log", "--first-parent", "--format=%B%x00", tip)
     marker = re.search(r"^RepoSeal-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
-    if marker:
-        return marker.group(1)
-    merges = _git(repository, "rev-list", "--first-parent", "--merges", tip).splitlines()
-    for commit in merges:
-        message = _git(repository, "show", "-s", "--format=%B", commit)
-        match = re.search(r"^RepoSeal-Base:\s*(\S+)$", message, re.MULTILINE)
-        if match:
-            return match.group(1)
-    return None
+    return marker.group(1) if marker else None
 
 
 def _require_numbering_base(repository: Path, base: str | None, tip: str) -> None:
@@ -910,8 +974,8 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         if _is_ancestor(batch, member_tip, batch_tip):
             unchanged.append(record)
             continue
-        batch_base = _batch_base(batch, batch_tip) or batch_tip
-        ready_evidence = _admission_evidence(member, member_tip, batch_base)
+        batch_base = _recorded_base(batch)
+        ready_evidence = _admission_evidence(member, member_tip)
         patch_id = _stable_patch_id(member, batch_base, member_tip)
         message = "\n".join(
             (
@@ -961,7 +1025,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             }
         )
 
-    decisions = _number_proposals(batch, _batch_base(batch, _git(batch, "rev-parse", "HEAD")) or "")
+    decisions = _number_proposals(batch, _recorded_base(batch))
     return {
         "schema_version": 1,
         "status": "admitted",
@@ -996,7 +1060,7 @@ def continue_batch(batch: Path) -> dict[str, object]:
     if completed.returncode != 0:
         raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
     committed = _git(batch, "rev-parse", "HEAD")
-    batch_base = _batch_base(batch, committed)
+    batch_base = _recorded_base(batch)
     if batch_base is None:
         raise AdmissionError("continued admission has no approved batch base")
     decisions = _number_proposals(batch, batch_base)
@@ -1017,6 +1081,15 @@ def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]
     approved_base = _git(repository, "rev-parse", "HEAD")
     opened = workspace_open(repository, branch, "HEAD")
     batch = Path(str(opened["worktree"]))
+    # A batch is a workspace which declares members, so it carries the same
+    # record a member does and its base is read the same way.
+    _record_workspace(
+        repository,
+        branch,
+        approved_base,
+        "batch",
+        tuple(str(member.resolve()) for member in members),
+    )
     _git(
         batch,
         "commit",
@@ -1039,8 +1112,11 @@ def batch_deliver(
         raise AdmissionError("source tip differs from expected batch tip")
     if _git(target, "rev-parse", "HEAD") != expected_base:
         raise AdmissionError("target tip differs from expected base")
-    if _batch_base(source, expected_tip) != expected_base:
-        raise AdmissionError("batch numbering and provenance differ from expected base")
+    recorded_base = _recorded_base(source)
+    if recorded_base != expected_base:
+        raise AdmissionError("recorded batch base differs from expected base")
+    if _attested_base(source, expected_tip) != recorded_base:
+        raise AdmissionError("batch provenance does not attest to the recorded base")
     final_receipts = sorted(_receipt_root(source).glob("final-*.json"))
     if not final_receipts:
         raise AdmissionError("no final receipt exists")
@@ -1210,10 +1286,8 @@ def _parser() -> argparse.ArgumentParser:
     workspace.add_argument("branch")
     workspace.add_argument("base")
     diagnostic = commands.add_parser("changed")
-    diagnostic.add_argument("base")
     diagnostic.add_argument("--explain", action="store_true")
-    readiness = commands.add_parser("ready")
-    readiness.add_argument("base")
+    commands.add_parser("ready")
     opening = commands.add_parser("batch-open")
     opening.add_argument("--member", type=Path, action="append", required=True)
     admission = commands.add_parser("batch-admit")
@@ -1237,9 +1311,9 @@ def main(arguments: list[str] | None = None) -> int:
         if parsed.command == "workspace-open":
             result = workspace_open(repository, parsed.branch, parsed.base)
         elif parsed.command == "changed":
-            result = changed(repository, parsed.base, parsed.explain)
+            result = changed(repository, parsed.explain)
         elif parsed.command == "ready":
-            result = validate(repository, parsed.base, "member")
+            result = validate(repository, "member")
         elif parsed.command == "batch-open":
             result = batch_open(repository, tuple(parsed.member))
         elif parsed.command == "batch-admit":
@@ -1247,7 +1321,7 @@ def main(arguments: list[str] | None = None) -> int:
         elif parsed.command == "batch-continue":
             result = continue_batch(parsed.batch.resolve())
         elif parsed.command == "final":
-            result = validate(repository, None, "final")
+            result = validate(repository, "final")
         else:
             result = batch_deliver(
                 parsed.source.resolve(),
