@@ -1,6 +1,6 @@
 # A declared authority runs in a gate
 
-Status: Proposed
+Status: Accepted
 Review date: 2026-09-02
 Supersedes: None
 Superseded by: None

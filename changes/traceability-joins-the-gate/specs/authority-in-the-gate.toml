@@ -4,7 +4,7 @@ id = "traceability-joins-the-gate/authority-in-the-gate"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-a-declared-authority-runs-in-a-gate.md"]
+decisions = ["docs/decisions/ADP-0013-a-declared-authority-runs-in-a-gate.md"]
 plan = "changes/traceability-joins-the-gate/plans/authority-in-the-gate.md"
 acceptance = [
   "A member gate run and a final gate run each execute the traceability authority and fail when it reports an issue.",
