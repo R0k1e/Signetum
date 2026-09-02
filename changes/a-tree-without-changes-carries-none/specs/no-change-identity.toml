@@ -1,0 +1,20 @@
+[specification]
+schema_version = 1
+id = "a-tree-without-changes-carries-none/no-change-identity"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-a-tree-without-changes-carries-none.md"]
+plan = "changes/a-tree-without-changes-carries-none/plans/no-change-identity.md"
+acceptance = [
+  "Admission accepts a member commit carrying no Plan trailer when the member tree hosts no change package.",
+  "Admission still refuses a member commit carrying no Plan trailer when the member tree hosts a change package.",
+  "Admission still refuses a Plan reference which does not resolve inside one active Change, whether or not the tree hosts change packages.",
+  "The final gate on a tree hosting no change package reconciles no Change identity and reports an empty reconciliation rather than failing to read a Review.",
+  "Whether a tree hosts a change package is decided by the specification authority the manifest declares, not by a hard-coded directory name.",
+  "The engine lifecycle and the self-contained Template runtime agree on all of the above.",
+]
+
+[specification.review]
+id = "a-tree-without-changes-carries-none"
+clauses = ["CARRY-001", "CARRY-002"]

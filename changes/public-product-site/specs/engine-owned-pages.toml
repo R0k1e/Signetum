@@ -4,7 +4,7 @@ id = "public-product-site/engine-owned-pages"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-0004-engine-owned-product-site.md"]
+decisions = ["docs/decisions/ADP-0011-signetum-is-the-product-identity.md"]
 plan = "changes/public-product-site/plans/engine-owned-pages.md"
 intent = [
   "give humans and search systems one canonical RepoSeal product page",
