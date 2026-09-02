@@ -4,7 +4,7 @@ id = "workspace-owns-its-base/workspace-base"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-proposal-a-workspace-owns-its-base.md"]
+decisions = ["docs/decisions/ADP-0008-a-workspace-owns-its-base.md"]
 plan = "changes/workspace-owns-its-base/plans/workspace-base.md"
 acceptance = [
   "workspace-open writes a workspace record naming the branch, the resolved base, the workspace kind, and any declared members, and refuses to overwrite an existing record.",
