@@ -4,7 +4,7 @@ id = "signetum-is-the-product-identity/product-identity"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-signetum-is-the-product-identity.md"]
+decisions = ["docs/decisions/ADP-0011-signetum-is-the-product-identity.md"]
 plan = "changes/signetum-is-the-product-identity/plans/product-identity.md"
 acceptance = [
   "No shipped source, test, document, asset name, manifest, recipe, or workflow outside the historical record presents the previous identity.",

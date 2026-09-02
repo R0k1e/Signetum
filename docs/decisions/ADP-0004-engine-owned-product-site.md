@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-08-31
 Supersedes: ADP-reposeal-is-the-public-product-identity.md
-Superseded by: None
+Superseded by: ADP-0011-signetum-is-the-product-identity.md
 
 ## Context
 

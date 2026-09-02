@@ -1,6 +1,6 @@
 # Signetum is the public product identity
 
-Status: Proposed
+Status: Accepted
 Review date: 2026-09-02
 Supersedes: ADP-0004-engine-owned-product-site.md
 Superseded by: None
