@@ -298,12 +298,12 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
     _record(member, "impl/member", base)
     _record(batch, "batch/test", base, "batch")
-    decision = member / "docs/decisions/ADP-proposal-zebra.md"
+    decision = member / "docs/decisions/ADP-zebra.md"
     decision.parent.mkdir(parents=True)
-    decision.write_text("# Zebra\n\nSee ADP-proposal-zebra.md.\n", encoding="utf-8")
+    decision.write_text("# Zebra\n\nStatus: Proposed\n\nSee ADP-zebra.md.\n", encoding="utf-8")
     plan = "changes/example/plans/member.md"
     (member / "reference.md").write_text(
-        "Decision: docs/decisions/ADP-proposal-zebra.md\n", encoding="utf-8"
+        "Decision: docs/decisions/ADP-zebra.md\n", encoding="utf-8"
     )
     _git(member, "add", ".")
     _git(member, "commit", "-m", f"deliver member\n\nDelivers: {plan}")
@@ -321,7 +321,8 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     formal = batch / "docs/decisions/ADP-0001-zebra.md"
     assert result["status"] == "admitted"
     assert formal.is_file()
-    assert not (batch / "docs/decisions/ADP-proposal-zebra.md").exists()
+    assert not (batch / "docs/decisions/ADP-zebra.md").exists()
+    assert "Status: Accepted" in formal.read_text(encoding="utf-8")
     assert "ADP-0001-zebra.md" in formal.read_text(encoding="utf-8")
     assert "ADP-0001-zebra.md" in (batch / "reference.md").read_text(encoding="utf-8")
     admitted_members = result["admitted"]
@@ -335,7 +336,7 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     assert admitted["admission_commit"]
     assert result["decisions"] == [
         {
-            "proposal": "docs/decisions/ADP-proposal-zebra.md",
+            "proposal": "docs/decisions/ADP-zebra.md",
             "formal": "docs/decisions/ADP-0001-zebra.md",
         }
     ]
@@ -382,9 +383,9 @@ def test_delivery_refuses_numbering_bound_to_another_base(
 
 def test_final_refuses_proposal_decisions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     repository = _repository(tmp_path / "repository")
-    proposal = repository / "docs/decisions/ADP-proposal-unresolved.md"
+    proposal = repository / "docs/decisions/ADP-unresolved.md"
     proposal.parent.mkdir(parents=True)
-    proposal.write_text("# unresolved\n", encoding="utf-8")
+    proposal.write_text("# unresolved\n\nStatus: Proposed\n", encoding="utf-8")
     _git(repository, "add", ".")
     _git(repository, "commit", "-m", "add proposal")
     _record(repository, "main", _git(repository, "rev-parse", "HEAD"), "batch")

@@ -22,20 +22,22 @@ def test_entrypoint_routes_every_focused_reference() -> None:
         assert (SKILL / relative).is_file()
 
 
-def test_generic_skill_contains_no_downstream_authorities() -> None:
-    text = "\n".join(path.read_text(encoding="utf-8") for path in sorted(SKILL.rglob("*.md")))
-    forbidden = (
-        "PyLM",
-        ".agents/repo-dev/repo.yaml",
-        "origin/product",
-        "changes/",
-        "specs/",
-        "plans/",
-        "just changed",
-        "just ready",
-    )
+_PATH_LIKE = re.compile(r"[A-Za-z0-9_.*-]+(?:/[A-Za-z0-9_.*-]+)*\.(?:toml|ya?ml|json|md|py)")
 
-    assert not [token for token in forbidden if token in text]
+
+def test_generic_skill_cites_only_paths_it_ships() -> None:
+    """The router names no repository's authorities, not merely none we listed.
+
+    A forbidden-token list only catches the downstream names somebody
+    remembered. Every path this skill cites resolving to a file it ships is the
+    same contract stated so it holds for the ones nobody enumerated.
+    """
+    text = "\n".join(path.read_text(encoding="utf-8") for path in sorted(SKILL.rglob("*.md")))
+
+    cited = set(_PATH_LIKE.findall(text))
+
+    assert cited
+    assert {path for path in cited if not (SKILL / path).is_file()} == set()
 
 
 def test_skill_declares_an_immutable_release_version() -> None:
