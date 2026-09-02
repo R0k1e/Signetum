@@ -27,9 +27,29 @@ and skill identity, selected scope, result, and any repository-required inputs.
 A diagnostic may say complete validation is required but must not silently run
 or claim that gate.
 
+A member gate judges what the member owns. A judgement over the whole tree or a
+whole corpus belongs to the final gate, because a member owns neither the
+finding nor, while its base is frozen, any means of acquiring the fix. A check
+enters a member gate only when it accepts a scope, or when it reports findings
+as a comparable set so the gate can judge the member tree against the same
+check run on the member's base. A check that does neither is a final-gate
+check.
+
 Member evidence can establish **ready** only. Integration evidence establishes
 **integrated** only for the named integration identity. Neither proves delivery
 or human acceptance. Agent summaries are explanations, never evidence.
+
+## Test what the contract owes
+
+Do not assert that a string literal is absent. `assert "widget" not in payload`
+records the change its author was making, not a behavior the code owes anyone:
+it is true when written and afterwards only constrains renaming, and it silently
+stops protecting anything the author did not think to list. Assert what is
+there. Where absence really is the contract, bind the value to a name which says
+why it must not appear, or state a relation between two observations, so the
+assertion keeps holding for cases nobody enumerated. Never repair such an
+assertion by rewriting it as an equality on the same object: that pins an
+internal shape and breaks on any legitimate addition.
 
 Keep disposable test output separate from durable specifications, plans,
 receipts, and delivery state. Leave a coherent, clean, validated member ready

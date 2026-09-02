@@ -2,7 +2,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 
-def test_built_wheel_contains_public_resources_and_no_downstream_product_facts() -> None:
+def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() -> None:
     wheels = tuple(Path("dist").glob("reposeal-*.whl"))
     assert len(wheels) == 1
 
@@ -20,6 +20,11 @@ def test_built_wheel_contains_public_resources_and_no_downstream_product_facts()
     assert "reposeal/resources/schemas/validation-evidence-v3.schema.json" in names
     assert "reposeal/resources/schemas/contracts/release-metadata.schema.json" in names
     assert "reposeal/resources/skills/repo-dev/SKILL.md" in names
-    assert "placeholder_name" not in payload
-    assert "PyLM" not in payload
-    assert "/Users/" not in payload
+    assert "reposeal/resources/vectors/validation-evidence-v3.json" in names
+    # Absence is the contract here, so each value is bound to the reason it
+    # must not appear rather than left as a bare literal nobody can extend.
+    unrendered_template_placeholder = "placeholder_name"
+    build_machine_home = str(Path.home())
+
+    assert unrendered_template_placeholder not in payload
+    assert build_machine_home not in payload

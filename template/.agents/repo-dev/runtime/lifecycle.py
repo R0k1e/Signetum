@@ -876,9 +876,25 @@ def _stable_patch_id(repository: Path, base: str, source: str) -> str:
 
 
 def _proposal_paths(repository: Path) -> tuple[str, ...]:
-    return tuple(
-        line for line in _git(repository, "ls-files", "*ADP-proposal-*.md").splitlines() if line
-    )
+    """Return every decision still declaring itself a proposal.
+
+    A proposal is identified by its declared status, not by its file name: an
+    accepted decision may stay unnumbered, so a name alone cannot say whether
+    one is still awaiting acceptance.
+    """
+
+    paths: list[str] = []
+    for line in _git(repository, "ls-files", "*ADP-*.md").splitlines():
+        if not line:
+            continue
+        candidate = repository / line
+        try:
+            head = candidate.read_text(encoding="utf-8")[:512]
+        except (OSError, UnicodeDecodeError):
+            continue
+        if re.search(r"^Status:\s*Proposed\s*$", head, re.MULTILINE):
+            paths.append(line)
+    return tuple(paths)
 
 
 def _attested_base(repository: Path, tip: str) -> str | None:
@@ -916,7 +932,7 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
     rewrites: list[dict[str, str]] = []
     for proposal in sorted(proposals):
         proposal_path = Path(proposal)
-        slug = proposal_path.name.removeprefix("ADP-proposal-")
+        slug = proposal_path.name.removeprefix("ADP-")
         formal_path = proposal_path.with_name(f"ADP-{next_number:04d}-{slug}")
         if (batch / formal_path).exists():
             raise AdmissionError(f"formal decision already exists: {formal_path}")
@@ -935,6 +951,12 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
             rewritten = content.replace(proposal, formal_path.as_posix()).replace(
                 old_name, new_name
             )
+            if candidate == batch / formal_path:
+                # Numbering is what accepts a proposal, so the decision it
+                # renames stops declaring itself one.
+                rewritten = re.sub(
+                    r"^Status:\s*Proposed\s*$", "Status: Accepted", rewritten, flags=re.MULTILINE
+                )
             if rewritten != content:
                 candidate.write_text(rewritten, encoding="utf-8")
         rewrites.append({"proposal": proposal, "formal": formal_path.as_posix()})

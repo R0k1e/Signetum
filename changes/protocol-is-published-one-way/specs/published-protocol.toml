@@ -1,0 +1,21 @@
+[specification]
+schema_version = 1
+id = "protocol-is-published-one-way/published-protocol"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-the-protocol-is-published-in-one-direction.md"]
+plan = "changes/protocol-is-published-one-way/plans/published-protocol.md"
+acceptance = [
+  "No shipped source, test, schema, vector, or skill file names a consumer repository or product.",
+  "The wheel contains the evidence schema and the conformance vectors, and the vectors state the protocol identity and the canonical schema digest.",
+  "Every published vector case is named, decided, and carries a reason when it is a rejection, and this runtime agrees with all of them.",
+  "A decision declaring Status Proposed is refused by final regardless of its file name, and one which does not is accepted regardless of its file name.",
+  "Delivery renames a numbered proposal and records its acceptance in the same step.",
+  "The generic skill cites only paths it ships, which holds for downstream authorities nobody enumerated.",
+  "The skill states the member gate scope rule and the rule against asserting a string literal is absent.",
+]
+
+[specification.review]
+id = "protocol-is-published-one-way"
+clauses = ["PUB-001", "PUB-002", "PUB-003", "PUB-004", "PUB-005"]
