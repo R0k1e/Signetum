@@ -82,11 +82,20 @@ class RepositoryValidationAdapter:
         return identity
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
-        completed = subprocess.run(  # nosec B603
-            shard.command,
-            cwd=self.repository,
-            check=False,
-        )
+        try:
+            completed = subprocess.run(  # nosec B603
+                shard.command,
+                cwd=self.repository,
+                check=False,
+                timeout=shard.timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            # A shard which never returns is otherwise indistinguishable from a
+            # slow one, so the gate would wait forever and report nothing.
+            return ShardExecution(
+                False,
+                f"{shard.name} did not return within {shard.timeout_seconds}s",
+            )
         if completed.returncode == 0:
             return ShardExecution(True)
         return ShardExecution(False, f"{shard.name} exited {completed.returncode}")

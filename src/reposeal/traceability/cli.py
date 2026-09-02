@@ -15,11 +15,15 @@ from reposeal.traceability.boundary import (
     TraceabilityManifest,
 )
 from reposeal.traceability.loading import (
+    load_decision,
     load_plan,
     load_review,
     load_specification,
 )
-from reposeal.traceability.validator import TraceabilityValidator
+from reposeal.traceability.validator import (
+    TraceabilityValidator,
+    decision_corpus_issues,
+)
 
 
 class ExitCode(IntEnum):
@@ -48,6 +52,16 @@ def query(
             if path.startswith(changes_prefix) and path.endswith("/review.toml")
         )
         reviews = {path: load_review(repository / path) for path in review_paths}
+        # A decision root holds decisions: filtering by file name would make an
+        # unrecognised name silently unchecked instead of refused.
+        decision_paths = sorted(
+            path
+            for root in manifest.decision_roots
+            for path in inventory.below(root)
+            if path.endswith(".md")
+        )
+        decisions = tuple((path, load_decision(repository / path, path)) for path in decision_paths)
+        corpus_issues = decision_corpus_issues(decisions)
         review_ids = frozenset(review.id for review in reviews.values())
         reports = []
         projections = []
@@ -77,6 +91,7 @@ def query(
                 specifications,
                 plans,
                 review_ids,
+                decisions,
             )
             reports.append(report)
             if report.valid:
@@ -88,14 +103,18 @@ def query(
                         evidence,
                     )
                 )
-        valid = bool(review_paths) and all(report.valid for report in reports)
+        valid = bool(review_paths) and all(report.valid for report in reports) and not corpus_issues
         payload = {
             "schema_version": 1,
             "command": "traceability",
             "valid": valid,
             "changes": [projection.model_dump(mode="json") for projection in projections],
             "issues": [
-                issue.model_dump(mode="json") for report in reports for issue in report.issues
+                issue.model_dump(mode="json")
+                for issue in (
+                    *(issue for report in reports for issue in report.issues),
+                    *corpus_issues,
+                )
             ],
         }
         stdout.write(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")

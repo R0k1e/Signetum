@@ -48,7 +48,14 @@ def test_check_traceability_uses_the_public_query_boundary() -> None:
 
     result = CliRunner().invoke(
         app,
-        ["check", "traceability", "--repository", str(repository)],
+        [
+            "check",
+            "traceability",
+            "--repository",
+            str(repository),
+            "--decision-root",
+            "decisions",
+        ],
     )
 
     assert result.exit_code == 0

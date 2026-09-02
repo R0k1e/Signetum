@@ -32,3 +32,11 @@ After any synchronization or mutation, recompute the affected evidence; stale
 validation cannot establish the new identity. Report the furthest proven state
 for each clause and name the exact missing authority or evidence for the next
 state.
+
+## Recover by re-entering the ordinary path
+
+A failed complete gate has no dedicated recovery operation and needs none.
+Repair the member, close it again, and admit it again; a member already
+integrated at its current identity is a no-op, so re-entry is safe to retry.
+Integration state is mutated by one operator at a time, and an operation which
+cannot hold it refuses and names the holder rather than proceeding.

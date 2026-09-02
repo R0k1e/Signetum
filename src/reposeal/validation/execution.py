@@ -121,7 +121,9 @@ def _resolve_outcome(
     if execution.succeeded:
         return ShardOutcome(shard.name, shard.digest, shard.evidence, "passed", observed_at)
     if shard.evidence != "world":
-        raise ValidationExecutionError(f"validation shard failed: {shard.name}")
+        raise ValidationExecutionError(
+            execution.diagnostic or f"validation shard failed: {shard.name}"
+        )
     if not shard.findings_command:
         raise ValidationExecutionError(
             f"world shard failed and declares no findings command: {shard.name}"

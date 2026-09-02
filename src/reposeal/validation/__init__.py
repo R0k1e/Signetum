@@ -45,6 +45,7 @@ class ValidationShard:
     requires: tuple[str, ...] = ()
     evidence: str = "tree"
     findings_command: tuple[str, ...] = ()
+    timeout_seconds: int = 1800
 
     def __post_init__(self) -> None:
         if _NAME.fullmatch(self.name) is None:
@@ -59,6 +60,8 @@ class ValidationShard:
             raise ValidationGraphError(f"only a world shard reports findings: {self.name}")
         if self.findings_command and any(not argument for argument in self.findings_command):
             raise ValidationGraphError(f"findings command must be non-empty: {self.name}")
+        if self.timeout_seconds <= 0:
+            raise ValidationGraphError(f"shard time bound must be positive: {self.name}")
 
     @property
     def digest(self) -> str:
@@ -253,6 +256,7 @@ def resolve_validation_graph(
                 "evidence": shard.evidence,
                 "findings_command": shard.findings_command,
                 "name": shard.name,
+                "timeout_seconds": shard.timeout_seconds,
                 "requires": tuple(sorted(shard.requires)),
             }
             for shard in resolved_shards

@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-09-02
 Supersedes: None
-Superseded by: None
+Superseded by: ADP-0009-the-protocol-is-published-in-one-direction.md
 
 ## Decision
 

@@ -4,14 +4,14 @@ id = "unified-validation-evidence/selection-and-evidence"
 version = 2
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-0007-unified-validation-evidence.md"]
+decisions = ["docs/decisions/ADP-0009-the-protocol-is-published-in-one-direction.md"]
 plan = "changes/unified-validation-evidence/plans/selection-and-evidence.md"
 acceptance = [
   "Selection records changed-path identity, matched rules, selected profiles, gates and shards, modified tests, external obligations, unexplained paths, requires_final, and human-readable reasons without executing validation.",
   "Member execution consumes the exact selection for the same commit and base, satisfies profile completeness requirements, and records every executed shard and external obligation result.",
   "Final ignores member narrowing and executes the declared complete graph exactly once on the frozen batch tip.",
   "Evidence v3 binds source identity, configuration, profiles, graph, lockfiles, tools, selection, execution, completeness, provenance, and namespaced extensions.",
-  "RepoSeal, its self-contained Template runtime, and the PyLM adapter pass common protocol vectors and identify the same schema digest.",
+  "RepoSeal and its self-contained Template runtime pass the published protocol vectors and identify the same schema digest.",
   "Every declared shard carries an evidence class of tree or world, and a manifest placing a world shard in the member gate or in member_required is rejected.",
   "Member narrowing never selects a world shard; a world shard reached through an impact rule is deferred to final and the deferral is recorded in the selection reasons.",
   "Evidence records each executed shard as a named outcome carrying its command digest, evidence class, status, and, for a world shard, the instant it observed the world.",

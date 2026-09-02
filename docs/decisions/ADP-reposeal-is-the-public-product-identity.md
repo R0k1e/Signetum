@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-08-30
 Supersedes: ADP-devloom-is-the-public-product-identity.md
-Superseded by: None
+Superseded by: ADP-0004-engine-owned-product-site.md
 
 ## Context
 

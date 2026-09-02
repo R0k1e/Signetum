@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
 import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
 from typing import Literal
+from urllib.parse import quote
 
 from reposeal.deviations import DeviationError, approval_view, reconciliation_summary
 from reposeal.evidence.receipts import EvidenceReceipt, ReceiptError, ValidationSelection
@@ -187,7 +191,12 @@ def _runtime_validation(
     )
     shards = [
         ValidationShard(
-            item.name, item.command, item.requires, item.evidence, item.findings_command
+            item.name,
+            item.command,
+            item.requires,
+            item.evidence,
+            item.findings_command,
+            item.timeout_seconds,
         )
         for item in manifest.validation.shards
     ]
@@ -645,7 +654,42 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
     return rewrites
 
 
+@contextmanager
+def _exclusive_batch(batch: Path) -> Iterator[None]:
+    """Hold the batch for one operator, naming the holder when refusing.
+
+    Two admissions interleaving in one batch worktree leave the loser's merge
+    state as whatever the winner happened to leave behind.
+    """
+
+    root = _state_root(batch) / "locks"
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / f"{quote(_branch(batch), safe='')}.lock"
+    handle = path.open("a+", encoding="utf-8")
+    try:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            handle.seek(0)
+            holder = handle.read().strip() or "another process"
+            raise AdmissionError(f"batch is held by {holder}") from error
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"pid {os.getpid()} since {datetime.now(UTC).isoformat()}\n")
+        handle.flush()
+        yield
+    finally:
+        handle.close()
+
+
 def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
+    """Admit named members into one batch, exclusively."""
+
+    with _exclusive_batch(batch):
+        return _admit_held(batch, members)
+
+
+def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     _require_clean(batch)
     batch_branch = _branch(batch)
     if batch_branch in {"main", "master", "product"}:
@@ -735,6 +779,13 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
 
 
 def continue_batch(batch: Path) -> dict[str, object]:
+    """Complete one batch's pending merge, exclusively."""
+
+    with _exclusive_batch(batch):
+        return _continue_batch_held(batch)
+
+
+def _continue_batch_held(batch: Path) -> dict[str, object]:
     merge_head = Path(_git(batch, "rev-parse", "--git-path", "MERGE_HEAD"))
     if not merge_head.is_absolute():
         merge_head = batch / merge_head

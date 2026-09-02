@@ -50,7 +50,7 @@ def test_historical_yaml_changes_are_read_only_provenance() -> None:
 
     exit_code = query(
         FIXTURE,
-        TraceabilityManifest(schema_version=1),
+        TraceabilityManifest(schema_version=1, decision_roots=("decisions",)),
         EvidenceSnapshot(),
         stdout,
         stderr,
@@ -77,7 +77,7 @@ def test_public_query_emits_one_versioned_json_object() -> None:
     )
     exit_code = query(
         FIXTURE,
-        TraceabilityManifest(schema_version=1),
+        TraceabilityManifest(schema_version=1, decision_roots=("decisions",)),
         evidence,
         stdout,
         stderr,
@@ -98,7 +98,7 @@ def test_public_query_rejects_a_repository_without_changes() -> None:
 
     exit_code = query(
         FIXTURE,
-        TraceabilityManifest(schema_version=1),
+        TraceabilityManifest(schema_version=1, decision_roots=("decisions",)),
         EvidenceSnapshot(),
         stdout,
         stderr,
@@ -115,7 +115,7 @@ def test_public_query_maps_inventory_errors_to_the_invocation_contract() -> None
 
     exit_code = query(
         FIXTURE,
-        TraceabilityManifest(schema_version=1),
+        TraceabilityManifest(schema_version=1, decision_roots=("decisions",)),
         EvidenceSnapshot(),
         stdout,
         stderr,
