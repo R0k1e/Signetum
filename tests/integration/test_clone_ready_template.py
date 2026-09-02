@@ -149,9 +149,33 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> No
     ):
         subprocess.run(command, cwd=rendered, check=True, capture_output=True)
 
+    # A repository which was not created by workspace-open adopts its base by
+    # writing the record once, which is the documented migration path.
+    head = subprocess.run(
+        ("git", "rev-parse", "HEAD"),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    record = rendered / ".git/reposeal/workspaces/main.json"
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "branch": "main",
+                "base": head,
+                "kind": "batch",
+                "members": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
     runtime = rendered / ".agents/repo-dev/runtime/lifecycle.py"
     diagnostic = subprocess.run(
-        (sys.executable, "-I", str(runtime), "changed", "HEAD"),
+        (sys.executable, "-I", str(runtime), "changed"),
         cwd=rendered,
         check=True,
         capture_output=True,

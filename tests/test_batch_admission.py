@@ -6,10 +6,12 @@ import json
 import subprocess
 from pathlib import Path
 from shutil import which
+from typing import Literal
 
 import pytest
 
 import reposeal.lifecycle as lifecycle
+from reposeal.workspaces import WorkspaceRecord, write_record
 
 
 def _load_module():
@@ -79,6 +81,17 @@ def _repository(path: Path) -> Path:
     _git(path, "add", ".")
     _git(path, "commit", "-m", "seed")
     return path
+
+
+def _record(
+    worktree: Path, branch: str, base: str, kind: Literal["member", "batch"] = "member"
+) -> None:
+    """Record the base a test workspace was cut from, as workspace-open would."""
+
+    write_record(
+        lifecycle._state_root(worktree),
+        WorkspaceRecord(schema_version=1, branch=branch, base=base, kind=kind),
+    )
 
 
 def _evidence_receipt(
@@ -174,7 +187,8 @@ def test_delivery_finds_the_receipt_bound_to_the_expected_tip(monkeypatch, tmp_p
     monkeypatch.setattr(module, "_require_clean", lambda path: None)
     monkeypatch.setattr(module, "_receipt_root", lambda path: receipts)
     monkeypatch.setattr(module, "_branch", lambda path: "main")
-    monkeypatch.setattr(module, "_batch_base", lambda path, tip: "base")
+    monkeypatch.setattr(module, "_recorded_base", lambda path, branch=None: "base")
+    monkeypatch.setattr(module, "_attested_base", lambda path, tip: "base")
     remote_tips = iter(("base", "expected"))
     monkeypatch.setattr(module, "_remote_branch_tip", lambda path, branch: next(remote_tips))
     monkeypatch.setattr(
@@ -282,6 +296,8 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     batch = tmp_path / "batch"
     _git(repository, "worktree", "add", "-b", "impl/member", str(member), base)
     _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(member, "impl/member", base)
+    _record(batch, "batch/test", base, "batch")
     decision = member / "docs/decisions/ADP-proposal-zebra.md"
     decision.parent.mkdir(parents=True)
     decision.write_text("# Zebra\n\nSee ADP-proposal-zebra.md.\n", encoding="utf-8")
@@ -353,14 +369,14 @@ def test_delivery_refuses_numbering_bound_to_another_base(
     source = tmp_path / "source"
     target = tmp_path / "target"
     monkeypatch.setattr(lifecycle, "_require_clean", lambda path: None)
-    monkeypatch.setattr(lifecycle, "_batch_base", lambda path, tip: "older-base")
+    monkeypatch.setattr(lifecycle, "_recorded_base", lambda path, branch=None: "older-base")
     monkeypatch.setattr(
         lifecycle,
         "_git",
         lambda repository, *arguments, **kwargs: "tip" if repository == source else "approved-base",
     )
 
-    with pytest.raises(lifecycle.AdmissionError, match="expected base"):
+    with pytest.raises(lifecycle.AdmissionError, match="recorded batch base differs"):
         lifecycle.batch_deliver(source, target, "approved-base", "tip")
 
 
@@ -371,8 +387,9 @@ def test_final_refuses_proposal_decisions(monkeypatch: pytest.MonkeyPatch, tmp_p
     proposal.write_text("# unresolved\n", encoding="utf-8")
     _git(repository, "add", ".")
     _git(repository, "commit", "-m", "add proposal")
+    _record(repository, "main", _git(repository, "rev-parse", "HEAD"), "batch")
     with pytest.raises(lifecycle.AdmissionError, match="proposal decision"):
-        lifecycle.validate(repository, None, "final")
+        lifecycle.validate(repository, "final")
 
 
 def _member_and_batch(tmp_path: Path, *, path: str = "src/feature.txt") -> tuple[Path, Path, str]:
@@ -382,6 +399,8 @@ def _member_and_batch(tmp_path: Path, *, path: str = "src/feature.txt") -> tuple
     batch = tmp_path / "batch"
     _git(repository, "worktree", "add", "-b", "impl/member", str(member), base)
     _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(member, "impl/member", base)
+    _record(batch, "batch/test", base, "batch")
     target = member / path
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("work\n", encoding="utf-8")

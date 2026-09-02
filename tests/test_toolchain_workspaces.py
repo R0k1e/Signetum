@@ -61,6 +61,7 @@ def test_workspace_open_returns_registered_worktrunk_identity(monkeypatch, tmp_p
         responses: dict[tuple[str, ...], str] = {
             ("rev-parse", "--show-toplevel"): str(root),
             ("rev-parse", "base"): "a" * 40,
+            ("rev-parse", "--git-common-dir"): str(root / ".git"),
         }
         return responses[arguments]
 

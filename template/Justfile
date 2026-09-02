@@ -10,11 +10,11 @@ change-open name:
 workspace-open branch base:
     just _reposeal workspace-open {{branch}} {{base}}
 
-changed base *args:
-    just _reposeal changed {{base}} {{args}}
+changed *args:
+    just _reposeal changed {{args}}
 
-ready base:
-    just _reposeal ready {{base}}
+ready:
+    just _reposeal ready
 
 batch-open *args:
     just _reposeal batch-open {{args}}

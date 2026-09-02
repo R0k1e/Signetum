@@ -1,0 +1,37 @@
+[review]
+schema_version = 1
+id = "workspace-owns-its-base"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "Repair the two protocol defects behind stalled members: a base that is a caller-supplied argument rather than workspace state, and a batch that is implemented as a workspace but modelled as something else."
+
+[[review.clauses]]
+id = "BASE-001"
+statement = "A workspace records its resolved base at creation and that record is the only authority a later operation consults."
+disposition = "covered"
+specification = "workspace-owns-its-base/workspace-base"
+
+[[review.clauses]]
+id = "BASE-002"
+statement = "changed and ready take no base argument, and a workspace without a record fails as a precondition rather than deriving one."
+disposition = "covered"
+specification = "workspace-owns-its-base/workspace-base"
+
+[[review.clauses]]
+id = "BASE-003"
+statement = "A batch is a workspace which declares members, and its base is read from the same record a member uses."
+disposition = "covered"
+specification = "workspace-owns-its-base/workspace-base"
+
+[[review.clauses]]
+id = "BASE-004"
+statement = "The batch base trailer remains durable provenance which delivery verifies against the record, and no operation recovers a base by scanning commit messages."
+disposition = "covered"
+specification = "workspace-owns-its-base/workspace-base"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

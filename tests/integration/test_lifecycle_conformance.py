@@ -48,7 +48,8 @@ def test_changed_contract_vectors_are_shared(
     )["cases"]
     for vector in vectors:
         monkeypatch.setattr(runtime, "_git", _git_for(tuple(vector["files"])))
-        observed = runtime.changed(tmp_path, "base", True)
+        monkeypatch.setattr(runtime, "_recorded_base", lambda repository, branch=None: "base")
+        observed = runtime.changed(tmp_path, True)
         for field in (
             "rules",
             "profiles",
