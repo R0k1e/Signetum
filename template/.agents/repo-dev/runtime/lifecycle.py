@@ -648,7 +648,7 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         _require_numbering_base(repository, evidence_base, source)
         # A batch whose tip is still its base admitted nothing, so it carries
         # no Change identity to reconcile.
-        if evidence_base is None or evidence_base == source:
+        if evidence_base is None or evidence_base == source or not _hosts_changes(repository):
             change_ids: tuple[str, ...] = ()
         else:
             _, plans = _delivery_provenance(repository, evidence_base, source)
@@ -795,6 +795,21 @@ def _commit_plans(repository: Path, commit: str) -> tuple[str, ...]:
             }
         )
     )
+
+
+def _hosts_changes(repository: Path) -> bool:
+    """Report whether this tree can hold a Change at all.
+
+    Decided by the specification authority the manifest declares, so a
+    repository which arranges its change packages differently is judged by its
+    own declaration rather than by a directory name assumed here.
+    """
+
+    declared = _mapping(_manifest(repository).get("repository"), "repository")
+    pattern = declared.get("specifications")
+    if not isinstance(pattern, str) or not pattern:
+        raise AdmissionError("repository.specifications must be a non-empty pattern")
+    return any(repository.glob(pattern))
 
 
 def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
@@ -1023,7 +1038,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         member_tip = _git(member, "rev-parse", "HEAD")
         batch_tip = _git(batch, "rev-parse", "HEAD")
         plans = _commit_plans(member, member_tip)
-        if not plans:
+        if not plans and _hosts_changes(member):
             raise AdmissionError("member commit has no Delivers Plan trailer")
         record = {"branch": member_branch, "original": member_tip, "worktree": str(member)}
         if _is_ancestor(batch, member_tip, batch_tip):

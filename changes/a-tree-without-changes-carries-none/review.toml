@@ -1,0 +1,25 @@
+[review]
+schema_version = 1
+id = "a-tree-without-changes-carries-none"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "Promoting the rendered Template branch is refused because admission and the final gate both demand a Change identity which that branch is defined never to hold."
+
+[[review.clauses]]
+id = "CARRY-001"
+statement = "A delivery from a tree whose declared specification authority matches nothing carries no Change identity, and neither admission nor the final gate demands one."
+disposition = "covered"
+specification = "a-tree-without-changes-carries-none/no-change-identity"
+
+[[review.clauses]]
+id = "CARRY-002"
+statement = "A tree which does host change packages is unaffected: a member commit must still name a Plan, and a named Plan must still resolve inside one active Change."
+disposition = "covered"
+specification = "a-tree-without-changes-carries-none/no-change-identity"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

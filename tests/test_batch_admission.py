@@ -501,3 +501,55 @@ def test_a_failing_gate_is_refused_as_one_json_result(
     monkeypatch.setattr(lifecycle, "validate", refuse)
 
     assert lifecycle.main(["final"]) == 2
+
+
+def _without_change_packages(worktree: Path) -> None:
+    """Leave a tree whose declared specification authority matches nothing."""
+
+    for path in worktree.glob("changes/*/specs/*.toml"):
+        path.unlink()
+
+
+def test_a_tree_hosting_no_change_admits_a_member_without_a_plan(tmp_path: Path) -> None:
+    member, batch, _ = _member_and_batch(tmp_path)
+    _without_change_packages(member)
+    _git(member, "commit", "-a", "--allow-empty", "-m", "render without a change package")
+    _evidence_receipt(
+        member,
+        "member-lifecycle-ready.json",
+        gate="member",
+        tree=_git(member, "rev-parse", "HEAD^{tree}"),
+        commands=(MEMBER_COMMAND,),
+    )
+
+    result = lifecycle.admit(batch, (member,))
+
+    admitted = result["admitted"]
+    assert isinstance(admitted, list)
+    assert admitted[0]["plan"] == []
+
+
+def test_a_tree_hosting_a_change_still_requires_a_plan(tmp_path: Path) -> None:
+    repository = _repository(tmp_path / "repository")
+    base = _git(repository, "rev-parse", "HEAD")
+    member = tmp_path / "member"
+    batch = tmp_path / "batch"
+    _git(repository, "worktree", "add", "-b", "impl/member", str(member), base)
+    _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(member, "impl/member", base)
+    _record(batch, "batch/test", base, "batch")
+    specification = member / "changes/example/specs/first.toml"
+    specification.parent.mkdir(parents=True)
+    specification.write_text("[specification]\n", encoding="utf-8")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "record a change package without naming it")
+
+    with pytest.raises(lifecycle.AdmissionError, match="no Delivers Plan trailer"):
+        lifecycle.admit(batch, (member,))
+
+
+def test_a_named_plan_outside_a_change_is_still_refused(tmp_path: Path) -> None:
+    assert lifecycle._change_ids_from_plans(("changes/one/plans/a.md",)) == ("one",)
+
+    with pytest.raises(lifecycle.AdmissionError, match="outside one active Change"):
+        lifecycle._change_ids_from_plans(("unified-repository-configuration",))
