@@ -4,7 +4,7 @@ id = "unified-validation-evidence/selection-and-evidence"
 version = 2
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-proposal-unified-validation-evidence.md"]
+decisions = ["docs/decisions/ADP-0007-unified-validation-evidence.md"]
 plan = "changes/unified-validation-evidence/plans/selection-and-evidence.md"
 acceptance = [
   "Selection records changed-path identity, matched rules, selected profiles, gates and shards, modified tests, external obligations, unexplained paths, requires_final, and human-readable reasons without executing validation.",
