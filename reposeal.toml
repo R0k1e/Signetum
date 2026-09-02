@@ -39,7 +39,7 @@ requires_final = true
 name = "engine.toolchain"
 paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**"]
 profiles = ["python-default@1"]
-shards = ["engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
 requires_final = true
 
 [[impact.rules]]
@@ -56,39 +56,50 @@ name = "uv"
 identity_command = ["uv", "--version"]
 
 [[validation.shards]]
+name = "engine:sync"
+command = ["uv", "sync", "--locked", "--all-extras", "--dev"]
+
+[[validation.shards]]
 name = "engine:build"
 command = ["uv", "build"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:precommit"
 command = ["uv", "run", "pre-commit", "run", "--all-files"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:ruff"
 command = ["uv", "run", "--no-sync", "ruff", "check", "."]
+requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:format"
 command = ["uv", "run", "--no-sync", "ruff", "format", "--check", "."]
+requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:bandit"
 command = ["uv", "run", "--no-sync", "bandit", "-r", "src"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:pytest"
 command = ["uv", "run", "pytest"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:audit"
 command = ["uv", "run", "--no-sync", "pip-audit"]
 evidence = "world"
 findings_command = ["uv", "run", "--no-sync", "reposeal", "findings", "pip-audit"]
+requires = ["engine:sync"]
 
 [[validation.gates]]
 name = "member"
-shards = ["engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
+shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
 
 [[validation.gates]]
 name = "final"
-shards = ["engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]

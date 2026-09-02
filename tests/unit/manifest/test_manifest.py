@@ -21,7 +21,11 @@ def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
         "python:ty",
         "python:unit",
     )
-    assert manifest.validation.shards[0].name == "repository:diff"
+    assert manifest.validation.shards[0].name == "python:sync"
+    assert manifest.validation.shards[1].name == "repository:diff"
+    assert manifest.validation.shards[1].requires == ()
+    ruff = next(item for item in manifest.validation.shards if item.name == "python:ruff")
+    assert ruff.requires == ("python:sync",)
     assert manifest.validation.gates[-1].name == "final"
 
 

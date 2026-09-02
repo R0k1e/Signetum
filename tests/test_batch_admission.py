@@ -224,6 +224,7 @@ def test_manifest_gate_preserves_declared_command_order(tmp_path: Path) -> None:
     shards = {shard.name: shard.command for shard in graph.shards}
     commands = [shards[name] for name in graph.gate("member").shards]
     assert set(commands) == {
+        ("uv", "sync", "--locked", "--all-extras", "--dev"),
         ("uv", "build"),
         ("uv", "run", "pre-commit", "run", "--all-files"),
         ("uv", "run", "--no-sync", "ruff", "check", "."),
@@ -454,3 +455,16 @@ def test_a_member_whose_authority_is_final_records_a_deferred_closure(tmp_path: 
     assert isinstance(admitted, list)
     assert admitted[0]["ready_evidence"].startswith("deferred:requires-final:")
     assert "governance" in admitted[0]["ready_evidence"]
+
+
+def test_a_failing_gate_is_refused_as_one_json_result(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failing gate is an ordinary outcome, never an unhandled traceback."""
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise lifecycle.ValidationExecutionError("validation shard failed: engine:ruff")
+
+    monkeypatch.setattr(lifecycle, "validate", refuse)
+
+    assert lifecycle.main(["final"]) == 2
