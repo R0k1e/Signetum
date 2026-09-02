@@ -38,6 +38,28 @@ class PlanStatus(StrEnum):
     APPROVED = "approved"
 
 
+class DecisionStatus(StrEnum):
+    PROPOSED = "proposed"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    DRAFT = "draft"
+
+
+class Decision(FrozenModel):
+    """One decision as its own file declares itself."""
+
+    path: str
+    status: DecisionStatus
+    supersedes: tuple[str, ...] = ()
+    superseded_by: tuple[str, ...] = ()
+
+    @property
+    def name(self) -> str:
+        """Return the file name other decisions cite this one by."""
+
+        return self.path.rsplit("/", 1)[-1]
+
+
 class ReviewSource(FrozenModel):
     kind: Identifier
     summary: str = Field(min_length=1)

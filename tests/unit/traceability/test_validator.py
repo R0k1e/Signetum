@@ -6,6 +6,7 @@ from hypothesis import strategies as st
 from reposeal.change.models import (
     AcceptanceResult,
     ClauseDisposition,
+    Decision,
     Plan,
     Review,
     ReviewAcceptance,
@@ -17,6 +18,7 @@ from reposeal.traceability.boundary import (
     TraceabilityManifest,
 )
 from reposeal.traceability.loading import (
+    load_decision,
     load_plan,
     load_review,
     load_specification,
@@ -32,6 +34,7 @@ def _documents() -> tuple[
     tuple[tuple[str, Specification], ...],
     tuple[tuple[str, Plan], ...],
     RepositoryInventory,
+    tuple[tuple[str, Decision], ...],
 ]:
     review_path = "changes/example/review.toml"
     specification_paths = (
@@ -49,11 +52,17 @@ def _documents() -> tuple[
         tuple((path, load_specification(FIXTURE / path)) for path in specification_paths),
         tuple((path, load_plan(FIXTURE / path, "example")) for path in plan_paths),
         RepositoryInventory(paths=paths),
+        (
+            (
+                "decisions/accepted.md",
+                load_decision(FIXTURE / "decisions/accepted.md", "decisions/accepted.md"),
+            ),
+        ),
     )
 
 
 def test_complete_change_is_valid() -> None:
-    review_path, review, specifications, plans, inventory = _documents()
+    review_path, review, specifications, plans, inventory, decisions = _documents()
     report = TraceabilityValidator().validate(
         TraceabilityManifest(schema_version=1),
         inventory,
@@ -61,6 +70,8 @@ def test_complete_change_is_valid() -> None:
         review,
         specifications,
         plans,
+        None,
+        decisions,
     )
     assert report.valid
     assert report.issues == ()
@@ -68,7 +79,7 @@ def test_complete_change_is_valid() -> None:
 
 @given(st.sampled_from(["REQ-1", "REQ-2"]))
 def test_removing_an_owner_is_always_detected(clause: str) -> None:
-    review_path, review, specifications, plans, inventory = _documents()
+    review_path, review, specifications, plans, inventory, decisions = _documents()
     kept = tuple(item for item in specifications if clause not in item[1].owned_clauses)
     report = TraceabilityValidator().validate(
         TraceabilityManifest(schema_version=1),
@@ -77,13 +88,15 @@ def test_removing_an_owner_is_always_detected(clause: str) -> None:
         review,
         kept,
         plans,
+        None,
+        decisions,
     )
     assert "missing-owner" in {issue.code for issue in report.issues}
 
 
 @given(st.sampled_from(["REQ-1", "REQ-2"]))
 def test_removing_plan_coverage_is_always_detected(clause: str) -> None:
-    review_path, review, specifications, plans, inventory = _documents()
+    review_path, review, specifications, plans, inventory, decisions = _documents()
     changed_plans = tuple(
         (path, plan.model_copy(update={"obligations": tuple()}))
         if any(clause in obligation.clauses for obligation in plan.obligations)
@@ -97,6 +110,8 @@ def test_removing_plan_coverage_is_always_detected(clause: str) -> None:
         review,
         specifications,
         changed_plans,
+        None,
+        decisions,
     )
     assert "missing-obligation" in {issue.code for issue in report.issues}
 
@@ -123,7 +138,7 @@ def test_repository_plan_status_phrases_map_to_typed_lifecycle_states(tmp_path: 
 
 
 def test_out_of_scope_clause_requires_reason_and_no_owner() -> None:
-    review_path, review, specifications, plans, inventory = _documents()
+    review_path, review, specifications, plans, inventory, decisions = _documents()
     clause = review.clauses[0].model_copy(update={"disposition": ClauseDisposition.OUT_OF_SCOPE})
     changed = review.model_copy(update={"clauses": (clause, *review.clauses[1:])})
 
@@ -134,6 +149,8 @@ def test_out_of_scope_clause_requires_reason_and_no_owner() -> None:
         changed,
         specifications,
         plans,
+        None,
+        decisions,
     )
 
     assert {issue.code for issue in report.issues} >= {
@@ -143,7 +160,7 @@ def test_out_of_scope_clause_requires_reason_and_no_owner() -> None:
 
 
 def test_completed_review_cannot_leave_a_deferred_clause() -> None:
-    review_path, review, specifications, plans, inventory = _documents()
+    review_path, review, specifications, plans, inventory, decisions = _documents()
     clause = review.clauses[0].model_copy(update={"disposition": ClauseDisposition.DEFERRED})
     changed = review.model_copy(
         update={"status": ReviewStatus.COMPLETED, "clauses": (clause, *review.clauses[1:])}
@@ -156,13 +173,15 @@ def test_completed_review_cannot_leave_a_deferred_clause() -> None:
         changed,
         specifications,
         plans,
+        None,
+        decisions,
     )
 
     assert "unresolved-deferral" in {issue.code for issue in report.issues}
 
 
 def test_rejection_requires_an_existing_new_change() -> None:
-    review_path, review, specifications, plans, inventory = _documents()
+    review_path, review, specifications, plans, inventory, decisions = _documents()
     acceptance = ReviewAcceptance(
         result=AcceptanceResult.REJECTED,
         delivery_commit="delivery-1",
@@ -179,6 +198,7 @@ def test_rejection_requires_an_existing_new_change() -> None:
         specifications,
         plans,
         frozenset({"example"}),
+        decisions,
     )
 
     assert "dangling-linked-change" in {issue.code for issue in report.issues}

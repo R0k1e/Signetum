@@ -5,7 +5,7 @@ status = "approved"
 
 [review.source]
 kind = "human_direction"
-summary = "Extract incremental and complete validation into RepoSeal and converge RepoSeal and PyLM on one evidence protocol that retains the strengths of both implementations."
+summary = "Extract incremental and complete validation into RepoSeal and publish one versioned evidence protocol a consumer can conform to."
 
 [[review.clauses]]
 id = "EVIDENCE-001"
@@ -21,7 +21,7 @@ specification = "unified-validation-evidence/selection-and-evidence"
 
 [[review.clauses]]
 id = "EVIDENCE-003"
-statement = "RepoSeal and PyLM use one versioned evidence protocol covering identity, selection, execution, completeness, and namespaced repository extensions."
+statement = "RepoSeal publishes one versioned evidence protocol covering identity, selection, execution, completeness, and namespaced repository extensions."
 disposition = "covered"
 specification = "unified-validation-evidence/selection-and-evidence"
 

@@ -24,6 +24,11 @@ approved base
 ## Batch rules
 
 - `batch-open` and `batch-admit` require explicit `--member` paths.
+- A failed `final` has no dedicated operation. Repair the member, close it
+  with `ready`, and `batch-admit` it into the same batch again; the new work
+  arrives as a second merge and the branch is never rewritten.
+- One operator mutates a batch at a time. Admission and continuation hold the
+  batch exclusively and refuse, naming the holder, rather than interleaving.
 - Admission merges member branches without rewriting them.
 - A member can rejoin after a later ready fix; its history is not permanently consumed.
 - Conflicts finish through `batch-continue` after repair and changed validation.

@@ -160,6 +160,7 @@ class ValidationShard(BaseModel):
     requires: tuple[str, ...] = ()
     evidence: Literal["tree", "world"] = "tree"
     findings_command: tuple[str, ...] = ()
+    timeout_seconds: int = Field(default=1800, gt=0)
 
     @field_validator("findings_command")
     @classmethod

@@ -6,7 +6,13 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
-from reposeal.change.models import Plan, Review, Specification
+from reposeal.change.models import (
+    Decision,
+    DecisionStatus,
+    Plan,
+    Review,
+    Specification,
+)
 
 _MAPPING = TypeAdapter(dict[str, object])
 _TABLE_ROW = re.compile(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$")
@@ -29,6 +35,39 @@ def load_specification(path: Path) -> Specification:
     normalized = {key: value for key, value in raw.items() if key in known}
     normalized["extensions"] = extensions
     return Specification.model_validate(normalized, strict=False)
+
+
+_DECISION_FIELDS = {
+    "status": "status",
+    "supersedes": "supersedes",
+    "superseded by": "superseded_by",
+}
+
+
+def load_decision(path: Path, relative: str) -> Decision:
+    """Read what one decision file declares about its own standing."""
+
+    fields: dict[str, list[str]] = {"supersedes": [], "superseded_by": []}
+    status = "proposed"
+    for line in path.read_text(encoding="utf-8").splitlines():
+        label, separator, value = line.partition(":")
+        if not separator:
+            continue
+        key = _DECISION_FIELDS.get(label.strip().lower())
+        if key is None:
+            continue
+        entries = [item.strip() for item in value.split(",") if item.strip()]
+        if key == "status":
+            status = value.strip().lower() or "proposed"
+        else:
+            fields[key] = [item for item in entries if item.lower() != "none"]
+    known = {item.value for item in DecisionStatus}
+    return Decision(
+        path=relative,
+        status=DecisionStatus(status if status in known else "draft"),
+        supersedes=tuple(fields["supersedes"]),
+        superseded_by=tuple(fields["superseded_by"]),
+    )
 
 
 def load_plan(path: Path, change_id: str) -> Plan:

@@ -74,6 +74,9 @@ batch-deliver <source> <target> <expected-base> <expected-batch-tip>
 ```
 
 `changed` is an optional diagnostic and `batch-continue` is conflict recovery.
+A failed `final` is repaired the ordinary way: fix the member, run `ready`
+again, and `batch-admit` it into the same batch. Re-admitting a member whose
+tip is already in the batch is a documented no-op, so retrying is safe.
 The normal path is workspace, member closure, batch assembly, one frozen final
 gate, and explicit delivery.
 

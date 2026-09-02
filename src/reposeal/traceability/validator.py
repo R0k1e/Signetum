@@ -8,6 +8,8 @@ from pydantic import Field
 from reposeal.change.models import (
     AcceptanceResult,
     ClauseDisposition,
+    Decision,
+    DecisionStatus,
     FrozenModel,
     Plan,
     Review,
@@ -33,6 +35,44 @@ class TraceabilityReport(FrozenModel):
     issues: tuple[TraceabilityIssue, ...]
 
 
+_REFUSED_DECISION_STATUSES = frozenset({DecisionStatus.REJECTED, DecisionStatus.DRAFT})
+
+
+def decision_corpus_issues(
+    decisions: tuple[tuple[str, Decision], ...],
+) -> tuple[TraceabilityIssue, ...]:
+    """Refuse a corpus where a supersession is recorded on one side only.
+
+    A supersession which only the successor records leaves every reader of the
+    superseded decision believing it still stands.
+    """
+
+    by_name = {decision.name: decision for _, decision in decisions}
+    issues: list[TraceabilityIssue] = []
+    for path, decision in decisions:
+        for replaced in decision.supersedes:
+            target = by_name.get(replaced.rsplit("/", 1)[-1])
+            if target is None:
+                issues.append(
+                    TraceabilityIssue(
+                        code="dangling-supersession",
+                        file=path,
+                        field="Supersedes",
+                        reason=f"supersedes an absent decision: {replaced}",
+                    )
+                )
+            elif decision.name not in {item.rsplit("/", 1)[-1] for item in target.superseded_by}:
+                issues.append(
+                    TraceabilityIssue(
+                        code="one-sided-supersession",
+                        file=target.path,
+                        field="Superseded by",
+                        reason=f"does not record its supersession by {decision.name}",
+                    )
+                )
+    return tuple(issues)
+
+
 class TraceabilityValidator:
     """Validate closure without filesystem traversal or evidence interpretation."""
 
@@ -44,8 +84,10 @@ class TraceabilityValidator:
         review: Review,
         specifications: tuple[tuple[str, Specification], ...],
         plans: tuple[tuple[str, Plan], ...],
-        review_ids: frozenset[str] | None = None,
+        review_ids: frozenset[str] | None,
+        decisions: tuple[tuple[str, Decision], ...],
     ) -> TraceabilityReport:
+        decisions_by_path = {path: decision for path, decision in decisions}
         issues: list[TraceabilityIssue] = []
         if review.schema_version != 1:
             issues.append(
@@ -191,6 +233,39 @@ class TraceabilityValidator:
                             path,
                             "specification.decisions",
                             f"missing decision {decision}",
+                        )
+                    )
+                    continue
+                obtained = decisions_by_path.get(decision)
+                if obtained is None:
+                    issues.append(
+                        self._issue(
+                            "unreadable-decision",
+                            path,
+                            "specification.decisions",
+                            f"decision was not loaded: {decision}",
+                        )
+                    )
+                elif obtained.status in _REFUSED_DECISION_STATUSES:
+                    # A proposal is the ordinary state of a decision while its
+                    # own change is in flight, and final already refuses a tree
+                    # holding one. Refuse only what delivery cannot catch.
+                    issues.append(
+                        self._issue(
+                            "unaccepted-decision",
+                            path,
+                            "specification.decisions",
+                            f"decision {decision} declares status {obtained.status.value}",
+                        )
+                    )
+                elif obtained.superseded_by:
+                    replacement = ", ".join(obtained.superseded_by)
+                    issues.append(
+                        self._issue(
+                            "superseded-decision",
+                            path,
+                            "specification.decisions",
+                            f"decision {decision} was superseded by {replacement}",
                         )
                     )
             for deferral in specification.deferrals:

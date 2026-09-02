@@ -1,0 +1,22 @@
+[specification]
+schema_version = 1
+id = "gates-and-citations-state-what-they-check/stated-checks"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-a-gate-states-what-it-checked.md"]
+plan = "changes/gates-and-citations-state-what-they-check/plans/stated-checks.md"
+acceptance = [
+  "Traceability refuses a specification citing a decision which is absent, not accepted, or superseded, and names which of the three it is.",
+  "Traceability refuses a decision corpus where one decision declares Supersedes without the named decision declaring the reciprocal Superseded by.",
+  "Delivery writes the reciprocal Superseded by entry into the superseded decision when it numbers a proposal which supersedes one.",
+  "The superseded evidence-protocol decision records its successor, and no shipped specification cites a superseded decision.",
+  "A shard exceeding its declared time bound fails its gate with a diagnostic naming the shard and the bound, and no shard executes without a bound.",
+  "Batch admission and continuation refuse while another process holds the batch, naming the holder, and release the lock when the process ends.",
+  "The public operation documentation states that a failed final is repaired by closing the member again and re-admitting it.",
+  "A regression proves every gate shard depends on the shard which establishes the environment, so a gate in a fresh worktree does not depend on who created it.",
+]
+
+[specification.review]
+id = "gates-and-citations-state-what-they-check"
+clauses = ["STATE-001", "STATE-002", "STATE-003", "STATE-004", "STATE-005", "STATE-006"]
