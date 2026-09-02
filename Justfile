@@ -1,6 +1,6 @@
 set positional-arguments
 
-_reposeal *args:
+_signetum *args:
     mise exec -- uv run --no-project python .agents/repo-dev/runtime/lifecycle.py {{args}}
 
 # Authoring utility; not a lifecycle operation.
@@ -8,25 +8,25 @@ change-open name:
     mise exec -- uv run --no-project python .agents/repo-dev/runtime/change_open.py {{name}}
 
 workspace-open branch base:
-    just _reposeal workspace-open {{branch}} {{base}}
+    just _signetum workspace-open {{branch}} {{base}}
 
-changed base *args:
-    just _reposeal changed {{base}} {{args}}
+changed *args:
+    just _signetum changed {{args}}
 
-ready base:
-    just _reposeal ready {{base}}
+ready:
+    just _signetum ready
 
 batch-open *args:
-    just _reposeal batch-open {{args}}
+    just _signetum batch-open {{args}}
 
 batch-admit batch *args:
-    just _reposeal batch-admit --batch {{batch}} {{args}}
+    just _signetum batch-admit --batch {{batch}} {{args}}
 
 batch-continue batch:
-    just _reposeal batch-continue --batch {{batch}}
+    just _signetum batch-continue --batch {{batch}}
 
 final:
-    just _reposeal final
+    just _signetum final
 
 batch-deliver source target expected-base expected-batch-tip:
-    just _reposeal batch-deliver {{source}} {{target}} {{expected-base}} {{expected-batch-tip}}
+    just _signetum batch-deliver {{source}} {{target}} {{expected-base}} {{expected-batch-tip}}

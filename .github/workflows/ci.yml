@@ -1,4 +1,4 @@
-name: RepoSeal
+name: Signetum
 
 on:
   pull_request:

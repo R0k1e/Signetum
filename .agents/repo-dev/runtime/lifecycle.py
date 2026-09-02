@@ -1,4 +1,4 @@
-"""Self-contained lifecycle authority for explicit RepoSeal batch delivery."""
+"""Self-contained lifecycle authority for explicit Signetum batch delivery."""
 
 from __future__ import annotations
 
@@ -11,9 +11,14 @@ import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tomllib
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from fnmatch import fnmatch
 from pathlib import Path
 from shutil import which
+from urllib.parse import quote
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from deviations import DeviationError, approval_view, reconciliation_summary
 
 
 class AdmissionError(ValueError):
@@ -38,7 +43,11 @@ def _mise_executable() -> str:
 
 
 def _run_tool(
-    repository: Path, command: tuple[str, ...], *, capture_output: bool = True
+    repository: Path,
+    command: tuple[str, ...],
+    *,
+    capture_output: bool = True,
+    required: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     for name in tuple(environment):
@@ -58,6 +67,8 @@ def _run_tool(
         env=environment,
         text=True,
     )
+    if not required:
+        return completed
     if completed.returncode != 0:
         diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
         detail = diagnostic or f"Mise could not execute {command[0]}"
@@ -126,13 +137,73 @@ def _registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:
     return matches[0]
 
 
-def _receipt_root(repository: Path) -> Path:
+def _state_root(repository: Path) -> Path:
     common = Path(_git(repository, "rev-parse", "--git-common-dir"))
     if not common.is_absolute():
         common = repository / common
-    root = common.resolve() / "reposeal-receipts"
-    root.mkdir(exist_ok=True)
+    return common.resolve() / "signetum"
+
+
+def _receipt_root(repository: Path) -> Path:
+    root = _state_root(repository) / "validation"
+    root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def _record_path(repository: Path, branch: str) -> Path:
+    return _state_root(repository) / "workspaces" / f"{quote(branch, safe='')}.json"
+
+
+def _record_workspace(
+    repository: Path, branch: str, base: str, kind: str, members: tuple[str, ...] = ()
+) -> None:
+    path = _record_path(repository, branch)
+    if path.is_file():
+        existing = _read_record(repository, branch)
+        if existing["base"] != base:
+            raise AdmissionError(
+                f"workspace {branch} is already recorded at base {existing['base']}"
+            )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "branch": branch,
+                "base": base,
+                "kind": kind,
+                "members": list(members),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _read_record(repository: Path, branch: str) -> dict[str, object]:
+    path = _record_path(repository, branch)
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        # A base is never guessed. A workspace created before this record
+        # existed is adopted by writing the base a human knows it was cut from.
+        raise AdmissionError(f"workspace {branch} has no recorded base at {path}") from error
+    except (OSError, json.JSONDecodeError) as error:
+        raise AdmissionError(f"workspace record for {branch} is unreadable: {error}") from error
+    if not isinstance(document, dict) or document.get("schema_version") != 1:
+        raise AdmissionError(f"unsupported workspace record schema for {branch}")
+    base = document.get("base")
+    if not isinstance(base, str) or re.fullmatch(r"[0-9a-f]{40,64}", base) is None:
+        raise AdmissionError(f"workspace record for {branch} has no exact base")
+    return document
+
+
+def _recorded_base(repository: Path, branch: str | None = None) -> str:
+    """Return the base this workspace was cut from; the record is the authority."""
+
+    resolved = branch if branch is not None else _branch(repository)
+    return str(_read_record(repository, resolved)["base"])
 
 
 def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> Path:
@@ -143,25 +214,316 @@ def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> P
     return target
 
 
-def _run_gate(repository: Path, kind: str) -> None:
-    manifest = repository / "reposeal.toml"
+def _manifest(repository: Path) -> dict[str, object]:
+    manifest = repository / "signetum.toml"
     try:
         data = tomllib.loads(manifest.read_text(encoding="utf-8"))
         if data.get("schema_version") != 2:
-            raise AdmissionError("unsupported reposeal.toml schema")
-        commands = data["validation"][kind]
+            raise AdmissionError("unsupported signetum.toml schema")
     except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
         raise AdmissionError(f"invalid validation authority: {error}") from error
-    if not isinstance(commands, list) or not commands:
-        raise AdmissionError(f"validation.{kind} must contain at least one command")
-    for command in commands:
+    return data
+
+
+def _mapping(value: object, label: str) -> dict[str, object]:
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        raise AdmissionError(f"{label} must be an object")
+    return value
+
+
+def _array(value: object, label: str) -> list[object]:
+    if not isinstance(value, list):
+        raise AdmissionError(f"{label} must be an array")
+    return value
+
+
+def _strings(value: object, label: str) -> list[str]:
+    raw = _array(value, label)
+    result: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            raise AdmissionError(f"{label} must contain strings")
+        result.append(item)
+    return result
+
+
+def _command_digest(command: tuple[str, ...]) -> str:
+    encoded = json.dumps(list(command), separators=(",", ":")).encode()
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _parse_findings(document: str) -> list[dict[str, str]]:
+    """Read the tool-neutral findings document a world shard must emit."""
+
+    try:
+        raw = json.loads(document)
+    except json.JSONDecodeError as error:
+        raise AdmissionError(f"findings document is not JSON: {error.msg}") from error
+    if not isinstance(raw, dict) or raw.get("schema_version") != 1:
+        raise AdmissionError("unsupported findings document")
+    entries = raw.get("findings")
+    if not isinstance(entries, list):
+        raise AdmissionError("findings must be an array")
+    findings: list[dict[str, str]] = []
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != {"id", "locator", "summary"}:
+            raise AdmissionError("each finding declares exactly id, locator, and summary")
+        if not all(isinstance(entry[field], str) and entry[field] for field in entry):
+            raise AdmissionError("finding fields must be non-empty strings")
+        findings.append({key: str(value) for key, value in entry.items()})
+    return findings
+
+
+@dataclass(frozen=True)
+class _Waiver:
+    """One tracked, approved, expiring exception for named world findings."""
+
+    id: str
+    shard: str
+    findings: tuple[str, ...]
+    expires: date
+
+
+@dataclass(frozen=True)
+class _Coverage:
+    """Why a failing world shard was or was not covered."""
+
+    covered: bool
+    waivers: tuple[str, ...]
+    findings: tuple[str, ...]
+    uncovered: tuple[str, ...]
+    expired: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _Shard:
+    """One declared validation shard and how its verdict is determined."""
+
+    name: str
+    command: tuple[str, ...]
+    evidence: str
+    findings_command: tuple[str, ...]
+
+
+def _load_waivers(repository: Path) -> tuple[_Waiver, ...]:
+    """Read every tracked, human-approved world finding waiver."""
+
+    waivers: list[_Waiver] = []
+    identities: set[str] = set()
+    for path in sorted(repository.glob("changes/*/waivers/*.toml")):
+        relative = path.relative_to(repository).as_posix()
+        try:
+            document = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError) as error:
+            raise AdmissionError(f"{relative}: {error}") from error
+        if set(document) != {"waiver"}:
+            raise AdmissionError(f"{relative}: file must declare exactly one [waiver] table")
+        waiver = _mapping(document["waiver"], "waiver")
+        missing = {"schema_version", "id", "shard", "findings", "reason", "approved_by", "expires"}
+        missing -= set(waiver)
+        if missing:
+            raise AdmissionError(f"{relative}: waiver is missing {', '.join(sorted(missing))}")
+        if waiver["schema_version"] != 1:
+            raise AdmissionError(f"{relative}: unsupported waiver schema")
+        expires = waiver["expires"]
+        if isinstance(expires, str):
+            try:
+                expires = date.fromisoformat(expires)
+            except ValueError as error:
+                raise AdmissionError(f"{relative}: waiver expiry must be a date") from error
+        if not isinstance(expires, date):
+            raise AdmissionError(f"{relative}: waiver expiry must be a date")
+        identity = str(waiver["id"])
+        if identity in identities:
+            raise AdmissionError(f"duplicate waiver identities: {identity}")
+        identities.add(identity)
+        waivers.append(
+            _Waiver(
+                identity,
+                str(waiver["shard"]),
+                tuple(_strings(waiver["findings"], "waiver.findings")),
+                expires,
+            )
+        )
+    return tuple(waivers)
+
+
+def _cover_findings(
+    shard: str,
+    findings: list[dict[str, str]],
+    waivers: tuple[_Waiver, ...],
+    today: date,
+) -> _Coverage:
+    """Decide whether live authority covers every reported finding."""
+
+    applicable = [item for item in waivers if item.shard == shard]
+    reported = tuple(sorted({finding["id"] for finding in findings}))
+    used: set[str] = set()
+    uncovered: list[str] = []
+    expired: set[str] = set()
+    for identifier in reported:
+        covering = sorted(
+            item.id for item in applicable if identifier in item.findings and item.expires >= today
+        )
+        if covering:
+            used.update(covering)
+            continue
+        uncovered.append(identifier)
+        expired.update(
+            item.id for item in applicable if identifier in item.findings and item.expires < today
+        )
+    return _Coverage(
+        covered=bool(reported) and not uncovered,
+        waivers=tuple(sorted(used)),
+        findings=reported,
+        uncovered=tuple(uncovered),
+        expired=tuple(sorted(expired)),
+    )
+
+
+def _member_shards(
+    manifest: dict[str, object], selection: dict[str, object]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return the member shards to execute and the world shards left to final.
+
+    Member closure stays a function of the observed tree, so a world shard
+    reached through an impact rule or a composed gate is deferred rather than
+    allowed to make an unrelated member unclosable.
+    """
+
+    validation = _mapping(manifest.get("validation"), "validation")
+    raw_shards = validation["shards"]
+    if not isinstance(raw_shards, list):
+        raise AdmissionError("validation.shards must be an array")
+    world = {
+        str(shard["name"])
+        for item in raw_shards
+        for shard in (_mapping(item, "validation shard"),)
+        if shard.get("evidence", "tree") == "world"
+    }
+    raw_gates = validation["gates"]
+    if not isinstance(raw_gates, list):
+        raise AdmissionError("validation.gates must be an array")
+    gates = {
+        str(gate["name"]): _strings(gate["shards"], "gate.shards")
+        for item in raw_gates
+        for gate in (_mapping(item, "validation gate"),)
+    }
+    selected = _strings(validation.get("member_required", []), "member_required")
+    deferred: list[str] = []
+
+    def admit(name: str) -> None:
+        if name in world:
+            if name not in deferred:
+                deferred.append(name)
+        elif name not in selected:
+            selected.append(name)
+
+    for name in _strings(selection["shards"], "selection.shards"):
+        admit(name)
+    for name in _strings(selection["gates"], "selection.gates"):
+        for shard_name in gates.get(name, ()):
+            admit(shard_name)
+    if selection["unexplained"]:
+        for shard_name in gates["member"]:
+            admit(shard_name)
+    return tuple(selected), tuple(sorted(deferred))
+
+
+def _run_gate(
+    repository: Path, kind: str, selected_shards: tuple[str, ...] | None = None
+) -> list[dict[str, object]]:
+    """Execute one gate and return the outcome recorded for every shard.
+
+    Every shard whose dependencies held runs even after an earlier shard
+    failed, so one run reports every independent problem it can observe.
+    """
+
+    data = _manifest(repository)
+    validation = data.get("validation")
+    if not isinstance(validation, dict):
+        raise AdmissionError("validation graph is unavailable")
+    raw_shards = validation.get("shards")
+    raw_gates = validation.get("gates")
+    if not isinstance(raw_shards, list) or not isinstance(raw_gates, list):
+        raise AdmissionError("validation graph must contain shards and gates")
+    declared: dict[str, _Shard] = {}
+    for shard in raw_shards:
+        if not isinstance(shard, dict) or not isinstance(shard.get("name"), str):
+            raise AdmissionError("validation shard is invalid")
+        command = shard.get("command")
         if (
             not isinstance(command, list)
             or not command
             or not all(isinstance(argument, str) and argument for argument in command)
         ):
-            raise AdmissionError(f"validation.{kind} commands must be non-empty argv lists")
-        _run_tool(repository, tuple(command), capture_output=False)
+            raise AdmissionError("validation shard commands must be non-empty argv lists")
+        evidence = str(shard.get("evidence", "tree"))
+        if evidence not in ("tree", "world"):
+            raise AdmissionError(f"unsupported evidence class: {shard['name']}")
+        findings_command = tuple(
+            _strings(shard.get("findings_command", []), "shard.findings_command")
+        )
+        if findings_command and evidence != "world":
+            raise AdmissionError(f"only a world shard reports findings: {shard['name']}")
+        declared[shard["name"]] = _Shard(shard["name"], tuple(command), evidence, findings_command)
+    gate = next(
+        (item for item in raw_gates if isinstance(item, dict) and item.get("name") == kind),
+        None,
+    )
+    if gate is None or not isinstance(gate.get("shards"), list):
+        raise AdmissionError(f"validation gate is unavailable: {kind}")
+    names = tuple(gate["shards"]) if selected_shards is None else selected_shards
+    waivers = _load_waivers(repository)
+    today = datetime.now(UTC).date()
+    outcomes: list[dict[str, object]] = []
+    failures: list[str] = []
+    for name in names:
+        shard = declared.get(name)
+        if shard is None:
+            raise AdmissionError(f"validation shard is unavailable: {name}")
+        observed_at = datetime.now(UTC).isoformat() if shard.evidence == "world" else None
+        completed = _run_tool(repository, shard.command, capture_output=False, required=False)
+        outcome: dict[str, object] = {
+            "name": name,
+            "command_digest": _command_digest(shard.command),
+            "evidence": shard.evidence,
+            "status": "passed",
+            "observed_at": observed_at,
+            "waivers": [],
+            "findings": [],
+        }
+        if completed.returncode == 0:
+            outcomes.append(outcome)
+            continue
+        if shard.evidence != "world":
+            failures.append(f"validation shard failed: {name}")
+            continue
+        if not shard.findings_command:
+            failures.append(f"world shard failed and declares no findings command: {name}")
+            continue
+        reported = _run_tool(repository, shard.findings_command, required=False)
+        try:
+            findings = _parse_findings(reported.stdout)
+        except AdmissionError as error:
+            failures.append(f"{name}: {error}")
+            continue
+        coverage = _cover_findings(name, findings, waivers, today)
+        if not coverage.covered:
+            detail = [f"world shard {name} reported unwaived findings"]
+            if coverage.uncovered:
+                detail.append("uncovered: " + ", ".join(coverage.uncovered))
+            if coverage.expired:
+                detail.append("expired waivers: " + ", ".join(coverage.expired))
+            failures.append("; ".join(detail))
+            continue
+        outcome["status"] = "waived"
+        outcome["waivers"] = list(coverage.waivers)
+        outcome["findings"] = list(coverage.findings)
+        outcomes.append(outcome)
+    if failures:
+        raise AdmissionError("; ".join(failures))
+    return sorted(outcomes, key=lambda item: str(item["name"]))
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -184,51 +546,199 @@ def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object
     workspace = _registered_workspace(root, branch)
     if workspace.head != source:
         raise AdmissionError("Worktrunk workspace does not match the exact approved base")
+    _record_workspace(root, branch, source, "member")
     return {
         "schema_version": 1,
         "status": "opened",
         "branch": branch,
-        "base": base,
+        "base": source,
         "source": source,
         "worktree": str(workspace.path),
     }
 
 
-def changed(repository: Path, base: str, explain: bool) -> dict[str, object]:
+def changed(repository: Path, explain: bool) -> dict[str, object]:
+    base = _recorded_base(repository)
     files = tuple(
         filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
     )
+    try:
+        manifest = _manifest(repository)
+        impact = _mapping(manifest.get("impact"), "impact")
+        rules = [_mapping(item, "impact rule") for item in _array(impact["rules"], "impact.rules")]
+    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
+        raise AdmissionError(f"invalid impact authority: {error}") from error
+    matched: list[dict[str, object]] = []
+    unexplained: list[str] = []
+    for path in files:
+        selected = [
+            rule
+            for rule in rules
+            if any(
+                fnmatch(path, pattern)
+                or (pattern.endswith("/**") and path == pattern.removesuffix("/**"))
+                for pattern in _strings(rule.get("paths", []), "impact.paths")
+            )
+        ]
+        if not selected:
+            unexplained.append(path)
+        for rule in selected:
+            if rule not in matched:
+                matched.append(rule)
+
+    def union(field: str) -> list[str]:
+        values: list[str] = []
+        for rule in matched:
+            raw_values = rule.get(field, [])
+            if not isinstance(raw_values, list):
+                raise AdmissionError(f"impact rule {field} must be an array")
+            for value in raw_values:
+                if not isinstance(value, str):
+                    raise AdmissionError(f"impact rule {field} values must be strings")
+                if value not in values:
+                    values.append(value)
+        return values
+
+    selection = {
+        "changed_paths_digest": "sha256:"
+        + hashlib.sha256(json.dumps(files, separators=(",", ":")).encode()).hexdigest(),
+        "rules": [rule["name"] for rule in matched],
+        "profiles": union("profiles"),
+        "gates": union("gates"),
+        "shards": union("shards"),
+        "modified_tests": [
+            path
+            for path in files
+            if path.startswith("tests/") or "/tests/" in path or Path(path).name.startswith("test_")
+        ],
+        "external_obligations": [],
+        "unexplained": unexplained,
+        "requires_final": bool(unexplained)
+        or any(rule.get("requires_final") is True for rule in matched),
+        "reasons": [f"impact rule {rule['name']} matched" for rule in matched],
+    }
     return {
         "schema_version": 1,
         "status": "changed",
         "base": base,
         "source": _git(repository, "rev-parse", "HEAD"),
         "files": files,
-        "requires_final": bool(files),
+        "selection": selection,
+        "rules": selection["rules"],
+        "profiles": selection["profiles"],
+        "gates": selection["gates"],
+        "shards": selection["shards"],
+        "unexplained": selection["unexplained"],
+        "requires_final": selection["requires_final"],
         "explain": explain,
     }
 
 
-def validate(repository: Path, base: str | None, kind: str) -> dict[str, object]:
+def validate(repository: Path, kind: str) -> dict[str, object]:
     _require_clean(repository)
     source = _git(repository, "rev-parse", "HEAD")
+    base = None if kind == "final" else _recorded_base(repository)
     if base is not None and source == _git(repository, "rev-parse", base):
         raise AdmissionError("source has no commits beyond the approved base")
-    evidence_base = _batch_base(repository, source) if kind == "final" else None
+    evidence_base = _recorded_base(repository) if kind == "final" else None
     if kind == "final":
         proposals = _proposal_paths(repository)
         if proposals:
             raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
         _require_numbering_base(repository, evidence_base, source)
-    _run_gate(repository, "member" if kind == "member" else "final")
+        # A batch whose tip is still its base admitted nothing, so it carries
+        # no Change identity to reconcile.
+        if evidence_base is None or evidence_base == source or not _hosts_changes(repository):
+            change_ids: tuple[str, ...] = ()
+        else:
+            _, plans = _delivery_provenance(repository, evidence_base, source)
+            change_ids = _change_ids_from_plans(tuple(plans))
+        try:
+            reconciliation = reconciliation_summary(repository, change_ids)
+            approvals = [approval_view(repository, change_id) for change_id in change_ids]
+        except DeviationError as error:
+            raise AdmissionError(f"deviation reconciliation failed: {error}") from error
+    else:
+        reconciliation = None
+        approvals = None
+    gate = "member" if kind == "member" else "final"
+    manifest = _manifest(repository)
+    selection = changed(repository, True)["selection"] if base is not None else None
+    selected_shards: tuple[str, ...] | None = None
+    if isinstance(selection, dict):
+        selected_shards, deferred = _member_shards(manifest, selection)
+        if deferred:
+            selection = dict(selection)
+            selection["reasons"] = list(selection["reasons"]) + [
+                f"world shard {name} deferred to final" for name in deferred
+            ]
+    outcomes = _run_gate(repository, gate, selected_shards)
+    executed_shards = [str(outcome["name"]) for outcome in outcomes]
+    configuration = (repository / "signetum.toml").read_bytes()
+    profiles = _mapping(manifest.get("profiles", {}), "profiles")
+    repository_config = _mapping(manifest.get("repository"), "repository")
+    signetum_config = _mapping(manifest.get("signetum"), "signetum")
+    validation_config = _mapping(manifest.get("validation"), "validation")
+    identity = {
+        "commit": source,
+        "tree": _git(repository, "rev-parse", "HEAD^{tree}"),
+        "base": _git(repository, "rev-parse", base) if base else evidence_base,
+        "configuration": {
+            "path": "signetum.toml",
+            "digest": "sha256:" + hashlib.sha256(configuration).hexdigest(),
+        },
+        "profiles": sorted(_strings(profiles.get("enabled", []), "profiles.enabled")),
+        "graph": "sha256:"
+        + hashlib.sha256(
+            json.dumps(validation_config, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "lockfiles": [
+            {
+                "path": path,
+                "digest": "sha256:" + hashlib.sha256((repository / path).read_bytes()).hexdigest(),
+            }
+            for path in sorted(
+                _strings(repository_config.get("lockfiles", []), "repository.lockfiles")
+            )
+        ],
+        "tools": [],
+    }
     payload = {
-        "schema_version": 1,
+        "schema_version": 3,
         "kind": kind,
         "source": source,
         "base": _git(repository, "rev-parse", base) if base else evidence_base,
         "validated_at": datetime.now(UTC).isoformat(),
         "valid": True,
+        "evidence": {
+            "schema_version": 3,
+            "protocol": signetum_config["evidence_protocol"],
+            "schema_digest": signetum_config["evidence_schema_digest"],
+            "identity": identity,
+            "selection": selection,
+            "execution": {
+                "gates": [gate],
+                "shards": outcomes,
+                "external_obligations": [],
+            },
+            "completeness": {
+                "member": gate == "member",
+                "final": gate == "final",
+                "required_shards": sorted(executed_shards),
+                "world_shards": sorted(
+                    str(outcome["name"]) for outcome in outcomes if outcome["evidence"] == "world"
+                ),
+            },
+            "provenance": {"stable_patch_id": None},
+            "extensions": {},
+            "valid": True,
+        },
     }
+    if reconciliation is not None and approvals is not None:
+        payload["delivery_review"] = {
+            "approvals": approvals,
+            "reconciliation": reconciliation,
+        }
     receipt = _write_receipt(repository, kind, payload)
     return {**payload, "status": "ready" if kind == "member" else "final", "receipt": str(receipt)}
 
@@ -287,23 +797,75 @@ def _commit_plans(repository: Path, commit: str) -> tuple[str, ...]:
     )
 
 
-def _ready_evidence(repository: Path, source: str, base: str) -> str:
-    matches: list[str] = []
-    for path in sorted(_receipt_root(repository).glob("member-*.json")):
+def _hosts_changes(repository: Path) -> bool:
+    """Report whether this tree can hold a Change at all.
+
+    Decided by the specification authority the manifest declares, so a
+    repository which arranges its change packages differently is judged by its
+    own declaration rather than by a directory name assumed here.
+    """
+
+    declared = _mapping(_manifest(repository).get("repository"), "repository")
+    pattern = declared.get("specifications")
+    if not isinstance(pattern, str) or not pattern:
+        raise AdmissionError("repository.specifications must be a non-empty pattern")
+    return any(repository.glob(pattern))
+
+
+def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
+    change_ids: set[str] = set()
+    for plan in plans:
+        path = Path(plan)
+        if len(path.parts) < 4 or path.parts[0] != "changes" or path.parts[2] != "plans":
+            raise AdmissionError(f"Plan is outside one active Change: {plan}")
+        change_ids.add(path.parts[1])
+    if not change_ids:
+        raise AdmissionError("batch carries no active Change identity")
+    return tuple(sorted(change_ids))
+
+
+def _admission_evidence(member: Path, tip: str) -> str:
+    """Locate evidence proving what this member's own selection requires.
+
+    Evidence is matched by observed tree and by shard command digest, never by
+    commit identity, receipt gate, or shard name: an amended trailer, an
+    equivalent rebase, a renamed shard, and a completed final gate all prove
+    the same work.
+    """
+
+    manifest = _manifest(member)
+    selection = changed(member, True)["selection"]
+    if not isinstance(selection, dict):
+        raise AdmissionError("member selection is unavailable")
+    required_names, _ = _member_shards(manifest, selection)
+    validation = _mapping(manifest.get("validation"), "validation")
+    raw_shards = validation["shards"]
+    if not isinstance(raw_shards, list):
+        raise AdmissionError("validation.shards must be an array")
+    commands = {
+        str(shard["name"]): tuple(_strings(shard["command"], "shard.command"))
+        for item in raw_shards
+        for shard in (_mapping(item, "validation shard"),)
+    }
+    required = {_command_digest(commands[name]) for name in required_names}
+    tree = _git(member, "rev-parse", f"{tip}^{{tree}}")
+    for path in sorted(_receipt_root(member).glob("*-lifecycle-*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            evidence = payload["evidence"]
+            proven = {str(outcome["command_digest"]) for outcome in evidence["execution"]["shards"]}
+        except (OSError, json.JSONDecodeError, KeyError, TypeError):
             continue
-        if (
-            payload.get("kind") == "member"
-            and payload.get("source") == source
-            and payload.get("base") == base
-            and payload.get("valid") is True
-        ):
-            matches.append(path.name)
-    if not matches:
-        raise AdmissionError("member has no ready evidence for its exact commit and base")
-    return matches[-1]
+        if evidence["identity"]["tree"] != tree or evidence.get("valid") is not True:
+            continue
+        if required <= proven:
+            return path.name
+    if selection["requires_final"]:
+        rules = ",".join(_strings(selection["rules"], "selection.rules"))
+        return "deferred:requires-final:" + (rules or "unexplained")
+    raise AdmissionError(
+        "member has no evidence proving its selected validation for the exact tree"
+    )
 
 
 def _stable_patch_id(repository: Path, base: str, source: str) -> str:
@@ -329,32 +891,78 @@ def _stable_patch_id(repository: Path, base: str, source: str) -> str:
 
 
 def _proposal_paths(repository: Path) -> tuple[str, ...]:
-    return tuple(
-        line for line in _git(repository, "ls-files", "*ADP-proposal-*.md").splitlines() if line
-    )
+    """Return every decision still declaring itself a proposal.
+
+    A proposal is identified by its declared status, not by its file name: an
+    accepted decision may stay unnumbered, so a name alone cannot say whether
+    one is still awaiting acceptance.
+    """
+
+    paths: list[str] = []
+    for line in _git(repository, "ls-files", "*ADP-*.md").splitlines():
+        if not line:
+            continue
+        candidate = repository / line
+        try:
+            head = candidate.read_text(encoding="utf-8")[:512]
+        except (OSError, UnicodeDecodeError):
+            continue
+        if re.search(r"^Status:\s*Proposed\s*$", head, re.MULTILINE):
+            paths.append(line)
+    return tuple(paths)
 
 
-def _batch_base(repository: Path, tip: str) -> str | None:
+def _attested_base(repository: Path, tip: str) -> str | None:
+    """Read the base a batch's provenance commit attests to.
+
+    This is the durable attestation, not the authority: operations read the
+    workspace record. Delivery compares the two.
+    """
+
     history = _git(repository, "log", "--first-parent", "--format=%B%x00", tip)
-    marker = re.search(r"^RepoSeal-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
-    if marker:
-        return marker.group(1)
-    merges = _git(repository, "rev-list", "--first-parent", "--merges", tip).splitlines()
-    for commit in merges:
-        message = _git(repository, "show", "-s", "--format=%B", commit)
-        match = re.search(r"^RepoSeal-Base:\s*(\S+)$", message, re.MULTILINE)
-        if match:
-            return match.group(1)
-    return None
+    marker = re.search(r"^Signetum-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
+    return marker.group(1) if marker else None
 
 
 def _require_numbering_base(repository: Path, base: str | None, tip: str) -> None:
     if base is None:
         return
     messages = _git(repository, "log", "--first-parent", "--format=%B%x00", f"{base}..{tip}")
-    numbering_bases = re.findall(r"^RepoSeal-Decision-Base:\s*(\S+)$", messages, re.MULTILINE)
+    numbering_bases = re.findall(r"^Signetum-Decision-Base:\s*(\S+)$", messages, re.MULTILINE)
     if numbering_bases and set(numbering_bases) != {base}:
         raise AdmissionError("decision numbering is bound to a different delivery base")
+
+
+def _record_supersession(batch: Path, formal_path: Path) -> None:
+    """Write the reciprocal entry into every decision this one replaces.
+
+    A supersession only the successor records leaves every reader of the
+    replaced decision believing it still stands.
+    """
+
+    decision = batch / formal_path
+    declared = re.search(
+        r"^Supersedes:\s*(.+)$", decision.read_text(encoding="utf-8"), re.MULTILINE
+    )
+    if declared is None:
+        return
+    for reference in (item.strip() for item in declared.group(1).split(",")):
+        if not reference or reference.lower() == "none":
+            continue
+        target = decision.parent / Path(reference).name
+        if not target.is_file():
+            raise AdmissionError(f"decision supersedes an absent decision: {reference}")
+        content = target.read_text(encoding="utf-8")
+        updated, count = re.subn(
+            r"^Superseded by:.*$",
+            f"Superseded by: {formal_path.name}",
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        if count == 0:
+            raise AdmissionError(f"decision declares no supersession field: {reference}")
+        target.write_text(updated, encoding="utf-8")
 
 
 def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
@@ -371,7 +979,7 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
     rewrites: list[dict[str, str]] = []
     for proposal in sorted(proposals):
         proposal_path = Path(proposal)
-        slug = proposal_path.name.removeprefix("ADP-proposal-")
+        slug = proposal_path.name.removeprefix("ADP-")
         formal_path = proposal_path.with_name(f"ADP-{next_number:04d}-{slug}")
         if (batch / formal_path).exists():
             raise AdmissionError(f"formal decision already exists: {formal_path}")
@@ -390,8 +998,15 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
             rewritten = content.replace(proposal, formal_path.as_posix()).replace(
                 old_name, new_name
             )
+            if candidate == batch / formal_path:
+                # Numbering is what accepts a proposal, so the decision it
+                # renames stops declaring itself one.
+                rewritten = re.sub(
+                    r"^Status:\s*Proposed\s*$", "Status: Accepted", rewritten, flags=re.MULTILINE
+                )
             if rewritten != content:
                 candidate.write_text(rewritten, encoding="utf-8")
+        _record_supersession(batch, formal_path)
         rewrites.append({"proposal": proposal, "formal": formal_path.as_posix()})
         next_number += 1
     _git(batch, "add", "-u")
@@ -399,9 +1014,9 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
         batch,
         "commit",
         "-m",
-        "reposeal: allocate formal decision identities",
+        "signetum: allocate formal decision identities",
         "-m",
-        f"RepoSeal-Decision-Base: {base}",
+        f"Signetum-Decision-Base: {base}",
     )
     return rewrites
 
@@ -423,24 +1038,24 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         member_tip = _git(member, "rev-parse", "HEAD")
         batch_tip = _git(batch, "rev-parse", "HEAD")
         plans = _commit_plans(member, member_tip)
-        if not plans:
+        if not plans and _hosts_changes(member):
             raise AdmissionError("member commit has no Delivers Plan trailer")
         record = {"branch": member_branch, "original": member_tip, "worktree": str(member)}
         if _is_ancestor(batch, member_tip, batch_tip):
             unchanged.append(record)
             continue
-        batch_base = _batch_base(batch, batch_tip) or batch_tip
-        ready_evidence = _ready_evidence(member, member_tip, batch_base)
+        batch_base = _recorded_base(batch)
+        ready_evidence = _admission_evidence(member, member_tip)
         patch_id = _stable_patch_id(member, batch_base, member_tip)
         message = "\n".join(
             (
                 f"merge: admit {member_branch}",
                 "",
-                f"RepoSeal-Base: {batch_base}",
-                f"RepoSeal-Original: {member_tip}",
-                f"RepoSeal-Patch-ID: {patch_id}",
-                f"RepoSeal-Ready-Evidence: {ready_evidence}",
-                *(f"RepoSeal-Plan: {plan}" for plan in plans),
+                f"Signetum-Base: {batch_base}",
+                f"Signetum-Original: {member_tip}",
+                f"Signetum-Patch-ID: {patch_id}",
+                f"Signetum-Ready-Evidence: {ready_evidence}",
+                *(f"Signetum-Plan: {plan}" for plan in plans),
             )
         )
         git = _git_executable()
@@ -480,7 +1095,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             }
         )
 
-    decisions = _number_proposals(batch, _batch_base(batch, _git(batch, "rev-parse", "HEAD")) or "")
+    decisions = _number_proposals(batch, _recorded_base(batch))
     return {
         "schema_version": 1,
         "status": "admitted",
@@ -515,7 +1130,7 @@ def continue_batch(batch: Path) -> dict[str, object]:
     if completed.returncode != 0:
         raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
     committed = _git(batch, "rev-parse", "HEAD")
-    batch_base = _batch_base(batch, committed)
+    batch_base = _recorded_base(batch)
     if batch_base is None:
         raise AdmissionError("continued admission has no approved batch base")
     decisions = _number_proposals(batch, batch_base)
@@ -536,14 +1151,23 @@ def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]
     approved_base = _git(repository, "rev-parse", "HEAD")
     opened = workspace_open(repository, branch, "HEAD")
     batch = Path(str(opened["worktree"]))
+    # A batch is a workspace which declares members, so it carries the same
+    # record a member does and its base is read the same way.
+    _record_workspace(
+        repository,
+        branch,
+        approved_base,
+        "batch",
+        tuple(str(member.resolve()) for member in members),
+    )
     _git(
         batch,
         "commit",
         "--allow-empty",
         "-m",
-        "reposeal: open provenance batch",
+        "signetum: open provenance batch",
         "-m",
-        f"RepoSeal-Batch-Format: 1\nRepoSeal-Batch-Base: {approved_base}",
+        f"Signetum-Batch-Format: 1\nSignetum-Batch-Base: {approved_base}",
     )
     result = admit(batch, members)
     return {**result, "status": "opened", "worktree": str(batch)}
@@ -558,8 +1182,11 @@ def batch_deliver(
         raise AdmissionError("source tip differs from expected batch tip")
     if _git(target, "rev-parse", "HEAD") != expected_base:
         raise AdmissionError("target tip differs from expected base")
-    if _batch_base(source, expected_tip) != expected_base:
-        raise AdmissionError("batch numbering and provenance differ from expected base")
+    recorded_base = _recorded_base(source)
+    if recorded_base != expected_base:
+        raise AdmissionError("recorded batch base differs from expected base")
+    if _attested_base(source, expected_tip) != recorded_base:
+        raise AdmissionError("batch provenance does not attest to the recorded base")
     final_receipts = sorted(_receipt_root(source).glob("final-*.json"))
     if not final_receipts:
         raise AdmissionError("no final receipt exists")
@@ -661,12 +1288,12 @@ def _delivery_provenance(
         body = _git(repository, "show", "-s", "--format=%B", merge_commit)
         fields = {
             key: value
-            for key, value in re.findall(r"^RepoSeal-([^:]+):\s*(.+)$", body, re.MULTILINE)
+            for key, value in re.findall(r"^Signetum-([^:]+):\s*(.+)$", body, re.MULTILINE)
         }
         if fields.get("Original") != original:
             raise AdmissionError("admission provenance original does not match merge parent")
         summary = _git(repository, "show", "-s", "--format=%s", original)
-        member_plans = re.findall(r"^RepoSeal-Plan:\s*(.+)$", body, re.MULTILINE)
+        member_plans = re.findall(r"^Signetum-Plan:\s*(.+)$", body, re.MULTILINE)
         plans.update(member_plans)
         members.append(
             {
@@ -729,10 +1356,8 @@ def _parser() -> argparse.ArgumentParser:
     workspace.add_argument("branch")
     workspace.add_argument("base")
     diagnostic = commands.add_parser("changed")
-    diagnostic.add_argument("base")
     diagnostic.add_argument("--explain", action="store_true")
-    readiness = commands.add_parser("ready")
-    readiness.add_argument("base")
+    commands.add_parser("ready")
     opening = commands.add_parser("batch-open")
     opening.add_argument("--member", type=Path, action="append", required=True)
     admission = commands.add_parser("batch-admit")
@@ -756,9 +1381,9 @@ def main(arguments: list[str] | None = None) -> int:
         if parsed.command == "workspace-open":
             result = workspace_open(repository, parsed.branch, parsed.base)
         elif parsed.command == "changed":
-            result = changed(repository, parsed.base, parsed.explain)
+            result = changed(repository, parsed.explain)
         elif parsed.command == "ready":
-            result = validate(repository, parsed.base, "member")
+            result = validate(repository, "member")
         elif parsed.command == "batch-open":
             result = batch_open(repository, tuple(parsed.member))
         elif parsed.command == "batch-admit":
@@ -766,7 +1391,7 @@ def main(arguments: list[str] | None = None) -> int:
         elif parsed.command == "batch-continue":
             result = continue_batch(parsed.batch.resolve())
         elif parsed.command == "final":
-            result = validate(repository, None, "final")
+            result = validate(repository, "final")
         else:
             result = batch_deliver(
                 parsed.source.resolve(),
