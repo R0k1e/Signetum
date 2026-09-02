@@ -1,6 +1,6 @@
 # The evidence protocol is published in one direction
 
-Status: Proposed
+Status: Accepted
 Review date: 2026-09-02
 Supersedes: ADP-0007-unified-validation-evidence.md
 Superseded by: None

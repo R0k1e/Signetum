@@ -4,7 +4,7 @@ id = "protocol-is-published-one-way/published-protocol"
 version = 1
 status = "approved"
 implementation_authorized = true
-decisions = ["docs/decisions/ADP-the-protocol-is-published-in-one-direction.md"]
+decisions = ["docs/decisions/ADP-0009-the-protocol-is-published-in-one-direction.md"]
 plan = "changes/protocol-is-published-one-way/plans/published-protocol.md"
 acceptance = [
   "No shipped source, test, schema, vector, or skill file names a consumer repository or product.",
