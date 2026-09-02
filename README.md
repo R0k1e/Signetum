@@ -1,20 +1,20 @@
-# RepoSeal
+# Signetum
 
-The RepoSeal engine and the rendered Template use independent semantic
+The Signetum engine and the rendered Template use independent semantic
 versions. The package version identifies an engine release; `template_version`
 identifies the clone-ready repository revision and does not mirror the package
 number.
 
 <p align="center">
-  <img src="assets/brand/reposeal-mark-256.png" width="180" alt="RepoSeal logo: a seal holding a verified repository with a Git branch on its flipper">
+  <img src="assets/brand/signetum-mark-256.png" width="180" alt="Signetum logo: a seal holding a verified repository with a Git branch on its flipper">
 </p>
 
-[![CI](https://github.com/R0k1e/RepoSeal/actions/workflows/ci.yml/badge.svg)](https://github.com/R0k1e/RepoSeal/actions/workflows/ci.yml)
+[![CI](https://github.com/R0k1e/Signetum/actions/workflows/ci.yml/badge.svg)](https://github.com/R0k1e/Signetum/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
 **Seal every change with evidence.**
 
-RepoSeal is an Agent-native GitHub Template for teams that want coding Agents to
+Signetum is an Agent-native GitHub Template for teams that want coding Agents to
 work quickly without losing requirements, duplicating repository authorities,
 overwriting parallel work, or delivering a green commit nobody can explain.
 
@@ -26,9 +26,9 @@ It gives a repository one inspectable development lifecycle instead of relying
 on chat history, an Agent's memory, or an unstructured collection of scripts.
 The default branch is a rendered, clone-ready Template. A repository created
 from it owns its copy and evolves independently; there is no upstream
-synchronization contract. RepoSeal engine development stays on the `engine`
+synchronization contract. Signetum engine development stays on the `engine`
 branch; the rendered Template carries only its reviewed, standard-library
-lifecycle runtime and does not install the RepoSeal package.
+lifecycle runtime and does not install the Signetum package.
 
 ## What it provides
 
@@ -43,7 +43,7 @@ lifecycle runtime and does not install the RepoSeal package.
 | Humans retain consequential decisions | Specification, architecture/process/security decisions, scope deferral, acceptance, and delivery remain explicit. |
 | Failed workflows remain recoverable | The lifecycle avoids history rewriting and preserves evidence until remote delivery is confirmed. |
 
-RepoSeal can mechanically prove coverage for requirements that were recorded,
+Signetum can mechanically prove coverage for requirements that were recorded,
 the exact tree that was validated, and what entered a delivery. It cannot prove
 that natural language was interpreted perfectly or that software is defect-free.
 
@@ -91,10 +91,10 @@ gate, and explicit delivery.
 5. Read [Customizing the Template](docs/guides/customizing-the-template.md)
    before changing repository authorities.
 
-See the [documentation map](docs/README.md), [why RepoSeal exists](docs/product/why-reposeal.md),
+See the [documentation map](docs/README.md), [why Signetum exists](docs/product/why-signetum.md),
 and [frequently asked questions](docs/product/frequently-asked-questions.md)
 for evaluation and comparison. If you already use a specification tool, read
-[RepoSeal and specification tools](docs/product/reposeal-and-specification-tools.md).
+[Signetum and specification tools](docs/product/signetum-and-specification-tools.md).
 Copied v0.1 repositories can use the explicit
 [v0.2 adoption guide](docs/guides/upgrading-v0.1-to-v0.2.md).
 
@@ -105,14 +105,14 @@ A complete, non-authoritative teaching artifact is available under
 
 ```bash
 uv sync --locked
-uv run reposeal check product-surface --repository .
-uv run reposeal check traceability --repository .
+uv run signetum check product-surface --repository .
+uv run signetum check traceability --repository .
 uv run pytest
 uv build
 ```
 
-The `reposeal` CLI emits one JSON result and exits nonzero for invalid
-contracts. RepoSeal is both the product and machine protocol identity. See
+The `signetum` CLI emits one JSON result and exits nonzero for invalid
+contracts. Signetum is both the product and machine protocol identity. See
 [Architecture](docs/ARCHITECTURE.md) for current responsibility boundaries.
 
 ## Project boundaries

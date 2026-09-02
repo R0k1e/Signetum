@@ -1,5 +1,5 @@
-from reposeal.impact import select_impact
-from reposeal.manifest import ImpactRule
+from signetum.impact import select_impact
+from signetum.manifest import ImpactRule
 
 
 def test_multiple_language_rules_compose_as_one_deterministic_selection() -> None:

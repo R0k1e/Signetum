@@ -1,4 +1,4 @@
-from reposeal.profiles.python_default import PythonDefaultPaths, python_default_validation
+from signetum.profiles.python_default import PythonDefaultPaths, python_default_validation
 
 
 def test_python_default_contributes_configurable_validation_mapping() -> None:

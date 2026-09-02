@@ -4,7 +4,7 @@ from hashlib import sha256
 
 import pytest
 
-from reposeal.evidence.receipts import (
+from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceIdentity,
     EvidenceReceipt,
@@ -17,7 +17,7 @@ from reposeal.evidence.receipts import (
     combine_shard_evidence,
     verify_gate_evidence,
 )
-from reposeal.resources.schemas import evidence_schema_digest
+from signetum.resources.schemas import evidence_schema_digest
 
 
 def _identity() -> EvidenceIdentity:
@@ -25,7 +25,7 @@ def _identity() -> EvidenceIdentity:
         commit="a" * 40,
         tree="b" * 40,
         base="f" * 40,
-        configuration=ArtifactIdentity("reposeal.toml", "sha256:" + "c" * 64),
+        configuration=ArtifactIdentity("signetum.toml", "sha256:" + "c" * 64),
         profiles=("python-default@2",),
         graph="sha256:" + "d" * 64,
         lockfiles=(ArtifactIdentity("uv.lock", "sha256:" + "e" * 64),),
@@ -69,7 +69,7 @@ def _gate(identity: EvidenceIdentity, gate: str, shards: tuple[str, ...]) -> Evi
         replace(_identity(), commit="f" * 40),
         replace(
             _identity(),
-            configuration=ArtifactIdentity("reposeal.toml", "sha256:" + "1" * 64),
+            configuration=ArtifactIdentity("signetum.toml", "sha256:" + "1" * 64),
         ),
         replace(_identity(), tools=(ToolIdentity("uv", "0.8.15"),)),
     ],

@@ -2,9 +2,9 @@
 
 ## Evaluate
 
-- [Why RepoSeal](product/why-reposeal.md)
+- [Why Signetum](product/why-signetum.md)
 - [Frequently asked questions](product/frequently-asked-questions.md)
-- [RepoSeal and specification tools](product/reposeal-and-specification-tools.md)
+- [Signetum and specification tools](product/signetum-and-specification-tools.md)
 - [Root product overview](../README.md)
 
 ## Adopt

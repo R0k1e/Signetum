@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from reposeal.cli import app
-from reposeal.site import build_site
+from signetum.cli import app
+from signetum.site import build_site
 
 ROOT = Path(__file__).resolve().parents[2]
-CANONICAL = "https://r0k1e.github.io/RepoSeal/"
+CANONICAL = "https://r0k1e.github.io/Signetum/"
 
 
 def test_site_build_emits_an_exact_public_artifact(tmp_path: Path) -> None:
@@ -20,8 +20,8 @@ def test_site_build_emits_an_exact_public_artifact(tmp_path: Path) -> None:
     files = build_site(ROOT, destination)
 
     assert set(files) == {
-        "assets/reposeal-mark.png",
-        "assets/reposeal-social-preview.png",
+        "assets/signetum-mark.png",
+        "assets/signetum-social-preview.png",
         "index.html",
         "robots.txt",
         "sitemap.xml",
@@ -34,8 +34,8 @@ def test_site_build_emits_an_exact_public_artifact(tmp_path: Path) -> None:
         if path.is_file()
     } == set(files)
     assert (
-        hashlib.sha256((destination / "assets/reposeal-mark.png").read_bytes()).digest()
-        == hashlib.sha256((ROOT / "assets/brand/reposeal-mark.png").read_bytes()).digest()
+        hashlib.sha256((destination / "assets/signetum-mark.png").read_bytes()).digest()
+        == hashlib.sha256((ROOT / "assets/brand/signetum-mark.png").read_bytes()).digest()
     )
 
 
@@ -60,7 +60,7 @@ def test_site_pages_expose_bilingual_discovery_metadata(
     assert 'property="og:image"' in html
     assert 'name="twitter:card" content="summary_large_image"' in html
     assert '"@type": "SoftwareApplication"' in html
-    assert "https://github.com/r0k1e/RepoSeal" in html
+    assert "https://github.com/r0k1e/Signetum" in html
     assert "Seal every change with evidence" in html or "让每次变更都有证据" in html
 
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://development-reposeal.invalid/schemas/release-metadata/v1",
+  "$id": "https://development-signetum.invalid/schemas/release-metadata/v1",
   "title": "Development Foundation release metadata",
   "type": "object",
   "additionalProperties": false,

@@ -1,6 +1,6 @@
 # Customizing the Template
 
-A repository created from RepoSeal is an independent repository. Customize
+A repository created from Signetum is an independent repository. Customize
 its copied authorities directly; do not add an upstream Template dependency.
 
 ## Replace product facts first
@@ -12,7 +12,7 @@ placeholder aliases or fallback identities.
 
 ## Preserve the lifecycle boundaries
 
-If the repository keeps the RepoSeal lifecycle, keep its public operations
+If the repository keeps the Signetum lifecycle, keep its public operations
 explicit and non-interactive. Repository commands may project existing
 authorities but must not duplicate selector, receipt, merge, or delivery logic.
 Technology profiles should be selected from repository evidence.
@@ -21,7 +21,7 @@ Technology profiles should be selected from repository evidence.
 
 A shard whose verdict depends on state outside the observed tree declares
 `evidence = "world"` and a `findings_command`. That command must emit the
-RepoSeal findings document, so the translation from a tool's native output
+Signetum findings document, so the translation from a tool's native output
 belongs to a profile or adapter, never to the lifecycle:
 
 ```json

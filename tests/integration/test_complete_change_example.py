@@ -2,12 +2,12 @@ import io
 import json
 from pathlib import Path
 
-from reposeal.status.models import EvidenceSnapshot
-from reposeal.traceability.boundary import (
+from signetum.status.models import EvidenceSnapshot
+from signetum.traceability.boundary import (
     RepositoryInventory,
     TraceabilityManifest,
 )
-from reposeal.traceability.cli import ExitCode, query
+from signetum.traceability.cli import ExitCode, query
 
 ROOT = Path(__file__).parents[2] / "template"
 

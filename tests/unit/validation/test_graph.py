@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 import pytest
 
-from reposeal.validation import (
+from signetum.validation import (
     GateDeclaration,
     GraphContribution,
     ValidationConfiguration,

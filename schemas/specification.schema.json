@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://development-reposeal.invalid/schemas/specification/v1",
+  "$id": "https://development-signetum.invalid/schemas/specification/v1",
   "title": "Specification",
   "type": "object",
   "required": ["schema_version", "id", "version", "status", "implementation_authorized", "review", "plan"],

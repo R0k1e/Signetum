@@ -8,7 +8,7 @@ from shutil import which
 
 import pytest
 
-from reposeal.deviations import (
+from signetum.deviations import (
     DeviationClass,
     DeviationError,
     Discovered,

@@ -3,8 +3,8 @@ from subprocess import CalledProcessError, CompletedProcess
 
 import pytest
 
-from reposeal.traceability import boundary
-from reposeal.traceability.boundary import (
+from signetum.traceability import boundary
+from signetum.traceability.boundary import (
     GitInventoryProvider,
     ReferenceResolver,
     RepositoryInventory,

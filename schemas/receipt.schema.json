@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://development-reposeal.invalid/schemas/receipt/v1",
+  "$id": "https://development-signetum.invalid/schemas/receipt/v1",
   "title": "Traceability evidence receipt",
   "type": "object",
   "additionalProperties": false,

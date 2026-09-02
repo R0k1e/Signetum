@@ -1,6 +1,6 @@
 # Development lifecycle concepts
 
-RepoSeal separates authorities so that a green branch cannot conceal an
+Signetum separates authorities so that a green branch cannot conceal an
 unrecorded requirement or silently redefine requested behavior.
 
 | Artifact | Owns | Does not own |

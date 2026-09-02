@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "reposeal"
+name = "signetum"
 version = "3.0.0"
-description = "RepoSeal: seal every change with evidence"
+description = "Signetum: seal every change with evidence"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-reposeal = "reposeal.cli:app"
+signetum = "signetum.cli:app"
 
 [dependency-groups]
 dev = [
@@ -32,11 +32,11 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/reposeal"]
+packages = ["src/signetum"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"schemas" = "reposeal/resources/schemas/contracts"
-"skills/repo-dev" = "reposeal/resources/skills/repo-dev"
+"schemas" = "signetum/resources/schemas/contracts"
+"skills/repo-dev" = "signetum/resources/skills/repo-dev"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -75,30 +75,30 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 "tests/unit/validation/test_shard_bounds_and_locks.py" = ["S101", "S603", "S607"]
 # Security-boundary rationale: this lifecycle authority invokes the fixed Git
 # executable with tuple arguments after validating repository identities.
-"src/reposeal/lifecycle.py" = ["S603"]
+"src/signetum/lifecycle.py" = ["S603"]
 "template/.agents/repo-dev/runtime/lifecycle.py" = ["S603"]
 "template/.agents/repo-dev/runtime/pip_audit_findings.py" = ["S603"]
 # Security-boundary rationale: the profile adapter resolves pip-audit to an
 # absolute host executable and passes a fixed argument tuple without a shell.
-"src/reposeal/profiles/pip_audit.py" = ["S603"]
+"src/signetum/profiles/pip_audit.py" = ["S603"]
 # Security-boundary rationale: both adapters resolve Git to an absolute host
 # executable and pass validated tuple arguments without a shell.
-"src/reposeal/release/__init__.py" = ["S603"]
-"src/reposeal/traceability/boundary.py" = ["S603"]
+"src/signetum/release/__init__.py" = ["S603"]
+"src/signetum/traceability/boundary.py" = ["S603"]
 # Security-boundary rationale: the validation repository adapter executes only
 # schema-validated argv declarations and an absolute Git executable, never a shell.
-"src/reposeal/validation/repository.py" = ["S603"]
+"src/signetum/validation/repository.py" = ["S603"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["--cov=reposeal", "--cov-report=term-missing", "--cov-fail-under=90"]
+addopts = ["--cov=signetum", "--cov-report=term-missing", "--cov-fail-under=90"]
 
 [tool.coverage.run]
 branch = true
-source = ["reposeal"]
+source = ["signetum"]
 # Lifecycle orchestration is exercised through behavioral Git-boundary tests;
 # excluding the moved authority preserves the v2 coverage boundary.
-omit = ["src/reposeal/lifecycle.py"]
+omit = ["src/signetum/lifecycle.py"]
 
 [tool.ty.environment]
 python-version = "3.12"

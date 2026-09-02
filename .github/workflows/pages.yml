@@ -6,8 +6,8 @@ on:
     paths:
       - "site/**"
       - "assets/brand/**"
-      - "src/reposeal/site.py"
-      - "src/reposeal/cli.py"
+      - "src/signetum/site.py"
+      - "src/signetum/cli.py"
       - ".github/workflows/pages.yml"
       - "uv.lock"
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
         with:
           version: "0.9.28"
       - run: uv sync --locked
-      - run: uv run --no-sync reposeal site build --repository . --destination .pages-artifact
+      - run: uv run --no-sync signetum site build --repository . --destination .pages-artifact
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: .pages-artifact

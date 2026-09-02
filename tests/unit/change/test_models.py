@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
-from reposeal.change.models import (
+from signetum.change.models import (
     Clause,
     Review,
     ReviewSource,

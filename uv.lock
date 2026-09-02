@@ -943,7 +943,7 @@ wheels = [
 ]
 
 [[package]]
-name = "reposeal"
+name = "signetum"
 version = "3.0.0"
 source = { editable = "." }
 dependencies = [

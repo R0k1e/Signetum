@@ -1,10 +1,10 @@
-# RepoSeal
+# Signetum
 
 [English](README.md)
 
 **让每一次 Agent 改动都可追踪、可验证、可并行，并且说得清交付了什么。**
 
-RepoSeal 是语言无关的仓库开发基座，默认提供开箱即用的 Python 配置。它把编码
+Signetum 是语言无关的仓库开发基座，默认提供开箱即用的 Python 配置。它把编码
 Agent 周围的开发流程变成仓库自己的系统，使交付不再依赖聊天记录，也不依赖某个
 Agent 记得之前发生过什么。
 
@@ -19,7 +19,7 @@ Review → Specification → Plan → 隔离 worktree
        → 显式交付 → 人工验收或重新打开
 ```
 
-RepoSeal 把需求记录为稳定 Clause，对照计划影响与真实 Git diff，选择具名验证门禁，
+Signetum 把需求记录为稳定 Clause，对照计划影响与真实 Git diff，选择具名验证门禁，
 隔离并行工作，只验证一个冻结批次，并把交付绑定到精确 Git 身份。
 
 ## 多语言 Profile
@@ -47,7 +47,7 @@ enabled = ["python-default@1", "typescript-local@1"]
 - 并行决策提案只在批次中领取正式 ADP 编号；
 - 交付和人工验收始终是两个不同事实。
 
-RepoSeal 保证需求账目和执行边界。产品架构、行为契约以及测试是否充分，仍由你的
+Signetum 保证需求账目和执行边界。产品架构、行为契约以及测试是否充分，仍由你的
 仓库负责。
 
 ## 开始使用
@@ -62,5 +62,5 @@ RepoSeal 保证需求账目和执行边界。产品架构、行为契约以及�
 [`docs/agent-team-delivery.md`](docs/agent-team-delivery.md) 和
 [`docs/customizing.md`](docs/customizing.md)。
 
-RepoSeal 不是 Agent runtime、编码模型、托管 CI 服务或 Specification 生成器。复制后
-的运行时归仓库自己所有，也不会安装 RepoSeal 包。当前模板版本：`v0.2.0`。
+Signetum 不是 Agent runtime、编码模型、托管 CI 服务或 Specification 生成器。复制后
+的运行时归仓库自己所有，也不会安装 Signetum 包。当前模板版本：`v0.2.0`。

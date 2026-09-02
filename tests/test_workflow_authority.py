@@ -72,7 +72,7 @@ def test_pages_deploys_only_the_engine_owned_exact_artifact() -> None:
     required = (
         "branches: [engine]",
         "workflow_dispatch:",
-        "uv run --no-sync reposeal site build",
+        "uv run --no-sync signetum site build",
         "path: .pages-artifact",
         "pages: write",
         "id-token: write",

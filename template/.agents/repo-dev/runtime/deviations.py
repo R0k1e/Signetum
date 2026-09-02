@@ -1,4 +1,4 @@
-"""Self-contained RepoSeal deviation ledger and human review projections."""
+"""Self-contained Signetum deviation ledger and human review projections."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def _common(repository: Path) -> Path:
 def ledger_path(repository: Path, change_id: str) -> Path:
     if IDENTIFIER.fullmatch(change_id) is None:
         raise DeviationError(f"invalid change identity: {change_id}")
-    return _common(repository) / "reposeal" / "changes" / change_id / "deviations.jsonl"
+    return _common(repository) / "signetum" / "changes" / change_id / "deviations.jsonl"
 
 
 def append_event(repository: Path, event: dict[str, object]) -> Path:

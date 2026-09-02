@@ -2,17 +2,17 @@ from pathlib import Path
 
 import pytest
 
-from reposeal.manifest import ManifestError, load_manifest
+from signetum.manifest import ManifestError, load_manifest
 
-FIXTURE = Path(__file__).parents[3] / "template" / "reposeal.toml"
+FIXTURE = Path(__file__).parents[3] / "template" / "signetum.toml"
 
 
 def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
     manifest = load_manifest(FIXTURE)
 
     assert manifest.schema_version == 2
-    assert manifest.reposeal.protocol == 2
-    assert manifest.reposeal.template_version == "0.2.0"
+    assert manifest.signetum.protocol == 2
+    assert manifest.signetum.template_version == "0.2.0"
     assert manifest.repository.architecture == "docs/ARCHITECTURE.md"
     assert manifest.profiles.enabled == ("python-default@1", "git-worktrunk@1")
     assert manifest.impact.rules[0].shards == (
@@ -32,12 +32,12 @@ def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
 @pytest.mark.parametrize(
     ("name", "text", "message"),
     [
-        ("reposeal.toml", "schema_version = 1\n", "unsupported manifest schema: 1"),
-        ("repository.toml", "schema_version = 2\n", "must be named reposeal.toml"),
+        ("signetum.toml", "schema_version = 1\n", "unsupported manifest schema: 1"),
+        ("repository.toml", "schema_version = 2\n", "must be named signetum.toml"),
         (
-            "reposeal.toml",
+            "signetum.toml",
             """schema_version = 2
-[reposeal]
+[signetum]
 protocol = 2
 template_version = "main"
 [repository]
@@ -46,12 +46,12 @@ specifications = "changes"
 plans = "changes"
 decisions = "docs/decisions"
 """,
-            "reposeal.template_version must be semantic",
+            "signetum.template_version must be semantic",
         ),
         (
-            "reposeal.toml",
+            "signetum.toml",
             """schema_version = 2
-[reposeal]
+[signetum]
 protocol = 2
 template_version = "0.2.0"
 [profiles]
@@ -86,10 +86,10 @@ def test_invalid_manifest_is_rejected(tmp_path: Path, name: str, text: str, mess
     ],
 )
 def test_profile_composition_errors_fail_closed(tmp_path: Path, extra: str, message: str) -> None:
-    path = tmp_path / "reposeal.toml"
+    path = tmp_path / "signetum.toml"
     path.write_text(
         f"""schema_version = 2
-[reposeal]
+[signetum]
 protocol = 2
 template_version = "0.2.0"
 [profiles]
@@ -122,10 +122,10 @@ decisions = "docs/decisions"
 def test_impact_contract_rejects_ambiguous_or_escaping_rules(
     tmp_path: Path, rule: str, message: str
 ) -> None:
-    path = tmp_path / "reposeal.toml"
+    path = tmp_path / "signetum.toml"
     path.write_text(
         f"""schema_version = 2
-[reposeal]
+[signetum]
 protocol = 2
 template_version = "0.2.0"
 [repository]
@@ -145,7 +145,7 @@ decisions = "docs/decisions"
 
 def test_missing_configuration_is_an_invocation_error(tmp_path: Path) -> None:
     with pytest.raises(ManifestError):
-        load_manifest(tmp_path / "reposeal.toml")
+        load_manifest(tmp_path / "signetum.toml")
 
 
 @pytest.mark.parametrize(
@@ -162,10 +162,10 @@ def test_missing_configuration_is_an_invocation_error(tmp_path: Path) -> None:
 def test_validation_graph_is_strict_and_named(
     tmp_path: Path, validation: str, message: str
 ) -> None:
-    path = tmp_path / "reposeal.toml"
+    path = tmp_path / "signetum.toml"
     path.write_text(
         f"""schema_version = 2
-[reposeal]
+[signetum]
 protocol = 2
 template_version = "0.2.0"
 [repository]

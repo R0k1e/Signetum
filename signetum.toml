@@ -1,0 +1,105 @@
+schema_version = 2
+
+[signetum]
+protocol = 2
+template_version = "0.2.0"
+evidence_protocol = "reposeal.validation-evidence@3"
+evidence_schema_digest = "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
+
+[profiles]
+enabled = ["python-default@1", "git-worktrunk@1"]
+
+[repository]
+architecture = "docs/ARCHITECTURE.md"
+specifications = "changes/*/specs/*.toml"
+plans = "changes/*/plans/*.md"
+decisions = "docs/decisions"
+lockfiles = ["uv.lock"]
+
+[[impact.rules]]
+name = "engine.source"
+paths = ["src/**"]
+profiles = ["python-default@1"]
+shards = ["engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
+
+[[impact.rules]]
+name = "engine.unit"
+paths = ["tests/unit/**"]
+profiles = ["python-default@1"]
+shards = ["engine:pytest"]
+
+[[impact.rules]]
+name = "engine.integration"
+paths = ["tests/**", "template/**"]
+profiles = ["python-default@1"]
+shards = ["engine:pytest"]
+requires_final = true
+
+[[impact.rules]]
+name = "engine.toolchain"
+paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**"]
+profiles = ["python-default@1"]
+shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+requires_final = true
+
+[[impact.rules]]
+name = "engine.governance"
+paths = ["changes/**", "docs/**", "README.md", "AGENTS.md", ".agents/**", "signetum.toml"]
+shards = ["engine:precommit"]
+requires_final = true
+
+[validation]
+member_required = ["engine:build", "engine:pytest"]
+
+[[validation.tools]]
+name = "uv"
+identity_command = ["uv", "--version"]
+
+[[validation.shards]]
+name = "engine:sync"
+command = ["uv", "sync", "--locked", "--all-extras", "--dev"]
+
+[[validation.shards]]
+name = "engine:build"
+command = ["uv", "build"]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:precommit"
+command = ["uv", "run", "pre-commit", "run", "--all-files"]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:ruff"
+command = ["uv", "run", "--no-sync", "ruff", "check", "."]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:format"
+command = ["uv", "run", "--no-sync", "ruff", "format", "--check", "."]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:bandit"
+command = ["uv", "run", "--no-sync", "bandit", "-r", "src"]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:pytest"
+command = ["uv", "run", "pytest"]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:audit"
+command = ["uv", "run", "--no-sync", "pip-audit"]
+evidence = "world"
+findings_command = ["uv", "run", "--no-sync", "signetum", "findings", "pip-audit"]
+requires = ["engine:sync"]
+
+[[validation.gates]]
+name = "member"
+shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
+
+[[validation.gates]]
+name = "final"
+shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]

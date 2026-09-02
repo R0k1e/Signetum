@@ -31,7 +31,7 @@ jobs:
       - run: shasum -a 256 dist/* > dist/SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: reposeal-release-${{ github.sha }}
+          name: signetum-release-${{ github.sha }}
           path: dist/
           if-no-files-found: error
       - run: uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz

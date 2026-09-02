@@ -1,14 +1,14 @@
 from pathlib import Path
 
-from reposeal.status.models import (
+from signetum.status.models import (
     DeliveryObservation,
     DerivedState,
     EvidenceSnapshot,
     IntegrationObservation,
     MemberObservation,
 )
-from reposeal.status.projector import project_status
-from reposeal.traceability.loading import (
+from signetum.status.projector import project_status
+from signetum.traceability.loading import (
     load_plan,
     load_review,
     load_specification,

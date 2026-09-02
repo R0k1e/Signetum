@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from reposeal.workspaces import (
+from signetum.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
     read_record,

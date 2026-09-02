@@ -1,6 +1,6 @@
 import pytest
 
-from reposeal.profiles import (
+from signetum.profiles import (
     ProfileDeclaration,
     ProfileError,
     resolve_profiles,

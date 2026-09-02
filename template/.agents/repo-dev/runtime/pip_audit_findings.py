@@ -1,4 +1,4 @@
-"""Emit the RepoSeal findings document for the current pip-audit report.
+"""Emit the Signetum findings document for the current pip-audit report.
 
 A world validation shard reports through this document, never through a tool's
 native output, so the lifecycle can match findings against tracked waivers
@@ -33,7 +33,7 @@ def _dependencies(document: str) -> list[dict[str, Any]]:
 
 
 def translate(document: str) -> str:
-    """Return the RepoSeal findings document for one pip-audit JSON report."""
+    """Return the Signetum findings document for one pip-audit JSON report."""
 
     findings: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()

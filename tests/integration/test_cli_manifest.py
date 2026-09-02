@@ -3,11 +3,11 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from reposeal import release
-from reposeal.cli import app
-from reposeal.traceability.boundary import RepositoryInventory
+from signetum import release
+from signetum.cli import app
+from signetum.traceability.boundary import RepositoryInventory
 
-FIXTURE = Path(__file__).parents[2] / "template" / "reposeal.toml"
+FIXTURE = Path(__file__).parents[2] / "template" / "signetum.toml"
 
 
 def test_cli_validates_manifest_through_public_command() -> None:
@@ -24,7 +24,7 @@ def test_cli_validates_manifest_through_public_command() -> None:
 
 
 def test_cli_reports_one_json_failure(tmp_path: Path) -> None:
-    manifest = tmp_path / "reposeal.toml"
+    manifest = tmp_path / "signetum.toml"
     manifest.write_text("schema_version = 99\n", encoding="utf-8")
 
     result = CliRunner().invoke(app, ["validate", "--manifest", str(manifest)])
@@ -80,7 +80,7 @@ def test_check_product_surface_reports_one_versioned_result() -> None:
 
 def test_check_product_surface_rejects_an_incomplete_inventory(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "reposeal.cli.GitInventoryProvider.read",
+        "signetum.cli.GitInventoryProvider.read",
         lambda self, repository: RepositoryInventory(paths=frozenset()),
     )
 
@@ -101,7 +101,7 @@ def test_check_product_surface_maps_inventory_failure_to_invocation_result(
     def fail(self, repository: Path) -> RepositoryInventory:
         raise OSError("inventory unavailable")
 
-    monkeypatch.setattr("reposeal.cli.GitInventoryProvider.read", fail)
+    monkeypatch.setattr("signetum.cli.GitInventoryProvider.read", fail)
 
     result = CliRunner().invoke(
         app,

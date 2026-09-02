@@ -8,7 +8,7 @@ from types import ModuleType
 
 import pytest
 
-from reposeal import lifecycle as engine_lifecycle
+from signetum import lifecycle as engine_lifecycle
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -39,8 +39,8 @@ def _git_for(files: tuple[str, ...]):
 def test_changed_contract_vectors_are_shared(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    (tmp_path / "reposeal.toml").write_text(
-        (ROOT / "template" / "reposeal.toml").read_text(encoding="utf-8"),
+    (tmp_path / "signetum.toml").write_text(
+        (ROOT / "template" / "signetum.toml").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     vectors = json.loads(
@@ -73,4 +73,4 @@ def test_local_validation_state_has_one_git_common_root(
     common = tmp_path / "common"
     monkeypatch.setattr(runtime, "_git", lambda *args, **kwargs: str(common))
 
-    assert runtime._receipt_root(tmp_path) == common / "reposeal" / "validation"
+    assert runtime._receipt_root(tmp_path) == common / "signetum" / "validation"

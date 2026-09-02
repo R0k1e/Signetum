@@ -23,4 +23,4 @@ validation:
   final: just final
 delivery:
   branch: main
-  state: .reposeal/delivery
+  state: .signetum/delivery

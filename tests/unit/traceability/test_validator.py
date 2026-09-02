@@ -3,7 +3,7 @@ from pathlib import Path
 from hypothesis import given
 from hypothesis import strategies as st
 
-from reposeal.change.models import (
+from signetum.change.models import (
     AcceptanceResult,
     ClauseDisposition,
     Decision,
@@ -13,17 +13,17 @@ from reposeal.change.models import (
     ReviewStatus,
     Specification,
 )
-from reposeal.traceability.boundary import (
+from signetum.traceability.boundary import (
     RepositoryInventory,
     TraceabilityManifest,
 )
-from reposeal.traceability.loading import (
+from signetum.traceability.loading import (
     load_decision,
     load_plan,
     load_review,
     load_specification,
 )
-from reposeal.traceability.validator import TraceabilityValidator
+from signetum.traceability.validator import TraceabilityValidator
 
 FIXTURE = Path("tests/fixtures/changes/valid")
 

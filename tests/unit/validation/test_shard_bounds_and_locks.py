@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
-import reposeal.lifecycle as lifecycle
-from reposeal.validation import (
+import signetum.lifecycle as lifecycle
+from signetum.validation import (
     GateDeclaration,
     GraphContribution,
     ValidationGraphError,
     ValidationShard,
     resolve_validation_graph,
 )
-from reposeal.validation.repository import RepositoryValidationAdapter
+from signetum.validation.repository import RepositoryValidationAdapter
 
 
 def _repository(tmp_path: Path) -> Path:
@@ -22,8 +22,8 @@ def _repository(tmp_path: Path) -> Path:
     (repository / "seed.txt").write_text("seed\n", encoding="utf-8")
     for command in (
         ("git", "init", "-b", "main"),
-        ("git", "config", "user.name", "RepoSeal test"),
-        ("git", "config", "user.email", "reposeal@example.invalid"),
+        ("git", "config", "user.name", "Signetum test"),
+        ("git", "config", "user.email", "signetum@example.invalid"),
         ("git", "add", "."),
         ("git", "commit", "-m", "seed"),
     ):
@@ -89,7 +89,7 @@ def test_the_refusal_names_the_holder(tmp_path: Path) -> None:
 
 def test_every_gate_shard_depends_on_the_shard_which_builds_the_environment() -> None:
     """A gate in a freshly created worktree must not rely on who created it."""
-    manifest = lifecycle.load_manifest(Path(__file__).resolve().parents[3] / "reposeal.toml")
+    manifest = lifecycle.load_manifest(Path(__file__).resolve().parents[3] / "signetum.toml")
     requires = {shard.name: set(shard.requires) for shard in manifest.validation.shards}
     environment = next(
         name for name, needed in requires.items() if not needed and name.endswith(":sync")

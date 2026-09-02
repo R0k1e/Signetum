@@ -10,8 +10,8 @@ from typing import Literal
 
 import pytest
 
-import reposeal.lifecycle as lifecycle
-from reposeal.workspaces import WorkspaceRecord, write_record
+import signetum.lifecycle as lifecycle
+from signetum.workspaces import WorkspaceRecord, write_record
 
 
 def _load_module():
@@ -32,7 +32,7 @@ def _git(repository: Path, *arguments: str) -> str:
 
 MANIFEST = """schema_version = 2
 
-[reposeal]
+[signetum]
 protocol = 2
 template_version = "0.2.0"
 
@@ -74,10 +74,10 @@ MEMBER_COMMAND = ("true",)
 def _repository(path: Path) -> Path:
     path.mkdir()
     _git(path, "init", "-b", "main")
-    _git(path, "config", "user.name", "RepoSeal Tests")
-    _git(path, "config", "user.email", "reposeal@example.invalid")
+    _git(path, "config", "user.name", "Signetum Tests")
+    _git(path, "config", "user.email", "signetum@example.invalid")
     (path / "seed.txt").write_text("seed\n", encoding="utf-8")
-    (path / "reposeal.toml").write_text(MANIFEST, encoding="utf-8")
+    (path / "signetum.toml").write_text(MANIFEST, encoding="utf-8")
     _git(path, "add", ".")
     _git(path, "commit", "-m", "seed")
     return path
@@ -107,7 +107,7 @@ def _evidence_receipt(
             "commit": "a" * 40,
             "tree": tree,
             "base": None,
-            "configuration": {"path": "reposeal.toml", "digest": "sha256:" + "1" * 64},
+            "configuration": {"path": "signetum.toml", "digest": "sha256:" + "1" * 64},
             "profiles": [],
             "graph": "sha256:" + "2" * 64,
             "lockfiles": [],
@@ -150,7 +150,7 @@ def _evidence_receipt(
 def test_delivery_branch_names_are_refused() -> None:
     module = _load_module()
 
-    assert {"main", "master", "product"}.isdisjoint({"batch/reposeal-v2"})
+    assert {"main", "master", "product"}.isdisjoint({"batch/signetum-v2"})
     assert module.AdmissionError
 
 
@@ -233,7 +233,7 @@ def test_delivery_finds_the_receipt_bound_to_the_expected_tip(monkeypatch, tmp_p
 
 def test_manifest_gate_preserves_declared_command_order(tmp_path: Path) -> None:
     module = _load_module()
-    manifest = module.load_manifest(Path(__file__).resolve().parents[1] / "reposeal.toml")
+    manifest = module.load_manifest(Path(__file__).resolve().parents[1] / "signetum.toml")
     graph, _ = module._runtime_validation(manifest)
     shards = {shard.name: shard.command for shard in graph.shards}
     commands = [shards[name] for name in graph.gate("member").shards]
@@ -259,10 +259,10 @@ def test_delivery_provenance_reads_named_member_and_plan_trailer(
         ("show", "-s", "--format=%s", "member-tip"): "feat: deliver member",
         ("show", "-s", "--format=%B", "merge-1"): (
             "merge: admit impl/member\n\n"
-            "RepoSeal-Original: member-tip\n"
-            "RepoSeal-Patch-ID: stable-patch\n"
-            "RepoSeal-Ready-Evidence: member-ready.json\n"
-            "RepoSeal-Plan: changes/example/plans/member.md\n"
+            "Signetum-Original: member-tip\n"
+            "Signetum-Patch-ID: stable-patch\n"
+            "Signetum-Ready-Evidence: member-ready.json\n"
+            "Signetum-Plan: changes/example/plans/member.md\n"
         ),
     }
     monkeypatch.setattr(
@@ -300,7 +300,15 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     _record(batch, "batch/test", base, "batch")
     decision = member / "docs/decisions/ADP-zebra.md"
     decision.parent.mkdir(parents=True)
-    decision.write_text("# Zebra\n\nStatus: Proposed\n\nSee ADP-zebra.md.\n", encoding="utf-8")
+    decision.write_text(
+        "# Zebra\n\nStatus: Proposed\nSupersedes: ADP-yak.md\nSuperseded by: None\n"
+        "\nSee ADP-zebra.md.\n",
+        encoding="utf-8",
+    )
+    (member / "docs/decisions/ADP-yak.md").write_text(
+        "# Yak\n\nStatus: Accepted\nSupersedes: None\nSuperseded by: None\n",
+        encoding="utf-8",
+    )
     plan = "changes/example/plans/member.md"
     (member / "reference.md").write_text(
         "Decision: docs/decisions/ADP-zebra.md\n", encoding="utf-8"
@@ -323,6 +331,11 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     assert formal.is_file()
     assert not (batch / "docs/decisions/ADP-zebra.md").exists()
     assert "Status: Accepted" in formal.read_text(encoding="utf-8")
+    # Numbering records the supersession on the replaced decision too, so no
+    # reader of it is left believing it still stands.
+    assert "Superseded by: ADP-0001-zebra.md" in (batch / "docs/decisions/ADP-yak.md").read_text(
+        encoding="utf-8"
+    )
     assert "ADP-0001-zebra.md" in formal.read_text(encoding="utf-8")
     assert "ADP-0001-zebra.md" in (batch / "reference.md").read_text(encoding="utf-8")
     admitted_members = result["admitted"]
