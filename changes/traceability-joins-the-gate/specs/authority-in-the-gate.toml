@@ -1,0 +1,17 @@
+[specification]
+schema_version = 1
+id = "traceability-joins-the-gate/authority-in-the-gate"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-a-declared-authority-runs-in-a-gate.md"]
+plan = "changes/traceability-joins-the-gate/plans/authority-in-the-gate.md"
+acceptance = [
+  "A member gate run and a final gate run each execute the traceability authority and fail when it reports an issue.",
+  "The repository's traceability result is valid, with the acceptance record naming the commit its own history shows delivered it.",
+  "A regression proves both gates name the traceability shard, so removing it from either fails.",
+]
+
+[specification.review]
+id = "traceability-joins-the-gate"
+clauses = ["GATE-001", "GATE-002"]

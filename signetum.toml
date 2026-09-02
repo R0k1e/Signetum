@@ -39,7 +39,7 @@ requires_final = true
 name = "engine.toolchain"
 paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**"]
 profiles = ["python-default@1"]
-shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+shards = ["engine:sync", "engine:traceability", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
 requires_final = true
 
 [[impact.rules]]
@@ -62,6 +62,11 @@ command = ["uv", "sync", "--locked", "--all-extras", "--dev"]
 [[validation.shards]]
 name = "engine:build"
 command = ["uv", "build"]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:traceability"
+command = ["uv", "run", "--no-sync", "signetum", "check", "traceability", "--repository", "."]
 requires = ["engine:sync"]
 
 [[validation.shards]]
@@ -98,8 +103,8 @@ requires = ["engine:sync"]
 
 [[validation.gates]]
 name = "member"
-shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
+shards = ["engine:sync", "engine:traceability", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
 
 [[validation.gates]]
 name = "final"
-shards = ["engine:sync", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+shards = ["engine:sync", "engine:traceability", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
