@@ -35,6 +35,22 @@ profiles = ["python-default@1"]
 shards = ["python:integration"]
 requires_final = true
 
+[[impact.rules]]
+name = "python.toolchain"
+paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".github/**"]
+profiles = ["python-default@1"]
+shards = [
+  "repository:diff",
+  "python:ruff",
+  "python:format",
+  "python:ty",
+  "python:unit",
+  "python:integration",
+  "python:audit",
+  "python:secrets",
+]
+requires_final = true
+
 [validation]
 member_required = ["repository:diff", "repository:traceability", "python:unit", "python:secrets"]
 

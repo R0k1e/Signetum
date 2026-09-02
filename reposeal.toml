@@ -36,6 +36,13 @@ shards = ["engine:pytest"]
 requires_final = true
 
 [[impact.rules]]
+name = "engine.toolchain"
+paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**"]
+profiles = ["python-default@1"]
+shards = ["engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+requires_final = true
+
+[[impact.rules]]
 name = "engine.governance"
 paths = ["changes/**", "docs/**", "README.md", "AGENTS.md", ".agents/**", "reposeal.toml"]
 shards = ["engine:precommit"]
