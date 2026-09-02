@@ -1,5 +1,5 @@
 [project]
-name = "reposeal-python-template"
+name = "signetum-python-template"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = []
@@ -29,3 +29,4 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
 ".agents/repo-dev/runtime/lifecycle.py" = ["S603"]
+".agents/repo-dev/runtime/pip_audit_findings.py" = ["S603"]

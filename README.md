@@ -1,10 +1,10 @@
-# RepoSeal
+# Signetum
 
 [简体中文](README.zh-CN.md)
 
 **Keep every Agent change traceable, testable, parallel-safe, and explainable.**
 
-RepoSeal is a language-neutral repository development foundation with a
+Signetum is a language-neutral repository development foundation with a
 batteries-included Python default. It turns work around coding Agents into a
 repository-owned system, so delivery does not depend on chat history or one
 Agent remembering what happened.
@@ -21,7 +21,7 @@ Review → Specification → Plan → isolated worktree
        → explicit delivery → human acceptance or reopening
 ```
 
-RepoSeal records stable requirement clauses, compares declared impact with the
+Signetum records stable requirement clauses, compares declared impact with the
 actual Git diff, selects named validation gates, isolates parallel work,
 validates one frozen batch, and binds delivery to exact Git identities.
 
@@ -52,7 +52,7 @@ changing the eight lifecycle operations.
 - Parallel decision proposals receive formal ADP numbers inside the batch.
 - Delivery and human acceptance remain separate facts.
 
-RepoSeal guarantees the accounting and execution boundary. Your repository
+Signetum guarantees the accounting and execution boundary. Your repository
 still owns its architecture, behavioral contracts, and test sufficiency.
 
 ## Start
@@ -68,6 +68,7 @@ See [`docs/development-lifecycle.md`](docs/development-lifecycle.md),
 [`docs/agent-team-delivery.md`](docs/agent-team-delivery.md), and
 [`docs/customizing.md`](docs/customizing.md).
 
-RepoSeal is not an Agent runtime, coding model, hosted CI service, or
+Signetum is not an Agent runtime, coding model, hosted CI service, or
 Specification generator. The copied runtime is repository-owned and does not
-install the RepoSeal package. Template version: `v0.2.0`.
+install the Signetum package. Template revision: `v0.2.0`; it is independent
+from the Signetum engine package version.
