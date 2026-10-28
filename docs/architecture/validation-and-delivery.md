@@ -133,7 +133,7 @@ same command again as a static dependency.
 | workspace-open branch base | Register the exact base before preparation. Retry the same branch/base after preparation failure; refuse a changed base or role. |
 | workspace-sync [--batch path] | Merge a fresh delivery snapshot or an exact same-repository batch snapshot under its lock; never rewrite the member base. |
 | worktree-prepare path | Run the declared prepare gate with its time bounds, without publishing validation evidence. |
-| changed [--explain] | Explain affected checks and whether final is required; it never invokes final. |
+| changed [--explain] | Execute the member-safe affected checks and explain whether final is required; it never invokes final or grants readiness evidence. |
 | ready | Close a clean implementation member using its recorded base and exact-tip evidence. |
 | batch-open --member path [...] | Reuse or create a named batch from the fresh configured delivery base and admit only named members. |
 | batch-admit batch --member path [...] | Capture and merge ready tips, then prepare and run the batch gate. Failure retains the merged state for ordinary fixup/re-admission. |

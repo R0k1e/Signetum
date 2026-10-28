@@ -152,6 +152,9 @@ def changed(repository: Path, explain: bool) -> dict[str, object]:
     manifest = load_manifest(repository / "signetum.toml")
     selected = _selection(repository, base, manifest)
     files = member_contribution_paths(repository, base, _git(repository, "rev-parse", "HEAD"))
+    member_shards, deferred = _member_shards(manifest, selected)
+    graph, _ = _runtime_validation(manifest, member_shards=member_shards)
+    checks = run_diagnostic_gate(repository, graph, "member")
     return {
         "schema_version": 1,
         "status": "changed",
@@ -166,6 +169,8 @@ def changed(repository: Path, explain: bool) -> dict[str, object]:
         "unexplained": selected.unexplained,
         "requires_final": selected.requires_final,
         "explain": explain,
+        "executed": checks["executed"],
+        "deferred_world_shards": deferred,
     }
 
 
