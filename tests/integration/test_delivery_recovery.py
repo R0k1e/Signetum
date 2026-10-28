@@ -1,18 +1,30 @@
 """Delivery survives remote rejection and interruption without losing local state."""
 
+import importlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 from shutil import which
 
 import pytest
 from test_batch_admission import MANIFEST
+from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle
 from signetum.execution_review import execution_review_inputs
 from signetum.manifest import load_manifest
 from signetum.operations import OperationFailed
 from signetum.workspaces import WorkspaceRecord, write_record
+
+
+@pytest.fixture(autouse=True)
+def delivery_frontend(request, monkeypatch):
+    if getattr(request, "param", "engine") == "template":
+        runtime = _template_lifecycle()
+        errors = importlib.import_module("_signetum_runtime.operations")
+        monkeypatch.setattr(sys.modules[__name__], "lifecycle", runtime)
+        monkeypatch.setattr(sys.modules[__name__], "OperationFailed", errors.OperationFailed)
 
 
 def git(repository: Path, *arguments: str) -> str:
@@ -79,6 +91,7 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return source, target, remote, base, tip
 
 
+@pytest.mark.parametrize("delivery_frontend", ["engine", "template"], indirect=True)
 def test_rejected_push_keeps_target_at_base(tmp_path, monkeypatch):
     source, target, remote, base, tip = delivery(tmp_path, monkeypatch)
     hook = remote / "hooks" / "pre-receive"
@@ -97,6 +110,7 @@ def test_rejected_push_keeps_target_at_base(tmp_path, monkeypatch):
     assert git(target, "show", "-s", "--format=%P", landed).split() == [base, tip]
 
 
+@pytest.mark.parametrize("delivery_frontend", ["engine", "template"], indirect=True)
 def test_published_delivery_resumes_local_move(tmp_path, monkeypatch):
     source, target, _, base, tip = delivery(tmp_path, monkeypatch)
     original = lifecycle._git
@@ -119,6 +133,7 @@ def test_published_delivery_resumes_local_move(tmp_path, monkeypatch):
     assert git(target, "rev-parse", "HEAD") == published
 
 
+@pytest.mark.parametrize("delivery_frontend", ["engine", "template"], indirect=True)
 def test_delivery_retries_cleanup_after_target_moved(tmp_path, monkeypatch):
     source, target, _, base, tip = delivery(tmp_path, monkeypatch)
 
@@ -134,6 +149,7 @@ def test_delivery_retries_cleanup_after_target_moved(tmp_path, monkeypatch):
     assert result["remote"] == published
 
 
+@pytest.mark.parametrize("delivery_frontend", ["engine", "template"], indirect=True)
 def test_unrelated_remote_change_is_refused_without_local_move(tmp_path, monkeypatch):
     source, target, remote, base, tip = delivery(tmp_path, monkeypatch)
     git(source, "push", "origin", f"{tip}:refs/heads/other")
@@ -152,3 +168,46 @@ def test_delivery_refuses_a_target_outside_the_validated_policy(tmp_path, monkey
     assert git(target, "rev-parse", "HEAD") == base
     assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
     assert git(target, "ls-remote", "origin", "refs/heads/unintended").split()[0] == base
+
+
+@pytest.mark.parametrize("delivery_frontend", ["engine", "template"], indirect=True)
+def test_unconfirmed_publication_keeps_local_target_and_can_resume(tmp_path, monkeypatch):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+    observe = lifecycle._remote_branch_tip
+    calls = 0
+
+    def unavailable_confirmation(repository, branch):
+        nonlocal calls
+        calls += 1
+        return base if calls == 2 else observe(repository, branch)
+
+    monkeypatch.setattr(lifecycle, "_remote_branch_tip", unavailable_confirmation)
+    with pytest.raises(lifecycle.AdmissionError, match="remote delivery confirmation"):
+        lifecycle.batch_deliver(source, target, base, tip)
+    published = git(target, "ls-remote", "origin", "refs/heads/main").split()[0]
+    assert published != base
+    assert git(target, "rev-parse", "HEAD") == base
+    monkeypatch.setattr(lifecycle, "_remote_branch_tip", observe)
+    assert lifecycle.batch_deliver(source, target, base, tip)["remote"] == published
+    assert git(target, "rev-parse", "HEAD") == published
+
+
+@pytest.mark.parametrize("delivery_frontend", ["engine", "template"], indirect=True)
+def test_matching_parents_with_different_tree_cannot_resume_delivery(tmp_path, monkeypatch):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+    other = git(
+        source,
+        "commit-tree",
+        f"{base}^{{tree}}",
+        "-p",
+        base,
+        "-p",
+        tip,
+        "-m",
+        "unrelated tree with matching parents",
+    )
+    git(source, "push", "origin", f"{other}:refs/heads/main")
+    with pytest.raises(lifecycle.AdmissionError, match="remote delivery branch"):
+        lifecycle.batch_deliver(source, target, base, tip)
+    assert git(target, "rev-parse", "HEAD") == base
+    assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == other

@@ -27,6 +27,7 @@ from signetum.change.scope import (
     require_member_changes,
 )
 from signetum.decision_identity import numbered_targets
+from signetum.delivery import publish_batch
 from signetum.deviations import (
     DeviationError,
     approval_view,
@@ -815,7 +816,6 @@ def batch_deliver(
     _require_clean(target)
     if _git(source, "rev-parse", "HEAD") != expected_tip:
         raise AdmissionError("source tip differs from expected batch tip")
-    target_head = _git(target, "rev-parse", "HEAD")
     recorded_base = _recorded_base(source)
     if recorded_base != expected_base:
         raise AdmissionError("recorded batch base differs from expected base")
@@ -856,47 +856,17 @@ def batch_deliver(
     target_branch = _branch(target)
     if target_branch != delivery_policy(source).branch:
         raise AdmissionError("target branch is not the repository-declared delivery branch")
-    remote_before = _remote_branch_tip(target, target_branch)
-    resumed_commit = None
-    if remote_before != expected_base:
-        _git(source, "fetch", "--no-tags", "origin", f"refs/heads/{target_branch}")
-        parents = _git(source, "show", "-s", "--format=%P", remote_before).split()
-        remote_tree = _git(source, "rev-parse", f"{remote_before}^{{tree}}")
-        source_tree = _git(source, "rev-parse", f"{expected_tip}^{{tree}}")
-        if parents != [expected_base, expected_tip] or remote_tree != source_tree:
-            raise AdmissionError("remote delivery branch differs from expected base")
-        resumed_commit = remote_before
-    if target_head != expected_base and target_head != resumed_commit:
-        raise AdmissionError("target tip differs from expected base or resumed delivery")
-
     members, plans = _delivery_provenance(source, expected_base, expected_tip)
-    if not _is_ancestor(source, expected_base, expected_tip):
-        raise AdmissionError("batch tip does not descend from expected base")
-    if resumed_commit is None:
-        delivery_commit = _git(
-            source,
-            "commit-tree",
-            f"{expected_tip}^{{tree}}",
-            "-p",
-            expected_base,
-            "-p",
-            expected_tip,
-            "-m",
-            f"Merge validated batch {expected_tip}\n\nSignetum-Batch-Base: {expected_base}",
-        )
-        try:
-            _git(source, "push", "origin", f"{delivery_commit}:refs/heads/{target_branch}")
-        except AdmissionError as error:
-            raise OperationFailed(
-                str(error), expected="inspect the remote base and retry batch-deliver"
-            ) from error
-    else:
-        delivery_commit = resumed_commit
-    remote_after = _remote_branch_tip(target, target_branch)
-    if remote_after != delivery_commit:
-        raise AdmissionError("remote delivery confirmation differs from delivered commit")
-
-    _git(target, "merge", "--ff-only", delivery_commit)
+    publication = publish_batch(
+        source,
+        target,
+        expected_base,
+        expected_tip,
+        target_branch,
+        git=_git,
+        remote_tip=_remote_branch_tip,
+        is_ancestor=_is_ancestor,
+    )
     removed_worktrees, retained_worktrees = _cleanup_delivered_worktrees(target, source, members)
     return {
         "schema_version": 1,
@@ -905,8 +875,8 @@ def batch_deliver(
         "source": expected_tip,
         "target": str(target),
         "target_branch": target_branch,
-        "delivery_commit": delivery_commit,
-        "remote": remote_after,
+        "delivery_commit": publication.commit,
+        "remote": publication.remote,
         "members": members,
         "plans": plans,
         "validation": {"final_receipt": str(matching_receipt), "source": expected_tip},

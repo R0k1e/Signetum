@@ -3,6 +3,7 @@ schema_version = 1
 engine_version = "3.0.0"
 
 [sources]
+"signetum.delivery" = "sha256:275c2a92f54df8ecb89afa423f2a0ce95057bd4c8b0666fecaf86f11ef925478" # pragma: allowlist secret
 "signetum.evidence.receipts" = "sha256:880599126441e3a5d67304879b4836e083b3ed21a1cabb053cda30b7441514b4" # pragma: allowlist secret
 "signetum.findings" = "sha256:c6ccc2a4200bc9547d0904dcbacfaeff8baf2e06fe9624a2efa5d6c49c1e5bb2" # pragma: allowlist secret
 "signetum.git" = "sha256:56da8a5607230338bed3f76d93f1d8a4da997ec5e683da7ff7263717ce3e9cdf" # pragma: allowlist secret
@@ -29,6 +30,7 @@ engine_version = "3.0.0"
 [files]
 "__init__.py" = "sha256:8a41ae0cf53735b4f18d2eb1eed15afef82f822be2df3caed4cdc0b00c42d941" # pragma: allowlist secret
 "admission.py" = "sha256:e6a8d34325c90fe1ec36a17b1c24701f632d4abfdad3e2bc1e9f764348dd794b" # pragma: allowlist secret
+"delivery.py" = "sha256:28eec2c539a1f1b4b8ee56f5f3adae60c7478a78e5c2b1e837c8277f076a7cec" # pragma: allowlist secret
 "diagnostic_protocol.py" = "sha256:00d30b443e8f92ee048d5f343491de225b7aab2fb2ba1e34b62a23af8d432270" # pragma: allowlist secret
 "evidence_receipts.py" = "sha256:c5c2b18d68b8eb6de2deba2678055250ef1172d982d84bc21698cca9d2882f64" # pragma: allowlist secret
 "execution.py" = "sha256:c57b5fb4b9aed0f4a58888a1078171f7bb0fc591034c2c0cc5ab5692ad046328" # pragma: allowlist secret
