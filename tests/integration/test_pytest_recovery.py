@@ -240,7 +240,7 @@ import lifecycle
 repository=Path(sys.argv[2])
 try:
     receipt=lifecycle._run_gate(repository,'member')
-except lifecycle.AdmissionError as error:
+except lifecycle.ValidationExecutionError as error:
     print(json.dumps({'reason':str(error)}))
     raise SystemExit(3)
 assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules

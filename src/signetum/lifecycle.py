@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shlex
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
-import tempfile
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
-from typing import Never
 
 from signetum.change.scope import (
     ChangeError,
@@ -35,32 +32,24 @@ from signetum.deviations import (
 )
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
-from signetum.git import GitError, git_output, run_git
+from signetum.git import GitError, GitInfrastructureError, git_output, run_git
 from signetum.impact import select_paths
-from signetum.manifest import ManifestError, RepositoryManifest, load_manifest
+from signetum.manifest import RepositoryManifest, load_manifest
+from signetum.operation_cli import OperationParser, run_operation
 from signetum.operations import (
-    EXIT_CODES,
     AdmissionError,
     InfrastructureError,
     MergeConflict,
-    OperationError,
     OperationFailed,
-    OperationResult,
-    OperationStatus,
 )
 from signetum.policy import delivery_policy
-from signetum.profiles import ProfileError, ProfileResourceError
 from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.synchronization import member_contribution_paths
-from signetum.validation import (
-    ValidationGraphError,
-)
 from signetum.validation.admission import find_member_evidence
 from signetum.validation.configuration import member_shards as _member_shards
 from signetum.validation.execution import (
     ValidationExecutionError,
-    ValidationInfrastructureError,
     ValidationInputs,
     build_evidence_identity,
     execute_gate,
@@ -872,15 +861,8 @@ def _remote_branch_tip(repository: Path, branch: str) -> str:
 def _git_executable() -> str:
     executable = which("git")
     if executable is None:
-        raise AdmissionError("git executable is unavailable")
+        raise GitInfrastructureError("Git executable is unavailable")
     return executable
-
-
-class OperationParser(argparse.ArgumentParser):
-    """Keep invalid lifecycle invocations in the result contract."""
-
-    def error(self, message: str) -> Never:
-        raise AdmissionError(message, expected="inspect lifecycle --help and correct arguments")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -921,99 +903,55 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
+    parsed = _parser().parse_args(supplied)
+    result: dict[str, object]
+    if parsed.command == "workspace-open":
+        result = workspace_open(repository, parsed.branch, parsed.base)
+    elif parsed.command == "workspace-sync":
+        result = workspace_sync(repository, parsed.batch.resolve() if parsed.batch else None)
+    elif parsed.command == "worktree-prepare":
+        result = dict(worktree_prepare(parsed.worktree.resolve()))
+    elif parsed.command == "cleanup":
+        result = cleanup(
+            repository,
+            worktree=parsed.worktree,
+            branch=parsed.branch,
+            all_delivered=parsed.all_delivered,
+            discard=parsed.discard,
+            protected_worktrees=tuple(parsed.protected_worktree),
+        )
+    elif parsed.command == "batch-discard":
+        result = batch_discard(parsed.batch.resolve())
+    elif parsed.command == "changed":
+        result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
+    elif parsed.command == "ready":
+        result = validate(repository, "member")
+    elif parsed.command == "batch-open":
+        result = batch_open(repository, tuple(parsed.member))
+    elif parsed.command == "batch-admit":
+        result = admit(parsed.batch.resolve(), tuple(parsed.member))
+    elif parsed.command == "batch-continue":
+        result = continue_batch(parsed.batch.resolve())
+    elif parsed.command == "final":
+        result = validate(repository, "final")
+    else:
+        result = batch_deliver(
+            parsed.source.resolve(),
+            parsed.target.resolve(),
+            parsed.expected_base,
+            parsed.expected_batch_tip,
+        )
+    return result
+
+
 def main(arguments: list[str] | None = None) -> int:
     supplied = sys.argv[1:] if arguments is None else arguments
     operation = supplied[0] if supplied else "lifecycle"
     repository = Path.cwd().resolve()
-    try:
-        parsed = _parser().parse_args(supplied)
-        result: dict[str, object]
-        if parsed.command == "workspace-open":
-            result = workspace_open(repository, parsed.branch, parsed.base)
-        elif parsed.command == "workspace-sync":
-            result = workspace_sync(repository, parsed.batch.resolve() if parsed.batch else None)
-        elif parsed.command == "worktree-prepare":
-            result = dict(worktree_prepare(parsed.worktree.resolve()))
-        elif parsed.command == "cleanup":
-            result = cleanup(
-                repository,
-                worktree=parsed.worktree,
-                branch=parsed.branch,
-                all_delivered=parsed.all_delivered,
-                discard=parsed.discard,
-                protected_worktrees=tuple(parsed.protected_worktree),
-            )
-        elif parsed.command == "batch-discard":
-            result = batch_discard(parsed.batch.resolve())
-        elif parsed.command == "changed":
-            result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
-        elif parsed.command == "ready":
-            result = validate(repository, "member")
-        elif parsed.command == "batch-open":
-            result = batch_open(repository, tuple(parsed.member))
-        elif parsed.command == "batch-admit":
-            result = admit(parsed.batch.resolve(), tuple(parsed.member))
-        elif parsed.command == "batch-continue":
-            result = continue_batch(parsed.batch.resolve())
-        elif parsed.command == "final":
-            result = validate(repository, "final")
-        else:
-            result = batch_deliver(
-                parsed.source.resolve(),
-                parsed.target.resolve(),
-                parsed.expected_base,
-                parsed.expected_batch_tip,
-            )
-    except (
-        OperationError,
-        ManifestError,
-        ProfileError,
-        ValidationGraphError,
-        ValidationExecutionError,
-        WorkspaceError,
-        GitError,
-        OSError,
-    ) as error:
-        if isinstance(error, OperationError):
-            status = error.status
-            expected = error.expected
-        elif isinstance(error, (ValidationInfrastructureError, ProfileResourceError)):
-            status = OperationStatus.INFRASTRUCTURE_ERROR
-            expected = "restore the declared validation inputs and tools, then retry"
-        elif isinstance(error, ValidationExecutionError):
-            status = OperationStatus.FAILED
-            expected = "repair the failing checks and retry the operation"
-        elif isinstance(error, OSError):
-            status = OperationStatus.INFRASTRUCTURE_ERROR
-            expected = "restore the required executable or filesystem and retry"
-        else:
-            status = OperationStatus.INVALID
-            expected = "correct the repository manifest and retry"
-        log = _archive_operation_failure(repository, str(error))
-        print(f"{operation}: {error}", file=sys.stderr)
-        failure = OperationResult(operation, status, {}, str(error), expected, log)
-        print(json.dumps(failure.document(), sort_keys=True))
-        return EXIT_CODES[status]
-    outcome = result.pop("status", "passed")
-    document = OperationResult(
-        operation, OperationStatus.PASSED, {**result, "outcome": outcome}
-    ).document()
-    print(json.dumps(document, sort_keys=True))
-    return 0
-
-
-def _archive_operation_failure(repository: Path, diagnostic: str) -> str | None:
-    """Retain failure output under the shared machine-local state authority."""
-
-    try:
-        root = _state_root(repository) / "logs"
-        root.mkdir(parents=True, exist_ok=True)
-        descriptor, name = tempfile.mkstemp(prefix="operation-", suffix=".log", dir=root)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(diagnostic + "\n")
-        return name
-    except (OSError, OperationError):
-        return None
+    return run_operation(
+        repository, operation, lambda: _dispatch(repository, supplied), state_root=_state_root
+    )
 
 
 if __name__ == "__main__":

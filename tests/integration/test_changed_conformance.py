@@ -2,6 +2,7 @@
 
 import json
 import sys
+from pathlib import Path
 
 import pytest
 from test_lifecycle_conformance import _template_lifecycle
@@ -128,4 +129,39 @@ def test_changed_refuses_success_after_a_check_mutates_working_files(diagnostic)
     with pytest.raises(runtime.ValidationExecutionError, match="diagnostic changed working files"):
         runtime.changed(member, True)
     assert (member / "seed.txt").read_text() == "changed"
+    assert not (state_root(member) / "validation").exists()
+
+
+@pytest.mark.parametrize("failure", ["check", "tool", "configuration"])
+def test_native_cli_observes_real_failure_without_granting_readiness(
+    diagnostic, failure, monkeypatch, capsys
+):
+    runtime, open_member, _ = diagnostic
+    member = open_member(code="print('native check diagnostic'); raise SystemExit(9)")
+    manifest = member / "signetum.toml"
+    if failure == "tool":
+        manifest.write_text(
+            manifest.read_text() + '\n[[validation.tools]]\nname = "absent"\n'
+            'identity_command = ["signetum-intentionally-absent-tool"]\n'
+        )
+    elif failure == "configuration":
+        manifest.write_text(manifest.read_text().replace("protocol = 2", 'protocol = "two"'))
+    commit_contribution(member)
+    monkeypatch.chdir(member)
+    code = {"check": 3, "tool": 4, "configuration": 2}[failure]
+    assert runtime.main(["changed"]) == code
+    captured = capsys.readouterr()
+    assert len(captured.out.splitlines()) == 1
+    result = json.loads(captured.out)
+    assert (
+        result["status"]
+        == {"check": "failed", "tool": "infrastructure_error", "configuration": "invalid"}[failure]
+    )
+    assert result["exit_code"] == code
+    assert result["operation"] == "changed"
+    assert result["expected"]
+    assert Path(result["log"]).is_file()
+    if failure == "check":
+        assert "native check diagnostic" in captured.err
+        assert "exited 9" in result["cause"]
     assert not (state_root(member) / "validation").exists()

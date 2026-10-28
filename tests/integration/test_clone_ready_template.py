@@ -226,12 +226,13 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate:
     )
     assert ready.returncode == 0, ready.stdout + ready.stderr
     diagnostic_payload = json.loads(diagnostic.stdout)
-    assert diagnostic_payload["status"] == "nothing-selected"
+    assert diagnostic_payload["outcome"] == "nothing-selected"
     assert diagnostic_payload["executed"] == []
     assert diagnostic_payload["checks_started"] is False
     assert diagnostic_payload["requires_final"] is True
     ready_payload = json.loads(ready.stdout.splitlines()[-1])
-    assert ready_payload["status"] == "ready"
+    assert ready_payload["status"] == "passed"
+    assert ready_payload["outcome"] == "ready"
     member_evidence = EvidenceReceipt.from_json(json.dumps(ready_payload["evidence"]))
     raw_receipt = Path(ready_payload["receipt"].replace("-lifecycle-", "-"))
     assert EvidenceReceipt.from_json(raw_receipt.read_text()) == member_evidence
@@ -309,7 +310,9 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate:
         capture_output=True,
         text=True,
     )
-    assert json.loads(final.stdout.splitlines()[-1])["status"] == "final"
+    final_payload = json.loads(final.stdout)
+    assert final_payload["status"] == "passed"
+    assert final_payload["outcome"] == "final"
 
 
 def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:

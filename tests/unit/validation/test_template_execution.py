@@ -66,7 +66,7 @@ sys.path.insert(0,sys.argv[1])
 import lifecycle
 try:
     lifecycle._run_gate(Path(sys.argv[2]),'member')
-except lifecycle.AdmissionError as error:
+except lifecycle.ValidationExecutionError as error:
     result={'status':'failed','reason':str(error)}
 else:
     result={'status':'passed'}
