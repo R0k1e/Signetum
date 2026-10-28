@@ -90,6 +90,9 @@ def template_admission_member(repository, tmp_path):
         "profiles",
         "graph",
         "lockfiles",
+        "duplicate-fields",
+        "invalid-encoding",
+        "extensions-type",
     ],
 )
 def test_native_template_admission_requires_exact_member_inputs(template_admission_member, damage):
@@ -102,13 +105,25 @@ def test_native_template_admission_requires_exact_member_inputs(template_admissi
             == path.name
         )
         payload = json.loads(path.read_text())
-        if damage == "same-tree-tip":
+        if damage == "duplicate-fields":
+            source = json.dumps(payload)
+            assert '"extensions": {' in source
+            path.write_text(
+                source.replace(
+                    '"extensions": {', '"extensions": {"duplicate": false, "duplicate": true,', 1
+                )
+            )
+        elif damage == "invalid-encoding":
+            path.write_bytes(b"\xff")
+        elif damage == "same-tree-tip":
             git_output(member, "commit", "--amend", "-m", "reworded implementation")
         elif damage == "tool":
             (state / "tool").write_text("v2")
         else:
             evidence = payload["evidence"]
-            if damage == "dependency":
+            if damage == "extensions-type":
+                evidence["extensions"] = "not-an-object"
+            elif damage == "dependency":
                 evidence["execution"]["shards"] = [
                     item
                     for item in evidence["execution"]["shards"]

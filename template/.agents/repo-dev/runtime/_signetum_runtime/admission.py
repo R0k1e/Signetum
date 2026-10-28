@@ -10,6 +10,7 @@ from .evidence_receipts import EvidenceIdentity, EvidenceReceipt, ReceiptError
 from .execution import ValidationInputs, require_recovery_limit
 from .operations import AdmissionError
 from .recovery import with_recovery_history
+from .serialization import ValueDecodeError, load_json
 
 
 def find_member_evidence(
@@ -30,9 +31,19 @@ def find_member_evidence(
     }
     for path in sorted(receipt_root.glob("*-lifecycle-*.json")):
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = load_json(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                continue
             receipt = EvidenceReceipt.from_json(json.dumps(payload["evidence"]))
-        except (OSError, json.JSONDecodeError, KeyError, TypeError, ReceiptError):
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+            ValueDecodeError,
+            ReceiptError,
+        ):
             continue
         if not receipt.valid or receipt.schema_digest != schema_digest:
             continue

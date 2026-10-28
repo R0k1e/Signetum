@@ -42,7 +42,7 @@ class ReceiptStore:
             try:
                 observed = EvidenceReceipt.from_json(path.read_text(encoding="utf-8"))
                 verify_gate_evidence(observed, expected_identity=identity, gate=gate)
-            except (OSError, ReceiptError):
+            except (OSError, UnicodeError, ReceiptError):
                 continue
             if required_digests <= observed.execution.command_digests:
                 return path
