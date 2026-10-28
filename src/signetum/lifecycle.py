@@ -22,7 +22,6 @@ from signetum.change.scope import (
     changes_root,
     delivered_plans,
     delivery_scope,
-    member_contribution_paths,
     member_scope,
     require_member_changes,
 )
@@ -53,6 +52,7 @@ from signetum.policy import delivery_policy
 from signetum.profiles import ProfileError, ProfileResourceError
 from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
+from signetum.synchronization import member_contribution_paths
 from signetum.validation import (
     ValidationGraphError,
 )

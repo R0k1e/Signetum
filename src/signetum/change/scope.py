@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
-from functools import cache
 from pathlib import Path, PurePosixPath
 
 from signetum.change.models import (
@@ -18,7 +16,7 @@ from signetum.decision_identity import numbered_targets
 from signetum.git import GitError, git_output, run_git
 from signetum.manifest import ManifestError, RepositoryManifest
 from signetum.operations import OperationError
-from signetum.synchronization import verified_syncs
+from signetum.synchronization import member_contribution_paths
 from signetum.traceability.loading import parse_decision, parse_review, parse_specification
 
 
@@ -92,58 +90,6 @@ def delivery_scope(
         else:
             first.append(change_id)
     return DeliveryScope(tuple(first), tuple(previous))
-
-
-def member_contribution_paths(repository: Path, base: str, tip: str) -> tuple[str, ...]:
-    @cache
-    def changed_between(before: str, after: str) -> frozenset[str]:
-        return frozenset(
-            filter(
-                None,
-                git_output(
-                    repository,
-                    "diff",
-                    "--name-only",
-                    "-z",
-                    "--no-renames",
-                    before,
-                    after,
-                    strip=False,
-                ).split("\0"),
-            )
-        )
-
-    owned: set[str] = set()
-    inherited: dict[str, str] = {}
-    synchronized = dict(verified_syncs(repository, base, tip))
-    history = git_output(
-        repository, "log", "--first-parent", "--reverse", "--format=%H%x09%P", f"{base}..{tip}"
-    )
-    for entry in history.splitlines():
-        commit, _, raw_parents = entry.partition("\t")
-        parents = raw_parents.split()
-        before = parents[0] if parents else base
-        touched = changed_between(before, commit)
-        if source := synchronized.get(commit):
-            from_source = changed_between(source, commit)
-            for path in touched | changed_between(before, source) | owned:
-                if path not in from_source:
-                    inherited[path] = source
-                    owned.discard(path)
-                elif path in touched:
-                    inherited[path] = source
-                    owned.add(path)
-                elif path in owned:
-                    inherited[path] = source
-            continue
-        by_authority: dict[str, set[str]] = defaultdict(set)
-        for path in touched:
-            by_authority[inherited.get(path, base)].add(path)
-        for reference, paths in by_authority.items():
-            differences = changed_between(reference, commit)
-            owned.difference_update(paths - differences)
-            owned.update(paths & differences)
-    return tuple(sorted(owned))
 
 
 def member_scope(

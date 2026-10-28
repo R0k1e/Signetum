@@ -6,6 +6,8 @@ import json
 import os
 import re
 import tempfile
+from collections import defaultdict
+from functools import cache
 from pathlib import Path
 
 from .git import git_output
@@ -64,3 +66,55 @@ def verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, st
 
 def verified_sync_sources(repository: Path, base: str, tip: str) -> tuple[str, ...]:
     return tuple(source for _, source in verified_syncs(repository, base, tip))
+
+
+def member_contribution_paths(repository: Path, base: str, tip: str) -> tuple[str, ...]:
+    @cache
+    def changed_between(before: str, after: str) -> frozenset[str]:
+        return frozenset(
+            filter(
+                None,
+                git_output(
+                    repository,
+                    "diff",
+                    "--name-only",
+                    "-z",
+                    "--no-renames",
+                    before,
+                    after,
+                    strip=False,
+                ).split("\0"),
+            )
+        )
+
+    owned: set[str] = set()
+    inherited: dict[str, str] = {}
+    synchronized = dict(verified_syncs(repository, base, tip))
+    history = git_output(
+        repository, "log", "--first-parent", "--reverse", "--format=%H%x09%P", f"{base}..{tip}"
+    )
+    for entry in history.splitlines():
+        commit, _, raw_parents = entry.partition("\t")
+        parents = raw_parents.split()
+        before = parents[0] if parents else base
+        touched = changed_between(before, commit)
+        if source := synchronized.get(commit):
+            from_source = changed_between(source, commit)
+            for path in touched | changed_between(before, source) | owned:
+                if path not in from_source:
+                    inherited[path] = source
+                    owned.discard(path)
+                elif path in touched:
+                    inherited[path] = source
+                    owned.add(path)
+                elif path in owned:
+                    inherited[path] = source
+            continue
+        by_authority: dict[str, set[str]] = defaultdict(set)
+        for path in touched:
+            by_authority[inherited.get(path, base)].add(path)
+        for reference, paths in by_authority.items():
+            differences = changed_between(reference, commit)
+            owned.difference_update(paths - differences)
+            owned.update(paths & differences)
+    return tuple(sorted(owned))

@@ -28,6 +28,7 @@ from _signetum_runtime.execution import (
     ValidationInfrastructureError,
     ValidationInputs,
     build_evidence_identity,
+    execute_diagnostic_gate,
     execute_gate,
 )
 from _signetum_runtime.findings import Finding, FindingsError, parse_findings
@@ -50,6 +51,7 @@ from _signetum_runtime.profile_catalog import (
 from _signetum_runtime.ratchet import ratchet_baseline, run_ratchet
 from _signetum_runtime.receipt_store import ReceiptStore
 from _signetum_runtime.recovery import shard_execution, with_recovery_history
+from _signetum_runtime.synchronization import member_contribution_paths
 from _signetum_runtime.validation import (
     ToolDeclaration,
     ValidationGraph,
@@ -278,10 +280,12 @@ def _load_waivers(repository: Path) -> tuple[Waiver, ...]:
 
 
 def _member_shards(
-    manifest: dict[str, object], selection: dict[str, object]
+    manifest: dict[str, object], selection: dict[str, object], *, member_closure: bool = True
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     return _project_member_shards(
-        manifest_from_mapping(manifest), ValidationSelection.from_mapping(selection)
+        manifest_from_mapping(manifest),
+        ValidationSelection.from_mapping(selection),
+        member_closure=member_closure,
     )
 
 
@@ -505,28 +509,63 @@ def _impact_rules(manifest: dict[str, object]) -> tuple[ImpactRule, ...]:
     return manifest_from_mapping(manifest).impact.rules
 
 
-def changed(repository: Path, explain: bool) -> dict[str, object]:
-    base = _recorded_base(repository)
-    files = tuple(
-        filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
+def run_diagnostic_gate(
+    repository: Path,
+    graph: ValidationGraph,
+    gate: str,
+    *,
+    member_base: str | None = None,
+    tools: tuple[ToolDeclaration, ...] = (),
+) -> dict[str, object]:
+    return execute_diagnostic_gate(
+        graph, gate, _ValidationAdapter(repository, member_base=member_base), tools=tools
     )
-    normalized = _impact_rules(_manifest(repository))
-    # This frontend's internal boundary consumes the serialized evidence shape.
-    selection = json.loads(json.dumps(asdict(select_paths(files, normalized))))
+
+
+def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> dict[str, object]:
+    _require_clean(repository)
+    base = _recorded_base(repository)
+    source = _git(repository, "rev-parse", "HEAD")
+    manifest = _manifest(repository)
+    files = member_contribution_paths(repository, base, source)
+    selected = select_paths(files, _impact_rules(manifest))
+    if not files:
+        raise AdmissionError("workspace has no committed contribution to validate")
+    selection = json.loads(json.dumps(asdict(selected)))
+    member_shards, deferred = _member_shards(manifest, selection, member_closure=False)
+    graph, inputs = _configured_validation(manifest, member_shards=member_shards)
+    checks = (
+        {"executed": []}
+        if validate_only
+        else run_diagnostic_gate(repository, graph, "member", member_base=base, tools=inputs.tools)
+    )
+    if _git(repository, "rev-parse", "HEAD") != source:
+        raise ValidationExecutionError("diagnostic changed the committed source")
+    try:
+        _require_clean(repository)
+    except AdmissionError as error:
+        raise ValidationExecutionError("diagnostic changed working files") from error
     return {
         "schema_version": 1,
-        "status": "changed",
+        "status": "selection-only"
+        if validate_only
+        else ("changed" if checks["executed"] else "nothing-selected"),
         "base": base,
-        "source": _git(repository, "rev-parse", "HEAD"),
+        "source": source,
         "files": files,
         "selection": selection,
-        "rules": selection["rules"],
-        "profiles": selection["profiles"],
-        "gates": selection["gates"],
-        "shards": selection["shards"],
-        "unexplained": selection["unexplained"],
-        "requires_final": selection["requires_final"],
+        "rules": selected.rules,
+        "profiles": selected.profiles,
+        "gates": selected.gates,
+        "shards": selected.shards,
+        "unexplained": selected.unexplained,
+        "requires_final": selected.requires_final,
         "explain": explain,
+        "executed": checks["executed"],
+        "checks_started": bool(checks["executed"]),
+        "shard_details": checks.get("shard_details", {}),
+        "recovered_flake_defects": checks.get("recovered_flake_defects", []),
+        "deferred_world_shards": deferred,
     }
 
 
@@ -560,7 +599,9 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
     gate = "member" if kind == "member" else "final"
     manifest = _manifest(repository)
     selection = (
-        _mapping(changed(repository, True)["selection"], "selection") if base is not None else None
+        _mapping(changed(repository, True, validate_only=True)["selection"], "selection")
+        if base is not None
+        else None
     )
     selected_shards: tuple[str, ...] | None = None
     if isinstance(selection, dict):
@@ -651,7 +692,7 @@ def _admission_evidence(member: Path, tip: str) -> str:
     if not _is_ancestor(member, base, tip):
         raise AdmissionError("member does not descend from its recorded base")
     data = _manifest(member)
-    selection = _mapping(changed(member, True)["selection"], "selection")
+    selection = _mapping(changed(member, True, validate_only=True)["selection"], "selection")
     required_names, _ = _member_shards(data, selection)
     try:
         graph, inputs = _configured_validation(data, member_shards=required_names, base=base)
@@ -1161,6 +1202,7 @@ def _parser() -> argparse.ArgumentParser:
     workspace.add_argument("base")
     diagnostic = commands.add_parser("changed")
     diagnostic.add_argument("--explain", action="store_true")
+    diagnostic.add_argument("--validate-only", action="store_true")
     commands.add_parser("ready")
     opening = commands.add_parser("batch-open")
     opening.add_argument("--member", type=Path, action="append", required=True)
@@ -1185,7 +1227,7 @@ def main(arguments: list[str] | None = None) -> int:
         if parsed.command == "workspace-open":
             result = workspace_open(repository, parsed.branch, parsed.base)
         elif parsed.command == "changed":
-            result = changed(repository, parsed.explain)
+            result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
         elif parsed.command == "ready":
             result = validate(repository, "member")
         elif parsed.command == "batch-open":

@@ -225,7 +225,11 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate:
         text=True,
     )
     assert ready.returncode == 0, ready.stdout + ready.stderr
-    assert '"status": "changed"' in diagnostic.stdout
+    diagnostic_payload = json.loads(diagnostic.stdout)
+    assert diagnostic_payload["status"] == "nothing-selected"
+    assert diagnostic_payload["executed"] == []
+    assert diagnostic_payload["checks_started"] is False
+    assert diagnostic_payload["requires_final"] is True
     ready_payload = json.loads(ready.stdout.splitlines()[-1])
     assert ready_payload["status"] == "ready"
     member_evidence = EvidenceReceipt.from_json(json.dumps(ready_payload["evidence"]))

@@ -131,7 +131,8 @@ shards = ["test:unit", "test:web"]
     script = (
         "import sys,json; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
         "import lifecycle; "
-        "print(json.dumps(lifecycle.changed(Path(sys.argv[2]),True)['selection'])); "
+        "selected=lifecycle.changed(Path(sys.argv[2]),True,validate_only=True); "
+        "print(json.dumps(selected['selection'])); "
         "assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules"
     )
     completed = subprocess.run(  # noqa: S603 -- fixed isolated interpreter and fixture argv
@@ -140,6 +141,10 @@ shards = ["test:unit", "test:web"]
         text=True,
         check=False,
     )
+    if not files:
+        assert completed.returncode != 0
+        assert "no committed contribution" in completed.stderr
+        return
     assert completed.returncode == 0, completed.stderr
     rules = (
         ImpactRule(
