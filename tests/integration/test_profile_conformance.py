@@ -1,8 +1,8 @@
 """Both distributed frontends bind the same explicitly resolved profile identities."""
 
+import importlib
 import json
 import re
-import tomllib
 from pathlib import Path
 
 import pytest
@@ -52,7 +52,9 @@ def test_native_frontends_resolve_dependency_and_replacement_identities(
 ):
     text = configuration(selected, replacements)
     _, installed = configured_validation(parse_manifest(text))
-    _, generated = _template_lifecycle()._configured_validation(tomllib.loads(text))
+    _, generated = _template_lifecycle()._runtime_validation(
+        importlib.import_module("_signetum_runtime.manifest").parse_manifest(text)
+    )
     assert installed.profiles == generated.profiles == expected
 
 
@@ -71,8 +73,10 @@ def test_both_frontends_refuse_unsupported_or_ambiguous_profile_selection(select
     runtime = _template_lifecycle()
     with pytest.raises((ProfileError, ManifestError)):
         configured_validation(parse_manifest(text))
-    with pytest.raises(runtime.AdmissionError):
-        runtime._configured_validation(tomllib.loads(text))
+    with pytest.raises(ValueError):
+        runtime._runtime_validation(
+            importlib.import_module("_signetum_runtime.manifest").parse_manifest(text)
+        )
 
 
 @pytest.mark.parametrize("missing_catalog", [False, True])

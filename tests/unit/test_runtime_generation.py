@@ -17,6 +17,7 @@ import pytest
 from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
 from signetum.runtime_generation import generate_runtime, portable_source, runtime_files
 from signetum.template import render_template, validate_template
+from signetum.vendor_resources import upstream_yaml_payload, yaml_payload
 
 ROOT = Path(__file__).parents[2]
 
@@ -56,7 +57,7 @@ def test_interpreter_caches_do_not_enter_rendered_artifacts(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "source", ["import pydantic\n", "from signetum.policy import delivery_policy\n"]
+    "source", ["import pydantic\n", "from signetum.release import build_release_metadata\n"]
 )
 def test_portable_source_rejects_unbundled_dependencies(source):
     with pytest.raises(ValueError, match="dependency"):
@@ -137,3 +138,13 @@ def test_runtime_catalog_resources_are_exact_installed_resource_bytes():
     resources = files("signetum.resources.profiles")
     for name in PROFILE_RESOURCE_NAMES:
         assert outputs["profile_resources/" + name] == (resources / name).read_bytes()
+
+
+def test_yaml_payload_is_exact_locked_upstream_source_and_license():
+    packaged = yaml_payload()
+    assert packaged == upstream_yaml_payload()
+    assert "cyaml.py" not in packaged
+    assert b"Copyright" in packaged["LICENSE"]
+    outputs = runtime_files()
+    for name, content in packaged.items():
+        assert outputs["vendor_yaml/" + name] == content

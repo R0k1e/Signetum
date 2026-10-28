@@ -10,7 +10,7 @@ Signetum is the public product identity. Within this engine, the
 `signetum` distribution and `signetum` CLI validate immutable
 schema and profile identities and expose check-only repository
 contracts and lifecycle operations. Rendering copies the minimal reviewed
-standard-library lifecycle runtime into the Template. Existing repositories
+portable lifecycle runtime into the Template. Existing repositories
 adopt later runtime changes only as explicit local changes.
 
 Responsibility documents:

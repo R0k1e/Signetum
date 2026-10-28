@@ -282,7 +282,7 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate:
     subprocess.run(("mise", "trust", "mise.toml"), cwd=batch, check=True, capture_output=True)
     admission = (
         "import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
-        "import lifecycle,json; "
+        "from _signetum_runtime import lifecycle; import json; "
         "print(json.dumps(lifecycle.admit(Path(sys.argv[2]),(Path(sys.argv[3]),))))"
     )
     admitted = subprocess.run(

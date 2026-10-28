@@ -4,6 +4,7 @@ import importlib
 import importlib.util
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
 
@@ -11,7 +12,6 @@ import pytest
 from change_fixtures import commit_approval
 
 from signetum import lifecycle as engine_lifecycle
-from signetum import worktrunk
 from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, branch_name, read_record, state_root, write_record
 
@@ -19,13 +19,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _template_lifecycle() -> ModuleType:
-    path = ROOT / "template" / ".agents" / "repo-dev" / "runtime" / "lifecycle.py"
-    spec = importlib.util.spec_from_file_location("template_lifecycle", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    directory = ROOT / "template/.agents/repo-dev/runtime"
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
+    return importlib.import_module("_signetum_runtime.lifecycle")
 
 
 @pytest.fixture
@@ -101,7 +98,11 @@ def test_native_template_admission_requires_exact_member_inputs(template_admissi
         ready = runtime.validate(member, "member")
         path = Path(ready["receipt"])
         assert (
-            runtime._admission_evidence(member, git_output(member, "rev-parse", "HEAD"))
+            runtime._admission_evidence(
+                member,
+                git_output(member, "rev-parse", "HEAD"),
+                runtime.load_manifest(member / "signetum.toml"),
+            )
             == path.name
         )
         payload = json.loads(path.read_text())
@@ -148,25 +149,26 @@ def test_native_template_admission_requires_exact_member_inputs(template_admissi
             path.write_text(json.dumps(payload))
     tip = git_output(member, "rev-parse", "HEAD")
     with pytest.raises(runtime.AdmissionError, match="no evidence proving its selected"):
-        runtime._admission_evidence(member, tip)
+        runtime._admission_evidence(member, tip, runtime.load_manifest(member / "signetum.toml"))
 
 
 def test_native_template_accepts_complete_final_evidence(template_admission_member):
     runtime, member, _, base = template_admission_member
     tip = git_output(member, "rev-parse", "HEAD")
-    evidence = runtime._run_gate(member, "final", base=base)
-    path = runtime._write_receipt(
-        member,
-        "final",
-        {
-            "kind": "final",
-            "source": tip,
-            "base": base,
-            "valid": True,
-            "evidence": json.loads(evidence.to_json()),
-        },
+    repository_api = importlib.import_module("_signetum_runtime.repository")
+    graph, inputs = runtime._runtime_validation(runtime.load_manifest(member / "signetum.toml"))
+
+    evidence, raw_path = repository_api.run_repository_gate(
+        member, graph, "final", replace(inputs, base=base), runtime._receipt_root(member)
     )
-    assert runtime._admission_evidence(member, tip) == path.name
+    path = raw_path.with_name(raw_path.name.replace("final-", "final-lifecycle-"))
+    path.write_text(
+        json.dumps({"kind": "final", "valid": True, "evidence": json.loads(evidence.to_json())})
+    )
+    assert (
+        runtime._admission_evidence(member, tip, runtime.load_manifest(member / "signetum.toml"))
+        == path.name
+    )
 
 
 def test_template_passes_actual_bounded_worker_count_to_its_command(tmp_path, monkeypatch):
@@ -179,8 +181,8 @@ def test_template_passes_actual_bounded_worker_count_to_its_command(tmp_path, mo
         "import os; from pathlib import Path; "
         "Path('workers').write_text(os.environ['SIGNETUM_VALIDATION_WORKERS'])"
     )
-    result = runtime._ValidationAdapter(tmp_path).run_shard(
-        runtime.ValidationShard(
+    result = runtime.RepositoryValidationAdapter(tmp_path).run_shard(
+        importlib.import_module("_signetum_runtime.validation").ValidationShard(
             "test:bounded", (sys.executable, "-c", script), workers=8, worker_memory_mb=1000
         )
     )
@@ -253,7 +255,6 @@ def test_local_validation_state_has_one_git_common_root(
 def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     root, _ = repository
     runtime = _template_lifecycle()
-    monkeypatch.setattr(runtime, "_worktrunk", worktrunk.worktrunk)
     monkeypatch.setattr(runtime, "admit", lambda batch, members: {})
     base = git_output(root, "rev-parse", "HEAD")
     declared = (root,)
@@ -264,7 +265,9 @@ def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     assert record.kind == "batch"
     assert record.base == base
     assert record.members == (str(root.resolve()),)
-    before = runtime._record_path(root, branch).read_bytes()
-    with pytest.raises(runtime.AdmissionError, match="different recorded identity"):
-        runtime._record_workspace(root, branch, base, "member")
-    assert runtime._record_path(root, branch).read_bytes() == before
+    owner = importlib.import_module("_signetum_runtime.workspaces")
+    path = owner.record_path(owner.state_root(root), branch)
+    before = path.read_bytes()
+    with pytest.raises(owner.WorkspaceError, match="different recorded identity"):
+        owner.write_record(owner.state_root(root), owner.WorkspaceRecord(1, branch, base, "member"))
+    assert path.read_bytes() == before

@@ -3,8 +3,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: '^(src/signetum/resources/vendor_yaml/|template/\.agents/repo-dev/runtime/_signetum_runtime/vendor_yaml/)'
       - id: end-of-file-fixer
-        exclude: '^(\.env\.example|\.vscode/settings\.json)$'
+        exclude: '^(\.env\.example$|\.vscode/settings\.json$|src/signetum/resources/vendor_yaml/|template/\.agents/repo-dev/runtime/_signetum_runtime/vendor_yaml/)'
       - id: check-yaml
       - id: check-json
         exclude: '^\.vscode/settings\.json$'

@@ -1,7 +1,6 @@
 """Manifest defaults, rejection and validation identity agree across frontends."""
 
 import re
-import tomllib
 from dataclasses import asdict
 from pathlib import Path
 
@@ -28,8 +27,8 @@ def manifest_file(tmp_path):
 
 def test_native_configuration_projection_binds_identical_declared_inputs(manifest_file):
     installed_graph, installed = configured_validation(load_manifest(manifest_file))
-    generated_graph, generated = _template_lifecycle()._configured_validation(
-        tomllib.loads(manifest_file.read_text())
+    generated_graph, generated = _template_lifecycle()._runtime_validation(
+        _template_lifecycle().load_manifest(manifest_file)
     )
     assert installed_graph.digest == generated_graph.digest
     assert asdict(installed) == asdict(generated)
@@ -45,7 +44,7 @@ def test_native_loader_supplies_the_same_declared_defaults(manifest_file):
     )
     manifest_file.write_text(text)
     installed = load_manifest(manifest_file)
-    generated = _template_lifecycle()._manifest(manifest_file.parent)
+    generated = asdict(_template_lifecycle().load_manifest(manifest_file))
     assert generated["signetum"]["evidence_protocol"] == installed.signetum.evidence_protocol
     assert (
         generated["signetum"]["evidence_schema_digest"] == installed.signetum.evidence_schema_digest
@@ -98,5 +97,5 @@ def test_native_loaders_reject_the_same_invalid_contract(manifest_file, damage):
     runtime = _template_lifecycle()
     with pytest.raises(ManifestError):
         load_manifest(manifest_file)
-    with pytest.raises(runtime.AdmissionError):
-        runtime._manifest(manifest_file.parent)
+    with pytest.raises(ValueError):
+        runtime.load_manifest(manifest_file)

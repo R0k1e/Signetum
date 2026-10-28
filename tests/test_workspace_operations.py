@@ -1,5 +1,6 @@
 """Real Git scenarios for supported workspace recovery and removal."""
 
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -544,3 +545,27 @@ def test_validated_delivery_uses_shared_cleanup_and_keeps_the_delivery_worktree(
     assert not batch.exists()
     assert root.exists()
     assert result["retained_worktrees"] == []
+
+
+@pytest.fixture(params=["engine", "template"], autouse=True)
+def lifecycle_frontend(request, monkeypatch):
+    """Run every disposable Git workspace contract against both maintained outputs."""
+    if request.param == "engine":
+        return
+    monkeypatch.syspath_prepend(
+        str(Path(__file__).parents[1] / "template/.agents/repo-dev/runtime")
+    )
+    for name, module in {
+        "lifecycle": "lifecycle",
+        "ops": "workspace_operations",
+        "wt": "worktrunk",
+    }.items():
+        monkeypatch.setitem(globals(), name, importlib.import_module("_signetum_runtime." + module))
+    errors = importlib.import_module("_signetum_runtime.operations")
+    for name in ("AdmissionError", "InfrastructureError", "MergeConflict", "OperationFailed"):
+        monkeypatch.setitem(globals(), name, getattr(errors, name))
+    monkeypatch.setitem(
+        globals(),
+        "ValidationExecutionError",
+        importlib.import_module("_signetum_runtime.execution").ValidationExecutionError,
+    )

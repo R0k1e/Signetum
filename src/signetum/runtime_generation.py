@@ -7,13 +7,20 @@ import json
 import re
 import sys
 from importlib.resources import files
+from itertools import pairwise
 from pathlib import Path
 
 from signetum import __version__
 from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
+from signetum.vendor_resources import yaml_payload
 
 RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
 MODULES = {
+    "signetum.lifecycle": "lifecycle.py",
+    "signetum.workspace_operations": "workspace_operations.py",
+    "signetum.validation.repository": "repository.py",
+    "signetum.profiles": "profiles.py",
+    "signetum.policy": "policy.py",
     "signetum.change.member": "change_member.py",
     "signetum.lifecycle_validation": "lifecycle_validation.py",
     "signetum.provenance": "provenance.py",
@@ -63,26 +70,54 @@ MODULES = {
 }
 
 
+EXTERNAL_IMPORTS = {"yaml": "vendor_yaml"}
+IMPORTS = {**MODULES, **EXTERNAL_IMPORTS}
+
+
 def is_runtime_cache(path: Path) -> bool:
     return "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}
 
 
+def _module_aliases(node: ast.ImportFrom) -> bool:
+    return bool(node.module) and all(
+        f"{node.module}.{alias.name}" in MODULES
+        and Path(MODULES[f"{node.module}.{alias.name}"]).stem == alias.name
+        for alias in node.names
+    )
+
+
 def portable_source(module: str, source: str) -> bytes:
-    """Change only declared internal imports; retain one maintained body."""
+    """Bind declared imports/resources while retaining one maintained algorithm."""
     lines = source.splitlines(keepends=True)
     tree = ast.parse(source)
+    imports: dict[ast.Import | ast.ImportFrom, str] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             dependencies = [alias.name for alias in node.names]
+            if len(node.names) == 1 and node.names[0].name in MODULES and node.names[0].asname:
+                if node.end_lineno != node.lineno:
+                    raise ValueError(f"unsupported module alias import in {module}")
+                alias = node.names[0]
+                imports[node] = "."
+                lines[node.lineno - 1] = (
+                    f"from . import {Path(MODULES[alias.name]).stem} as {alias.asname}\n"
+                )
         elif isinstance(node, ast.ImportFrom):
             if node.level or node.module is None:
                 raise ValueError(f"unsupported relative dependency in {module}")
-            dependencies = [node.module]
-            if node.module in MODULES:
-                name = Path(MODULES[node.module]).stem
+            if _module_aliases(node):
+                dependencies = [f"{node.module}.{alias.name}" for alias in node.names]
+                destination = "."
+            else:
+                dependencies = [node.module]
+                destination = (
+                    "." + Path(IMPORTS[node.module]).stem if node.module in IMPORTS else None
+                )
+            if destination is not None:
+                imports[node] = destination
                 line, count = re.subn(
                     r"\bfrom\s+" + re.escape(node.module) + r"\s+import\b",
-                    f"from .{name} import",
+                    f"from {destination} import",
                     lines[node.lineno - 1],
                     count=1,
                 )
@@ -93,15 +128,34 @@ def portable_source(module: str, source: str) -> bytes:
             continue
         for dependency in dependencies:
             if dependency.split(".")[0] not in sys.stdlib_module_names and (
-                not isinstance(node, ast.ImportFrom) or dependency not in MODULES
+                (not isinstance(node, ast.ImportFrom) and node not in imports)
+                or dependency not in IMPORTS
             ):
                 raise ValueError(f"unbundled dependency {dependency} in {module}")
-    # Flattening package names can change their lexical order. Reorder only
-    # consecutive declared top-level imports; all implementation statements stay.
-    groups: list[list[ast.ImportFrom]] = []
-    pending: list[ast.ImportFrom] = []
+    # The resource adapter differs only in its declared package namespace.
+    if module == "signetum.profiles":
+        bindings = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "PROFILE_RESOURCE_PACKAGE"
+                for target in node.targets
+            )
+        ]
+        if (
+            len(bindings) != 1
+            or not isinstance(bindings[0].value, ast.Constant)
+            or bindings[0].value.value != "signetum.resources.profiles"
+        ):
+            raise ValueError("unsupported profile resource binding")
+        lines[bindings[0].lineno - 1] = (
+            'PROFILE_RESOURCE_PACKAGE = "_signetum_runtime.profile_resources"\n'
+        )
+    groups: list[list[ast.Import | ast.ImportFrom]] = []
+    pending: list[ast.Import | ast.ImportFrom] = []
     for node in tree.body:
-        if isinstance(node, ast.ImportFrom) and node.module in MODULES:
+        if isinstance(node, (ast.Import, ast.ImportFrom)) and node in imports:
             pending.append(node)
         elif pending:
             groups.append(pending)
@@ -110,9 +164,19 @@ def portable_source(module: str, source: str) -> bytes:
         groups.append(pending)
     for group in reversed(groups):
         chunks = {node: lines[node.lineno - 1 : node.end_lineno] for node in group}
-        ordered = sorted(group, key=lambda node: Path(MODULES[node.module or ""]).stem)
-        for destination, original in reversed(list(zip(group, ordered, strict=True))):
-            lines[destination.lineno - 1 : destination.end_lineno] = chunks[original]
+        ordered = sorted(group, key=lambda node: imports[node])
+        gaps = [
+            line
+            for previous, following in pairwise(group)
+            for line in lines[previous.end_lineno : following.lineno - 1]
+        ]
+        if all(not line.strip() for line in gaps):
+            lines[group[0].lineno - 1 : group[-1].end_lineno] = [
+                line for node in ordered for line in chunks[node]
+            ]
+        else:
+            for destination_node, original in reversed(list(zip(group, ordered, strict=True))):
+                lines[destination_node.lineno - 1 : destination_node.end_lineno] = chunks[original]
     return (
         f"# Generated from {module}; edit the engine source and regenerate.\n" + "".join(lines)
     ).encode()
@@ -133,6 +197,7 @@ def runtime_files() -> dict[str, bytes]:
     profile_resources = files("signetum.resources.profiles")
     for name in PROFILE_RESOURCE_NAMES:
         result["profile_resources/" + name] = (profile_resources / name).read_bytes()
+    result.update({"vendor_yaml/" + name: content for name, content in yaml_payload().items()})
     metadata = [
         "# Public content identities generated from installed engine sources.",
         "schema_version = 1",

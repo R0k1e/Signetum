@@ -20,6 +20,8 @@ package = false
 pythonpath = ["src"]
 
 [tool.ruff]
+force-exclude = true
+extend-exclude = [".agents/repo-dev/runtime/_signetum_runtime/vendor_yaml"]
 cache-dir = "../.ruff_cache"
 line-length = 100
 
@@ -29,3 +31,5 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
 ".agents/repo-dev/runtime/lifecycle.py" = ["S603"]
+# Generated from the same reviewed fixed-Git boundary as the engine lifecycle.
+".agents/repo-dev/runtime/_signetum_runtime/lifecycle.py" = ["S603"]

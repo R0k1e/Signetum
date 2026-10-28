@@ -1,5 +1,6 @@
 """Shared disposable Git and Worktrunk effects for lifecycle contracts."""
 
+import importlib
 import json
 import subprocess
 import sys
@@ -111,4 +112,19 @@ def repository(tmp_path, monkeypatch):
 
     monkeypatch.setattr(wt, "worktrunk", native_worktrunk)
     monkeypatch.setattr(wt, "run_tool", native_preparation)
+    monkeypatch.syspath_prepend(
+        str(Path(__file__).parents[1] / "template/.agents/repo-dev/runtime")
+    )
+    copied = importlib.import_module("_signetum_runtime.worktrunk")
+    copied_errors = importlib.import_module("_signetum_runtime.operations")
+
+    def copied_preparation(repository, command, **kwargs):
+        try:
+            return native_preparation(repository, command, **kwargs)
+        except InfrastructureError as error:
+            raise copied_errors.InfrastructureError(str(error)) from error
+
+    monkeypatch.setattr(copied, "worktrunk", native_worktrunk)
+    monkeypatch.setattr(copied, "run_tool", copied_preparation)
+
     return root, state

@@ -10,11 +10,12 @@ from signetum.profiles.catalog import (
     load_catalog,
 )
 from signetum.profiles.catalog import resolve_profiles as _resolve_profiles
-from signetum.resources import profiles as profile_resources
+
+PROFILE_RESOURCE_PACKAGE = "signetum.resources.profiles"
 
 
 def builtin_catalog() -> dict[str, ProfileDeclaration]:
-    resources = files(profile_resources)
+    resources = files(PROFILE_RESOURCE_PACKAGE)
     return load_catalog(lambda name: (resources / name).read_text(encoding="utf-8"))
 
 

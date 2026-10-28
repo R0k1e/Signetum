@@ -22,14 +22,7 @@ def runtime(request, monkeypatch):
         return lifecycle
     directory = Path(__file__).parents[1] / "template/.agents/repo-dev/runtime"
     monkeypatch.syspath_prepend(str(directory))
-    spec = importlib.util.spec_from_file_location(
-        "inheritance_template_lifecycle", directory / "lifecycle.py"
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    monkeypatch.setitem(sys.modules, spec.name, module)
-    spec.loader.exec_module(module)
-    return module
+    return importlib.import_module("_signetum_runtime.lifecycle")
 
 
 def configured(repository, runtime):
@@ -195,7 +188,7 @@ def test_inherited_recovery_is_visible_but_not_a_new_recovery_observation(
     repository, monkeypatch, runtime
 ):
     adapter_type = (
-        RepositoryValidationAdapter if runtime is lifecycle else runtime._ValidationAdapter
+        RepositoryValidationAdapter if runtime is lifecycle else runtime.RepositoryValidationAdapter
     )
     original = adapter_type.run_shard
     defect: dict[str, JsonValue] = {
