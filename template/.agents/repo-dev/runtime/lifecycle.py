@@ -19,6 +19,7 @@ from typing import Literal
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _signetum_runtime import resources
 from _signetum_runtime.admission import find_member_evidence
+from _signetum_runtime.delivery import publish_batch
 from _signetum_runtime.evidence_receipts import EvidenceReceipt, ReceiptError, ValidationSelection
 from _signetum_runtime.execution import (
     ShardExecution,
@@ -1065,8 +1066,6 @@ def batch_deliver(
     _require_clean(target)
     if _git(source, "rev-parse", "HEAD") != expected_tip:
         raise AdmissionError("source tip differs from expected batch tip")
-    if _git(target, "rev-parse", "HEAD") != expected_base:
-        raise AdmissionError("target tip differs from expected base")
     recorded_base = _recorded_base(source)
     if recorded_base != expected_base:
         raise AdmissionError("recorded batch base differs from expected base")
@@ -1090,17 +1089,17 @@ def batch_deliver(
         raise AdmissionError("final receipt does not bind the expected batch tip")
 
     target_branch = _branch(target)
-    remote_before = _remote_branch_tip(target, target_branch)
-    if remote_before != expected_base:
-        raise AdmissionError("remote delivery branch differs from expected base")
-
     members, plans = _delivery_provenance(source, expected_base, expected_tip)
-    _git(target, "merge", "--ff-only", expected_tip)
-    delivery_commit = _git(target, "rev-parse", "HEAD")
-    _git(target, "push", "origin", f"HEAD:refs/heads/{target_branch}")
-    remote_after = _remote_branch_tip(target, target_branch)
-    if remote_after != delivery_commit:
-        raise AdmissionError("remote delivery confirmation differs from delivered commit")
+    publication = publish_batch(
+        source,
+        target,
+        expected_base,
+        expected_tip,
+        target_branch,
+        git=_git,
+        remote_tip=_remote_branch_tip,
+        is_ancestor=_is_ancestor,
+    )
 
     removed_worktrees, retained_worktrees = _cleanup_delivered_worktrees(target, source, members)
     return {
@@ -1110,8 +1109,8 @@ def batch_deliver(
         "source": expected_tip,
         "target": str(target),
         "target_branch": target_branch,
-        "delivery_commit": delivery_commit,
-        "remote": remote_after,
+        "delivery_commit": publication.commit,
+        "remote": publication.remote,
         "members": members,
         "plans": plans,
         "validation": {"final_receipt": str(matching_receipt), "source": expected_tip},
