@@ -29,6 +29,7 @@ from _signetum_runtime.findings import Finding, FindingsError, parse_findings
 from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.impact import select_paths
 from _signetum_runtime.operations import AdmissionError
+from _signetum_runtime.process import run_command
 from _signetum_runtime.validation import (
     GateDeclaration,
     ToolDeclaration,
@@ -79,8 +80,8 @@ def _run_tool(
     repository: Path,
     command: tuple[str, ...],
     *,
-    capture_output: bool = True,
     required: bool = True,
+    timeout_seconds: float = 1800,
 ) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     for name in tuple(environment):
@@ -92,14 +93,17 @@ def _run_tool(
         }:
             environment.pop(name)
     environment["MISE_TRUSTED_CONFIG_PATHS"] = str(repository.resolve())
-    completed = subprocess.run(  # nosec B603
-        (_mise_executable(), "exec", "--", *command),
-        cwd=repository,
-        check=False,
-        capture_output=capture_output,
-        env=environment,
-        text=True,
-    )
+    try:
+        completed = run_command(
+            repository,
+            (_mise_executable(), "exec", "--", *command),
+            timeout_seconds=timeout_seconds,
+            environment=environment,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        if required:
+            raise AdmissionError(f"command could not complete: {command[0]}: {error}") from error
+        raise
     if not required:
         return completed
     if completed.returncode != 0:
@@ -329,20 +333,32 @@ class _ValidationAdapter:
             raise ValidationInfrastructureError(f"validation input unavailable: {path}") from error
 
     def identify_tool(self, tool: ToolDeclaration) -> str:
-        completed = self._run(tool.identity_command)
+        try:
+            completed = self._run(tool.identity_command, timeout_seconds=60)
+        except subprocess.TimeoutExpired as error:
+            raise ValidationInfrastructureError(f"tool identity timed out: {tool.name}") from error
         identity = completed.stdout.strip()
         if completed.returncode or not identity:
             raise ValidationInfrastructureError(f"tool identity unavailable: {tool.name}")
         return identity
 
-    def _run(self, command: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
+    def _run(
+        self, command: tuple[str, ...], *, timeout_seconds: float
+    ) -> subprocess.CompletedProcess[str]:
         try:
-            return _run_tool(self.repository, command, required=False)
+            return _run_tool(
+                self.repository, command, required=False, timeout_seconds=timeout_seconds
+            )
         except (OSError, AdmissionError) as error:
             raise ValidationInfrastructureError(str(error)) from error
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
-        completed = self._run(shard.command)
+        try:
+            completed = self._run(shard.command, timeout_seconds=shard.timeout_seconds)
+        except subprocess.TimeoutExpired:
+            return ShardExecution(
+                False, f"{shard.name} did not return within {shard.timeout_seconds}s"
+            )
         for output in (completed.stdout, completed.stderr):
             if output:
                 print(output, file=sys.stderr, end="" if output.endswith("\n") else "\n")
@@ -350,7 +366,12 @@ class _ValidationAdapter:
         return ShardExecution(completed.returncode == 0, diagnostic)
 
     def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
-        completed = self._run(shard.findings_command)
+        try:
+            completed = self._run(shard.findings_command, timeout_seconds=60)
+        except subprocess.TimeoutExpired as error:
+            raise ValidationInfrastructureError(
+                f"findings command timed out: {shard.name}"
+            ) from error
         try:
             return parse_findings(completed.stdout)
         except FindingsError as error:
