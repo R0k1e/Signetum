@@ -118,7 +118,7 @@ def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> Val
 
 
 def _member_shards(
-    manifest: RepositoryManifest, selection: ValidationSelection
+    manifest: RepositoryManifest, selection: ValidationSelection, *, member_closure: bool = True
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Return the member shards to execute and the world shards left to final.
 
@@ -129,7 +129,7 @@ def _member_shards(
 
     gate_shards = {gate.name: gate.shards for gate in manifest.validation.gates}
     world = {item.name for item in manifest.validation.shards if item.evidence == "world"}
-    selected: list[str] = list(manifest.validation.member_required)
+    selected: list[str] = list(manifest.validation.member_required) if member_closure else []
     deferred: list[str] = []
 
     def admit(name: str) -> None:
@@ -145,25 +145,37 @@ def _member_shards(
     for gate in selection.gates:
         for shard in gate_shards.get(gate, ()):
             admit(shard)
-    if selection.unexplained:
+    if selection.unexplained and member_closure:
         for shard in gate_shards["member"]:
             admit(shard)
     return tuple(selected), tuple(sorted(deferred))
 
 
-def changed(repository: Path, explain: bool) -> dict[str, object]:
+def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> dict[str, object]:
+    _require_clean(repository)
     base = _recorded_base(repository)
+    source = _git(repository, "rev-parse", "HEAD")
     manifest = load_manifest(repository / "signetum.toml")
-    selected = _selection(repository, base, manifest)
-    files = member_contribution_paths(repository, base, _git(repository, "rev-parse", "HEAD"))
-    member_shards, deferred = _member_shards(manifest, selected)
+    files = member_contribution_paths(repository, base, source)
+    selected = select_paths(files, manifest)
+    if not files:
+        raise AdmissionError("workspace has no committed contribution to validate")
+    member_shards, deferred = _member_shards(manifest, selected, member_closure=False)
     graph, _ = _runtime_validation(manifest, member_shards=member_shards)
-    checks = run_diagnostic_gate(repository, graph, "member")
+    checks = {"executed": []} if validate_only else run_diagnostic_gate(repository, graph, "member")
+    if _git(repository, "rev-parse", "HEAD") != source:
+        raise ValidationExecutionError("diagnostic changed the committed source")
+    try:
+        _require_clean(repository)
+    except AdmissionError as error:
+        raise ValidationExecutionError("diagnostic changed working files") from error
     return {
         "schema_version": 1,
-        "status": "changed",
+        "status": "selection-only"
+        if validate_only
+        else ("changed" if checks["executed"] else "nothing-selected"),
         "base": base,
-        "source": _git(repository, "rev-parse", "HEAD"),
+        "source": source,
         "files": files,
         "selection": json.loads(json.dumps(selected.__dict__)),
         "rules": selected.rules,
@@ -174,6 +186,7 @@ def changed(repository: Path, explain: bool) -> dict[str, object]:
         "requires_final": selected.requires_final,
         "explain": explain,
         "executed": checks["executed"],
+        "checks_started": bool(checks["executed"]),
         "recovered_flake_defects": checks.get("recovered_flake_defects", []),
         "deferred_world_shards": deferred,
     }
@@ -719,7 +732,7 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     repaired = tuple(sorted(against_first & against_second))
     manifest = load_manifest(batch / "signetum.toml")
     selected = select_paths(repaired, manifest)
-    shards, _ = _member_shards(manifest, selected)
+    shards, _ = _member_shards(manifest, selected, member_closure=False)
     graph, _ = _runtime_validation(manifest, member_shards=shards)
     executed = {shard.digest for shard in graph.shards if shard.name in preparation["executed"]}
     repaired_checks = run_diagnostic_gate(batch, graph, "member", executed=executed)
@@ -913,6 +926,7 @@ def _parser() -> argparse.ArgumentParser:
     discard.add_argument("batch", type=Path)
     diagnostic = commands.add_parser("changed")
     diagnostic.add_argument("--explain", action="store_true")
+    diagnostic.add_argument("--validate-only", action="store_true")
     commands.add_parser("ready")
     opening = commands.add_parser("batch-open")
     opening.add_argument("--member", type=Path, action="append", required=True)
@@ -955,7 +969,7 @@ def main(arguments: list[str] | None = None) -> int:
         elif parsed.command == "batch-discard":
             result = batch_discard(parsed.batch.resolve())
         elif parsed.command == "changed":
-            result = changed(repository, parsed.explain)
+            result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
         elif parsed.command == "ready":
             result = validate(repository, "member")
         elif parsed.command == "batch-open":
