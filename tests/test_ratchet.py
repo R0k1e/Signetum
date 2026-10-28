@@ -1,7 +1,9 @@
 """Structured whole-corpus checks compare against verified member baselines."""
 
+import importlib.util
 import json
 import sys
+from pathlib import Path
 
 import pytest
 from change_fixtures import commit_approval
@@ -11,9 +13,11 @@ from signetum import lifecycle
 from signetum import workspace_operations as ops
 from signetum.change.scope import member_contribution_paths
 from signetum.git import git_output
-from signetum.operations import AdmissionError, MergeConflict
+from signetum.operations import MergeConflict
 from signetum.profiles.ty import ty_document
-from signetum.validation.diagnostics import diagnostic_multiset, traceability_document
+from signetum.resources.schemas import evidence_schema_digest
+from signetum.validation.diagnostic_protocol import diagnostic_multiset
+from signetum.validation.diagnostics import traceability_document
 from signetum.validation.execution import ValidationExecutionError, ValidationInfrastructureError
 from signetum.validation.repository import run_repository_gate
 
@@ -22,6 +26,34 @@ OLD = {"file": "module.py", "rule": "old-rule", "message": "inherited problem", 
 
 def document(*diagnostics):
     return json.dumps({"schema_version": 1, "diagnostics": list(diagnostics)})
+
+
+@pytest.fixture(params=["engine", "template"])
+def runtime(request, monkeypatch):
+    if request.param == "engine":
+        return lifecycle
+    directory = Path(__file__).parents[1] / "template/.agents/repo-dev/runtime"
+    monkeypatch.syspath_prepend(str(directory))
+    spec = importlib.util.spec_from_file_location(
+        "ratchet_template_lifecycle", directory / "lifecycle.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def execution_failure(runtime):
+    return ValidationExecutionError if runtime is lifecycle else runtime.AdmissionError
+
+
+def admission(runtime, member, tip):
+    if runtime is lifecycle:
+        return runtime._admission_evidence(
+            member, tip, lifecycle.load_manifest(member / "signetum.toml")
+        )
+    return runtime._admission_evidence(member, tip)
 
 
 def configured(repository, *, baseline_report=None):
@@ -43,7 +75,13 @@ def configured(repository, *, baseline_report=None):
     strict = json.dumps([sys.executable, "checker.py", "strict"])
     report = json.dumps([sys.executable, "checker.py", "report"])
     manifest.write_text(
-        manifest.read_text().replace(
+        manifest.read_text()
+        .replace(
+            "[repository]",
+            'evidence_protocol = "reposeal.validation-evidence@3"\n'
+            + f'evidence_schema_digest = "{evidence_schema_digest()}"\n[repository]',
+        )
+        .replace(
             'name = "test:check"\ncommand = ["true"]',
             f'name = "test:check"\ncommand = {strict}\nratchet_command = {report}',
         )
@@ -71,43 +109,49 @@ def configured(repository, *, baseline_report=None):
     return root, member, state
 
 
-def test_member_accepts_only_inherited_findings_and_final_remains_strict(repository):
+def test_member_accepts_only_inherited_findings_and_final_remains_strict(repository, runtime):
     root, member, _ = configured(repository)
     before = git_output(root, "worktree", "list", "--porcelain")
-    ready = lifecycle.validate(member, "member")
+    ready = runtime.validate(member, "member")
     evidence = ready["evidence"]
     assert isinstance(evidence, dict)
     ratchet = evidence["extensions"]["shard_details"]["test:check"]["ratchet"]
     assert ratchet["new_count"] == 0
     assert ratchet["baseline"] == lifecycle._recorded_base(member)
     assert git_output(root, "worktree", "list", "--porcelain") == before
-    graph, inputs = lifecycle._runtime_validation(lifecycle.load_manifest(member / "signetum.toml"))
-    with pytest.raises(ValidationExecutionError):
-        run_repository_gate(member, graph, "final", inputs, root.parent / "final-receipts")
+    if runtime is lifecycle:
+        graph, inputs = lifecycle._runtime_validation(
+            lifecycle.load_manifest(member / "signetum.toml")
+        )
+        with pytest.raises(ValidationExecutionError):
+            run_repository_gate(member, graph, "final", inputs, root.parent / "final-receipts")
+    else:
+        with pytest.raises(runtime.AdmissionError):
+            runtime._run_gate(member, "final", base=runtime._recorded_base(member))
 
 
 @pytest.mark.parametrize("extra", [OLD, {**OLD, "message": "new problem"}])
-def test_new_occurrence_or_changed_message_blocks_member(repository, extra):
+def test_new_occurrence_or_changed_message_blocks_member(repository, extra, runtime):
     _, member, _ = configured(repository)
     commit_file(member, "diagnostics.json", document(OLD, extra))
-    with pytest.raises(ValidationExecutionError, match="new diagnostics"):
-        lifecycle.validate(member, "member")
+    with pytest.raises(execution_failure(runtime), match="new diagnostics"):
+        runtime.validate(member, "member")
 
 
-def test_baseline_cache_reuses_only_completed_tool_bound_measurements(repository):
+def test_baseline_cache_reuses_only_completed_tool_bound_measurements(repository, runtime):
     _, member, state = configured(repository)
-    lifecycle.validate(member, "member")
-    lifecycle.validate(member, "member")
+    runtime.validate(member, "member")
+    runtime.validate(member, "member")
     runs = (state / "runs").read_text().splitlines()
     assert runs.count(str(member.resolve())) == 2
     assert len(runs) == 3
 
 
-def test_current_unavailable_report_never_counts_as_no_findings(repository):
+def test_current_unavailable_report_never_counts_as_no_findings(repository, runtime):
     _, member, _ = configured(repository)
     commit_file(member, "diagnostics.json", "not JSON")
-    with pytest.raises(ValidationExecutionError, match="diagnostic"):
-        lifecycle.validate(member, "member")
+    with pytest.raises(execution_failure(runtime), match="diagnostic"):
+        runtime.validate(member, "member")
 
 
 def test_unavailable_member_measurement_has_infrastructure_exit(repository, monkeypatch, capsys):
@@ -120,12 +164,12 @@ def test_unavailable_member_measurement_has_infrastructure_exit(repository, monk
     assert "invalid diagnostic" in result["cause"]
 
 
-def test_latest_supported_sync_source_replaces_the_old_ratchet_baseline(repository):
+def test_latest_supported_sync_source_replaces_the_old_ratchet_baseline(repository, runtime):
     root, member, _ = configured(repository)
     commit_file(root, "diagnostics.json", document())
     git_output(root, "push", "origin", "main")
     # A delivery fix which this member has not synchronized is not its baseline.
-    lifecycle.validate(member, "member")
+    runtime.validate(member, "member")
     with pytest.raises(MergeConflict):
         ops.workspace_sync(member)
     (member / "diagnostics.json").write_text(document(OLD))
@@ -134,15 +178,15 @@ def test_latest_supported_sync_source_replaces_the_old_ratchet_baseline(reposito
     assert "diagnostics.json" in member_contribution_paths(
         member, lifecycle._recorded_base(member), git_output(member, "rev-parse", "HEAD")
     )
-    with pytest.raises(ValidationExecutionError, match="new diagnostics"):
-        lifecycle.validate(member, "member")
+    with pytest.raises(execution_failure(runtime), match="new diagnostics"):
+        runtime.validate(member, "member")
 
 
-def test_unavailable_baseline_is_explicit_and_is_not_cached(repository):
+def test_unavailable_baseline_is_explicit_and_is_not_cached(repository, runtime):
     _, member, state = configured(repository, baseline_report="not JSON")
     commit_file(member, "diagnostics.json", document())
     for _ in range(2):
-        ready = lifecycle.validate(member, "member")
+        ready = runtime.validate(member, "member")
         evidence = ready["evidence"]
         assert isinstance(evidence, dict)
         assert evidence["extensions"]["shard_details"]["test:check"]["ratchet"][
@@ -151,38 +195,37 @@ def test_unavailable_baseline_is_explicit_and_is_not_cached(repository):
     assert len((state / "runs").read_text().splitlines()) == 4
 
 
-def test_unavailable_baseline_does_not_waive_current_findings(repository):
+def test_unavailable_baseline_does_not_waive_current_findings(repository, runtime):
     _, member, _ = configured(repository, baseline_report="not JSON")
-    with pytest.raises(ValidationExecutionError, match="new diagnostics"):
-        lifecycle.validate(member, "member")
+    with pytest.raises(execution_failure(runtime), match="new diagnostics"):
+        runtime.validate(member, "member")
 
 
-def test_tool_identity_change_invalidates_baseline_cache(repository):
+def test_tool_identity_change_invalidates_baseline_cache(repository, runtime):
     _, member, state = configured(repository)
-    lifecycle.validate(member, "member")
+    runtime.validate(member, "member")
     (state / "tool").write_text("v2")
-    lifecycle.validate(member, "member")
+    runtime.validate(member, "member")
     assert len((state / "runs").read_text().splitlines()) == 4
 
 
-def test_admission_rechecks_the_ratchet_source_qualification(repository):
+def test_admission_rechecks_the_ratchet_source_qualification(repository, runtime):
     root, member, _ = configured(repository)
     commit_file(root, "published.txt", "published source")
     git_output(root, "push", "origin", "main")
     ops.workspace_sync(member)
-    lifecycle.validate(member, "member")
-    manifest = lifecycle.load_manifest(member / "signetum.toml")
+    runtime.validate(member, "member")
     tip = git_output(member, "rev-parse", "HEAD")
-    assert lifecycle._admission_evidence(member, tip, manifest)
+    assert admission(runtime, member, tip)
     for path in (lifecycle._state_root(member) / "synchronization").glob("*.json"):
         path.unlink()
-    with pytest.raises(AdmissionError, match="no evidence"):
-        lifecycle._admission_evidence(member, tip, manifest)
-    lifecycle.validate(member, "member")
-    assert lifecycle._admission_evidence(member, tip, manifest)
+    with pytest.raises(runtime.AdmissionError, match="no evidence"):
+        admission(runtime, member, tip)
+    runtime.validate(member, "member")
+    assert admission(runtime, member, tip)
 
 
-def test_unverified_merge_trailer_cannot_waive_a_new_finding(repository):
+def test_unverified_merge_trailer_cannot_waive_a_new_finding(repository, runtime):
     root, member, _ = configured(repository)
     findings = document(OLD, {**OLD, "message": "new problem"})
     commit_file(member, "diagnostics.json", findings)
@@ -190,16 +233,16 @@ def test_unverified_merge_trailer_cannot_waive_a_new_finding(repository):
     git_output(root, "worktree", "add", "-b", "unverified", str(sibling), "HEAD")
     source = commit_file(sibling, "diagnostics.json", findings)
     git_output(member, "merge", "--no-ff", source, "-m", f"manual merge\n\nSignetum-Sync: {source}")
-    with pytest.raises(ValidationExecutionError, match="new diagnostics"):
-        lifecycle.validate(member, "member")
+    with pytest.raises(execution_failure(runtime), match="new diagnostics"):
+        runtime.validate(member, "member")
 
 
-def test_archive_attributes_cannot_silently_remove_baseline_inputs(repository):
+def test_archive_attributes_cannot_silently_remove_baseline_inputs(repository, runtime):
     root, _ = repository
     (root / ".gitattributes").write_text("diagnostics.json export-ignore\n")
     _, member, _ = configured(repository)
     commit_file(member, "diagnostics.json", document())
-    ready = lifecycle.validate(member, "member")
+    ready = runtime.validate(member, "member")
     evidence = ready["evidence"]
     assert isinstance(evidence, dict)
     assert (

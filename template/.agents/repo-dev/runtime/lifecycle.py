@@ -18,12 +18,14 @@ from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _signetum_runtime import resources
+from _signetum_runtime.admission import find_member_evidence
 from _signetum_runtime.evidence_receipts import EvidenceReceipt, ReceiptError, ValidationSelection
 from _signetum_runtime.execution import (
     ShardExecution,
     ValidationExecutionError,
     ValidationInfrastructureError,
     ValidationInputs,
+    build_evidence_identity,
     execute_gate,
 )
 from _signetum_runtime.findings import Finding, FindingsError, parse_findings
@@ -32,15 +34,16 @@ from _signetum_runtime.impact import select_paths
 from _signetum_runtime.inheritance import find_test_inheritance
 from _signetum_runtime.operations import AdmissionError
 from _signetum_runtime.process import run_command
+from _signetum_runtime.ratchet import ratchet_baseline, run_ratchet
 from _signetum_runtime.receipt_store import ReceiptStore
 from _signetum_runtime.recovery import shard_execution, with_recovery_history
 from _signetum_runtime.validation import (
     GateDeclaration,
     ToolDeclaration,
     ValidationConfiguration,
+    ValidationGraph,
     ValidationGraphError,
     ValidationShard,
-    command_digest,
     resolve_validation_graph,
 )
 from _signetum_runtime.waivers import Waiver, WaiverError, load_waivers
@@ -320,8 +323,10 @@ def _member_shards(
 class _ValidationAdapter:
     """Repository effects for the shared execution and evidence contracts."""
 
-    def __init__(self, repository: Path) -> None:
+    def __init__(self, repository: Path, *, member_base: str | None = None) -> None:
         self.repository = repository.resolve()
+        self.member_base = member_base
+        self.observed_tools: dict[str, str] = {}
 
     def commit_identity(self) -> str:
         return _git(self.repository, "rev-parse", "HEAD")
@@ -346,6 +351,7 @@ class _ValidationAdapter:
         identity = completed.stdout.strip()
         if completed.returncode or not identity:
             raise ValidationInfrastructureError(f"tool identity unavailable: {tool.name}")
+        self.observed_tools[tool.name] = identity
         return identity
 
     def _run(
@@ -374,6 +380,17 @@ class _ValidationAdapter:
             if shard.workers
             else {"workers": 0, "declared_workers": 0}
         )
+        if shard.ratchet_command and self.member_base is not None:
+            execution = run_ratchet(
+                self.repository,
+                shard,
+                self.member_base,
+                tuple(sorted(self.observed_tools.items())),
+                workers=allocation["workers"],
+            )
+            return replace(
+                execution, details={**execution.details, "resource_allocation": allocation}
+            )
         with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
             report = Path(scratch) / "recovered.json"
             try:
@@ -407,6 +424,55 @@ class _ValidationAdapter:
             raise ValidationExecutionError(str(error)) from error
 
 
+def _configured_validation(
+    data: dict[str, object],
+    *,
+    member_shards: tuple[str, ...] | None = None,
+    base: str | None = None,
+    selection: dict[str, object] | None = None,
+) -> tuple[ValidationGraph, ValidationInputs]:
+    """Project one manifest for both execution and evidence consumption."""
+    validation = _mapping(data.get("validation"), "validation")
+    configuration = ValidationConfiguration.from_mapping("repository", validation)
+    contribution = configuration.contribution
+    if member_shards is not None:
+        gates = tuple(gate for gate in contribution.gates if gate.name != "member")
+        contribution = replace(
+            contribution, gates=(*gates, GateDeclaration("member", member_shards))
+        )
+    graph = resolve_validation_graph((contribution,))
+    profiles = _mapping(data.get("profiles", {}), "profiles")
+    repository_config = _mapping(data.get("repository"), "repository")
+    identity = _mapping(data.get("signetum"), "signetum")
+    schema = identity.get("evidence_schema_digest")
+    if not isinstance(schema, str):
+        raise AdmissionError("evidence schema digest is unavailable")
+    if identity.get("evidence_protocol") != "reposeal.validation-evidence@3":
+        raise AdmissionError("unsupported evidence protocol")
+    selected = ValidationSelection.from_mapping(selection) if selection is not None else None
+
+    def recovery_setting(name: str, default: int) -> int:
+        value = validation.get(name, default)
+        if type(value) is not int or value < 1:
+            raise AdmissionError(f"validation.{name} must be a positive integer")
+        return value
+
+    inputs = ValidationInputs(
+        configuration_path="signetum.toml",
+        profiles=tuple(sorted(_strings(profiles.get("enabled", []), "profiles.enabled"))),
+        lockfiles=tuple(
+            sorted(_strings(repository_config.get("lockfiles", []), "repository.lockfiles"))
+        ),
+        tools=configuration.tools,
+        base=base,
+        selection=selected,
+        schema_digest=schema,
+        recovery_threshold=recovery_setting("recovery_threshold", 3),
+        recovery_window=recovery_setting("recovery_window", 20),
+    )
+    return graph, inputs
+
+
 def _run_gate(
     repository: Path,
     kind: str,
@@ -416,52 +482,18 @@ def _run_gate(
     selection: dict[str, object] | None = None,
 ) -> EvidenceReceipt:
     """Execute through the canonical graph, failure and evidence authorities."""
-
     data = _manifest(repository)
-    validation = _mapping(data.get("validation"), "validation")
     try:
-        configuration = ValidationConfiguration.from_mapping("repository", validation)
-        contribution = configuration.contribution
-        graph = resolve_validation_graph((contribution,))
-        graph.gate(kind)
-        if selected_shards is not None:
-            gates = tuple(gate for gate in contribution.gates if gate.name != kind)
-            contribution = replace(
-                contribution, gates=(*gates, GateDeclaration(kind, selected_shards))
-            )
-            graph = resolve_validation_graph((contribution,))
-        profiles = _mapping(data.get("profiles", {}), "profiles")
-        repository_config = _mapping(data.get("repository"), "repository")
-        identity = _mapping(data.get("signetum"), "signetum")
-        schema = identity.get("evidence_schema_digest")
-        if not isinstance(schema, str):
-            raise AdmissionError("evidence schema digest is unavailable")
-        if identity.get("evidence_protocol") != "reposeal.validation-evidence@3":
-            raise AdmissionError("unsupported evidence protocol")
-        selected = ValidationSelection.from_mapping(selection) if selection is not None else None
-
-        def recovery_setting(name: str, default: int) -> int:
-            value = validation.get(name, default)
-            if type(value) is not int or value < 1:
-                raise AdmissionError(f"validation.{name} must be a positive integer")
-            return value
-
-        inputs = ValidationInputs(
-            configuration_path="signetum.toml",
-            profiles=tuple(sorted(_strings(profiles.get("enabled", []), "profiles.enabled"))),
-            lockfiles=tuple(
-                sorted(_strings(repository_config.get("lockfiles", []), "repository.lockfiles"))
-            ),
-            tools=configuration.tools,
+        graph, inputs = _configured_validation(
+            data,
+            member_shards=selected_shards if kind == "member" else None,
             base=base,
-            selection=selected,
-            schema_digest=schema,
-            waivers=_load_waivers(repository),
-            recovery_threshold=recovery_setting("recovery_threshold", 3),
-            recovery_window=recovery_setting("recovery_window", 20),
+            selection=selection,
         )
-        inputs = with_recovery_history(inputs, _receipt_root(repository))
-        adapter = _ValidationAdapter(repository)
+        inputs = with_recovery_history(
+            replace(inputs, waivers=_load_waivers(repository)), _receipt_root(repository)
+        )
+        adapter = _ValidationAdapter(repository, member_base=base if kind == "member" else None)
         inherited = (
             find_test_inheritance(
                 repository, _impact_rules(data), graph, inputs, adapter, _receipt_root(repository)
@@ -693,47 +725,35 @@ def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def _admission_evidence(member: Path, tip: str) -> str:
-    """Locate evidence proving what this member's own selection requires.
-
-    Evidence is matched by observed tree and by shard command digest, never by
-    commit identity, receipt gate, or shard name: an amended trailer, an
-    equivalent rebase, a renamed shard, and a completed final gate all prove
-    the same work.
-    """
-
-    manifest = _manifest(member)
-    selection = changed(member, True)["selection"]
-    if not isinstance(selection, dict):
-        raise AdmissionError("member selection is unavailable")
-    required_names, _ = _member_shards(manifest, selection)
-    validation = _mapping(manifest.get("validation"), "validation")
-    raw_shards = validation["shards"]
-    if not isinstance(raw_shards, list):
-        raise AdmissionError("validation.shards must be an array")
-    commands = {
-        str(shard["name"]): tuple(_strings(shard["command"], "shard.command"))
-        for item in raw_shards
-        for shard in (_mapping(item, "validation shard"),)
-    }
-    required = {command_digest(commands[name]) for name in required_names}
-    tree = _git(member, "rev-parse", f"{tip}^{{tree}}")
-    for path in sorted(_receipt_root(member).glob("*.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            evidence = payload["evidence"]
-            proven = {str(outcome["command_digest"]) for outcome in evidence["execution"]["shards"]}
-        except (OSError, json.JSONDecodeError, KeyError, TypeError):
-            continue
-        if evidence["identity"]["tree"] != tree or evidence.get("valid") is not True:
-            continue
-        if required <= proven:
-            return path.name
-    if selection["requires_final"]:
-        rules = ",".join(_strings(selection["rules"], "selection.rules"))
-        return "deferred:requires-final:" + (rules or "unexplained")
-    raise AdmissionError(
-        "member has no evidence proving its selected validation for the exact tree"
-    )
+    """Require the same exact-input tree evidence as the installed engine."""
+    base = _recorded_base(member)
+    if not _is_ancestor(member, base, tip):
+        raise AdmissionError("member does not descend from its recorded base")
+    data = _manifest(member)
+    selection = _mapping(changed(member, True)["selection"], "selection")
+    required_names, _ = _member_shards(data, selection)
+    try:
+        graph, inputs = _configured_validation(data, member_shards=required_names, base=base)
+        closure = set(graph.execution_order("member"))
+        required = frozenset(shard.digest for shard in graph.shards if shard.name in closure)
+        ratchets = tuple(
+            shard.name for shard in graph.shards if shard.name in closure and shard.ratchet_command
+        )
+        qualified_base = ratchet_baseline(member, base, tip) if ratchets else base
+        member_identity = build_evidence_identity(graph, inputs, _ValidationAdapter(member))
+        final_graph, _ = _configured_validation(data)
+        return find_member_evidence(
+            _receipt_root(member),
+            tip=tip,
+            schema_digest=inputs.schema_digest,
+            member_identity=member_identity,
+            final_graph_digest=final_graph.digest,
+            required_digests=required,
+            ratchet_baselines={name: qualified_base for name in ratchets},
+            inputs=inputs,
+        )
+    except (ValidationGraphError, ValidationExecutionError, ReceiptError) as error:
+        raise AdmissionError(str(error)) from error
 
 
 def _stable_patch_id(repository: Path, base: str, source: str) -> str:

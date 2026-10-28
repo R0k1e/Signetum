@@ -15,7 +15,7 @@ from pathlib import Path
 from signetum.git import git_output, run_git
 from signetum.synchronization import verified_sync_sources
 from signetum.validation import ValidationShard
-from signetum.validation.diagnostics import diagnostic_multiset
+from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.execution import ShardExecution, ValidationInfrastructureError
 from signetum.validation.process import run_command
 from signetum.workspaces import state_root
@@ -78,7 +78,7 @@ def run_ratchet(
     baseline = ratchet_baseline(repository, recorded_base, tip)
     driver = hashlib.sha256(
         Path(__file__).read_bytes()
-        + Path(__file__).with_name("diagnostics.py").read_bytes()
+        + Path(__file__).with_name("diagnostic_protocol.py").read_bytes()
         + Path(__file__).with_name("process.py").read_bytes()
     ).hexdigest()
     identity = {

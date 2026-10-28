@@ -23,91 +23,32 @@ execution authorities. Repository validation checks that those required assets
 and their local Markdown references remain present.
 
 
-Portable shared runtime modules are maintained in the engine and enumerated by
-`signetum.runtime_generation`. Generate their template artifacts with
-`uv run python -m signetum.runtime_generation template`; `--check` verifies the
-installed source identity without writing. Rendering refuses missing, stale or
-extra generated files and omits interpreter caches. The generated package and
-its public source/output digest manifest are self-contained standard-library
-artifacts. Boundary adapters call these modules rather than maintaining their
-bodies again. Remaining lifecycle migration is owned by the active
-[tooling alignment specification](../../changes/align-perdura-development-tooling/specs/tooling.toml); generating the initial modules does not complete it.
+Portable runtime modules have one maintained engine source, enumerated by
+`signetum.runtime_generation`. Generate the template artifacts with
+`uv run python -m signetum.runtime_generation template`; `--check` checks the
+installed source without writing. Rendering refuses stale, missing or extra
+generated files, omits interpreter caches, and binds public source/output hashes.
+The generated package is standard-library code; adapters own repository effects.
 
-Workspace records and change owners are validated by standard-library immutable
-values in `signetum.workspaces`, not by distribution-specific models. Workspace
-JSON input is normalized once by `parse_record`; both installed and generated runtimes use
-the same atomic writer and immutable identity checks. A record must match its
-branch path and bind a 40- or 64-character commit identity. Batch creation writes
-its role and initial member list once rather than upgrading a member record.
+| Shared authority | Responsibility |
+| --- | --- |
+| `operations`, `git`, `workspaces` | Operation values, isolated Git context and immutable workspace/change records. |
+| `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
+| `impact`, `validation` | Rule selection, dependency graphs and policy-bound graph identity. |
+| `evidence.receipts`, `validation.receipt_store`, `validation.admission`, `validation.inheritance` | Exact evidence values/storage, complete member qualification and conservative ancestor reuse. |
+| `validation.execution`, `process`, `resources`, `recovery`, `pytest_runner`, `pytest_report` | Execution, supervised commands, native resource budgets and retained failed-node recovery. |
+| `validation.diagnostic_protocol`, `validation.ratchet`, `synchronization` | Diagnostic multisets and snapshot measurements against verified synchronization sources. |
 
-Waiver parsing, immutable approval values, expiry and finding coverage are
-owned by `signetum.waivers` and generated into the same portable runtime.
-The template only translates authority errors into its operation boundary;
-it does not maintain a second parser or coverage algorithm. Waiver documents
-normalize TOML arrays and ISO dates once and reject unknown fields, unsupported
-versions, empty approval or reason, duplicate findings and invalid expiry.
+The observable contracts are maintained in
+[Validation and delivery](validation-and-delivery.md), rather than repeated
+here. Configuration adapters normalize inputs and supply effects; they do not
+maintain alternate selection, execution or evidence verdict algorithms. The
+template uses one configuration projection for validation and admission.
+`requires_final` never substitutes for missing member checks. Native Linux/macOS
+resource observations and explicit host-adapter observations consume the same
+budget algorithm.
 
-Impact selection consumes normalized read-only rule inputs rather than the
-distribution's manifest parser. `signetum.impact` owns matching, ordered unions,
-test-path detection, explanation and changed-path identity for both frontends.
-Each configuration adapter supplies normalized fields; the template does not
-maintain its own selection algorithm. The evidence values and verifier in
-`signetum.evidence.receipts` are also portable standard-library artifacts, with
-unchanged serialized identities. Their availability does not complete the
-remaining template gate and admission migration owned by ALIGN-009.
-
-The validation graph and generic execution engine are generated from
-`signetum.validation` and `signetum.validation.execution`, including package
-module sources. The template adapter supplies Git identities, declared files,
-tool probes and command effects. Shared execution expands dependencies, skips
-checks whose dependencies failed, continues independent checks, covers world
-findings, re-observes inputs and creates the evidence document. The template
-stores that document rather than reconstructing an alternate receipt shape.
-Graph identity includes every declared shard field, including inheritance and
-ratchet policy. Ratchet baseline effects and admission consumption still belong
-to the remaining ALIGN-009 migration.
-
-Command supervision is owned by `signetum.validation.process` in both runtimes.
-It starts its own source file with isolated Python and site-packages disabled,
-so a supervisor never requires the installed engine or loads the caller's
-package. A caller-held pipe controls each independent command process group;
-timeouts or caller termination kill the group, including nested owners through
-their own leases. The template's Mise adapter preserves environment isolation
-and forwards shard deadlines; tool probes and findings have separate 60-second
-limits. Shard timeout reports a failed check with its declared bound; tool and
-findings timeouts report explicit observation diagnostics. Unifying the legacy
-template's public operation error envelope remains part of ALIGN-009.
-
-Pytest recovery uses the generated `pytest_runner.py` and `pytest_report.py`.
-The runner stages the packaged report plugin in its temporary directory so
-controllers and workers do not import the engine. Both frontends retain the
-same failed-node-only serial retry and original phase reports. The shared
-`signetum.validation.recovery` boundary interprets command results and validates
-recovery reports, rather than maintaining that parser inside each adapter.
-It also owns the bounded successful observation history. Both frontends read
-the same raw receipt shape; lifecycle projections never become additional
-observations. The template consumes its declared
-recovery threshold and window, retains recovered failures in evidence, and
-refuses a repeated member recovery through the shared execution engine.
-
-Resource observation and worker allocation are shared standard-library code in
-`signetum.validation.resources`. Native Linux observation uses process affinity
-and `MemAvailable`; Darwin uses CPU capacity and free plus inactive pages from
-a bounded `vm_stat` probe. Other host adapters can provide an explicit normalized
-`ResourceObservation` before the same container-ancestor limits are applied.
-Unavailable or malformed measurements refuse allocation instead of assuming
-capacity. Both repository adapters pass the allocated worker count to the actual
-command and retain the resource allocation in shard evidence. Serial declarations
-remain serial without probing parallel capacity. The old observation-only
-psutil dependency and its tool identity entry are removed.
-
-`signetum.validation.receipt_store` owns raw content-addressed receipts in both
-frontends. Each lifecycle projection names the same raw digest rather than
-creating another evidence identity. Shared test inheritance consumes normalized
-impact rules and verifies the nearest first-parent ancestor's committed tree,
-artifacts, graph, base, schema, tools and successful inheritable outcomes. It
-inspects every intervening commit's paths, including modifications later
-reverted. Invalid nearest evidence cannot fall back to an older observation;
-an unlocatable damaged record conservatively disables inheritance. Static
-checks rerun, final never inherits, and inherited recovery remains visible
-without counting as another recovered observation.
+[Tooling alignment](../../changes/align-perdura-development-tooling/specs/tooling.toml)
+still owns the remaining manifest/profile normalization, lifecycle orchestration
+and durable change-authority migration. Shared validation modules alone do not
+complete that change.
