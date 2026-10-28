@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -19,13 +20,24 @@ from signetum.validation.execution import ValidationExecutionError, ValidationIn
 from signetum.validation.repository import run_repository_gate
 
 
+@pytest.fixture(params=["engine", "template"])
+def runner_command(request):
+    if request.param == "engine":
+        return ["-m", "signetum.validation.pytest_runner"]
+    runner = Path(__file__).parents[2] / (
+        "template/.agents/repo-dev/runtime/_signetum_runtime/pytest_runner.py"
+    )
+    return [str(runner)]
+
+
 @pytest.mark.parametrize("retry", ["pass", "fail", "skip"])
-def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry):
+def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, runner_command):
     test = tmp_path / "test_example.py"
     test.write_text(
-        "from pathlib import Path\nimport pytest\n"
+        "from pathlib import Path\nimport pytest,sys\n"
         "@pytest.mark.parametrize('identity', ['user@example'])\n"
         "def test_flaky(identity):\n"
+        "    assert 'signetum' not in sys.modules, 'pytest depends on engine installation'\n"
         "    marker = Path(__file__).with_suffix('.attempt')\n"
         "    first = not marker.exists()\n"
         "    marker.touch()\n"
@@ -41,8 +53,7 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry):
     result = subprocess.run(  # noqa: S603 -- isolated Python fixture, no shell
         [
             sys.executable,
-            "-m",
-            "signetum.validation.pytest_runner",
+            *runner_command,
             "--",
             "-q",
             "-o",
@@ -64,15 +75,14 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry):
 
 
 @pytest.mark.parametrize("workers", [0, 2])
-def test_collection_failure_is_not_retried(tmp_path, workers):
+def test_collection_failure_is_not_retried(tmp_path, workers, runner_command):
     test = tmp_path / "test_broken.py"
     test.write_text("raise RuntimeError('collection failed')\n")
     report = tmp_path / "recovery.json"
     result = subprocess.run(  # noqa: S603 -- isolated Python fixture, no shell
         [
             sys.executable,
-            "-m",
-            "signetum.validation.pytest_runner",
+            *runner_command,
             "--",
             "-q",
             "-o",
@@ -93,7 +103,7 @@ def test_collection_failure_is_not_retried(tmp_path, workers):
     assert not report.exists()
 
 
-def test_parallel_failure_retries_without_a_worker(tmp_path):
+def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
     pytest.importorskip("xdist", reason="parallel adapter scenario requires optional pytest-xdist")
     test = tmp_path / "test_parallel.py"
     test.write_text(
@@ -105,8 +115,7 @@ def test_parallel_failure_retries_without_a_worker(tmp_path):
     result = subprocess.run(  # noqa: S603 -- isolated Python fixture, no shell
         [
             sys.executable,
-            "-m",
-            "signetum.validation.pytest_runner",
+            *runner_command,
             "--",
             "-q",
             "-o",
@@ -182,3 +191,83 @@ def test_recovered_defect_is_in_receipt_and_repeated_member_recovery_fails(tmp_p
         repository, graph, "member", replace(inputs, recovery_window=1), receipts
     )
     assert bounded.valid
+
+
+def test_independent_template_retains_recovery_and_refuses_a_repeated_node(repository, tmp_path):
+    root, _ = repository
+    runtime = Path(__file__).parents[2] / "template/.agents/repo-dev/runtime"
+    state = tmp_path / "template-attempts"
+    (root / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
+    (root / "test_retry.py").write_text(
+        "import sys\nfrom pathlib import Path\n"
+        "def test_retry():\n"
+        "    assert 'signetum' not in sys.modules\n"
+        f"    state = Path({str(state)!r})\n"
+        "    n = int(state.read_text()) if state.exists() else 0\n"
+        "    state.write_text(str(n + 1))\n"
+        "    assert n % 2, 'recurring template failure'\n"
+    )
+    command = [
+        sys.executable,
+        str(runtime / "_signetum_runtime/pytest_runner.py"),
+        "--",
+        "-q",
+        "-o",
+        "addopts=",
+        "test_retry.py",
+    ]
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        "schema_version = 2\n[signetum]\n"
+        'evidence_protocol = "reposeal.validation-evidence@3"\n'
+        'evidence_schema_digest = "sha256:' + "0" * 64 + '"\n'
+        "[repository]\n[validation]\nrecovery_threshold = 2\nrecovery_window = 20\n"
+        '[[validation.shards]]\nname = "test:pytest"\ncommand = ' + json.dumps(command) + "\n"
+        '[[validation.gates]]\nname = "member"\nshards = ["test:pytest"]\n'
+    )
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "declare template recovery fixture")
+    script = """
+import json,sys
+from datetime import UTC,datetime
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+import lifecycle
+repository=Path(sys.argv[2])
+try:
+    receipt=lifecycle._run_gate(repository,'member')
+except lifecycle.AdmissionError as error:
+    print(json.dumps({'reason':str(error)}))
+    raise SystemExit(3)
+assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
+lifecycle._write_receipt(repository,'member',{
+    'kind':'member','validated_at':datetime.now(UTC).isoformat(),
+    'evidence':json.loads(receipt.to_json()),
+})
+print(receipt.to_json(),end='')
+"""
+
+    def run():
+        return subprocess.run(  # noqa: S603 -- isolated consumer and native fixture pytest
+            [sys.executable, "-I", "-S", "-c", script, str(runtime), str(root)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    first = run()
+    assert first.returncode == 0, first.stdout + first.stderr
+    evidence = json.loads(first.stdout)
+    defect = evidence["extensions"]["recovered_flake_defects"][0]
+    assert "recurring template failure" in str(defect["first_failure"])
+    assert defect["source"] == git_output(root, "rev-parse", "HEAD")
+    assert defect["gate"] == "member" and defect["shard"] == "test:pytest"
+    repeated = run()
+    assert repeated.returncode == 3, repeated.stdout + repeated.stderr
+    assert "repeated recovered robustness defect" in repeated.stdout
+    assert "recurring template failure" in repeated.stdout
+    manifest.write_text(manifest.read_text().replace("recovery_window = 20", "recovery_window = 1"))
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "bound recovery history to the current observation")
+    bounded = run()
+    assert bounded.returncode == 0, bounded.stdout + bounded.stderr

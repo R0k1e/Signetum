@@ -64,11 +64,11 @@ from signetum.validation.execution import (
 )
 from signetum.validation.inheritance import find_test_inheritance
 from signetum.validation.ratchet import ratchet_baseline
+from signetum.validation.recovery import with_recovery_history
 from signetum.validation.repository import (
     ReceiptStore,
     RepositoryValidationAdapter,
     run_diagnostic_gate,
-    with_recovery_history,
 )
 from signetum.validation.repository import configured_validation as _runtime_validation
 from signetum.validation.review import member_recovery_review, recovery_projection
