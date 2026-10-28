@@ -3,8 +3,10 @@ import subprocess
 import sys
 from pathlib import Path
 from tomllib import loads
+from urllib.parse import quote
 
 import pytest
+from change_fixtures import commit_approval
 from typer.testing import CliRunner
 
 from signetum.cli import app
@@ -134,7 +136,8 @@ def test_template_cli_checks_and_renders(tmp_path: Path) -> None:
     assert (tmp_path / "rendered" / "README.zh-CN.md").is_file()
 
 
-def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> None:
+@pytest.mark.parametrize("gate", ["member", pytest.param("final", marks=pytest.mark.world)])
+def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate: str) -> None:
     rendered = tmp_path / "repository"
     render_template(ROOT / "template", rendered)
     for command in (
@@ -158,15 +161,32 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> No
         capture_output=True,
         text=True,
     ).stdout.strip()
-    record = rendered / ".git/signetum/workspaces/main.json"
+    branch = "plan/template"
+    subprocess.run(("git", "switch", "-c", branch), cwd=rendered, check=True, capture_output=True)
+    commit_approval(rendered)
+    (rendered / "README.md").write_text(
+        (rendered / "README.md").read_text() + "\nFixture documentation update.\n"
+    )
+    subprocess.run(
+        (
+            "git",
+            "commit",
+            "-am",
+            "implement approved fixture change\n\nDelivers: changes/example/plans/behavior.md",
+        ),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+    )
+    record = rendered / f".git/signetum/workspaces/{quote(branch, safe='')}.json"
     record.parent.mkdir(parents=True, exist_ok=True)
     record.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "branch": "main",
+                "branch": branch,
                 "base": head,
-                "kind": "batch",
+                "kind": "member",
                 "members": [],
             }
         ),
@@ -174,23 +194,101 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path) -> No
     )
 
     runtime = rendered / ".agents/repo-dev/runtime/lifecycle.py"
+    runtime_python = str(rendered / ".venv/bin/python")
+    subprocess.run(
+        (
+            runtime_python,
+            "-I",
+            "-c",
+            "from importlib.util import find_spec; assert find_spec('signetum') is None",
+        ),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+    )
     diagnostic = subprocess.run(
-        (sys.executable, "-I", str(runtime), "changed"),
+        (runtime_python, "-I", str(runtime), "changed"),
         cwd=rendered,
         check=True,
         capture_output=True,
         text=True,
     )
-    final = subprocess.run(
-        (sys.executable, "-I", str(runtime), "final"),
+    ready = subprocess.run(
+        (runtime_python, "-I", str(runtime), "ready"),
         cwd=rendered,
         check=True,
         capture_output=True,
         text=True,
     )
-
     assert '"status": "changed"' in diagnostic.stdout
-    assert '"status": "final"' in final.stdout
+    assert json.loads(ready.stdout.splitlines()[-1])["status"] == "ready"
+    if gate == "member":
+        return
+    batch = tmp_path / "batch"
+    subprocess.run(
+        ("git", "worktree", "add", "-b", "batch/template", str(batch), head),
+        cwd=rendered,
+        check=True,
+        capture_output=True,
+    )
+    batch_record = record.with_name(quote("batch/template", safe="") + ".json")
+    batch_record.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "branch": "batch/template",
+                "base": head,
+                "kind": "batch",
+                "members": [str(rendered)],
+            }
+        )
+    )
+    subprocess.run(
+        (
+            "git",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "open batch",
+            "-m",
+            f"Signetum-Batch-Base: {head}",
+        ),
+        cwd=batch,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(("mise", "trust", "mise.toml"), cwd=batch, check=True, capture_output=True)
+    admission = (
+        "import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
+        "import lifecycle,json; "
+        "print(json.dumps(lifecycle.admit(Path(sys.argv[2]),(Path(sys.argv[3]),))))"
+    )
+    admitted = subprocess.run(
+        (
+            runtime_python,
+            "-I",
+            "-c",
+            admission,
+            str(batch / ".agents/repo-dev/runtime"),
+            str(batch),
+            str(rendered),
+        ),
+        cwd=batch,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    admitted_record = json.loads(admitted.stdout.splitlines()[-1])["admitted"][0]
+    ready_payload = json.loads(ready.stdout.splitlines()[-1])
+    assert admitted_record["ready_evidence"] == Path(ready_payload["receipt"]).name
+    final = subprocess.run(
+        (runtime_python, "-I", str(batch / ".agents/repo-dev/runtime/lifecycle.py"), "final"),
+        cwd=batch,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(final.stdout.splitlines()[-1])["status"] == "final"
 
 
 def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:

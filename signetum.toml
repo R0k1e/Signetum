@@ -117,10 +117,16 @@ requires = ["engine:sync"]
 [[validation.shards]]
 name = "engine:pytest"
 inherit = true
-command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--"]
+command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--", "-m", "not world"]
 workers = 4
 worker_memory_mb = 1024
 requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:world-tests"
+command = ["uv", "run", "--no-sync", "pytest", "-m", "world", "--no-cov"]
+evidence = "world"
+requires = ["engine:sync", "engine:build"]
 
 [[validation.shards]]
 name = "engine:audit"
@@ -135,7 +141,7 @@ shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "en
 
 [[validation.gates]]
 name = "final"
-shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit", "engine:world-tests"]
 
 [[validation.gates]]
 name = "prepare"

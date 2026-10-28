@@ -806,7 +806,7 @@ def _admission_evidence(member: Path, tip: str) -> str:
     }
     required = {_command_digest(commands[name]) for name in required_names}
     tree = _git(member, "rev-parse", f"{tip}^{{tree}}")
-    for path in sorted(_receipt_root(member).glob("*-lifecycle-*.json")):
+    for path in sorted(_receipt_root(member).glob("*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             evidence = payload["evidence"]
