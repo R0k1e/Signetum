@@ -28,6 +28,7 @@ from signetum.validation.execution import (
     ValidationInfrastructureError,
     ValidationInputs,
     build_evidence_identity,
+    execute_diagnostic_gate,
     execute_gate,
 )
 from signetum.validation.process import run_command
@@ -215,34 +216,11 @@ def run_diagnostic_gate(
     tools: tuple[ToolDeclaration, ...] = (),
 ) -> dict[str, object]:
     """Execute checks without granting readiness or publishing delivery evidence."""
-    proven = executed if executed is not None else set()
-    by_name = {shard.name: shard for shard in graph.shards}
-    names: list[str] = []
-    advisories: list[dict[str, str]] = []
-    recovered = []
-    adapter = RepositoryValidationAdapter(repository, member_base=member_base)
-    for tool in tools:
-        adapter.identify_tool(tool)
-    details = {}
-    for name in graph.execution_order(gate):
-        shard = by_name[name]
-        if shard.evidence == "tree" and shard.digest in proven:
-            continue
-        result = adapter.run_shard(shard)
-        if result.details:
-            details[name] = result.details
-        recovered.extend({**defect, "shard": name} for defect in result.recovered)
-        names.append(name)
-        if not result.succeeded:
-            if shard.evidence == "world" and advisory_world:
-                advisories.append({"shard": name, "diagnostic": result.diagnostic})
-                continue
-            raise ValidationExecutionError(result.diagnostic or f"check failed: {name}")
-        if shard.evidence == "tree":
-            proven.add(shard.digest)
-    return {
-        "executed": names,
-        "advisories": advisories,
-        "recovered_flake_defects": recovered,
-        "shard_details": details,
-    }
+    return execute_diagnostic_gate(
+        graph,
+        gate,
+        RepositoryValidationAdapter(repository, member_base=member_base),
+        executed=executed,
+        advisory_world=advisory_world,
+        tools=tools,
+    )

@@ -22,4 +22,7 @@ only under `changes/`.
 Development uses a plan-owned worktree. `ready` closes a member; `batch-open`
 and `batch-admit` assemble only named members; `final` validates the frozen
 batch once; `batch-deliver` explicitly lands that exact validated source.
-`changed` is a diagnostic and `batch-continue` is conflict recovery.
+`changed` executes the selected member-safe checks in a clean, committed
+workspace without issuing readiness evidence or running final. Use
+`changed --validate-only` to inspect selection without execution.
+`batch-continue` is conflict recovery.

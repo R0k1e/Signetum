@@ -27,9 +27,13 @@ The tooling specification and real Git/CLI lifecycle scenarios own acceptance; g
 
 ## Supersession boundary
 
-Only the admission clauses of ADP-0007 are superseded: tree-only matching,
+The admission and diagnostic-execution clauses of ADP-0007 are superseded:
+tree-only matching,
 commit-independent reuse and admission without member evidence when final is
-required. Other evidence, findings and waiver contracts remain in force.
+required. Its selection-only `changed` behavior is replaced by approved
+ALIGN-007: diagnostics execute selected checks, with explicit `--validate-only`
+for selection without execution. Other evidence, findings and waiver contracts
+remain in force.
 Exact-tip readiness follows the owner-approved Perdura baseline.
 
 The numbering clause of ADP-0001 is superseded only for timing: final owns

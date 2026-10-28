@@ -11,11 +11,11 @@ from test_workspace_operations import commit_file, opened
 
 from signetum import lifecycle
 from signetum import workspace_operations as ops
-from signetum.change.scope import member_contribution_paths
 from signetum.git import git_output
 from signetum.operations import MergeConflict
 from signetum.profiles.ty import ty_document
 from signetum.resources.schemas import evidence_schema_digest
+from signetum.synchronization import member_contribution_paths
 from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.diagnostics import traceability_document
 from signetum.validation.execution import ValidationExecutionError, ValidationInfrastructureError

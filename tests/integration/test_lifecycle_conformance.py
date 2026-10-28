@@ -213,12 +213,12 @@ def test_changed_contract_vectors_are_shared(
         (ROOT / "tests" / "fixtures" / "lifecycle-impact-vectors.json").read_text(encoding="utf-8")
     )["cases"]
     for vector in vectors:
-        monkeypatch.setattr(engine_lifecycle, "_require_clean", lambda repository: None)
+        monkeypatch.setattr(runtime, "_require_clean", lambda repository: None)
         monkeypatch.setattr(
-            engine_lifecycle, "run_diagnostic_gate", lambda *args, **kwargs: {"executed": []}
+            runtime, "run_diagnostic_gate", lambda *args, **kwargs: {"executed": []}
         )
         monkeypatch.setattr(
-            engine_lifecycle,
+            runtime,
             "member_contribution_paths",
             lambda *args, paths=tuple(vector["files"]): paths,
         )
