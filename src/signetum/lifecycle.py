@@ -57,6 +57,7 @@ from signetum.validation import (
     ValidationGraphError,
 )
 from signetum.validation.admission import find_member_evidence
+from signetum.validation.configuration import member_shards as _member_shards
 from signetum.validation.execution import (
     ValidationExecutionError,
     ValidationInfrastructureError,
@@ -119,40 +120,6 @@ def _receipt_root(repository: Path) -> Path:
 def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> ValidationSelection:
     files = member_contribution_paths(repository, base, _git(repository, "rev-parse", "HEAD"))
     return select_paths(files, manifest.impact.rules)
-
-
-def _member_shards(
-    manifest: RepositoryManifest, selection: ValidationSelection, *, member_closure: bool = True
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Return the member shards to execute and the world shards left to final.
-
-    Member closure stays a function of the observed tree, so a world shard
-    reached through an impact rule or a composed gate is deferred rather than
-    allowed to make an unrelated member unclosable.
-    """
-
-    gate_shards = {gate.name: gate.shards for gate in manifest.validation.gates}
-    world = {item.name for item in manifest.validation.shards if item.evidence == "world"}
-    selected: list[str] = list(manifest.validation.member_required) if member_closure else []
-    deferred: list[str] = []
-
-    def admit(name: str) -> None:
-        if name in world:
-            if name not in deferred:
-                deferred.append(name)
-            return
-        if name not in selected:
-            selected.append(name)
-
-    for shard in selection.shards:
-        admit(shard)
-    for gate in selection.gates:
-        for shard in gate_shards.get(gate, ()):
-            admit(shard)
-    if selection.unexplained and member_closure:
-        for shard in gate_shards["member"]:
-            admit(shard)
-    return tuple(selected), tuple(sorted(deferred))
 
 
 def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> dict[str, object]:

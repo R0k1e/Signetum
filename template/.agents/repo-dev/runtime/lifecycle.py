@@ -9,7 +9,6 @@ import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tempfile
-import tomllib
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +18,8 @@ from typing import Literal
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _signetum_runtime import resources
 from _signetum_runtime.admission import find_member_evidence
+from _signetum_runtime.configuration import configured_validation as _project_validation
+from _signetum_runtime.configuration import member_shards as _project_member_shards
 from _signetum_runtime.delivery import publish_batch
 from _signetum_runtime.evidence_receipts import EvidenceReceipt, ReceiptError, ValidationSelection
 from _signetum_runtime.execution import (
@@ -33,25 +34,27 @@ from _signetum_runtime.findings import Finding, FindingsError, parse_findings
 from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.impact import select_paths
 from _signetum_runtime.inheritance import find_test_inheritance
+from _signetum_runtime.manifest import (
+    ImpactRule,
+    ManifestError,
+    load_manifest,
+    manifest_from_mapping,
+)
 from _signetum_runtime.operations import AdmissionError
 from _signetum_runtime.process import run_command
 from _signetum_runtime.profile_catalog import (
     ProfileError,
     ProfileResourceError,
     load_catalog,
-    resolve_profiles,
 )
 from _signetum_runtime.ratchet import ratchet_baseline, run_ratchet
 from _signetum_runtime.receipt_store import ReceiptStore
 from _signetum_runtime.recovery import shard_execution, with_recovery_history
 from _signetum_runtime.validation import (
-    GateDeclaration,
     ToolDeclaration,
-    ValidationConfiguration,
     ValidationGraph,
     ValidationGraphError,
     ValidationShard,
-    resolve_validation_graph,
 )
 from _signetum_runtime.waivers import Waiver, WaiverError, load_waivers
 from _signetum_runtime.workspaces import (
@@ -239,14 +242,10 @@ def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> P
 
 
 def _manifest(repository: Path) -> dict[str, object]:
-    manifest = repository / "signetum.toml"
     try:
-        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
-        if data.get("schema_version") != 2:
-            raise AdmissionError("unsupported signetum.toml schema")
-    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
+        return json.loads(json.dumps(asdict(load_manifest(repository / "signetum.toml"))))
+    except ManifestError as error:
         raise AdmissionError(f"invalid validation authority: {error}") from error
-    return data
 
 
 def _mapping(value: object, label: str) -> dict[str, object]:
@@ -281,50 +280,9 @@ def _load_waivers(repository: Path) -> tuple[Waiver, ...]:
 def _member_shards(
     manifest: dict[str, object], selection: dict[str, object]
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Return the member shards to execute and the world shards left to final.
-
-    Member closure stays a function of the observed tree, so a world shard
-    reached through an impact rule or a composed gate is deferred rather than
-    allowed to make an unrelated member unclosable.
-    """
-
-    validation = _mapping(manifest.get("validation"), "validation")
-    raw_shards = validation["shards"]
-    if not isinstance(raw_shards, list):
-        raise AdmissionError("validation.shards must be an array")
-    world = {
-        str(shard["name"])
-        for item in raw_shards
-        for shard in (_mapping(item, "validation shard"),)
-        if shard.get("evidence", "tree") == "world"
-    }
-    raw_gates = validation["gates"]
-    if not isinstance(raw_gates, list):
-        raise AdmissionError("validation.gates must be an array")
-    gates = {
-        str(gate["name"]): _strings(gate["shards"], "gate.shards")
-        for item in raw_gates
-        for gate in (_mapping(item, "validation gate"),)
-    }
-    selected = _strings(validation.get("member_required", []), "member_required")
-    deferred: list[str] = []
-
-    def admit(name: str) -> None:
-        if name in world:
-            if name not in deferred:
-                deferred.append(name)
-        elif name not in selected:
-            selected.append(name)
-
-    for name in _strings(selection["shards"], "selection.shards"):
-        admit(name)
-    for name in _strings(selection["gates"], "selection.gates"):
-        for shard_name in gates.get(name, ()):
-            admit(shard_name)
-    if selection["unexplained"]:
-        for shard_name in gates["member"]:
-            admit(shard_name)
-    return tuple(selected), tuple(sorted(deferred))
+    return _project_member_shards(
+        manifest_from_mapping(manifest), ValidationSelection.from_mapping(selection)
+    )
 
 
 class _ValidationAdapter:
@@ -439,59 +397,29 @@ def _configured_validation(
     selection: dict[str, object] | None = None,
 ) -> tuple[ValidationGraph, ValidationInputs]:
     """Project one manifest for both execution and evidence consumption."""
-    validation = _mapping(data.get("validation"), "validation")
-    configuration = ValidationConfiguration.from_mapping("repository", validation)
-    contribution = configuration.contribution
-    if member_shards is not None:
-        gates = tuple(gate for gate in contribution.gates if gate.name != "member")
-        contribution = replace(
-            contribution, gates=(*gates, GateDeclaration("member", member_shards))
-        )
-    graph = resolve_validation_graph((contribution,))
-    profiles = _mapping(data.get("profiles", {}), "profiles")
     try:
-        if set(profiles) - {"enabled", "replacements"}:
-            raise ProfileError("unsupported profile selection fields")
+        manifest = manifest_from_mapping(data)
         catalog_root = Path(__file__).parent / "_signetum_runtime/profile_resources"
         catalog = load_catalog(lambda name: (catalog_root / name).read_text(encoding="utf-8"))
-        resolved = resolve_profiles(
-            tuple(_strings(profiles.get("enabled", []), "profiles.enabled")),
-            replacements=_mapping(profiles.get("replacements", {}), "profiles.replacements"),
+        return _project_validation(
+            manifest,
             catalog=catalog,
+            member_shards=member_shards,
+            base=base,
+            selection=ValidationSelection.from_mapping(selection)
+            if selection is not None
+            else None,
         )
     except ProfileResourceError as error:
         raise ValidationInfrastructureError(str(error)) from error
-    except ProfileError as error:
+    except (
+        ManifestError,
+        ProfileError,
+        ValidationGraphError,
+        ValidationExecutionError,
+        ReceiptError,
+    ) as error:
         raise AdmissionError(str(error)) from error
-    repository_config = _mapping(data.get("repository"), "repository")
-    identity = _mapping(data.get("signetum"), "signetum")
-    schema = identity.get("evidence_schema_digest")
-    if not isinstance(schema, str):
-        raise AdmissionError("evidence schema digest is unavailable")
-    if identity.get("evidence_protocol") != "reposeal.validation-evidence@3":
-        raise AdmissionError("unsupported evidence protocol")
-    selected = ValidationSelection.from_mapping(selection) if selection is not None else None
-
-    def recovery_setting(name: str, default: int) -> int:
-        value = validation.get(name, default)
-        if type(value) is not int or value < 1:
-            raise AdmissionError(f"validation.{name} must be a positive integer")
-        return value
-
-    inputs = ValidationInputs(
-        configuration_path="signetum.toml",
-        profiles=tuple(sorted(profile.identity for profile in resolved)),
-        lockfiles=tuple(
-            sorted(_strings(repository_config.get("lockfiles", []), "repository.lockfiles"))
-        ),
-        tools=configuration.tools,
-        base=base,
-        selection=selected,
-        schema_digest=schema,
-        recovery_threshold=recovery_setting("recovery_threshold", 3),
-        recovery_window=recovery_setting("recovery_window", 20),
-    )
-    return graph, inputs
 
 
 def _run_gate(
@@ -573,36 +501,8 @@ def _open_workspace(
     }
 
 
-@dataclass(frozen=True)
-class _ImpactRule:
-    """Normalized input for the shared selector; the manifest owns its fields."""
-
-    name: str
-    paths: tuple[str, ...]
-    profiles: tuple[str, ...]
-    gates: tuple[str, ...]
-    shards: tuple[str, ...]
-    requires_final: bool
-
-    @classmethod
-    def from_mapping(cls, rule: dict[str, object]) -> _ImpactRule:
-        name = rule.get("name")
-        if not isinstance(name, str):
-            raise AdmissionError("impact rule name must be a string")
-        return cls(
-            name=name,
-            paths=tuple(_strings(rule.get("paths", []), "impact.paths")),
-            profiles=tuple(_strings(rule.get("profiles", []), "impact.profiles")),
-            gates=tuple(_strings(rule.get("gates", []), "impact.gates")),
-            shards=tuple(_strings(rule.get("shards", []), "impact.shards")),
-            requires_final=rule.get("requires_final") is True,
-        )
-
-
-def _impact_rules(manifest: dict[str, object]) -> tuple[_ImpactRule, ...]:
-    impact = _mapping(manifest.get("impact"), "impact")
-    rules = (_mapping(item, "impact rule") for item in _array(impact["rules"], "impact.rules"))
-    return tuple(_ImpactRule.from_mapping(rule) for rule in rules)
+def _impact_rules(manifest: dict[str, object]) -> tuple[ImpactRule, ...]:
+    return manifest_from_mapping(manifest).impact.rules
 
 
 def changed(repository: Path, explain: bool) -> dict[str, object]:

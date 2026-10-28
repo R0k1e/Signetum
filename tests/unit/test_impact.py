@@ -73,17 +73,37 @@ def test_independent_template_selects_the_same_checks_as_the_engine(tmp_path, fi
     git("config", "user.name", "Fixture")
     git("config", "user.email", "fixture@example.invalid")
     (tmp_path / "signetum.toml").write_text("""schema_version = 2
+[signetum]
+protocol = 2
+template_version = "0.2.0"
+[repository]
+architecture = "architecture.md"
+specifications = "changes/*/specs/*.toml"
+plans = "changes/*/plans/*.md"
+decisions = "decisions"
 [[impact.rules]]
 name = "python.source"
 paths = ["backend/**"]
 profiles = ["python-default@1"]
-shards = ["unit"]
+shards = ["test:unit"]
 [[impact.rules]]
 name = "frontend.source"
 paths = ["frontend/**"]
 profiles = ["typescript-default@1"]
-shards = ["unit", "web"]
+shards = ["test:unit", "test:web"]
 requires_final = true
+[[validation.shards]]
+name = "test:unit"
+command = ["true"]
+[[validation.shards]]
+name = "test:web"
+command = ["true"]
+[[validation.gates]]
+name = "member"
+shards = ["test:unit", "test:web"]
+[[validation.gates]]
+name = "final"
+shards = ["test:unit", "test:web"]
 """)
     git("add", ".")
     git("commit", "-m", "base")
@@ -126,13 +146,13 @@ requires_final = true
             name="python.source",
             paths=("backend/**",),
             profiles=("python-default@1",),
-            shards=("unit",),
+            shards=("test:unit",),
         ),
         ImpactRule(
             name="frontend.source",
             paths=("frontend/**",),
             profiles=("typescript-default@1",),
-            shards=("unit", "web"),
+            shards=("test:unit", "test:web"),
             requires_final=True,
         ),
     )

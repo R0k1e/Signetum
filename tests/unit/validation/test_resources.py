@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from signetum.manifest import ValidationShard as ManifestShard
+from signetum.manifest import parse_manifest
 from signetum.validation import (
     GraphContribution,
     ValidationConfiguration,
@@ -184,7 +184,11 @@ def test_membership_outside_resource_mount_is_refused(tmp_path):
 def test_profile_and_repository_budget_projections_agree():
     raw = {"name": "test:budget", "command": ["true"], "workers": 4, "worker_memory_mb": 512}
     profile = ValidationConfiguration.from_mapping("test", {"shards": [raw]}).contribution.shards[0]
-    repository = ManifestShard.model_validate(raw)
+    text = (Path(__file__).parents[3] / "template/signetum.toml").read_text()
+    text = text.replace(
+        'name = "python:sync"\n', 'name = "python:sync"\nworkers = 4\nworker_memory_mb = 512\n', 1
+    )
+    repository = parse_manifest(text).validation.shards[0]
     assert profile.workers == repository.workers == 4
     assert profile.worker_memory_mb == repository.worker_memory_mb == 512
 

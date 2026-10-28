@@ -5,7 +5,9 @@ from pathlib import Path
 from shutil import which
 from zipfile import ZipFile
 
+from signetum.manifest import load_manifest
 from signetum.runtime_generation import RUNTIME_DIRECTORY, runtime_files
+from signetum.validation.repository import configured_validation
 
 
 def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() -> None:
@@ -64,23 +66,37 @@ def test_installed_wheel_generates_the_same_portable_runtime(tmp_path):
         if path.is_file()
     }
     assert actual == runtime_files()
+    manifest_path = tmp_path / "signetum.toml"
+    source_manifest = Path(__file__).parents[2] / "template/signetum.toml"
+    manifest_path.write_bytes(source_manifest.read_bytes())
     catalog_probe = """
 import json,sys
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
 from _signetum_runtime.profile_catalog import load_catalog,resolve_profiles
+from _signetum_runtime.manifest import load_manifest
+from _signetum_runtime.configuration import configured_validation
 root=Path(sys.argv[1])/'_signetum_runtime/profile_resources'
 catalog=load_catalog(lambda name:(root/name).read_text(encoding='utf-8'))
 resolved=resolve_profiles(('python-default@1','git-worktrunk@1'),catalog=catalog)
 assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
-print(json.dumps([item.identity for item in resolved]))
+manifest=load_manifest(Path(sys.argv[2]))
+graph,inputs=configured_validation(manifest,catalog=catalog)
+print(json.dumps({'identities':[item.identity for item in resolved],
+                  'graph':graph.digest,'schema':inputs.schema_digest,'profiles':list(inputs.profiles)}))
 """
     result = subprocess.run(  # noqa: S603 -- isolated installed output, no engine/site packages
-        [str(python), "-I", "-S", "-c", catalog_probe, str(runtime.parent)],
+        [str(python), "-I", "-S", "-c", catalog_probe, str(runtime.parent), str(manifest_path)],
         capture_output=True,
         text=True,
         check=False,
         cwd=tmp_path,
     )
     assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) == ["shared-core@1", "python-default@1", "git-worktrunk@1"]
+    graph, inputs = configured_validation(load_manifest(source_manifest))
+    assert json.loads(result.stdout) == {
+        "identities": ["shared-core@1", "python-default@1", "git-worktrunk@1"],
+        "graph": graph.digest,
+        "schema": inputs.schema_digest,
+        "profiles": list(inputs.profiles),
+    }

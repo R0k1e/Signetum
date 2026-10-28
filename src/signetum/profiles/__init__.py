@@ -13,7 +13,7 @@ from signetum.profiles.catalog import resolve_profiles as _resolve_profiles
 from signetum.resources import profiles as profile_resources
 
 
-def _catalog() -> dict[str, ProfileDeclaration]:
+def builtin_catalog() -> dict[str, ProfileDeclaration]:
     resources = files(profile_resources)
     return load_catalog(lambda name: (resources / name).read_text(encoding="utf-8"))
 
@@ -25,8 +25,16 @@ def resolve_profiles(
     catalog: Mapping[str, ProfileDeclaration] | None = None,
 ) -> tuple[ProfileDeclaration, ...]:
     return _resolve_profiles(
-        selected, replacements=replacements, catalog=_catalog() if catalog is None else catalog
+        selected,
+        replacements=replacements,
+        catalog=builtin_catalog() if catalog is None else catalog,
     )
 
 
-__all__ = ["ProfileDeclaration", "ProfileError", "ProfileResourceError", "resolve_profiles"]
+__all__ = [
+    "ProfileDeclaration",
+    "ProfileError",
+    "ProfileResourceError",
+    "builtin_catalog",
+    "resolve_profiles",
+]

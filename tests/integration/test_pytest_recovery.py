@@ -218,12 +218,16 @@ def test_independent_template_retains_recovery_and_refuses_a_repeated_node(repos
     ]
     manifest = root / "signetum.toml"
     manifest.write_text(
-        "schema_version = 2\n[signetum]\n"
+        'schema_version = 2\n[signetum]\nprotocol = 2\ntemplate_version = "0.2.0"\n'
         'evidence_protocol = "reposeal.validation-evidence@3"\n'
         'evidence_schema_digest = "sha256:' + "0" * 64 + '"\n'
-        "[repository]\n[validation]\nrecovery_threshold = 2\nrecovery_window = 20\n"
+        '[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
+        'specifications = "changes/*/specs/*.toml"\nplans = "changes/*/plans/*.md"\n'
+        'decisions = "docs/decisions"\n'
+        "[validation]\nrecovery_threshold = 2\nrecovery_window = 20\n"
         '[[validation.shards]]\nname = "test:pytest"\ncommand = ' + json.dumps(command) + "\n"
         '[[validation.gates]]\nname = "member"\nshards = ["test:pytest"]\n'
+        '[[validation.gates]]\nname = "final"\nshards = ["test:pytest"]\n'
     )
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "declare template recovery fixture")

@@ -123,7 +123,11 @@ class ToolDeclaration:
     identity_command: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if not self.name or not self.identity_command:
+        if (
+            not self.name
+            or not self.identity_command
+            or any(not argument for argument in self.identity_command)
+        ):
             raise ValidationGraphError("tool name and identity command must be non-empty")
 
 

@@ -14,16 +14,14 @@ from signetum.evidence.receipts import (
 from signetum.findings import Finding, FindingsError, parse_findings
 from signetum.git import GitError, git_output
 from signetum.manifest import RepositoryManifest
-from signetum.profiles import resolve_profiles
+from signetum.profiles import builtin_catalog
 from signetum.validation import (
-    GateDeclaration,
-    GraphContribution,
     ToolDeclaration,
     ValidationGraph,
     ValidationShard,
-    resolve_validation_graph,
     resources,
 )
+from signetum.validation.configuration import configured_validation as _project_validation
 from signetum.validation.execution import (
     ShardExecution,
     ValidationExecutionError,
@@ -203,42 +201,7 @@ __all__ = [
 def configured_validation(
     manifest: RepositoryManifest, *, member_shards: tuple[str, ...] | None = None
 ):
-    resolved = resolve_profiles(
-        manifest.profiles.enabled, replacements=manifest.profiles.replacements
-    )
-    shards = [
-        ValidationShard(
-            item.name,
-            item.command,
-            item.requires,
-            item.evidence,
-            item.findings_command,
-            item.timeout_seconds,
-            item.inherit,
-            item.ratchet_command,
-            item.workers,
-            item.worker_memory_mb,
-        )
-        for item in manifest.validation.shards
-    ]
-    gates = [GateDeclaration(item.name, item.shards) for item in manifest.validation.gates]
-    if member_shards is not None:
-        gates = [item for item in gates if item.name != "member"]
-        gates.append(GateDeclaration("member", member_shards))
-    graph = resolve_validation_graph(
-        (GraphContribution("repository", tuple(shards), tuple(gates)),)
-    )
-    inputs = ValidationInputs(
-        "signetum.toml",
-        tuple(sorted(profile.identity for profile in resolved)),
-        tuple(sorted(manifest.repository.lockfiles)),
-        tuple(
-            ToolDeclaration(item.name, item.identity_command) for item in manifest.validation.tools
-        ),
-        recovery_threshold=manifest.validation.recovery_threshold,
-        recovery_window=manifest.validation.recovery_window,
-    )
-    return graph, inputs
+    return _project_validation(manifest, catalog=builtin_catalog(), member_shards=member_shards)
 
 
 def run_diagnostic_gate(
