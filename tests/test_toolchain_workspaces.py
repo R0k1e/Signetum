@@ -32,15 +32,17 @@ def test_invalid_worktrunk_json_is_refused(monkeypatch, tmp_path: Path) -> None:
 def test_mise_projection_sanitizes_repository_environment(monkeypatch, tmp_path: Path) -> None:
     observed: dict[str, str] = {}
 
-    def fake_run(command: tuple[str, ...], **kwargs: object) -> CompletedProcess[str]:
-        environment = kwargs["env"]
+    def fake_run(
+        repository: Path, command: tuple[str, ...], **kwargs: object
+    ) -> CompletedProcess[str]:
+        environment = kwargs["environment"]
         if not isinstance(environment, dict):
             raise TypeError("expected a concrete subprocess environment")
         observed.update(environment)
         return CompletedProcess(command, 0, "", "")
 
     monkeypatch.setattr(wt, "mise_executable", lambda: "/bin/mise")
-    monkeypatch.setattr(wt.subprocess, "run", fake_run)
+    monkeypatch.setattr(wt, "run_command", fake_run)
     monkeypatch.setenv("GIT_DIR", "/unsafe")
     monkeypatch.setenv("PYTHONPATH", "/unsafe")
 

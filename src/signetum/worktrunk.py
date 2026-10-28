@@ -7,11 +7,13 @@ import os
 
 # Worktrunk executes through the resolved Mise command without a shell.
 import subprocess  # nosec B404
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import which
 
 from signetum.operations import AdmissionError, InfrastructureError
+from signetum.validation.process import run_command
 
 
 @dataclass(frozen=True)
@@ -37,10 +39,11 @@ def run_tool(
     repository: Path,
     command: tuple[str, ...],
     *,
-    capture_output: bool = True,
-    timeout_seconds: int | None = None,
+    required: bool = True,
+    timeout_seconds: float = 1800,
+    environment: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    environment = os.environ.copy()
+    environment = dict(os.environ if environment is None else environment)
     for name in tuple(environment):
         if name.startswith("GIT_") or name in {
             "PYTHONHOME",
@@ -51,17 +54,20 @@ def run_tool(
             environment.pop(name)
     environment["MISE_TRUSTED_CONFIG_PATHS"] = str(repository.resolve())
     try:
-        completed = subprocess.run(  # nosec B603
+        completed = run_command(
+            repository,
             (mise_executable(), "exec", "--", *command),
-            cwd=repository,
-            check=False,
-            capture_output=capture_output,
-            env=environment,
-            text=True,
-            timeout=timeout_seconds,
+            timeout_seconds=timeout_seconds,
+            environment=environment,
         )
-    except subprocess.TimeoutExpired as error:
-        raise InfrastructureError(f"preparation command exceeded {timeout_seconds}s") from error
+    except (OSError, subprocess.TimeoutExpired) as error:
+        if required:
+            raise InfrastructureError(
+                f"command could not complete: {command[0]}: {error}"
+            ) from error
+        raise
+    if not required:
+        return completed
     if completed.returncode != 0:
         diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
         detail = diagnostic or f"Mise could not execute {command[0]}"
@@ -89,7 +95,11 @@ def worktrunk(repository: Path, arguments: tuple[str, ...], *, json_output: bool
 
 
 def worktrees(repository: Path) -> tuple[WorkspaceIdentity, ...]:
-    payload = worktrunk(repository, ("list", "--format=json"), json_output=True)
+    return parse_worktrees(worktrunk(repository, ("list", "--format=json"), json_output=True))
+
+
+def parse_worktrees(payload: object) -> tuple[WorkspaceIdentity, ...]:
+    """Interpret registered workspace identities from the owned schema-two boundary."""
     if not isinstance(payload, dict) or payload.get("schema") != 2:
         raise AdmissionError("invalid Worktrunk JSON: expected schema 2 envelope")
     items = payload.get("items")
