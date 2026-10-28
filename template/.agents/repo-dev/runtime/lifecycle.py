@@ -44,6 +44,7 @@ from _signetum_runtime.manifest import (
 )
 from _signetum_runtime.operation_cli import OperationParser, run_operation
 from _signetum_runtime.operations import AdmissionError, InfrastructureError
+from _signetum_runtime.preparation import PreparationResult, prepare_workspace
 from _signetum_runtime.profile_catalog import (
     ProfileError,
     ProfileResourceError,
@@ -360,6 +361,15 @@ def _run_gate(
         return receipt
     except (ValidationGraphError, ReceiptError) as error:
         raise AdmissionError(str(error)) from error
+
+
+def worktree_prepare(repository: Path, *, allow_merge: bool = False) -> PreparationResult:
+    return prepare_workspace(
+        repository,
+        lambda: _configured_validation(_manifest(repository))[0],
+        _run_tool,
+        allow_merge=allow_merge,
+    )
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -1099,6 +1109,8 @@ def _parser() -> argparse.ArgumentParser:
     workspace = commands.add_parser("workspace-open")
     workspace.add_argument("branch")
     workspace.add_argument("base")
+    prepare = commands.add_parser("worktree-prepare")
+    prepare.add_argument("worktree", type=Path)
     diagnostic = commands.add_parser("changed")
     diagnostic.add_argument("--explain", action="store_true")
     diagnostic.add_argument("--validate-only", action="store_true")
@@ -1123,6 +1135,8 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     parsed = _parser().parse_args(supplied)
     if parsed.command == "workspace-open":
         result = workspace_open(repository, parsed.branch, parsed.base)
+    elif parsed.command == "worktree-prepare":
+        result = dict(worktree_prepare(parsed.worktree.resolve()))
     elif parsed.command == "changed":
         result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
     elif parsed.command == "ready":

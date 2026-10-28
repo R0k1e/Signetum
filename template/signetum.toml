@@ -118,6 +118,14 @@ command = ["mise", "run", "python:secrets"]
 requires = ["python:sync"]
 
 [[validation.gates]]
+name = "prepare"
+shards = ["python:sync"]
+
+[[validation.gates]]
+name = "batch"
+shards = ["repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:secrets"]
+
+[[validation.gates]]
 name = "member"
 shards = ["python:sync", "repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:secrets"]
 

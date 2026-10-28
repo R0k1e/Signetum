@@ -39,7 +39,7 @@ enabled = ["python-default@1", "typescript-local@1"]
 The Template enables `python-default@1`, including uv, Ruff, ty, unit and
 integration test boundaries, dependency auditing, and secret detection. You
 can replace it or add TypeScript, Rust, or repository-local profiles without
-changing the eight lifecycle operations.
+changing the lifecycle operations.
 
 ## What is enforced
 
