@@ -28,17 +28,8 @@ behavior test, explicit follow-up change, justified rejection, or justified
 no-authority-change result. After `final`, present the generated delivery review
 before requesting explicit delivery.
 
-The public lifecycle has exactly eight operations:
-
-```text
-workspace-open <branch> <base>
-changed [--explain]
-ready
-batch-open --member <worktree-path> [--member <worktree-path> ...]
-batch-admit <batch> --member <worktree-path> [--member <worktree-path> ...]
-batch-continue <batch>
-final
-batch-deliver <source> <target> <expected-base> <expected-batch-tip>
-```
+Use the lifecycle operations registered by
+`.agents/repo-dev/runtime/lifecycle.py --help` and exposed through `Justfile`.
+Preparation and diagnostics do not grant readiness or delivery authority.
 
 Use English for repository artifacts and the user's language for discussion.

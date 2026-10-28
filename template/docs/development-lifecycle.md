@@ -26,3 +26,7 @@ batch once; `batch-deliver` explicitly lands that exact validated source.
 workspace without issuing readiness evidence or running final. Use
 `changed --validate-only` to inspect selection without execution.
 `batch-continue` is conflict recovery.
+
+After dependency inputs change, `worktree-prepare <worktree-path>` runs the
+declared `prepare` gate without issuing readiness evidence. Preparation refuses
+dirty source and does not change the workspace's recorded base.

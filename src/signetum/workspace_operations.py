@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import shlex
-import sys
 from pathlib import Path
-from typing import Literal, TypedDict
+from typing import Literal
 
 from signetum import worktrunk as wt
 from signetum.git import git_output, run_git
 from signetum.manifest import load_manifest, parse_manifest
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.policy import delivery_policy
+from signetum.preparation import PreparationResult, prepare_workspace
 from signetum.provenance import attested_base, members_and_plans
 from signetum.synchronization import authorize_source
 from signetum.validation.repository import configured_validation
@@ -29,50 +29,13 @@ from signetum.workspaces import (
 )
 
 
-class PreparationResult(TypedDict):
-    status: str
-    worktree: str
-    executed: list[str]
-
-
 def worktree_prepare(repository: Path, *, allow_merge: bool = False) -> PreparationResult:
-    """Run the declared preparation graph without publishing validation evidence."""
-
-    index_tree = None
-    if allow_merge:
-        index_tree = git_output(repository, "write-tree")
-        if run_git(repository, "diff", "--quiet").returncode or git_output(
-            repository, "ls-files", "--others", "--exclude-standard"
-        ):
-            raise AdmissionError("preparation requires all merge resolutions staged")
-    else:
-        require_clean(repository)
-    before = git_output(repository, "rev-parse", "HEAD")
-    manifest = load_manifest(repository / "signetum.toml")
-    graph, _ = configured_validation(manifest)
-    if not any(gate.name == "prepare" for gate in graph.gates):
-        raise AdmissionError("declare a prepare gate before preparing this workspace")
-    by_name = {shard.name: shard for shard in graph.shards}
-    executed: list[str] = []
-    for name in graph.execution_order("prepare"):
-        shard = by_name[name]
-        completed = wt.run_tool(repository, shard.command, timeout_seconds=shard.timeout_seconds)
-        if completed.stdout:
-            print(completed.stdout, file=sys.stderr, end="")
-        if completed.stderr:
-            print(completed.stderr, file=sys.stderr, end="")
-        executed.append(name)
-    if allow_merge:
-        if (
-            git_output(repository, "write-tree") != index_tree
-            or run_git(repository, "diff", "--quiet").returncode
-        ):
-            raise OperationFailed("preparation changed the staged merge")
-    else:
-        require_clean(repository)
-    if git_output(repository, "rev-parse", "HEAD") != before:
-        raise OperationFailed("preparation changed the committed source identity")
-    return {"status": "prepared", "worktree": str(repository), "executed": executed}
+    return prepare_workspace(
+        repository,
+        lambda: configured_validation(load_manifest(repository / "signetum.toml"))[0],
+        wt.run_tool,
+        allow_merge=allow_merge,
+    )
 
 
 def open_workspace(

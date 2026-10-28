@@ -10,6 +10,9 @@ change-open name:
 workspace-open branch base:
     just _signetum workspace-open {{branch}} {{base}}
 
+worktree-prepare worktree:
+    just _signetum worktree-prepare {{worktree}}
+
 changed *args:
     just _signetum changed {{args}}
 
