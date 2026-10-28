@@ -56,7 +56,7 @@ def test_interpreter_caches_do_not_enter_rendered_artifacts(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "source", ["import pydantic\n", "from signetum.manifest import load_manifest\n"]
+    "source", ["import pydantic\n", "from signetum.policy import delivery_policy\n"]
 )
 def test_portable_source_rejects_unbundled_dependencies(source):
     with pytest.raises(ValueError, match="dependency"):

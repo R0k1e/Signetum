@@ -29,7 +29,7 @@ def test_template_executes_dependency_closure_and_skips_blocked_checks(
     manifest = root / "signetum.toml"
     manifest.write_text(
         manifest.read_text()
-        .split("[validation]")[0]
+        .split("[[impact.rules]]")[0]
         .replace(
             "[repository]",
             'evidence_protocol = "reposeal.validation-evidence@3"\n'
@@ -50,6 +50,9 @@ name = "core:independent"
 command = {command("independent")}
 [[validation.gates]]
 name = "member"
+shards = ["core:dependent", "core:independent"]
+[[validation.gates]]
+name = "final"
 shards = ["core:dependent", "core:independent"]
 """
     )

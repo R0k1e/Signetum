@@ -32,6 +32,7 @@ The generated package is standard-library code; adapters own repository effects.
 
 | Shared authority | Responsibility |
 | --- | --- |
+| `manifest`, `validation.configuration` | One strict TOML boundary, configuration defaults, member selection and declared-input projection; canonical validation value types. |
 | `profiles.catalog`, `serialization` | Owned profile syntax, maintained catalog parsing and dependency/authority composition; portable typed JSON values. |
 | `delivery` | Remote-first publication and exact interrupted-publication recovery after adapter-owned qualification. |
 | `operations`, `git`, `workspaces` | Operation values, isolated Git context and immutable workspace/change records. |
@@ -46,6 +47,8 @@ The observable contracts are maintained in
 here. Configuration adapters normalize inputs and supply effects; they do not
 maintain alternate selection, execution or evidence verdict algorithms. The
 template uses one configuration projection for validation and admission.
+Configuration readers explicitly permit owned defaults; reusable receipt
+readers continue to require every serialized field without coercion.
 `requires_final` never substitutes for missing member checks. Native Linux/macOS
 resource observations and explicit host-adapter observations consume the same
 budget algorithm.
@@ -56,6 +59,6 @@ dependencies and replacements rather than the unresolved enabled list; catalog
 selection does not implicitly execute commands omitted by the repository.
 
 [Tooling alignment](../../changes/align-perdura-development-tooling/specs/tooling.toml)
-still owns the remaining manifest normalization, lifecycle orchestration
-and durable change-authority migration. Shared validation modules alone do not
+still owns the remaining lifecycle orchestration and durable change-authority
+migration. Shared validation modules alone do not
 complete that change.

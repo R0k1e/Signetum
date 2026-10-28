@@ -14,6 +14,8 @@ from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
 
 RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
 MODULES = {
+    "signetum.manifest": "manifest.py",
+    "signetum.validation.configuration": "configuration.py",
     "signetum.profiles.catalog": "profile_catalog.py",
     "signetum.delivery": "delivery.py",
     "signetum.operations": "operations.py",

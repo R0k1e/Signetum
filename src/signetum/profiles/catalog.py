@@ -2,7 +2,7 @@
 
 import re
 from collections.abc import Callable, Mapping
-from dataclasses import MISSING, dataclass, fields
+from dataclasses import dataclass
 from tomllib import loads
 
 from signetum.serialization import JsonValue, dataclass_from_mapping
@@ -65,18 +65,13 @@ class ProfileDeclaration:
 def load_catalog(read_resource: Callable[[str], str]) -> dict[str, ProfileDeclaration]:
     """Parse only maintained catalog resources through their owned value types."""
     declarations = {}
-    defaults = {
-        field.name: field.default
-        for field in fields(ProfileDeclaration)
-        if field.default is not MISSING
-    }
     for name in PROFILE_RESOURCE_NAMES:
         try:
             document = loads(read_resource(name))
             version = document.pop("schema_version", None)
             if type(version) is not int or version != 1:
                 raise ProfileError("unsupported profile resource schema")
-            declaration = dataclass_from_mapping(ProfileDeclaration, {**defaults, **document})
+            declaration = dataclass_from_mapping(ProfileDeclaration, document, use_defaults=True)
             if declaration.identity in declarations:
                 raise ProfileError("duplicate profile resource identity")
             declarations[declaration.identity] = declaration

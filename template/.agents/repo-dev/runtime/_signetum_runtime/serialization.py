@@ -3,7 +3,7 @@
 
 import json
 import math
-from dataclasses import fields, is_dataclass
+from dataclasses import MISSING, fields, is_dataclass
 from functools import cache
 from types import UnionType
 from typing import NoReturn, TypeAliasType, Union, get_args, get_origin, get_type_hints
@@ -20,46 +20,59 @@ def _annotations(model: type) -> dict[str, object]:
     return get_type_hints(model)
 
 
-def _decode(value: object, expected: object, location: str) -> object:
+def _decode(value: object, expected: object, location: str, use_defaults: bool) -> object:
     if isinstance(expected, TypeAliasType):
-        return _decode(value, expected.__value__, location)
+        return _decode(value, expected.__value__, location, use_defaults)
     origin = get_origin(expected)
     arguments = get_args(expected)
     if origin in (UnionType, Union):
         for alternative in arguments:
             try:
-                return _decode(value, alternative, location)
+                return _decode(value, alternative, location, use_defaults)
             except ValueDecodeError:
                 pass
         raise ValueDecodeError(f"{location}: value does not match the declared alternatives")
     if isinstance(expected, type) and is_dataclass(expected):
-        names = {field.name for field in fields(expected)}
-        if not isinstance(value, dict) or set(value) != names:
+        model_fields = fields(expected)
+        names = {field.name for field in model_fields}
+        if not isinstance(value, dict) or (not use_defaults and set(value) != names):
             raise ValueDecodeError(f"{location}: invalid dataclass fields")
         annotations = _annotations(expected)
-        return expected(
-            **{
-                name: _decode(value[name], annotations[name], f"{location}.{name}")
-                for name in names
-            }
-        )
+        values = {}
+        for field in model_fields:
+            if field.name not in value:
+                if use_defaults and (
+                    field.default is not MISSING or field.default_factory is not MISSING
+                ):
+                    continue
+                raise ValueDecodeError(f"{location}: missing field {field.name}")
+            values[field.name] = _decode(
+                value[field.name], annotations[field.name], f"{location}.{field.name}", use_defaults
+            )
+        if set(value) - names:
+            raise ValueDecodeError(f"{location}: unknown dataclass fields")
+        return expected(**values)
     if origin is tuple and len(arguments) == 2 and arguments[1] is Ellipsis:
         if not isinstance(value, (list, tuple)):
             raise ValueDecodeError(f"{location}: expected an array")
         return tuple(
-            _decode(item, arguments[0], f"{location}[{index}]") for index, item in enumerate(value)
+            _decode(item, arguments[0], f"{location}[{index}]", use_defaults)
+            for index, item in enumerate(value)
         )
     if origin is list:
         if not isinstance(value, list):
             raise ValueDecodeError(f"{location}: expected an array")
         return [
-            _decode(item, arguments[0], f"{location}[{index}]") for index, item in enumerate(value)
+            _decode(item, arguments[0], f"{location}[{index}]", use_defaults)
+            for index, item in enumerate(value)
         ]
     if origin is dict:
         if not isinstance(value, dict):
             raise ValueDecodeError(f"{location}: expected an object")
         return {
-            _decode(key, arguments[0], location): _decode(item, arguments[1], f"{location}.{key}")
+            _decode(key, arguments[0], location, use_defaults): _decode(
+                item, arguments[1], f"{location}.{key}", use_defaults
+            )
             for key, item in value.items()
         }
     if expected in (str, int, float, bool, type(None)) and type(value) is expected:
@@ -69,11 +82,11 @@ def _decode(value: object, expected: object, location: str) -> object:
     raise ValueDecodeError(f"{location}: invalid declared value type")
 
 
-def dataclass_from_mapping[T](model: type[T], value: object) -> T:
-    """Decode exact fields without coercion or constructor-default substitution."""
+def dataclass_from_mapping[T](model: type[T], value: object, *, use_defaults: bool = False) -> T:
+    """Decode owned types; only configuration readers explicitly permit defaults."""
     if not is_dataclass(model):
         raise ValueDecodeError("wire model must be a dataclass")
-    result = _decode(value, model, "$")
+    result = _decode(value, model, "$", use_defaults)
     if not isinstance(result, model):
         raise ValueDecodeError("decoded value has an unexpected model")
     return result
