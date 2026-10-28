@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess  # nosec B404 -- declarative argv, never a shell
+import sys
 from pathlib import Path
 from shutil import which
 
@@ -18,6 +19,7 @@ from signetum.validation import ToolDeclaration, ValidationGraph, ValidationShar
 from signetum.validation.execution import (
     ShardExecution,
     ValidationExecutionError,
+    ValidationInfrastructureError,
     ValidationInputs,
     build_evidence_identity,
     execute_gate,
@@ -33,7 +35,7 @@ class RepositoryValidationAdapter:
     def _git(self, *arguments: str) -> str:
         executable = which("git")
         if executable is None:
-            raise ValidationExecutionError("git executable is unavailable")
+            raise ValidationInfrastructureError("git executable is unavailable")
         completed = subprocess.run(  # nosec B603
             (executable, "-C", str(self.repository), *arguments),
             check=False,
@@ -42,7 +44,7 @@ class RepositoryValidationAdapter:
         )
         if completed.returncode:
             diagnostic = completed.stderr.strip() or completed.stdout.strip()
-            raise ValidationExecutionError(diagnostic or "git identity query failed")
+            raise ValidationInfrastructureError(diagnostic or "git identity query failed")
         return completed.stdout.strip()
 
     def require_clean(self) -> None:
@@ -62,7 +64,7 @@ class RepositoryValidationAdapter:
         try:
             return candidate.read_bytes()
         except OSError as error:
-            raise ValidationExecutionError(
+            raise ValidationInfrastructureError(
                 f"declared validation input is unavailable: {path}"
             ) from error
 
@@ -75,10 +77,10 @@ class RepositoryValidationAdapter:
             text=True,
         )
         if completed.returncode:
-            raise ValidationExecutionError(f"tool identity command failed: {tool.name}")
+            raise ValidationInfrastructureError(f"tool identity command failed: {tool.name}")
         identity = completed.stdout.strip()
         if not identity:
-            raise ValidationExecutionError(f"tool identity is empty: {tool.name}")
+            raise ValidationInfrastructureError(f"tool identity is empty: {tool.name}")
         return identity
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
@@ -88,6 +90,8 @@ class RepositoryValidationAdapter:
                 cwd=self.repository,
                 check=False,
                 timeout=shard.timeout_seconds,
+                capture_output=True,
+                text=True,
             )
         except subprocess.TimeoutExpired:
             # A shard which never returns is otherwise indistinguishable from a
@@ -96,9 +100,14 @@ class RepositoryValidationAdapter:
                 False,
                 f"{shard.name} did not return within {shard.timeout_seconds}s",
             )
+        if completed.stdout:
+            print(completed.stdout, file=sys.stderr, end="")
+        if completed.stderr:
+            print(completed.stderr, file=sys.stderr, end="")
         if completed.returncode == 0:
             return ShardExecution(True)
-        return ShardExecution(False, f"{shard.name} exited {completed.returncode}")
+        diagnostic = completed.stdout + completed.stderr
+        return ShardExecution(False, f"{shard.name} exited {completed.returncode}\n{diagnostic}")
 
     def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
         """Run the declared findings command and read the Signetum document.

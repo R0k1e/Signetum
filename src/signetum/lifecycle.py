@@ -10,19 +10,29 @@ import os
 import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
-from typing import Literal
+from typing import Literal, Never
 from urllib.parse import quote
 
 from signetum.deviations import DeviationError, approval_view, reconciliation_summary
 from signetum.evidence.receipts import EvidenceReceipt, ReceiptError, ValidationSelection
 from signetum.impact import select_impact
 from signetum.manifest import ManifestError, RepositoryManifest, load_manifest
+from signetum.operations import (
+    EXIT_CODES,
+    InfrastructureError,
+    MergeConflict,
+    OperationError,
+    OperationFailed,
+    OperationResult,
+    OperationStatus,
+)
 from signetum.profiles import resolve_profiles
 from signetum.validation import (
     GateDeclaration,
@@ -34,7 +44,9 @@ from signetum.validation import (
 )
 from signetum.validation.execution import (
     ValidationExecutionError,
+    ValidationInfrastructureError,
     ValidationInputs,
+    build_evidence_identity,
     execute_gate,
 )
 from signetum.validation.repository import ReceiptStore, RepositoryValidationAdapter
@@ -42,7 +54,7 @@ from signetum.waivers import WaiverError, load_waivers
 from signetum.workspaces import WorkspaceError, WorkspaceRecord, read_record, write_record
 
 
-class AdmissionError(ValueError):
+class AdmissionError(OperationError):
     """The requested member cannot be admitted safely."""
 
 
@@ -59,7 +71,7 @@ class WorkspaceIdentity:
 def _mise_executable() -> str:
     executable = which("mise")
     if executable is None:
-        raise AdmissionError(
+        raise InfrastructureError(
             "Mise executable is unavailable; install Mise and run `mise install` in the repository"
         )
     return executable
@@ -89,7 +101,7 @@ def _run_tool(
     if completed.returncode != 0:
         diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
         detail = diagnostic or f"Mise could not execute {command[0]}"
-        raise AdmissionError(f"{detail}; run `mise install` in the repository")
+        raise InfrastructureError(f"{detail}; run `mise install` in the repository")
     return completed
 
 
@@ -111,7 +123,7 @@ def _worktrunk(
     try:
         return json.loads(completed.stdout)
     except json.JSONDecodeError as error:
-        raise AdmissionError(f"invalid Worktrunk JSON: {error.msg}") from error
+        raise InfrastructureError(f"invalid Worktrunk JSON: {error.msg}") from error
 
 
 def _worktrees(repository: Path) -> tuple[WorkspaceIdentity, ...]:
@@ -516,33 +528,44 @@ def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) -> str:
-    """Locate evidence proving what this member's own selection requires.
+    """Require successful tree evidence for this exact member and its inputs."""
 
-    Evidence is matched by observed tree and by shard command digest, never by
-    commit identity, receipt gate, or shard name: an amended trailer, an
-    equivalent rebase, a renamed shard, and a completed final gate all prove
-    the same work.
-    """
-
-    selection = _selection(member, _recorded_base(member), manifest)
+    base = _recorded_base(member)
+    if not _is_ancestor(member, base, tip):
+        raise AdmissionError("member does not descend from its recorded base")
+    selection = _selection(member, base, manifest)
     required_names, _ = _member_shards(manifest, selection)
     declared = {item.name: item.command for item in manifest.validation.shards}
     required = frozenset(command_digest(declared[name]) for name in required_names)
-    tree = _git(member, "rev-parse", f"{tip}^{{tree}}")
+    adapter = RepositoryValidationAdapter(member)
+    expected = {}
+    for gate in ("member", "final"):
+        graph, inputs = _runtime_validation(
+            manifest, member_shards=required_names if gate == "member" else None
+        )
+        expected[gate] = build_evidence_identity(graph, replace(inputs, base=base), adapter)
     for path in sorted(_receipt_root(member).glob("*-lifecycle-*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             receipt = EvidenceReceipt.from_json(json.dumps(payload["evidence"]))
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ReceiptError):
             continue
-        if receipt.identity.tree != tree or not receipt.valid:
+        if not receipt.valid or receipt.schema_digest != manifest.signetum.evidence_schema_digest:
             continue
-        if required <= receipt.execution.command_digests:
+        if len(receipt.execution.gates) != 1:
+            continue
+        identity = expected.get(receipt.execution.gates[0])
+        if identity is None or identity.commit != tip or receipt.identity != identity:
+            continue
+        proven = frozenset(
+            outcome.command_digest
+            for outcome in receipt.execution.shards
+            if outcome.evidence == "tree" and outcome.status == "passed"
+        )
+        if required <= proven:
             return path.name
-    if selection.requires_final:
-        return "deferred:requires-final:" + (",".join(selection.rules) or "unexplained")
     raise AdmissionError(
-        "member has no evidence proving its selected validation for the exact tree"
+        "member has no evidence proving its selected validation for the exact tip and inputs"
     )
 
 
@@ -793,15 +816,16 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             text=True,
         )
         if completed.returncode != 0:
-            result = {
-                "schema_version": 1,
-                "status": "conflict",
-                "batch": str(batch),
-                "member": record,
-                "diagnostic": completed.stderr.strip() or completed.stdout.strip(),
-            }
-            print(json.dumps(result, sort_keys=True))
-            raise SystemExit(3)
+            merge_head = Path(_git(batch, "rev-parse", "--git-path", "MERGE_HEAD"))
+            if not merge_head.is_absolute():
+                merge_head = batch / merge_head
+            diagnostic = completed.stderr.strip() or completed.stdout.strip()
+            if merge_head.is_file():
+                raise MergeConflict(
+                    diagnostic or "batch has an open merge",
+                    expected=f"resolve and stage paths, then batch-continue {batch}",
+                )
+            raise OperationFailed(diagnostic or "batch merge failed")
         admission_commit = _git(batch, "rev-parse", "HEAD")
         admitted.append(
             {
@@ -957,7 +981,12 @@ def batch_deliver(
             "-m",
             f"Merge validated batch {expected_tip}\n\nSignetum-Batch-Base: {expected_base}",
         )
-        _git(source, "push", "origin", f"{delivery_commit}:refs/heads/{target_branch}")
+        try:
+            _git(source, "push", "origin", f"{delivery_commit}:refs/heads/{target_branch}")
+        except AdmissionError as error:
+            raise OperationFailed(
+                str(error), expected="inspect the remote base and retry batch-deliver"
+            ) from error
     else:
         delivery_commit = resumed_commit
     remote_after = _remote_branch_tip(target, target_branch)
@@ -1099,8 +1128,15 @@ def _cleanup_delivered_worktrees(
     return removed, retained
 
 
+class OperationParser(argparse.ArgumentParser):
+    """Keep invalid lifecycle invocations in the result contract."""
+
+    def error(self, message: str) -> Never:
+        raise AdmissionError(message, expected="inspect lifecycle --help and correct arguments")
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
+    parser = OperationParser()
     commands = parser.add_subparsers(dest="command", required=True)
     workspace = commands.add_parser("workspace-open")
     workspace.add_argument("branch")
@@ -1125,9 +1161,11 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parsed = _parser().parse_args(arguments)
+    supplied = sys.argv[1:] if arguments is None else arguments
+    operation = supplied[0] if supplied else "lifecycle"
+    repository = Path.cwd().resolve()
     try:
-        repository = Path.cwd().resolve()
+        parsed = _parser().parse_args(supplied)
         if parsed.command == "workspace-open":
             result = workspace_open(repository, parsed.branch, parsed.base)
         elif parsed.command == "changed":
@@ -1149,18 +1187,47 @@ def main(arguments: list[str] | None = None) -> int:
                 parsed.expected_base,
                 parsed.expected_batch_tip,
             )
-    except (AdmissionError, ManifestError, ValidationExecutionError) as error:
-        # A refused operation is still one JSON result on stdout, never a
-        # traceback: a failing gate is an ordinary outcome of the contract.
-        print(
-            json.dumps(
-                {"schema_version": 1, "status": "refused", "reason": str(error)},
-                sort_keys=True,
-            )
-        )
-        return 2
-    print(json.dumps(result, sort_keys=True))
+    except (OperationError, ManifestError, ValidationExecutionError, OSError) as error:
+        if isinstance(error, OperationError):
+            status = error.status
+            expected = error.expected
+        elif isinstance(error, ValidationInfrastructureError):
+            status = OperationStatus.INFRASTRUCTURE_ERROR
+            expected = "restore the declared validation inputs and tools, then retry"
+        elif isinstance(error, ValidationExecutionError):
+            status = OperationStatus.FAILED
+            expected = "repair the failing checks and retry the operation"
+        elif isinstance(error, OSError):
+            status = OperationStatus.INFRASTRUCTURE_ERROR
+            expected = "restore the required executable or filesystem and retry"
+        else:
+            status = OperationStatus.INVALID
+            expected = "correct the repository manifest and retry"
+        log = _archive_operation_failure(repository, str(error))
+        print(f"{operation}: {error}", file=sys.stderr)
+        result = OperationResult(operation, status, {}, str(error), expected, log)
+        print(json.dumps(result.document(), sort_keys=True))
+        return EXIT_CODES[status]
+    outcome = result.pop("status", "passed")
+    document = OperationResult(
+        operation, OperationStatus.PASSED, {**result, "outcome": outcome}
+    ).document()
+    print(json.dumps(document, sort_keys=True))
     return 0
+
+
+def _archive_operation_failure(repository: Path, diagnostic: str) -> str | None:
+    """Retain failure output under the shared machine-local state authority."""
+
+    try:
+        root = _state_root(repository) / "logs"
+        root.mkdir(parents=True, exist_ok=True)
+        descriptor, name = tempfile.mkstemp(prefix="operation-", suffix=".log", dir=root)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(diagnostic + "\n")
+        return name
+    except (OSError, OperationError):
+        return None
 
 
 if __name__ == "__main__":

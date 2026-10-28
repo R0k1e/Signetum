@@ -24,6 +24,10 @@ class ValidationExecutionError(ValueError):
     """A declared tool or shard could not produce successful evidence."""
 
 
+class ValidationInfrastructureError(ValidationExecutionError):
+    """Validation inputs or tools were unavailable, so no verdict was obtained."""
+
+
 @dataclass(frozen=True)
 class ShardExecution:
     """One shard command's verdict and, when it failed, what it reported."""

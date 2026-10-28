@@ -14,7 +14,7 @@ import signetum.lifecycle as lifecycle
 def test_missing_mise_has_an_actionable_noninteractive_diagnostic(monkeypatch) -> None:
     monkeypatch.setattr(lifecycle, "which", lambda executable: None)
 
-    with pytest.raises(lifecycle.AdmissionError, match="install Mise"):
+    with pytest.raises(lifecycle.InfrastructureError, match="install Mise"):
         lifecycle._run_tool(Path.cwd(), ("uv", "--version"))
 
 
@@ -25,7 +25,7 @@ def test_invalid_worktrunk_json_is_refused(monkeypatch, tmp_path: Path) -> None:
         lambda repository, command, **kwargs: CompletedProcess(command, 0, "not-json", ""),
     )
 
-    with pytest.raises(lifecycle.AdmissionError, match="invalid Worktrunk JSON"):
+    with pytest.raises(lifecycle.InfrastructureError, match="invalid Worktrunk JSON"):
         lifecycle._worktrees(tmp_path)
 
 
