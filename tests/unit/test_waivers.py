@@ -1,12 +1,15 @@
 """Waivers are tracked, approved, expiring coverage rather than a bypass."""
 
+import json
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 
 import pytest
 
 from signetum.findings import Finding
-from signetum.waivers import Waiver, WaiverError, cover_findings, load_waivers
+from signetum.waivers import Waiver, WaiverError, cover_findings, load_waivers, parse_waiver
 
 WAIVER = """[waiver]
 schema_version = 1
@@ -41,7 +44,7 @@ def _waiver(**overrides: object) -> Waiver:
         "expires": date(2026, 12, 31),
     }
     values.update(overrides)
-    return Waiver.model_validate(values)
+    return parse_waiver(values)
 
 
 def test_tracked_waivers_load_from_every_active_change(tmp_path: Path) -> None:
@@ -93,6 +96,17 @@ def test_a_repository_without_waivers_loads_none(tmp_path: Path) -> None:
             WAIVER.replace("expires = 2026-12-31", ""),
             "expires",
             id="missing-expiry",
+        ),
+        pytest.param(WAIVER + 'extra = "unreviewed"\n', "unsupported", id="unknown-field"),
+        pytest.param(
+            WAIVER.replace('approved_by = "maintainer"', 'approved_by = ""'),
+            "approved_by",
+            id="missing-approval",
+        ),
+        pytest.param(
+            WAIVER.replace("schema_version = 1", "schema_version = true"),
+            "schema",
+            id="boolean-version",
         ),
     ],
 )
@@ -156,3 +170,69 @@ def test_a_failure_reporting_nothing_is_never_covered() -> None:
 def test_a_waiver_expiring_today_still_carries_authority() -> None:
     assert _waiver(expires=date(2026, 9, 2)).usable(today=date(2026, 9, 2)) is True
     assert _waiver(expires=date(2026, 9, 1)).usable(today=date(2026, 9, 2)) is False
+
+
+@pytest.mark.parametrize(
+    ("body", "day", "expected"),
+    [
+        (WAIVER, "2026-12-31", "waived"),
+        (WAIVER, "2027-01-01", "expired"),
+        (WAIVER + 'extra = "unreviewed"\n', "2026-12-31", "refused"),
+        (WAIVER.replace('approved_by = "maintainer"', 'approved_by = ""'), "2026-12-31", "refused"),
+        (
+            WAIVER.replace('reason = "Upstream fix pending"', 'reason = "   "'),
+            "2026-12-31",
+            "refused",
+        ),
+        (WAIVER.replace("schema_version = 1", "schema_version = true"), "2026-12-31", "refused"),
+        (WAIVER.replace("expires = 2026-12-31", 'expires = "yesterday"'), "2026-12-31", "refused"),
+    ],
+)
+def test_engine_and_independent_template_use_the_same_waiver_authority(
+    tmp_path: Path, body: str, day: str, expected: str
+) -> None:
+    root = Path(__file__).parents[2]
+    _write(tmp_path, "changes/one/waivers/audit.toml", body)
+    script = """
+import importlib, json, sys
+from datetime import date
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+module = importlib.import_module(sys.argv[2])
+if sys.argv[2] == 'lifecycle':
+    load = module._load_waivers
+    cover = module._cover_findings
+    from _signetum_runtime.findings import Finding
+else:
+    load = module.load_waivers
+    cover = module.cover_findings
+    from signetum.findings import Finding
+try:
+    waivers = load(Path(sys.argv[3]))
+    outcome = cover('engine:audit', (Finding('GHSA-aaaa-bbbb-cccc', 'demo', 'Demo'),),
+                    waivers, today=date.fromisoformat(sys.argv[4]))
+    result = {'status': 'waived' if outcome.covered else 'expired',
+              'waivers': outcome.waivers, 'expired': outcome.expired,
+              'uncovered': outcome.uncovered}
+except ValueError as error:
+    result = {'status': 'refused', 'reason': str(error)}
+assert 'pydantic' not in sys.modules
+if sys.argv[2] == 'lifecycle':
+    assert 'signetum' not in sys.modules
+print(json.dumps(result))
+"""
+    results = []
+    for path, module in (
+        (root / "src", "signetum.waivers"),
+        (root / "template/.agents/repo-dev/runtime", "lifecycle"),
+    ):
+        completed = subprocess.run(  # noqa: S603 -- isolated fixed interpreter and fixture argv
+            [sys.executable, "-I", "-S", "-c", script, str(path), module, str(tmp_path), day],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        results.append(json.loads(completed.stdout))
+    assert results[0] == results[1]
+    assert results[0]["status"] == expected

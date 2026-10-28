@@ -8,8 +8,6 @@ from pathlib import Path
 from re import fullmatch
 from tomllib import TOMLDecodeError, loads
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-
 from signetum.findings import Finding
 
 WAIVER_GLOB = "changes/*/waivers/*.toml"
@@ -19,48 +17,74 @@ class WaiverError(ValueError):
     """A tracked waiver violates the approved coverage contract."""
 
 
-class Waiver(BaseModel):
+@dataclass(frozen=True)
+class Waiver:
     """One human-approved, expiring exception for named world findings."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
 
     schema_version: int
     id: str
     shard: str
-    findings: tuple[str, ...] = Field(min_length=1)
-    reason: str = Field(min_length=1)
-    approved_by: str = Field(min_length=1)
+    findings: tuple[str, ...]
+    reason: str
+    approved_by: str
     expires: date
     follow_up: str | None = None
 
-    @field_validator("schema_version")
-    @classmethod
-    def validate_schema_version(cls, value: int) -> int:
-        if value != 1:
-            raise ValueError(f"unsupported waiver schema: {value}")
-        return value
-
-    @field_validator("id", "shard")
-    @classmethod
-    def validate_identifier(cls, value: str) -> str:
-        if fullmatch(r"[a-z0-9][a-z0-9._:@-]*", value) is None:
-            raise ValueError(f"waiver identifier must be lowercase and namespaced: {value}")
-        return value
-
-    @field_validator("findings")
-    @classmethod
-    def validate_findings(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        if len(value) != len(set(value)):
-            raise ValueError("waiver findings must be unique")
-        for item in value:
-            if fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:@/-]*", item) is None:
-                raise ValueError(f"waived finding must be an identifier: {item}")
-        return value
+    def __post_init__(self) -> None:
+        if type(self.schema_version) is not int or self.schema_version != 1:
+            raise WaiverError(f"unsupported waiver schema: {self.schema_version}")
+        for name in ("id", "shard"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or fullmatch(r"[a-z0-9][a-z0-9._:@-]*", value) is None:
+                raise WaiverError(f"{name}: waiver identifier must be lowercase and namespaced")
+        if not isinstance(self.findings, tuple) or not self.findings:
+            raise WaiverError("findings must contain at least 1 item")
+        for item in self.findings:
+            if (
+                not isinstance(item, str)
+                or fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:@/-]*", item) is None
+            ):
+                raise WaiverError(f"waived finding must be an identifier: {item}")
+        if len(self.findings) != len(set(self.findings)):
+            raise WaiverError("waiver findings must be unique")
+        for name in ("reason", "approved_by"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise WaiverError(f"{name} must be non-empty")
+        if type(self.expires) is not date:
+            raise WaiverError("expires must be a date")
+        if self.follow_up is not None and (
+            not isinstance(self.follow_up, str) or not self.follow_up.strip()
+        ):
+            raise WaiverError("follow_up must be a non-empty string when provided")
 
     def usable(self, *, today: date) -> bool:
         """Report whether this waiver still carries authority on the given day."""
 
         return self.expires >= today
+
+
+def parse_waiver(raw: object) -> Waiver:
+    """Normalize a versioned document once, then validate the immutable value."""
+
+    required = {"schema_version", "id", "shard", "findings", "reason", "approved_by", "expires"}
+    if not isinstance(raw, dict):
+        raise WaiverError("waiver must be an object")
+    if missing := required - raw.keys():
+        raise WaiverError("waiver is missing " + ", ".join(sorted(missing)))
+    if raw.keys() - required - {"follow_up"}:
+        raise WaiverError("waiver carries unsupported fields")
+    fields = dict(raw)
+    findings = fields["findings"]
+    if isinstance(findings, list):
+        fields["findings"] = tuple(findings)
+    expires = fields["expires"]
+    if isinstance(expires, str):
+        try:
+            fields["expires"] = date.fromisoformat(expires)
+        except ValueError as error:
+            raise WaiverError("expires must be a date") from error
+    return Waiver(**fields)
 
 
 @dataclass(frozen=True)
@@ -97,12 +121,9 @@ def load_waivers(repository: Path) -> tuple[Waiver, ...]:
         if set(document) != {"waiver"}:
             raise WaiverError(f"{relative}: file must declare exactly one [waiver] table")
         try:
-            waivers.append(Waiver.model_validate(document["waiver"]))
-        except ValidationError as error:
-            first = error.errors()[0]
-            field = ".".join(str(part) for part in first["loc"])
-            message = str(first["msg"]).removeprefix("Value error, ")
-            raise WaiverError(f"{relative}: {f'{field}: ' if field else ''}{message}") from error
+            waivers.append(parse_waiver(document["waiver"]))
+        except WaiverError as error:
+            raise WaiverError(f"{relative}: {error}") from error
     identities = [waiver.id for waiver in waivers]
     duplicates = sorted({item for item in identities if identities.count(item) > 1})
     if duplicates:
@@ -153,4 +174,5 @@ __all__ = [
     "WaiverOutcome",
     "cover_findings",
     "load_waivers",
+    "parse_waiver",
 ]

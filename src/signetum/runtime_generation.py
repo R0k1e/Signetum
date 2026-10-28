@@ -17,6 +17,7 @@ MODULES = {
     "signetum.git": "git.py",
     "signetum.workspaces": "workspaces.py",
     "signetum.findings": "findings.py",
+    "signetum.waivers": "waivers.py",
     "signetum.profiles.pip_audit": "pip_audit.py",
 }
 

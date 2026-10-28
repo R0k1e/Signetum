@@ -19,7 +19,7 @@ from signetum.validation.execution import (
     ValidationInputs,
     execute_gate,
 )
-from signetum.waivers import Waiver
+from signetum.waivers import Waiver, parse_waiver
 
 
 @dataclass
@@ -157,7 +157,7 @@ def _waiver(**overrides: object) -> Waiver:
         "expires": date(2026, 12, 31),
     }
     values.update(overrides)
-    return Waiver.model_validate(values)
+    return parse_waiver(values)
 
 
 def _world_inputs(*waivers: Waiver) -> ValidationInputs:
