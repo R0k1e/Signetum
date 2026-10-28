@@ -1,7 +1,8 @@
+import json
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import asdict, replace
 from hashlib import sha256
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from signetum.evidence.receipts import (
     ValidationCompleteness,
     ValidationExecution,
     ValidationProvenance,
+    ValidationSelection,
     combine_shard_evidence,
     verify_gate_evidence,
 )
@@ -66,6 +68,53 @@ def _gate(identity: EvidenceIdentity, gate: str, shards: tuple[str, ...]) -> Evi
     )
 
 
+def _selection():
+    return ValidationSelection(
+        "sha256:" + "0" * 64,
+        ("python.source",),
+        (),
+        (),
+        ("core:static",),
+        (),
+        (),
+        (),
+        False,
+        ("impact rule python.source matched",),
+    )
+
+
+def test_selection_round_trip_uses_the_same_serialized_boundary():
+    selection = _selection()
+    raw = json.loads(json.dumps(asdict(selection)))
+    assert ValidationSelection.from_mapping(raw) == selection
+    receipt = replace(_gate(_identity(), "member", ("core:static",)), selection=selection)
+    assert EvidenceReceipt.from_json(receipt.to_json()) == receipt
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"extra": "unbound"},
+        {"requires_final": "false"},
+        {"changed_paths_digest": 3},
+        {"rules": "python.source"},
+        {"shards": [False]},
+        {"rules": ["duplicate", "duplicate"]},
+    ],
+)
+def test_selection_boundary_refuses_invalid_fields_and_arrays(overrides):
+    raw = json.loads(json.dumps(asdict(_selection())))
+    with pytest.raises(ReceiptError):
+        ValidationSelection.from_mapping(raw | overrides)
+
+
+def test_selection_boundary_refuses_missing_fields():
+    raw = asdict(_selection())
+    del raw["requires_final"]
+    with pytest.raises(ReceiptError):
+        ValidationSelection.from_mapping(raw)
+
+
 @pytest.mark.parametrize("mismatched", [False, True])
 def test_generated_evidence_verifier_runs_without_engine_or_site_packages(mismatched) -> None:
     runtime = Path(__file__).parents[3] / "template/.agents/repo-dev/runtime"
@@ -74,7 +123,7 @@ def test_generated_evidence_verifier_runs_without_engine_or_site_packages(mismat
 import sys
 from dataclasses import replace
 sys.path.insert(0, sys.argv[1])
-from _signetum_runtime.receipts import EvidenceReceipt, ReceiptError, verify_gate_evidence
+from _signetum_runtime.evidence_receipts import EvidenceReceipt, ReceiptError, verify_gate_evidence
 receipt = EvidenceReceipt.from_json(sys.stdin.read())
 expected = receipt.identity
 if sys.argv[2] == 'True':

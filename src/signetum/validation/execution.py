@@ -7,12 +7,11 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from typing import Protocol
 
-from pydantic import JsonValue
-
 from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceIdentity,
     EvidenceReceipt,
+    JsonValue,
     ShardOutcome,
     ToolIdentity,
     ValidationSelection,
@@ -265,7 +264,7 @@ def execute_gate(
         extensions["inherited_test_evidence_from"] = {
             "commit": inherited.receipt.identity.commit,
             "receipt": inherited.source_receipt,
-            "shards": inherited_names,
+            "shards": list(inherited_names),
         }
         prior_defects = inherited.receipt.extensions.get("recovered_flake_defects", [])
         if isinstance(prior_defects, list):
@@ -281,7 +280,7 @@ def execute_gate(
     return receipt
 
 
-def require_recovery_limit(defects: JsonValue, inputs: ValidationInputs) -> None:
+def require_recovery_limit(defects: object, inputs: ValidationInputs) -> None:
     """A final receipt used for member admission cannot bypass recovery policy."""
     if not isinstance(defects, list):
         raise ValidationExecutionError("invalid recovered robustness defects")

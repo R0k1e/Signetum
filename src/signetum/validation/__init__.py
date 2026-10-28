@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 
 class ValidationGraphError(ValueError):
@@ -283,13 +283,7 @@ def resolve_validation_graph(
         "gates": [{"name": gate.name, "shards": gate.shards} for gate in resolved_gates],
         "shards": [
             {
-                "command": shard.command,
-                "evidence": shard.evidence,
-                "findings_command": shard.findings_command,
-                "name": shard.name,
-                "timeout_seconds": shard.timeout_seconds,
-                "workers": shard.workers,
-                "worker_memory_mb": shard.worker_memory_mb,
+                **asdict(shard),
                 "requires": tuple(sorted(shard.requires)),
             }
             for shard in resolved_shards

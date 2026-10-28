@@ -110,6 +110,52 @@ class ValidationSelection:
             if len(field) != len(set(field)):
                 raise ReceiptError("selection values must be unique")
 
+    @classmethod
+    def from_mapping(cls, raw: object) -> ValidationSelection:
+        """Read the serialized selection shape at a frontend boundary."""
+
+        arrays = (
+            "rules",
+            "profiles",
+            "gates",
+            "shards",
+            "modified_tests",
+            "external_obligations",
+            "unexplained",
+            "reasons",
+        )
+        if not isinstance(raw, dict) or set(raw) != {
+            "changed_paths_digest",
+            "requires_final",
+            *arrays,
+        }:
+            raise ReceiptError("invalid selection fields")
+        digest = raw["changed_paths_digest"]
+        final = raw["requires_final"]
+        if not isinstance(digest, str) or not isinstance(final, bool):
+            raise ReceiptError("invalid selection digest or final obligation")
+
+        def strings(name: str) -> tuple[str, ...]:
+            values = raw[name]
+            if not isinstance(values, (list, tuple)) or not all(
+                isinstance(value, str) for value in values
+            ):
+                raise ReceiptError(f"selection.{name} must be a string array")
+            return tuple(values)
+
+        return cls(
+            digest,
+            strings("rules"),
+            strings("profiles"),
+            strings("gates"),
+            strings("shards"),
+            strings("modified_tests"),
+            strings("external_obligations"),
+            strings("unexplained"),
+            final,
+            strings("reasons"),
+        )
+
 
 EVIDENCE_CLASSES = ("tree", "world")
 SHARD_STATUSES = ("passed", "waived")
@@ -267,18 +313,7 @@ class EvidenceReceipt:
                     tools=tuple(ToolIdentity(**item) for item in identity["tools"]),
                 ),
                 selection=(
-                    ValidationSelection(
-                        changed_paths_digest=raw["selection"]["changed_paths_digest"],
-                        rules=tuple(raw["selection"]["rules"]),
-                        profiles=tuple(raw["selection"]["profiles"]),
-                        gates=tuple(raw["selection"]["gates"]),
-                        shards=tuple(raw["selection"]["shards"]),
-                        modified_tests=tuple(raw["selection"]["modified_tests"]),
-                        external_obligations=tuple(raw["selection"]["external_obligations"]),
-                        unexplained=tuple(raw["selection"]["unexplained"]),
-                        requires_final=raw["selection"]["requires_final"],
-                        reasons=tuple(raw["selection"]["reasons"]),
-                    )
+                    ValidationSelection.from_mapping(raw["selection"])
                     if raw["selection"] is not None
                     else None
                 ),

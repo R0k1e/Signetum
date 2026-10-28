@@ -9,7 +9,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Protocol
 
-from .receipts import ValidationSelection
+from .evidence_receipts import ValidationSelection
 
 
 class ImpactRuleLike(Protocol):

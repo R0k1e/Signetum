@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import replace
 
 import pytest
 
@@ -39,6 +40,21 @@ def test_graph_composes_namespaced_shards_in_dependency_order() -> None:
     assert graph.gate("final").shards == ("core:static", "profile:go@1:test")
     assert graph.execution_order("final") == ("core:static", "profile:go@1:test")
     assert graph.digest.startswith("sha256:")
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"inherit": True}, {"ratchet_command": ("tool", "diagnostics")}],
+)
+def test_graph_identity_binds_inheritance_and_ratchet_policy(change):
+    shard = ValidationShard("core:check", ("tool", "check"))
+
+    def graph(item):
+        return resolve_validation_graph(
+            (GraphContribution("repository", (item,), (GateDeclaration("member", (item.name,)),)),)
+        )
+
+    assert graph(shard).digest != graph(replace(shard, **change)).digest
 
 
 def test_graph_rejects_duplicate_shard_ownership() -> None:
