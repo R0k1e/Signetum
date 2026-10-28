@@ -163,6 +163,8 @@ class ValidationShard(BaseModel):
     timeout_seconds: int = Field(default=1800, gt=0)
     inherit: bool = False
     ratchet_command: tuple[str, ...] = ()
+    workers: int = Field(default=0, ge=0, strict=True)
+    worker_memory_mb: int = Field(default=0, ge=0, strict=True)
 
     @model_validator(mode="after")
     def validate_inheritance(self) -> "ValidationShard":

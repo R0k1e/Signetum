@@ -63,7 +63,8 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry):
         assert defects == []
 
 
-def test_collection_failure_is_not_retried(tmp_path):
+@pytest.mark.parametrize("workers", [0, 2])
+def test_collection_failure_is_not_retried(tmp_path, workers):
     test = tmp_path / "test_broken.py"
     test.write_text("raise RuntimeError('collection failed')\n")
     report = tmp_path / "recovery.json"
@@ -78,12 +79,17 @@ def test_collection_failure_is_not_retried(tmp_path):
             "addopts=",
             str(test),
         ],
-        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
+        env=dict(
+            os.environ,
+            SIGNETUM_RECOVERY_REPORT=str(report),
+            SIGNETUM_VALIDATION_WORKERS=str(workers),
+        ),
         capture_output=True,
         text=True,
         check=False,
     )
-    assert result.returncode == 2
+    assert result.returncode == (1 if workers else 2)
+    assert "collection failed" in result.stdout
     assert not report.exists()
 
 

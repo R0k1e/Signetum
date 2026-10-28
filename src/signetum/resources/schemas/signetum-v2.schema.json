@@ -197,6 +197,8 @@
               },
               "inherit": {"type": "boolean"},
               "ratchet_command": {"$ref": "#/$defs/argv"},
+              "workers": {"type": "integer", "minimum": 0},
+              "worker_memory_mb": {"type": "integer", "minimum": 0},
               "timeout_seconds": {"type": "integer", "minimum": 1},
               "evidence": {
                 "enum": [
