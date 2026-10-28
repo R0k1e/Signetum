@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
 import sys
 import tomllib
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager, nullcontext
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
@@ -16,9 +18,12 @@ from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
+from signetum.change.authority import validate_specification_authority
+from signetum.change.models import DecisionStatus
 from signetum.change.scope import changes_root
 from signetum.git import GitError, git_output, run_git
-from signetum.manifest import load_manifest
+from signetum.manifest import ManifestError, load_manifest
+from signetum.traceability.loading import load_decision
 from signetum.workspaces import WorkspaceError, claim_change
 
 Identifier = Annotated[str, Field(min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")]
@@ -400,20 +405,39 @@ def _validate_resolution(repository: Path, state: DeviationState) -> None:
     }
     if target_required and not resolution.targets:
         raise DeviationError(f"resolution requires an authority target: {resolution.id}")
+    manifest_path = repository / "signetum.toml"
+    manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
+    root = changes_root(manifest) if manifest is not None else "changes"
+    decisions = manifest.repository.decisions if manifest is not None else "docs/decisions"
     for raw_target in resolution.targets:
         target = PurePosixPath(raw_target)
         if target.is_absolute() or ".." in target.parts or str(target) in {"", "."}:
             raise DeviationError(f"resolution target is not repository-relative: {raw_target}")
         path = repository.resolve() / target
-        if not path.exists():
-            raise DeviationError(f"resolution target is absent: {raw_target}")
+        if not path.resolve().is_relative_to(repository.resolve()):
+            raise DeviationError(f"resolution target escapes the repository: {raw_target}")
+        if not path.is_file():
+            raise DeviationError(f"resolution target is absent or not a file: {raw_target}")
+        if resolution.resolution in {
+            ResolutionKind.DEFERRED,
+            ResolutionKind.RESOLVED_IN_SPECIFICATION,
+        }:
+            try:
+                validate_specification_authority(
+                    repository,
+                    target,
+                    root=root,
+                    decisions=decisions,
+                    approved=resolution.resolution == ResolutionKind.RESOLVED_IN_SPECIFICATION,
+                )
+            except (OSError, ValueError) as error:
+                raise DeviationError(f"invalid resolution specification: {error}") from error
         if resolution.resolution == ResolutionKind.RESOLVED_IN_DECISION:
-            if not raw_target.startswith("docs/decisions/"):
+            if not target.is_relative_to(PurePosixPath(decisions)):
                 raise DeviationError(
                     f"decision resolution target is outside decisions: {raw_target}"
                 )
-            content = path.read_text(encoding="utf-8")
-            if "Status: Accepted" not in content:
+            if load_decision(path, raw_target).status != DecisionStatus.ACCEPTED:
                 raise DeviationError(f"decision resolution target is not accepted: {raw_target}")
     if (
         state.discovered.classification == DeviationClass.DECISION_REQUIRED
@@ -436,6 +460,22 @@ def _validate_identity(value: str) -> None:
         TypeAdapter(Identifier).validate_python(value, strict=True)
     except ValidationError as error:
         raise DeviationError(f"invalid change identity: {value}") from error
+
+
+@contextmanager
+def _ledger_write(repository: Path, change_id: str) -> Iterator[None]:
+    """Serialize each public check-and-append transition, without waiting."""
+    parent = ledger_path(repository, change_id).parent
+    parent.mkdir(parents=True, exist_ok=True)
+    with (parent / "ledger.lock").open("a", encoding="utf-8") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise DeviationError("change ledger has an active update; retry") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -472,57 +512,73 @@ def main(arguments: list[str] | None = None) -> int:
     parsed = _parser().parse_args(arguments)
     repository = parsed.repository.resolve()
     try:
-        if parsed.command == "approval":
-            result = approval_view(repository, parsed.change)
-        elif parsed.command == "record":
-            event = Discovered(
-                id=parsed.id,
-                change_id=parsed.change,
-                member=parsed.member,
-                at=datetime.now(UTC),
-                summary=parsed.summary,
-                classification=DeviationClass(parsed.classification),
-                original_commitment=parsed.commitment,
-                action=parsed.action,
-                impact=parsed.impact,
-            )
-            path = append_event(repository, event)
-            result = {
-                "schema_version": 1,
-                "status": "recorded",
-                "id": event.id,
-                "ledger": str(path),
-            }
-        elif parsed.command == "resolve":
-            event = Resolved(
-                id=parsed.id,
-                change_id=parsed.change,
-                member=parsed.member,
-                at=datetime.now(UTC),
-                resolution=ResolutionKind(parsed.resolution),
-                targets=tuple(parsed.target),
-                reason=parsed.reason,
-                implemented=parsed.implemented,
-            )
-            states = {
-                state.discovered.id: state for state in read_states(repository, parsed.change)
-            }
-            if parsed.id not in states:
-                raise DeviationError(f"deviation is absent: {parsed.id}")
-            path = append_event(repository, event)
-            result = {
-                "schema_version": 1,
-                "status": "resolved",
-                "id": event.id,
-                "ledger": str(path),
-            }
-        else:
-            result = {
-                "schema_version": 1,
-                "status": "reconciled",
-                **reconciliation_summary(repository, tuple(parsed.change)),
-            }
-    except (DeviationError, OSError) as error:
+        with (
+            _ledger_write(repository, parsed.change)
+            if parsed.command in {"record", "resolve"}
+            else nullcontext()
+        ):
+            if parsed.command == "approval":
+                result = approval_view(repository, parsed.change)
+            elif parsed.command == "record":
+                event = Discovered(
+                    id=parsed.id,
+                    change_id=parsed.change,
+                    member=parsed.member,
+                    at=datetime.now(UTC),
+                    summary=parsed.summary,
+                    classification=DeviationClass(parsed.classification),
+                    original_commitment=parsed.commitment,
+                    action=parsed.action,
+                    impact=parsed.impact,
+                )
+                if any(
+                    state.discovered.id == event.id
+                    for state in read_states(repository, event.change_id)
+                ):
+                    raise DeviationError(f"duplicate deviation discovery: {event.id}")
+                path = append_event(repository, event)
+                result = {
+                    "schema_version": 1,
+                    "status": "recorded",
+                    "id": event.id,
+                    "ledger": str(path),
+                }
+            elif parsed.command == "resolve":
+                event = Resolved(
+                    id=parsed.id,
+                    change_id=parsed.change,
+                    member=parsed.member,
+                    at=datetime.now(UTC),
+                    resolution=ResolutionKind(parsed.resolution),
+                    targets=tuple(parsed.target),
+                    reason=parsed.reason,
+                    implemented=parsed.implemented,
+                )
+                states = {
+                    state.discovered.id: state for state in read_states(repository, parsed.change)
+                }
+                if parsed.id not in states:
+                    raise DeviationError(f"deviation is absent: {parsed.id}")
+                state = states[parsed.id]
+                if state.resolution is not None:
+                    raise DeviationError(f"duplicate deviation resolution: {event.id}")
+                if event.member != state.discovered.member:
+                    raise DeviationError(f"deviation member changed during resolution: {event.id}")
+                _validate_resolution(repository, state.model_copy(update={"resolution": event}))
+                path = append_event(repository, event)
+                result = {
+                    "schema_version": 1,
+                    "status": "resolved",
+                    "id": event.id,
+                    "ledger": str(path),
+                }
+            else:
+                result = {
+                    "schema_version": 1,
+                    "status": "reconciled",
+                    **reconciliation_summary(repository, tuple(parsed.change)),
+                }
+    except (DeviationError, OSError, ManifestError, ValidationError) as error:
         print(
             json.dumps(
                 {"schema_version": 1, "status": "refused", "reason": str(error)}, sort_keys=True
