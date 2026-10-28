@@ -9,6 +9,7 @@ from types import ModuleType
 import pytest
 
 from signetum import lifecycle as engine_lifecycle
+from signetum.git import git_output
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -47,6 +48,11 @@ def test_changed_contract_vectors_are_shared(
         (ROOT / "tests" / "fixtures" / "lifecycle-impact-vectors.json").read_text(encoding="utf-8")
     )["cases"]
     for vector in vectors:
+        monkeypatch.setattr(
+            engine_lifecycle,
+            "member_contribution_paths",
+            lambda *args, paths=tuple(vector["files"]): paths,
+        )
         monkeypatch.setattr(runtime, "_git", _git_for(tuple(vector["files"])))
         monkeypatch.setattr(runtime, "_recorded_base", lambda repository, branch=None: "base")
         observed = runtime.changed(tmp_path, True)
@@ -70,7 +76,6 @@ def test_changed_contract_vectors_are_shared(
 def test_local_validation_state_has_one_git_common_root(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    common = tmp_path / "common"
-    monkeypatch.setattr(runtime, "_git", lambda *args, **kwargs: str(common))
-
+    git_output(tmp_path, "init")
+    common = Path(git_output(tmp_path, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     assert runtime._receipt_root(tmp_path) == common / "signetum" / "validation"

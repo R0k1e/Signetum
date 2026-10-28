@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-08-31
 Supersedes: ADP-runtime-and-agent-routing-are-separate.md, ADP-template-runtime-is-self-contained.md
-Superseded by: None
+Superseded by: ADP-align-development-tooling-with-perdura.md
 
 ## Context
 

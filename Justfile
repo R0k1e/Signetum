@@ -26,3 +26,15 @@ final:
 
 batch-deliver source target expected-base expected-batch-tip:
     just _lifecycle batch-deliver {{source}} {{target}} {{expected-base}} {{expected-batch-tip}}
+
+workspace-sync *args:
+    just _lifecycle workspace-sync {{args}}
+
+worktree-prepare worktree:
+    just _lifecycle worktree-prepare {{worktree}}
+
+cleanup *args:
+    just _lifecycle cleanup {{args}}
+
+batch-discard batch:
+    just _lifecycle batch-discard {{batch}}

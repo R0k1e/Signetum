@@ -49,38 +49,85 @@ def changes_root(manifest: RepositoryManifest) -> str:
 
 
 def delivery_scope(
-    repository: Path, manifest: RepositoryManifest, base: str, tip: str
+    repository: Path,
+    manifest: RepositoryManifest,
+    base: str,
+    tip: str,
+    *,
+    paths: tuple[str, ...] | None = None,
 ) -> DeliveryScope:
     root = changes_root(manifest)
     prefix = PurePosixPath(root).parts
-    changed = git_output(
-        repository,
-        "diff",
-        "--name-only",
-        "-z",
-        "--no-renames",
-        "--diff-filter=d",
-        base,
-        tip,
-        "--",
-        root,
-    )
+    if paths is None:
+        changed = git_output(
+            repository,
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            "--diff-filter=d",
+            base,
+            tip,
+            "--",
+            root,
+            strip=False,
+        )
+        paths = tuple(filter(None, changed.split("\0")))
     grouped: dict[str, list[str]] = {}
-    for path in filter(None, changed.split("\0")):
+    for path in paths:
         parts = PurePosixPath(path).parts
         if parts[: len(prefix)] == prefix and len(parts) > len(prefix) + 1:
             grouped.setdefault(parts[len(prefix)], []).append(path)
     first: list[str] = []
     previous: list[PreviousChange] = []
-    for change_id, paths in sorted(grouped.items()):
+    for change_id, change_paths in sorted(grouped.items()):
         held = git_output(
             repository, "ls-tree", "-d", "--name-only", base, "--", f"{root}/{change_id}"
         )
         if held:
-            previous.append(PreviousChange(change_id, tuple(sorted(paths))))
+            previous.append(PreviousChange(change_id, tuple(sorted(change_paths))))
         else:
             first.append(change_id)
     return DeliveryScope(tuple(first), tuple(previous))
+
+
+def member_contribution_paths(repository: Path, base: str, tip: str) -> tuple[str, ...]:
+    def changed_against(source: str) -> set[str]:
+        return set(
+            filter(
+                None,
+                git_output(
+                    repository,
+                    "diff",
+                    "--name-only",
+                    "-z",
+                    "--no-renames",
+                    source,
+                    tip,
+                    strip=False,
+                ).split("\0"),
+            )
+        )
+
+    paths = changed_against(base)
+    for merge in git_output(
+        repository, "rev-list", "--first-parent", "--merges", f"{base}..{tip}"
+    ).splitlines():
+        parents = git_output(repository, "show", "-s", "--format=%P", merge).split()
+        body = git_output(repository, "show", "-s", "--format=%B", merge)
+        if len(parents) == 2 and re.findall(r"^Signetum-Sync:\s*(\S+)$", body, re.MULTILINE) == [
+            parents[1]
+        ]:
+            paths.intersection_update(changed_against(parents[1]))
+    return tuple(sorted(paths))
+
+
+def member_scope(
+    repository: Path, manifest: RepositoryManifest, base: str, tip: str
+) -> DeliveryScope:
+    return delivery_scope(
+        repository, manifest, base, tip, paths=member_contribution_paths(repository, base, tip)
+    )
 
 
 def delivered_plans(
@@ -215,7 +262,7 @@ def require_member_changes(
 ) -> tuple[str, ...]:
     """Judge own implementation after approval in the package's one branch."""
 
-    scope = delivery_scope(repository, manifest, base, tip)
+    scope = member_scope(repository, manifest, base, tip)
     carried = tuple(
         sorted(
             set(

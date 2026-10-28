@@ -11,6 +11,7 @@ from shutil import which
 from typing import Literal
 
 import pytest
+from change_fixtures import approve_change as _approve_change
 
 import signetum.lifecycle as lifecycle
 from signetum.validation.execution import build_evidence_identity
@@ -69,6 +70,14 @@ shards = ["repo:check"]
 [[validation.gates]]
 name = "final"
 shards = ["repo:check"]
+[[validation.gates]]
+name = "prepare"
+shards = ["repo:check"]
+
+[[validation.gates]]
+name = "batch"
+shards = ["repo:check"]
+
 """
 
 MEMBER_COMMAND = ("true",)
@@ -81,8 +90,16 @@ def _repository(path: Path) -> Path:
     _git(path, "config", "user.email", "signetum@example.invalid")
     (path / "seed.txt").write_text("seed\n", encoding="utf-8")
     (path / "signetum.toml").write_text(MANIFEST, encoding="utf-8")
+    policy = path / ".agents/repo-dev/repo.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("delivery:\n  branch: main\n")
     _git(path, "add", ".")
     _git(path, "commit", "-m", "seed")
+    remote = path.parent / (path.name + ".git")
+    remote.mkdir()
+    _git(remote, "init", "--bare")
+    _git(path, "remote", "add", "origin", str(remote))
+    _git(path, "push", "origin", "main")
     return path
 
 
@@ -519,6 +536,8 @@ def test_both_gates_run_the_declared_traceability_authority() -> None:
     )
 
     for gate in manifest.validation.gates:
+        if gate.name not in {"member", "final"}:
+            continue
         assert authority in gate.shards, f"{gate.name} does not run {authority}"
 
 
@@ -583,45 +602,6 @@ def test_numbering_preserves_other_supersession_edges(tmp_path):
     new.write_text("# New\nSupersedes: old.md\n")
     lifecycle._record_supersession(tmp_path, Path("decisions/new.md"))
     assert old.read_text() == "# Old\nSuperseded by: earlier.md, new.md\n"
-
-
-def _approve_change(repository: Path, change_id: str = "example") -> None:
-    root = repository / "changes" / change_id
-    (root / "specs").mkdir(parents=True, exist_ok=True)
-    (root / "plans").mkdir(parents=True, exist_ok=True)
-    (root / "review.toml").write_text(f"""[review]
-schema_version = 1
-id = "{change_id}"
-status = "approved"
-[review.source]
-kind = "human_direction"
-summary = "Approve a fixture behavior."
-[[review.clauses]]
-id = "REQ-001"
-statement = "The member implements the approved behavior."
-disposition = "covered"
-specification = "{change_id}/behavior"
-""")
-    (root / "specs/behavior.toml").write_text(f"""[specification]
-schema_version = 1
-id = "{change_id}/behavior"
-version = 1
-status = "approved"
-implementation_authorized = true
-plan = "changes/{change_id}/plans/behavior.md"
-acceptance = ["The declared member check passes."]
-[specification.review]
-id = "{change_id}"
-clauses = ["REQ-001"]
-""")
-    (root / "plans/behavior.md").write_text(f"""# Implement behavior
-Status: approved
-Specification: changes/{change_id}/specs/behavior.toml
-Base: fixture
-| Obligation | Clauses | Outcome |
-| --- | --- | --- |
-| IMPLEMENT | REQ-001 | Implement behavior and run its declared check. |
-""")
 
 
 def test_actual_change_paths_supply_review_and_plans_without_a_trailer(tmp_path):
@@ -780,3 +760,28 @@ def test_ready_cannot_close_an_integration_batch_as_a_member(tmp_path):
     _git(batch, "commit", "-m", "integration change")
     with pytest.raises(lifecycle.AdmissionError, match="requires a registered member"):
         lifecycle.validate(batch, "member")
+
+
+def test_final_allocates_above_fresh_remote_decision_numbers(tmp_path):
+    member, batch, _ = _member_and_batch(tmp_path)
+    decision = member / "docs/decisions/ADP-new.md"
+    decision.parent.mkdir(parents=True)
+    decision.write_text("# New\nStatus: Accepted\nSupersedes: None\nSuperseded by: None\n")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "accept a decision")
+    lifecycle.validate(member, "member")
+    lifecycle.admit(batch, (member,))
+    root = tmp_path / "repository"
+    occupied = root / "docs/decisions/ADP-0099-published.md"
+    occupied.parent.mkdir(parents=True)
+    occupied.write_text("# Published\nStatus: Accepted\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "publish a new decision identity")
+    _git(root, "push", "origin", "main")
+    final = lifecycle.validate(batch, "final")
+    assert final["numbered"] == [
+        {
+            "proposal": "docs/decisions/ADP-new.md",
+            "formal": "docs/decisions/ADP-0100-new.md",
+        }
+    ]

@@ -255,8 +255,16 @@ def load_manifest(path: str | Path) -> RepositoryManifest:
     if source.name != "signetum.toml":
         raise ManifestError("active configuration must be named signetum.toml")
     try:
-        data = _MAPPING.validate_python(loads(source.read_text(encoding="utf-8")))
-    except (OSError, TOMLDecodeError, ValidationError) as error:
+        text = source.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ManifestError(str(error)) from error
+    return parse_manifest(text)
+
+
+def parse_manifest(text: str) -> RepositoryManifest:
+    try:
+        data = _MAPPING.validate_python(loads(text))
+    except (TOMLDecodeError, ValidationError) as error:
         raise ManifestError(str(error)) from error
     schema_version = data.get("schema_version")
     if schema_version != 2:

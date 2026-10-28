@@ -17,7 +17,7 @@ local change rather than an upstream pull or package upgrade.
 6. Adopt receipt v2 and invalidate every v0.1 member or final receipt.
 7. Rename unaccepted decisions to `ADP-proposal-<slug>.md`; the next batch
    assigns formal numbers before final validation.
-8. Exercise the eight public operations in a disposable repository, then admit
+8. Exercise the declared public operations in a disposable repository, then admit
    and validate the upgrade as one explicit batch.
 
 There is no compatibility shim between the two protocols. A repository that

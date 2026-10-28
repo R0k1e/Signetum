@@ -31,6 +31,9 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     git(target, "config", "user.name", "Delivery Test")
     git(target, "config", "user.email", "delivery@example.invalid")
     (target / "content").write_text("base")
+    policy = target / ".agents/repo-dev/repo.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("delivery:\n  branch: main\n")
     git(target, "add", ".")
     git(target, "commit", "-m", "base")
     base = git(target, "rev-parse", "HEAD")
@@ -123,3 +126,14 @@ def test_unrelated_remote_change_is_refused_without_local_move(tmp_path, monkeyp
     with pytest.raises(lifecycle.AdmissionError, match="remote delivery branch"):
         lifecycle.batch_deliver(source, target, base, tip)
     assert git(target, "rev-parse", "HEAD") == base
+
+
+def test_delivery_refuses_a_target_outside_the_validated_policy(tmp_path, monkeypatch):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+    git(target, "switch", "-c", "unintended")
+    git(target, "push", "origin", "unintended")
+    with pytest.raises(lifecycle.AdmissionError, match="repository-declared delivery branch"):
+        lifecycle.batch_deliver(source, target, base, tip)
+    assert git(target, "rev-parse", "HEAD") == base
+    assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
+    assert git(target, "ls-remote", "origin", "refs/heads/unintended").split()[0] == base
