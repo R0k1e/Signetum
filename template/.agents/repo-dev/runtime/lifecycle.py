@@ -18,6 +18,8 @@ from typing import Literal
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _signetum_runtime import resources
 from _signetum_runtime.admission import find_member_evidence
+from _signetum_runtime.change_member import qualify_member
+from _signetum_runtime.change_scope import delivered_plans
 from _signetum_runtime.configuration import configured_validation as _project_validation
 from _signetum_runtime.configuration import member_shards as _project_member_shards
 from _signetum_runtime.delivery import publish_batch
@@ -36,6 +38,7 @@ from _signetum_runtime.git import GitInfrastructureError
 from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.impact import select_paths
 from _signetum_runtime.inheritance import find_test_inheritance
+from _signetum_runtime.lifecycle_validation import validate_workspace
 from _signetum_runtime.manifest import (
     ImpactRule,
     ManifestError,
@@ -50,6 +53,8 @@ from _signetum_runtime.profile_catalog import (
     ProfileResourceError,
     load_catalog,
 )
+from _signetum_runtime.provenance import attested_base as _attested_base
+from _signetum_runtime.provenance import members_and_plans as _delivery_provenance
 from _signetum_runtime.ratchet import ratchet_baseline, run_ratchet
 from _signetum_runtime.receipt_store import ReceiptStore
 from _signetum_runtime.recovery import shard_execution, with_recovery_history
@@ -64,8 +69,10 @@ from _signetum_runtime.waivers import Waiver, WaiverError, load_waivers
 from _signetum_runtime.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
+    exclusive_batch,
     read_record,
     record_path,
+    require_no_merge,
     write_record,
 )
 from _signetum_runtime.workspaces import (
@@ -80,7 +87,6 @@ from _signetum_runtime.workspaces import (
 from _signetum_runtime.worktrunk import WorkspaceIdentity, parse_worktrees
 from _signetum_runtime.worktrunk import run_tool as _run_tool
 from _signetum_runtime.worktrunk import worktrunk as _worktrunk
-from deviations import DeviationError, approval_view, reconciliation_summary
 
 
 def _worktrees(repository: Path) -> tuple[WorkspaceIdentity, ...]:
@@ -478,67 +484,36 @@ def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> 
     }
 
 
-def validate(repository: Path, kind: str) -> dict[str, object]:
-    _require_clean(repository)
-    source = _git(repository, "rev-parse", "HEAD")
-    base = None if kind == "final" else _recorded_base(repository)
-    if base is not None and source == _git(repository, "rev-parse", base):
-        raise AdmissionError("source has no commits beyond the approved base")
-    evidence_base = _recorded_base(repository) if kind == "final" else None
-    if kind == "final":
-        proposals = _proposal_paths(repository)
-        if proposals:
-            raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
-        _require_numbering_base(repository, evidence_base, source)
-        # A batch whose tip is still its base admitted nothing, so it carries
-        # no Change identity to reconcile.
-        if evidence_base is None or evidence_base == source or not _hosts_changes(repository):
-            change_ids: tuple[str, ...] = ()
-        else:
-            _, plans = _delivery_provenance(repository, evidence_base, source)
-            change_ids = _change_ids_from_plans(tuple(plans))
-        try:
-            reconciliation = reconciliation_summary(repository, change_ids)
-            approvals = [approval_view(repository, change_id) for change_id in change_ids]
-        except DeviationError as error:
-            raise AdmissionError(f"deviation reconciliation failed: {error}") from error
-    else:
-        reconciliation = None
-        approvals = None
-    gate = "member" if kind == "member" else "final"
-    manifest = _manifest(repository)
-    selection = (
-        _mapping(changed(repository, True, validate_only=True)["selection"], "selection")
-        if base is not None
-        else None
+def _validation_configuration(
+    manifest, *, member_shards: tuple[str, ...] | None = None
+) -> tuple[ValidationGraph, ValidationInputs]:
+    return _configured_validation(
+        json.loads(json.dumps(asdict(manifest))), member_shards=member_shards
     )
-    selected_shards: tuple[str, ...] | None = None
-    if isinstance(selection, dict):
-        selected_shards, deferred = _member_shards(manifest, selection)
-        if deferred:
-            selection = dict(selection)
-            selection["reasons"] = _strings(selection["reasons"], "selection.reasons") + [
-                f"world shard {name} deferred to final" for name in deferred
-            ]
-    evidence_base = _git(repository, "rev-parse", base) if base else evidence_base
-    evidence = _run_gate(repository, gate, selected_shards, base=evidence_base, selection=selection)
-    payload = {
-        "schema_version": 3,
-        "kind": kind,
-        "source": source,
-        "base": _git(repository, "rev-parse", base) if base else evidence_base,
-        "validated_at": datetime.now(UTC).isoformat(),
-        "valid": True,
-        "evidence": json.loads(evidence.to_json()),
-    }
 
-    if reconciliation is not None and approvals is not None:
-        payload["delivery_review"] = {
-            "approvals": approvals,
-            "reconciliation": reconciliation,
-        }
-    receipt = _write_receipt(repository, kind, payload)
-    return {**payload, "status": "ready" if kind == "member" else "final", "receipt": str(receipt)}
+
+def _validate_held(repository: Path, kind: str) -> dict[str, object]:
+    return validate_workspace(
+        repository,
+        kind,
+        configure=_validation_configuration,
+        adapter_factory=_ValidationAdapter,
+        receipt_root=_receipt_root,
+        proposal_paths=_proposal_paths,
+        check_numbering_base=_require_numbering_base,
+        execute=execute_gate,
+    )
+
+
+def validate(repository: Path, kind: str) -> dict[str, object]:
+    if kind != "final":
+        return _validate_held(repository, kind)
+    with exclusive_batch(repository):
+        if read_record(_state_root(repository), _branch(repository)).kind != "batch":
+            raise AdmissionError("final requires a registered batch workspace")
+        require_no_merge(repository)
+        _require_clean(repository)
+        return _validate_held(repository, kind)
 
 
 def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
@@ -552,47 +527,6 @@ def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
     if completed.returncode not in (0, 1):
         raise AdmissionError(completed.stderr.strip() or "merge-base failed")
     return completed.returncode == 0
-
-
-def _commit_plans(repository: Path, commit: str) -> tuple[str, ...]:
-    body = _git(repository, "show", "-s", "--format=%B", commit)
-    return tuple(
-        sorted(
-            {
-                item.strip()
-                for declared in re.findall(r"^Delivers:\s*(.+)$", body, re.MULTILINE)
-                for item in declared.split(",")
-                if item.strip()
-            }
-        )
-    )
-
-
-def _hosts_changes(repository: Path) -> bool:
-    """Report whether this tree can hold a Change at all.
-
-    Decided by the specification authority the manifest declares, so a
-    repository which arranges its change packages differently is judged by its
-    own declaration rather than by a directory name assumed here.
-    """
-
-    declared = _mapping(_manifest(repository).get("repository"), "repository")
-    pattern = declared.get("specifications")
-    if not isinstance(pattern, str) or not pattern:
-        raise AdmissionError("repository.specifications must be a non-empty pattern")
-    return any(repository.glob(pattern))
-
-
-def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
-    change_ids: set[str] = set()
-    for plan in plans:
-        path = Path(plan)
-        if len(path.parts) < 4 or path.parts[0] != "changes" or path.parts[2] != "plans":
-            raise AdmissionError(f"Plan is outside one active Change: {plan}")
-        change_ids.add(path.parts[1])
-    if not change_ids:
-        raise AdmissionError("batch carries no active Change identity")
-    return tuple(sorted(change_ids))
 
 
 def _admission_evidence(member: Path, tip: str) -> str:
@@ -671,18 +605,6 @@ def _proposal_paths(repository: Path) -> tuple[str, ...]:
     return tuple(paths)
 
 
-def _attested_base(repository: Path, tip: str) -> str | None:
-    """Read the base a batch's provenance commit attests to.
-
-    This is the durable attestation, not the authority: operations read the
-    workspace record. Delivery compares the two.
-    """
-
-    history = _git(repository, "log", "--first-parent", "--format=%B%x00", tip)
-    marker = re.search(r"^Signetum-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
-    return marker.group(1) if marker else None
-
-
 def _require_numbering_base(repository: Path, base: str | None, tip: str) -> None:
     if base is None:
         return
@@ -690,94 +612,6 @@ def _require_numbering_base(repository: Path, base: str | None, tip: str) -> Non
     numbering_bases = re.findall(r"^Signetum-Decision-Base:\s*(\S+)$", messages, re.MULTILINE)
     if numbering_bases and set(numbering_bases) != {base}:
         raise AdmissionError("decision numbering is bound to a different delivery base")
-
-
-def _record_supersession(batch: Path, formal_path: Path) -> None:
-    """Write the reciprocal entry into every decision this one replaces.
-
-    A supersession only the successor records leaves every reader of the
-    replaced decision believing it still stands.
-    """
-
-    decision = batch / formal_path
-    declared = re.search(
-        r"^Supersedes:\s*(.+)$", decision.read_text(encoding="utf-8"), re.MULTILINE
-    )
-    if declared is None:
-        return
-    for reference in (item.strip() for item in declared.group(1).split(",")):
-        if not reference or reference.lower() == "none":
-            continue
-        target = decision.parent / Path(reference).name
-        if not target.is_file():
-            raise AdmissionError(f"decision supersedes an absent decision: {reference}")
-        content = target.read_text(encoding="utf-8")
-        updated, count = re.subn(
-            r"^Superseded by:.*$",
-            f"Superseded by: {formal_path.name}",
-            content,
-            count=1,
-            flags=re.MULTILINE,
-        )
-        if count == 0:
-            raise AdmissionError(f"decision declares no supersession field: {reference}")
-        target.write_text(updated, encoding="utf-8")
-
-
-def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
-    proposals = _proposal_paths(batch)
-    if not proposals:
-        return []
-    base_names = _git(batch, "ls-tree", "-r", "--name-only", base).splitlines()
-    used = [
-        int(match.group(1))
-        for path in (*base_names, *_git(batch, "ls-files").splitlines())
-        if (match := re.search(r"(?:^|/)ADP-(\d{4})-[^/]+\.md$", path))
-    ]
-    next_number = max(used, default=0) + 1
-    rewrites: list[dict[str, str]] = []
-    for proposal in sorted(proposals):
-        proposal_path = Path(proposal)
-        slug = proposal_path.name.removeprefix("ADP-")
-        formal_path = proposal_path.with_name(f"ADP-{next_number:04d}-{slug}")
-        if (batch / formal_path).exists():
-            raise AdmissionError(f"formal decision already exists: {formal_path}")
-        _git(batch, "mv", proposal, formal_path.as_posix())
-        tracked = tuple(filter(None, _git(batch, "ls-files").splitlines()))
-        old_name = proposal_path.name
-        new_name = formal_path.name
-        for relative in tracked:
-            candidate = batch / relative
-            if not candidate.is_file():
-                continue
-            try:
-                content = candidate.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                continue
-            rewritten = content.replace(proposal, formal_path.as_posix()).replace(
-                old_name, new_name
-            )
-            if candidate == batch / formal_path:
-                # Numbering is what accepts a proposal, so the decision it
-                # renames stops declaring itself one.
-                rewritten = re.sub(
-                    r"^Status:\s*Proposed\s*$", "Status: Accepted", rewritten, flags=re.MULTILINE
-                )
-            if rewritten != content:
-                candidate.write_text(rewritten, encoding="utf-8")
-        _record_supersession(batch, formal_path)
-        rewrites.append({"proposal": proposal, "formal": formal_path.as_posix()})
-        next_number += 1
-    _git(batch, "add", "-u")
-    _git(
-        batch,
-        "commit",
-        "-m",
-        "signetum: allocate formal decision identities",
-        "-m",
-        f"Signetum-Decision-Base: {base}",
-    )
-    return rewrites
 
 
 def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
@@ -796,9 +630,11 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         member_branch = _branch(member)
         member_tip = _git(member, "rev-parse", "HEAD")
         batch_tip = _git(batch, "rev-parse", "HEAD")
-        plans = _commit_plans(member, member_tip)
-        if not plans and _hosts_changes(member):
-            raise AdmissionError("member commit has no Delivers Plan trailer")
+        manifest = load_manifest(member / "signetum.toml")
+        carried = qualify_member(
+            member, manifest, _recorded_base(member), member_tip, operation="admission"
+        )
+        plans = delivered_plans(member, manifest, carried, member_tip)
         record = {"branch": member_branch, "original": member_tip, "worktree": str(member)}
         if _is_ancestor(batch, member_tip, batch_tip):
             unchanged.append(record)
@@ -854,7 +690,6 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             }
         )
 
-    decisions = _number_proposals(batch, _recorded_base(batch))
     return {
         "schema_version": 1,
         "status": "admitted",
@@ -863,7 +698,6 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
         "admitted": admitted,
         "unchanged": unchanged,
-        "decisions": decisions,
     }
 
 
@@ -892,14 +726,12 @@ def continue_batch(batch: Path) -> dict[str, object]:
     batch_base = _recorded_base(batch)
     if batch_base is None:
         raise AdmissionError("continued admission has no approved batch base")
-    decisions = _number_proposals(batch, batch_base)
     return {
         "schema_version": 1,
         "status": "continued",
         "batch": str(batch),
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
         "admission_commit": committed,
-        "decisions": decisions,
     }
 
 
@@ -1010,59 +842,6 @@ def _git_executable() -> str:
     if executable is None:
         raise GitInfrastructureError("Git executable is unavailable")
     return executable
-
-
-def _delivery_provenance(
-    repository: Path, expected_base: str, expected_tip: str
-) -> tuple[list[dict[str, str]], list[str]]:
-    merge_commits = tuple(
-        filter(
-            None,
-            _git(
-                repository,
-                "rev-list",
-                "--reverse",
-                "--first-parent",
-                "--merges",
-                f"{expected_base}..{expected_tip}",
-            ).splitlines(),
-        )
-    )
-    members: list[dict[str, str]] = []
-    plans: set[str] = set()
-    for merge_commit in merge_commits:
-        parents = _git(repository, "show", "-s", "--format=%P", merge_commit).split()
-        if len(parents) != 2:
-            raise AdmissionError("batch contains a merge without exactly one admitted member")
-        subject = _git(repository, "show", "-s", "--format=%s", merge_commit)
-        prefix = "merge: admit "
-        if not subject.startswith(prefix):
-            raise AdmissionError("batch contains an unrecognized merge authority")
-        original = parents[1]
-        body = _git(repository, "show", "-s", "--format=%B", merge_commit)
-        fields = {
-            key: value
-            for key, value in re.findall(r"^Signetum-([^:]+):\s*(.+)$", body, re.MULTILINE)
-        }
-        if fields.get("Original") != original:
-            raise AdmissionError("admission provenance original does not match merge parent")
-        summary = _git(repository, "show", "-s", "--format=%s", original)
-        member_plans = re.findall(r"^Signetum-Plan:\s*(.+)$", body, re.MULTILINE)
-        plans.update(member_plans)
-        members.append(
-            {
-                "branch": subject.removeprefix(prefix),
-                "original": original,
-                "patch_id": fields.get("Patch-ID", ""),
-                "ready_evidence": fields.get("Ready-Evidence", ""),
-                "plan": ",".join(member_plans),
-                "admission_commit": merge_commit,
-                "summary": summary,
-            }
-        )
-    if not members:
-        raise AdmissionError("batch contains no admitted member provenance")
-    return members, sorted(plans)
 
 
 def _remove_workspace(repository: Path, workspace: WorkspaceIdentity) -> None:

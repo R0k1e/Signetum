@@ -9,31 +9,22 @@ import shlex
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 from dataclasses import replace
-from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
 
+from signetum.change.member import qualify_member
 from signetum.change.scope import (
-    ChangeError,
-    changed_commitments,
-    changes_root,
     delivered_plans,
-    delivery_scope,
-    member_scope,
-    require_member_changes,
 )
-from signetum.decision_identity import numbered_targets
 from signetum.delivery import publish_batch
 from signetum.deviations import (
     DeviationError,
-    approval_view,
-    changes_naming_member,
-    reconciliation_summary,
 )
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
 from signetum.git import GitError, GitInfrastructureError, git_output, run_git
 from signetum.impact import select_paths
+from signetum.lifecycle_validation import validate_workspace
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.operation_cli import OperationParser, run_operation
 from signetum.operations import (
@@ -50,21 +41,15 @@ from signetum.validation.admission import find_member_evidence
 from signetum.validation.configuration import member_shards as _member_shards
 from signetum.validation.execution import (
     ValidationExecutionError,
-    ValidationInputs,
     build_evidence_identity,
     execute_gate,
 )
-from signetum.validation.inheritance import find_test_inheritance
 from signetum.validation.ratchet import ratchet_baseline
-from signetum.validation.receipt_store import ReceiptStore
-from signetum.validation.recovery import with_recovery_history
 from signetum.validation.repository import (
     RepositoryValidationAdapter,
     run_diagnostic_gate,
 )
 from signetum.validation.repository import configured_validation as _runtime_validation
-from signetum.validation.review import member_recovery_review, recovery_projection
-from signetum.waivers import WaiverError, load_waivers
 from signetum.workspace_operations import (
     batch_discard,
     cleanup,
@@ -76,15 +61,13 @@ from signetum.workspace_operations import (
 )
 from signetum.workspace_operations import cleanup_delivered as _cleanup_delivered_worktrees
 from signetum.workspaces import (
-    WorkspaceError,
-    claim_change,
-    read_record,
-)
-from signetum.workspaces import (
     branch_name as _branch,
 )
 from signetum.workspaces import (
     exclusive_batch as _exclusive_batch,
+)
+from signetum.workspaces import (
+    read_record,
 )
 from signetum.workspaces import (
     recorded_base as _recorded_base,
@@ -176,163 +159,16 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
 
 
 def _validate_held(repository: Path, kind: str) -> dict[str, object]:
-    _require_clean(repository)
-    source = _git(repository, "rev-parse", "HEAD")
-    manifest = load_manifest(repository / "signetum.toml")
-    base = None if kind == "final" else _recorded_base(repository)
-    if base is not None and source == _git(repository, "rev-parse", base):
-        raise AdmissionError("source has no commits beyond the approved base")
-    if base is not None:
-        if read_record(_state_root(repository), _branch(repository)).kind != "member":
-            raise AdmissionError("ready requires a registered member workspace")
-        try:
-            require_member_changes(
-                repository,
-                manifest,
-                base,
-                source,
-                changes_naming_member(repository, _branch(repository)),
-            )
-            for change_id in member_scope(repository, manifest, base, source).first_delivered:
-                claim_change(_state_root(repository), change_id, _branch(repository))
-        except (ChangeError, DeviationError, WorkspaceError) as error:
-            raise AdmissionError(str(error)) from error
-    evidence_base = _recorded_base(repository) if kind == "final" else None
-    scope = None
-    member_recoveries = []
-    if kind == "final":
-        if evidence_base is None:
-            raise AdmissionError("final has no recorded batch base")
-        proposals = _proposal_paths(repository)
-        if proposals:
-            raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
-        _require_numbering_base(repository, evidence_base, source)
-        scope = delivery_scope(repository, manifest, evidence_base, source)
-        rewritten = changed_commitments(repository, manifest, evidence_base, source, scope)
-        if rewritten:
-            raise AdmissionError(f"batch rewrites delivered commitments: {', '.join(rewritten)}")
-        change_ids = scope.first_delivered
-        target_moves = numbered_targets(
-            repository, evidence_base, source, manifest.repository.decisions
-        )
-
-        member_recoveries = member_recovery_review(
-            repository, evidence_base, source, _receipt_root(repository)
-        )
-        try:
-            review_inputs = execution_review_inputs(
-                repository, manifest, evidence_base, source, _receipt_root(repository)
-            )
-            reconciliation = reconciliation_summary(
-                repository,
-                tuple(review_inputs["changes"]),
-                target_moves=target_moves,
-                member_tips=review_inputs["member_tips"],
-            )
-            approvals = [
-                approval_view(repository, change_id, root=changes_root(manifest))
-                for change_id in change_ids
-            ]
-        except DeviationError as error:
-            raise AdmissionError(f"deviation reconciliation failed: {error}") from error
-    else:
-        reconciliation = None
-        approvals = None
-    manifest = load_manifest(repository / "signetum.toml")
-    gate = "member" if kind == "member" else "final"
-    selected = _selection(repository, base, manifest) if base is not None else None
-    member_shards: tuple[str, ...] | None = None
-    if selected is not None:
-        member_shards, deferred = _member_shards(manifest, selected)
-        if deferred:
-            selected = replace(
-                selected,
-                reasons=selected.reasons
-                + tuple(f"world shard {name} deferred to final" for name in deferred),
-            )
-    graph, initial_inputs = _runtime_validation(manifest, member_shards=member_shards)
-    try:
-        waivers = load_waivers(repository)
-    except WaiverError as error:
-        raise AdmissionError(f"waiver authority is invalid: {error}") from error
-    inputs = ValidationInputs(
-        initial_inputs.configuration_path,
-        initial_inputs.profiles,
-        initial_inputs.lockfiles,
-        initial_inputs.tools,
-        base=_git(repository, "rev-parse", base) if base else evidence_base,
-        selection=selected,
-        schema_digest=manifest.signetum.evidence_schema_digest,
-        waivers=waivers,
+    return validate_workspace(
+        repository,
+        kind,
+        configure=_runtime_validation,
+        adapter_factory=RepositoryValidationAdapter,
+        receipt_root=_receipt_root,
+        proposal_paths=_proposal_paths,
+        check_numbering_base=_require_numbering_base,
+        execute=execute_gate,
     )
-    inputs = with_recovery_history(
-        replace(
-            inputs,
-            recovery_threshold=initial_inputs.recovery_threshold,
-            recovery_window=initial_inputs.recovery_window,
-        ),
-        _receipt_root(repository),
-    )
-    adapter = RepositoryValidationAdapter(repository, member_base=base)
-    inherited = (
-        find_test_inheritance(
-            repository, manifest.impact.rules, graph, inputs, adapter, _receipt_root(repository)
-        )
-        if kind == "member"
-        else None
-    )
-    receipt = execute_gate(graph, gate, inputs, adapter, inherited=inherited)
-    adapter.require_clean()
-    if kind == "final":
-        if evidence_base is None:
-            raise AdmissionError("final has no recorded batch base")
-        try:
-            if (
-                execution_review_inputs(
-                    repository, manifest, evidence_base, source, _receipt_root(repository)
-                )
-                != review_inputs
-            ):
-                raise AdmissionError(
-                    "delivery review inputs changed during validation; rerun final"
-                )
-        except DeviationError as error:
-            raise AdmissionError(
-                f"delivery review inputs changed during validation: {error}"
-            ) from error
-    receipt_path = ReceiptStore(_receipt_root(repository)).write(gate, receipt)
-    payload = {
-        "schema_version": 2,
-        "kind": kind,
-        "source": source,
-        "base": _git(repository, "rev-parse", base) if base else evidence_base,
-        "validated_at": datetime.now(UTC).isoformat(),
-        "valid": True,
-        "evidence": json.loads(receipt.to_json()),
-    }
-    if reconciliation is not None and approvals is not None and scope is not None:
-        payload["delivery_review"] = {
-            "inputs": review_inputs,
-            "recovered_flake_defects": member_recoveries
-            + recovery_projection(receipt, receipt_path, member=None),
-            "approvals": approvals,
-            "reconciliation": reconciliation,
-            "previously_delivered": [
-                {"change_id": item.change_id, "paths": list(item.paths)}
-                for item in scope.previously_delivered
-            ],
-        }
-    lifecycle_receipt = receipt_path.with_name(
-        receipt_path.name.replace(f"{gate}-", f"{gate}-lifecycle-")
-    )
-    lifecycle_receipt.write_text(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
-    )
-    return {
-        **payload,
-        "status": "ready" if kind == "member" else "final",
-        "receipt": str(lifecycle_receipt),
-    }
 
 
 def _git(repository: Path, *arguments: str, check: bool = True) -> str:
@@ -592,20 +428,9 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         member_graph.gate("prepare")
         member_graph.gate("batch")
         member_base = _recorded_base(member)
-        try:
-            carried = require_member_changes(
-                member,
-                member_manifest,
-                member_base,
-                member_tip,
-                changes_naming_member(member, member_branch),
-            )
-            for change_id in member_scope(
-                member, member_manifest, member_base, member_tip
-            ).first_delivered:
-                claim_change(_state_root(member), change_id, member_branch)
-        except (ChangeError, DeviationError, WorkspaceError) as error:
-            raise AdmissionError(str(error)) from error
+        carried = qualify_member(
+            member, member_manifest, member_base, member_tip, operation="admission"
+        )
         plans = delivered_plans(member, member_manifest, carried, member_tip)
         record = {"branch": member_branch, "original": member_tip, "worktree": str(member)}
         if _is_ancestor(batch, member_tip, batch_tip):
