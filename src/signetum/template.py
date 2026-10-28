@@ -6,6 +6,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from signetum.runtime_generation import is_runtime_cache, runtime_problems
+
 TOP_LEVEL = frozenset(
     {
         ".agents",
@@ -58,12 +60,15 @@ def validate_template(source: Path) -> TemplateReport:
     files: list[str] = []
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root)
+        if is_runtime_cache(relative):
+            continue
         if path.is_symlink():
             problems.append(f"symlink is not allowed: {relative}")
         if any(part in FORBIDDEN_NAMES for part in relative.parts):
             problems.append(f"engine-only path is not allowed: {relative}")
         if path.is_file():
             files.append(relative.as_posix())
+    problems.extend(runtime_problems(root))
     return TemplateReport(tuple(files), tuple(problems))
 
 
@@ -74,7 +79,12 @@ def render_template(source: Path, destination: Path) -> TemplateReport:
         raise ValueError("; ".join(report.problems))
     if destination.exists():
         raise ValueError(f"destination already exists: {destination}")
-    shutil.copytree(source, destination, symlinks=False)
+    shutil.copytree(
+        source,
+        destination,
+        symlinks=False,
+        ignore=lambda directory, names: [name for name in names if is_runtime_cache(Path(name))],
+    )
     rendered = validate_template(destination)
     if rendered.files != report.files or not rendered.valid:
         raise ValueError("rendered Template differs from its source inventory")

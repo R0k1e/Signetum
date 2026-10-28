@@ -1,5 +1,10 @@
+import subprocess
+import sys
 from pathlib import Path
+from shutil import which
 from zipfile import ZipFile
+
+from signetum.runtime_generation import RUNTIME_DIRECTORY, runtime_files
 
 
 def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() -> None:
@@ -28,3 +33,32 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
 
     assert unrendered_template_placeholder not in payload
     assert build_machine_home not in payload
+
+
+def test_installed_wheel_generates_the_same_portable_runtime(tmp_path):
+    wheels = tuple(Path("dist").glob("signetum-*.whl"))
+    assert len(wheels) == 1
+    uv = which("uv")
+    assert uv is not None
+    environment = tmp_path / "environment"
+    python = environment / "bin/python"
+    output = tmp_path / "template"
+    probe = (
+        "from pathlib import Path; import sys,signetum; from importlib.util import find_spec; "
+        "assert Path(signetum.__file__).is_relative_to(Path(sys.prefix)); "
+        "assert find_spec('pydantic') is None"
+    )
+    commands = (
+        (uv, "venv", "--python", sys.executable, str(environment)),
+        (uv, "pip", "install", "--python", str(python), "--no-deps", str(wheels[0].resolve())),
+        (str(python), "-I", "-c", probe),
+        (str(python), "-I", "-m", "signetum.runtime_generation", str(output)),
+    )
+    for command in commands:
+        subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)  # noqa: S603 -- fixed tools and disposable artifact paths
+    actual = {
+        path.name: path.read_bytes()
+        for path in (output / RUNTIME_DIRECTORY).iterdir()
+        if path.is_file()
+    }
+    assert actual == runtime_files()
