@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
+import tempfile
 from pathlib import Path
 from re import fullmatch
 from typing import Literal
@@ -48,6 +51,45 @@ class WorkspaceRecord(BaseModel):
         if len(value) != len(set(value)):
             raise ValueError("declared members must be unique")
         return value
+
+
+class ChangeOwner(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    schema_version: Literal[1] = 1
+    change_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    member: str = Field(min_length=1)
+
+
+def claim_change(root: Path, change_id: str, member: str) -> None:
+    """Bind one change to its implementation branch, shared by linked worktrees."""
+
+    owner = ChangeOwner(change_id=change_id, member=member)
+    directory = root / "changes" / change_id
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / "owner.lock").open("a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        target = directory / "owner.json"
+        if target.exists():
+            try:
+                current = ChangeOwner.model_validate_json(target.read_text(encoding="utf-8"))
+            except (OSError, ValidationError) as error:
+                raise WorkspaceError(f"change owner is unreadable: {change_id}") from error
+            if current != owner:
+                raise WorkspaceError(
+                    f"change {change_id} already belongs to member {current.member}; "
+                    "use its existing workspace"
+                )
+            return
+        descriptor, temporary = tempfile.mkstemp(prefix="owner-", dir=directory)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                stream.write(owner.model_dump_json() + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, target)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
 
 
 def record_path(root: Path, branch: str) -> Path:

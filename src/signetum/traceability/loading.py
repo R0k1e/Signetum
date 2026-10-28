@@ -23,18 +23,26 @@ def _mapping(document: object, key: str) -> dict[str, object]:
     return _MAPPING.validate_python(outer[key])
 
 
-def load_review(path: Path) -> Review:
-    raw = _mapping(tomllib.loads(path.read_text(encoding="utf-8")), "review")
+def parse_review(text: str) -> Review:
+    raw = _mapping(tomllib.loads(text), "review")
     return Review.model_validate(raw, strict=False)
 
 
-def load_specification(path: Path) -> Specification:
-    raw = _mapping(tomllib.loads(path.read_text(encoding="utf-8")), "specification")
+def parse_specification(text: str) -> Specification:
+    raw = _mapping(tomllib.loads(text), "specification")
     known = set(Specification.model_fields)
     extensions = {key: value for key, value in raw.items() if key not in known}
     normalized = {key: value for key, value in raw.items() if key in known}
     normalized["extensions"] = extensions
     return Specification.model_validate(normalized, strict=False)
+
+
+def load_review(path: Path) -> Review:
+    return parse_review(path.read_text(encoding="utf-8"))
+
+
+def load_specification(path: Path) -> Specification:
+    return parse_specification(path.read_text(encoding="utf-8"))
 
 
 _DECISION_FIELDS = {
@@ -45,7 +53,7 @@ _DECISION_FIELDS = {
 }
 
 
-def load_decision(path: Path, relative: str) -> Decision:
+def parse_decision(text: str, relative: str) -> Decision:
     """Read what one decision file declares about its own standing."""
 
     fields: dict[str, list[str]] = {
@@ -54,7 +62,7 @@ def load_decision(path: Path, relative: str) -> Decision:
         "partially_supersedes": [],
     }
     status = "proposed"
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         label, separator, value = line.partition(":")
         if not separator:
             continue
@@ -74,6 +82,10 @@ def load_decision(path: Path, relative: str) -> Decision:
         superseded_by=tuple(fields["superseded_by"]),
         partially_supersedes=tuple(fields["partially_supersedes"]),
     )
+
+
+def load_decision(path: Path, relative: str) -> Decision:
+    return parse_decision(path.read_text(encoding="utf-8"), relative)
 
 
 def load_plan(path: Path, change_id: str) -> Plan:

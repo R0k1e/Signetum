@@ -8,6 +8,7 @@ import pytest
 from signetum.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
+    claim_change,
     read_record,
     record_path,
     write_record,
@@ -110,3 +111,10 @@ def test_an_unusable_record_fails_closed(tmp_path: Path, document: str, expected
 
     with pytest.raises(WorkspaceError, match=expected):
         read_record(tmp_path, "plan/example")
+
+
+def test_a_change_owner_can_retry_but_cannot_fork_its_implementation(tmp_path):
+    claim_change(tmp_path, "example", "plan/example")
+    claim_change(tmp_path, "example", "plan/example")
+    with pytest.raises(WorkspaceError, match="already belongs to member plan/example"):
+        claim_change(tmp_path, "example", "impl/example")

@@ -20,8 +20,22 @@ from shutil import which
 from typing import Literal, Never
 from urllib.parse import quote
 
-from signetum.deviations import DeviationError, approval_view, reconciliation_summary
+from signetum.change.scope import (
+    ChangeError,
+    changed_commitments,
+    changes_root,
+    delivered_plans,
+    delivery_scope,
+    require_member_changes,
+)
+from signetum.deviations import (
+    DeviationError,
+    approval_view,
+    changes_naming_member,
+    reconciliation_summary,
+)
 from signetum.evidence.receipts import EvidenceReceipt, ReceiptError, ValidationSelection
+from signetum.git import GitError, git_output
 from signetum.impact import select_impact
 from signetum.manifest import ManifestError, RepositoryManifest, load_manifest
 from signetum.operations import (
@@ -51,7 +65,13 @@ from signetum.validation.execution import (
 )
 from signetum.validation.repository import ReceiptStore, RepositoryValidationAdapter
 from signetum.waivers import WaiverError, load_waivers
-from signetum.workspaces import WorkspaceError, WorkspaceRecord, read_record, write_record
+from signetum.workspaces import (
+    WorkspaceError,
+    WorkspaceRecord,
+    claim_change,
+    read_record,
+    write_record,
+)
 
 
 class AdmissionError(OperationError):
@@ -365,6 +385,9 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
     if kind != "final":
         return _validate_held(repository, kind)
     with _exclusive_batch(repository):
+        record = read_record(_state_root(repository), _branch(repository))
+        if record.kind != "batch":
+            raise AdmissionError("final requires a registered batch workspace")
         _require_no_merge(repository)
         _require_clean(repository)
         proposals = _proposal_paths(repository)
@@ -379,30 +402,45 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
 def _validate_held(repository: Path, kind: str) -> dict[str, object]:
     _require_clean(repository)
     source = _git(repository, "rev-parse", "HEAD")
+    manifest = load_manifest(repository / "signetum.toml")
     base = None if kind == "final" else _recorded_base(repository)
     if base is not None and source == _git(repository, "rev-parse", base):
         raise AdmissionError("source has no commits beyond the approved base")
+    if base is not None:
+        if read_record(_state_root(repository), _branch(repository)).kind != "member":
+            raise AdmissionError("ready requires a registered member workspace")
+        try:
+            require_member_changes(
+                repository,
+                manifest,
+                base,
+                source,
+                changes_naming_member(repository, _branch(repository)),
+            )
+            for change_id in delivery_scope(repository, manifest, base, source).first_delivered:
+                claim_change(_state_root(repository), change_id, _branch(repository))
+        except (ChangeError, DeviationError, WorkspaceError) as error:
+            raise AdmissionError(str(error)) from error
     evidence_base = _recorded_base(repository) if kind == "final" else None
+    scope = None
     if kind == "final":
+        if evidence_base is None:
+            raise AdmissionError("final has no recorded batch base")
         proposals = _proposal_paths(repository)
         if proposals:
             raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
         _require_numbering_base(repository, evidence_base, source)
-        # A batch whose tip is still its base admitted nothing, and a tree
-        # which hosts no Change has none to name, so neither carries a Change
-        # identity to reconcile.
-        if (
-            evidence_base is None
-            or evidence_base == source
-            or not _hosts_changes(repository, load_manifest(repository / "signetum.toml"))
-        ):
-            change_ids: tuple[str, ...] = ()
-        else:
-            _, plans = _delivery_provenance(repository, evidence_base, source)
-            change_ids = _change_ids_from_plans(tuple(plans))
+        scope = delivery_scope(repository, manifest, evidence_base, source)
+        rewritten = changed_commitments(repository, manifest, evidence_base, source, scope)
+        if rewritten:
+            raise AdmissionError(f"batch rewrites delivered commitments: {', '.join(rewritten)}")
+        change_ids = scope.first_delivered
         try:
             reconciliation = reconciliation_summary(repository, change_ids)
-            approvals = [approval_view(repository, change_id) for change_id in change_ids]
+            approvals = [
+                approval_view(repository, change_id, root=changes_root(manifest))
+                for change_id in change_ids
+            ]
         except DeviationError as error:
             raise AdmissionError(f"deviation reconciliation failed: {error}") from error
     else:
@@ -447,10 +485,14 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
         "valid": True,
         "evidence": json.loads(receipt.to_json()),
     }
-    if reconciliation is not None and approvals is not None:
+    if reconciliation is not None and approvals is not None and scope is not None:
         payload["delivery_review"] = {
             "approvals": approvals,
             "reconciliation": reconciliation,
+            "previously_delivered": [
+                {"change_id": item.change_id, "paths": list(item.paths)}
+                for item in scope.previously_delivered
+            ],
         }
     lifecycle_receipt = receipt_path.with_name(
         receipt_path.name.replace(f"{gate}-", f"{gate}-lifecycle-")
@@ -466,17 +508,10 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
 
 
 def _git(repository: Path, *arguments: str, check: bool = True) -> str:
-    git = _git_executable()
-    completed = subprocess.run(  # nosec B603
-        (git, "-C", str(repository), *arguments),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if check and completed.returncode != 0:
-        diagnostic = completed.stderr.strip() or completed.stdout.strip()
-        raise AdmissionError(diagnostic or f"git {' '.join(arguments)} failed")
-    return completed.stdout.strip()
+    try:
+        return git_output(repository, *arguments, check=check)
+    except GitError as error:
+        raise AdmissionError(str(error)) from error
 
 
 def _require_clean(worktree: Path) -> None:
@@ -503,43 +538,6 @@ def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
     if completed.returncode not in (0, 1):
         raise AdmissionError(completed.stderr.strip() or "merge-base failed")
     return completed.returncode == 0
-
-
-def _commit_plans(repository: Path, commit: str) -> tuple[str, ...]:
-    body = _git(repository, "show", "-s", "--format=%B", commit)
-    return tuple(
-        sorted(
-            {
-                item.strip()
-                for declared in re.findall(r"^Delivers:\s*(.+)$", body, re.MULTILINE)
-                for item in declared.split(",")
-                if item.strip()
-            }
-        )
-    )
-
-
-def _hosts_changes(repository: Path, manifest: RepositoryManifest) -> bool:
-    """Report whether this tree can hold a Change at all.
-
-    Decided by the specification authority the manifest declares, so a
-    repository which arranges its change packages differently is judged by its
-    own declaration rather than by a directory name assumed here.
-    """
-
-    return any(repository.glob(manifest.repository.specifications))
-
-
-def _change_ids_from_plans(plans: tuple[str, ...]) -> tuple[str, ...]:
-    change_ids: set[str] = set()
-    for plan in plans:
-        path = Path(plan)
-        if len(path.parts) < 4 or path.parts[0] != "changes" or path.parts[2] != "plans":
-            raise AdmissionError(f"Plan is outside one active Change: {plan}")
-        change_ids.add(path.parts[1])
-    if not change_ids:
-        raise AdmissionError("batch carries no active Change identity")
-    return tuple(sorted(change_ids))
 
 
 def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) -> str:
@@ -813,9 +811,22 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         member_tip = _git(member, "rev-parse", "HEAD")
         batch_tip = _git(batch, "rev-parse", "HEAD")
         member_manifest = load_manifest(member / "signetum.toml")
-        plans = _commit_plans(member, member_tip)
-        if not plans and _hosts_changes(member, member_manifest):
-            raise AdmissionError("member commit has no Delivers Plan trailer")
+        member_base = _recorded_base(member)
+        try:
+            carried = require_member_changes(
+                member,
+                member_manifest,
+                member_base,
+                member_tip,
+                changes_naming_member(member, member_branch),
+            )
+            for change_id in delivery_scope(
+                member, member_manifest, member_base, member_tip
+            ).first_delivered:
+                claim_change(_state_root(member), change_id, member_branch)
+        except (ChangeError, DeviationError, WorkspaceError) as error:
+            raise AdmissionError(str(error)) from error
+        plans = delivered_plans(member, member_manifest, carried, member_tip)
         record = {"branch": member_branch, "original": member_tip, "worktree": str(member)}
         if _is_ancestor(batch, member_tip, batch_tip):
             unchanged.append(record)
@@ -1083,7 +1094,6 @@ def _delivery_provenance(
         )
     )
     members: list[dict[str, str]] = []
-    plans: set[str] = set()
     for merge_commit in merge_commits:
         parents = _git(repository, "show", "-s", "--format=%P", merge_commit).split()
         if len(parents) != 2:
@@ -1102,7 +1112,6 @@ def _delivery_provenance(
             raise AdmissionError("admission provenance original does not match merge parent")
         summary = _git(repository, "show", "-s", "--format=%s", original)
         member_plans = re.findall(r"^Signetum-Plan:\s*(.+)$", body, re.MULTILINE)
-        plans.update(member_plans)
         members.append(
             {
                 "branch": subject.removeprefix(prefix),
@@ -1116,7 +1125,9 @@ def _delivery_provenance(
         )
     if not members:
         raise AdmissionError("batch contains no admitted member provenance")
-    return members, sorted(plans)
+    manifest = load_manifest(repository / "signetum.toml")
+    scope = delivery_scope(repository, manifest, expected_base, expected_tip)
+    return members, list(delivered_plans(repository, manifest, scope.first_delivered, expected_tip))
 
 
 def _remove_workspace(repository: Path, workspace: WorkspaceIdentity) -> None:
@@ -1229,7 +1240,14 @@ def main(arguments: list[str] | None = None) -> int:
                 parsed.expected_base,
                 parsed.expected_batch_tip,
             )
-    except (OperationError, ManifestError, ValidationExecutionError, OSError) as error:
+    except (
+        OperationError,
+        ManifestError,
+        ValidationExecutionError,
+        WorkspaceError,
+        GitError,
+        OSError,
+    ) as error:
         if isinstance(error, OperationError):
             status = error.status
             expected = error.expected
