@@ -14,6 +14,7 @@ from signetum import __version__
 RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
 MODULES = {
     "signetum.operations": "operations.py",
+    "signetum.serialization": "serialization.py",
     "signetum.git": "git.py",
     "signetum.workspaces": "workspaces.py",
     "signetum.findings": "findings.py",

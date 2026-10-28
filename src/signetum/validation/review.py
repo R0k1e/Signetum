@@ -13,6 +13,7 @@ from signetum.evidence.receipts import EvidenceReceipt, ReceiptError
 from signetum.git import GitError, git_output
 from signetum.operations import AdmissionError
 from signetum.provenance import members_and_plans
+from signetum.serialization import load_json
 from signetum.validation.inheritance import verify_committed_inputs
 
 
@@ -48,7 +49,9 @@ def member_recovery_review(
             raise AdmissionError("admitted member evidence has an invalid receipt path")
         path = receipt_root / name
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = load_json(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ReceiptError("admitted evidence must be an object")
             receipt = EvidenceReceipt.from_json(json.dumps(payload["evidence"]))
             if receipt.identity.commit != member["original"] or receipt.execution.gates not in (
                 ("member",),

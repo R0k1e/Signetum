@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .evidence_receipts import EvidenceReceipt, ReceiptError
 from .execution import ShardExecution, ValidationExecutionError, ValidationInputs
+from .serialization import load_json
 
 
 def shard_execution(
@@ -23,7 +24,7 @@ def shard_execution(
         recovered = ()
         if report.exists():
             try:
-                raw = json.loads(report.read_text(encoding="utf-8"))
+                raw = load_json(report.read_text(encoding="utf-8"))
                 if not isinstance(raw, list) or any(
                     not isinstance(item, dict)
                     or not isinstance(item.get("node_id"), str)
@@ -77,6 +78,6 @@ def with_recovery_history(
             )
             if len(history) >= inputs.recovery_window - 1:
                 break
-        except (OSError, ReceiptError, json.JSONDecodeError):
+        except (OSError, UnicodeError, ReceiptError, json.JSONDecodeError):
             continue
     return replace(inputs, recovery_history=tuple(history))

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -21,6 +20,7 @@ from .execution import (
 )
 from .git import GitError, git_output
 from .impact import ImpactRuleLike, select_paths
+from .serialization import ValueDecodeError, load_json
 from .validation import ValidationGraph
 
 
@@ -61,7 +61,9 @@ def find_test_inheritance(
             continue
         try:
             text = path.read_text(encoding="utf-8")
-            raw = json.loads(text)
+            raw = load_json(text)
+            if not isinstance(raw, dict):
+                raise ValueDecodeError("receipt must be an object")
             commit = raw["identity"]["commit"]
             if isinstance(commit, str):
                 by_commit.setdefault(commit, []).append((path, text))
@@ -70,7 +72,10 @@ def find_test_inheritance(
             # it never supplies replacement evidence or permits older fallback.
             try:
                 projection = path.with_name(path.name.replace("member-", "member-lifecycle-", 1))
-                commit = json.loads(projection.read_text(encoding="utf-8"))["source"]
+                projected = load_json(projection.read_text(encoding="utf-8"))
+                if not isinstance(projected, dict):
+                    raise ValueDecodeError("projection must be an object")
+                commit = projected["source"]
                 if isinstance(commit, str):
                     by_commit.setdefault(commit, []).append((path, ""))
             except (OSError, ValueError, KeyError, TypeError):

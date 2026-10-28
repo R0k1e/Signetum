@@ -7,6 +7,8 @@ import json
 import re
 from dataclasses import asdict, dataclass
 
+from signetum.serialization import ValueDecodeError, dataclass_from_mapping, load_json
+
 type JsonValue = dict[str, JsonValue] | list[JsonValue] | str | int | float | bool | None
 
 
@@ -15,7 +17,7 @@ class ReceiptError(ValueError):
 
 
 _SHA256 = re.compile(r"sha256:[0-9a-f]{64}")
-_COMMIT = re.compile(r"[0-9a-f]{40,64}")
+_COMMIT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 
 @dataclass(frozen=True, order=True)
@@ -114,47 +116,10 @@ class ValidationSelection:
     def from_mapping(cls, raw: object) -> ValidationSelection:
         """Read the serialized selection shape at a frontend boundary."""
 
-        arrays = (
-            "rules",
-            "profiles",
-            "gates",
-            "shards",
-            "modified_tests",
-            "external_obligations",
-            "unexplained",
-            "reasons",
-        )
-        if not isinstance(raw, dict) or set(raw) != {
-            "changed_paths_digest",
-            "requires_final",
-            *arrays,
-        }:
-            raise ReceiptError("invalid selection fields")
-        digest = raw["changed_paths_digest"]
-        final = raw["requires_final"]
-        if not isinstance(digest, str) or not isinstance(final, bool):
-            raise ReceiptError("invalid selection digest or final obligation")
-
-        def strings(name: str) -> tuple[str, ...]:
-            values = raw[name]
-            if not isinstance(values, (list, tuple)) or not all(
-                isinstance(value, str) for value in values
-            ):
-                raise ReceiptError(f"selection.{name} must be a string array")
-            return tuple(values)
-
-        return cls(
-            digest,
-            strings("rules"),
-            strings("profiles"),
-            strings("gates"),
-            strings("shards"),
-            strings("modified_tests"),
-            strings("external_obligations"),
-            strings("unexplained"),
-            final,
-            strings("reasons"),
-        )
+        try:
+            return dataclass_from_mapping(cls, raw)
+        except (ValueDecodeError, RecursionError) as error:
+            raise ReceiptError(f"invalid selection document: {error}") from error
 
 
 EVIDENCE_CLASSES = ("tree", "world")
@@ -186,6 +151,8 @@ class ShardOutcome:
             raise ReceiptError(
                 f"only a world shard records when it observed the world: {self.name}"
             )
+        if self.observed_at is not None and not self.observed_at:
+            raise ReceiptError(f"world observation time must be non-empty: {self.name}")
         if self.status == "waived" and self.evidence != "world":
             raise ReceiptError(f"only a world shard can be waived: {self.name}")
         if self.status == "waived" and not (self.waivers and self.findings):
@@ -202,6 +169,10 @@ class ValidationExecution:
     gates: tuple[str, ...]
     shards: tuple[ShardOutcome, ...]
     external_obligations: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if len(self.external_obligations) != len(set(self.external_obligations)):
+            raise ReceiptError("external obligations must be unique")
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -222,6 +193,11 @@ class ValidationCompleteness:
     final: bool
     required_shards: tuple[str, ...]
     world_shards: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for values in (self.required_shards, self.world_shards):
+            if len(values) != len(set(values)):
+                raise ReceiptError("completeness shard identities must be unique")
 
 
 @dataclass(frozen=True)
@@ -249,13 +225,13 @@ class EvidenceReceipt:
     valid: bool
 
     def __post_init__(self) -> None:
-        if self.schema_version != 3:
+        if type(self.schema_version) is not int or self.schema_version != 3:
             raise ReceiptError(f"unsupported receipt schema: {self.schema_version}")
         if self.protocol != "reposeal.validation-evidence@3":
             raise ReceiptError(f"unsupported evidence protocol: {self.protocol}")
         if _SHA256.fullmatch(self.schema_digest) is None:
             raise ReceiptError("schema digest must be sha256")
-        if not self.valid:
+        if self.valid is not True:
             raise ReceiptError("unsuccessful execution is not reusable evidence")
         if self.execution.gates != tuple(sorted(set(self.execution.gates))):
             raise ReceiptError("executed gates must be unique and sorted")
@@ -291,60 +267,21 @@ class EvidenceReceipt:
         )
 
     def to_json(self) -> str:
-        return json.dumps(asdict(self), sort_keys=True, separators=(",", ":")) + "\n"
+        try:
+            document = asdict(self)
+            dataclass_from_mapping(type(self), document)
+            return (
+                json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+            )
+        except (ValueDecodeError, TypeError, RecursionError) as error:
+            raise ReceiptError(f"invalid receipt value: {error}") from error
 
     @classmethod
     def from_json(cls, source: str) -> EvidenceReceipt:
         try:
-            raw = json.loads(source)
-            identity = raw["identity"]
-            return cls(
-                schema_version=raw["schema_version"],
-                protocol=raw["protocol"],
-                schema_digest=raw["schema_digest"],
-                identity=EvidenceIdentity(
-                    commit=identity["commit"],
-                    tree=identity["tree"],
-                    base=identity["base"],
-                    configuration=ArtifactIdentity(**identity["configuration"]),
-                    profiles=tuple(identity["profiles"]),
-                    graph=identity["graph"],
-                    lockfiles=tuple(ArtifactIdentity(**item) for item in identity["lockfiles"]),
-                    tools=tuple(ToolIdentity(**item) for item in identity["tools"]),
-                ),
-                selection=(
-                    ValidationSelection.from_mapping(raw["selection"])
-                    if raw["selection"] is not None
-                    else None
-                ),
-                execution=ValidationExecution(
-                    gates=tuple(raw["execution"]["gates"]),
-                    shards=tuple(
-                        ShardOutcome(
-                            name=item["name"],
-                            command_digest=item["command_digest"],
-                            evidence=item["evidence"],
-                            status=item["status"],
-                            observed_at=item["observed_at"],
-                            waivers=tuple(item["waivers"]),
-                            findings=tuple(item["findings"]),
-                        )
-                        for item in raw["execution"]["shards"]
-                    ),
-                    external_obligations=tuple(raw["execution"]["external_obligations"]),
-                ),
-                completeness=ValidationCompleteness(
-                    member=raw["completeness"]["member"],
-                    final=raw["completeness"]["final"],
-                    required_shards=tuple(raw["completeness"]["required_shards"]),
-                    world_shards=tuple(raw["completeness"]["world_shards"]),
-                ),
-                provenance=ValidationProvenance(**raw["provenance"]),
-                extensions=raw["extensions"],
-                valid=raw["valid"],
-            )
-        except (KeyError, TypeError, json.JSONDecodeError) as error:
-            raise ReceiptError("invalid receipt document") from error
+            return dataclass_from_mapping(cls, load_json(source))
+        except (ValueDecodeError, json.JSONDecodeError, RecursionError) as error:
+            raise ReceiptError(f"invalid receipt document: {error}") from error
 
 
 def combine_shard_evidence(
