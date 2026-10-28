@@ -5,6 +5,9 @@ from pathlib import Path
 from shutil import which
 from zipfile import ZipFile
 
+from change_fixtures import approve_change
+
+from signetum.git import git_output
 from signetum.manifest import load_manifest
 from signetum.runtime_generation import RUNTIME_DIRECTORY, runtime_files
 from signetum.validation.repository import configured_validation
@@ -100,3 +103,50 @@ print(json.dumps({'identities':[item.identity for item in resolved],
         "schema": inputs.schema_digest,
         "profiles": list(inputs.profiles),
     }
+
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    git_output(consumer, "init", "-b", "plan/installed")
+    git_output(consumer, "config", "user.name", "Artifact test")
+    git_output(consumer, "config", "user.email", "artifact@example.invalid")
+    approve_change(consumer)
+    git_output(consumer, "add", ".")
+    git_output(consumer, "commit", "-m", "approve installed consumer change")
+    authority_probe = """
+import io,json,sys
+from contextlib import redirect_stdout
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from _signetum_runtime.traceability_cli import query
+from _signetum_runtime.traceability_boundary import TraceabilityManifest
+from _signetum_runtime.status_models import EvidenceSnapshot
+from _signetum_runtime.deviations import main
+root=Path(sys.argv[2])
+output,errors=io.StringIO(),io.StringIO()
+status=query(root,TraceabilityManifest(schema_version=1),EvidenceSnapshot(),output,errors)
+assert status==0,errors.getvalue()
+assert json.loads(output.getvalue())['valid'] is True
+commands=[
+ ['record','--change','example','--id','installed','--member','plan/installed',
+  '--class','implementation_clarification','--summary','Installed authority',
+  '--commitment','Keep behavior','--action','Reuse owner','--impact','None'],
+ ['resolve','--change','example','--id','installed','--member','plan/installed',
+  '--resolution','no_authority_change','--reason','Authority retained'],
+ ['status','--change','example'],
+]
+for command in commands:
+ stream=io.StringIO()
+ with redirect_stdout(stream):
+  status=main(['--repository',str(root),*command])
+ assert status==0,stream.getvalue()
+assert json.loads(stream.getvalue())['deviation_count']==1
+assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
+"""
+    result = subprocess.run(  # noqa: S603 -- actual installed generation, isolated native consumer
+        [str(python), "-I", "-S", "-c", authority_probe, str(runtime.parent), str(consumer)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

@@ -11,32 +11,32 @@ import sys
 import tomllib
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Literal, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
-
 from signetum.change.authority import validate_specification_authority
-from signetum.change.models import DecisionStatus
+from signetum.change.models import DecisionStatus, Identifier
 from signetum.change.scope import changes_root
+from signetum.contract_values import FrozenContract
 from signetum.git import GitError, git_output, run_git
 from signetum.manifest import ManifestError, load_manifest
+from signetum.serialization import (
+    Constraints,
+    ValueDecodeError,
+    contract_mapping,
+    dataclass_from_mapping,
+    load_json,
+    validate_value,
+)
 from signetum.traceability.loading import load_decision
 from signetum.workspaces import WorkspaceError, claim_change
-
-Identifier = Annotated[str, Field(min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")]
 
 
 class DeviationError(ValueError):
     """The requested deviation operation violates the ledger contract."""
-
-
-class FrozenModel(BaseModel):
-    """Strict immutable execution-state boundary."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
 
 class DeviationClass(StrEnum):
@@ -55,37 +55,56 @@ class ResolutionKind(StrEnum):
     REJECTED = "rejected"
 
 
-class Discovered(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class Discovered(FrozenContract):
     event: Literal["discovered"] = "discovered"
     id: Identifier
     change_id: Identifier
-    member: str = Field(min_length=1)
+    member: Annotated[str, Constraints(min_length=1)]
     at: datetime
-    summary: str = Field(min_length=1)
+    summary: Annotated[str, Constraints(min_length=1)]
     classification: DeviationClass
-    original_commitment: str = Field(min_length=1)
-    action: str = Field(min_length=1)
-    impact: str = Field(min_length=1)
-    source_commit: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+    original_commitment: Annotated[str, Constraints(min_length=1)]
+    action: Annotated[str, Constraints(min_length=1)]
+    impact: Annotated[str, Constraints(min_length=1)]
+    source_commit: Annotated[str | None, Constraints(pattern="^[0-9a-f]{40}(?:[0-9a-f]{24})?$")] = (
+        None
+    )
 
 
-class Resolved(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class Resolved(FrozenContract):
     event: Literal["resolved"] = "resolved"
     id: Identifier
     change_id: Identifier
-    member: str = Field(min_length=1)
+    member: Annotated[str, Constraints(min_length=1)]
     at: datetime
     resolution: ResolutionKind
     targets: tuple[str, ...] = ()
-    reason: str = Field(min_length=1)
+    reason: Annotated[str, Constraints(min_length=1)]
     implemented: bool
 
 
-DeviationEvent = Annotated[Discovered | Resolved, Field(discriminator="event")]
-EVENT_ADAPTER = TypeAdapter(DeviationEvent)
+DeviationEvent = Discovered | Resolved
 
 
-class DeviationState(FrozenModel):
+def event_json(value: DeviationEvent | DeviationState) -> str:
+    return json.dumps(contract_mapping(value), ensure_ascii=False, separators=(",", ":"))
+
+
+def parse_event(source: bytes) -> DeviationEvent:
+    document = load_json(source.decode("utf-8"))
+    if not isinstance(document, dict):
+        raise ValueDecodeError("deviation event must be an object")
+    if document.get("event") == "discovered":
+        return dataclass_from_mapping(Discovered, document, use_defaults=True)
+    if document.get("event") == "resolved":
+        return dataclass_from_mapping(Resolved, document, use_defaults=True)
+    raise ValueDecodeError("unknown or absent deviation event discriminator")
+
+
+@dataclass(frozen=True, kw_only=True)
+class DeviationState(FrozenContract):
     discovered: Discovered
     resolution: Resolved | None = None
 
@@ -115,7 +134,7 @@ def append_event(repository: Path, event: DeviationEvent) -> Path:
         source = git_output(repository, "rev-parse", "HEAD")
         if event.source_commit is not None and event.source_commit != source:
             raise DeviationError("discovery source differs from the observed member commit")
-        event = event.model_copy(update={"source_commit": source})
+        event = replace(event, **{"source_commit": source})
         try:
             claim_change(git_common_dir(repository) / "signetum", event.change_id, event.member)
         except WorkspaceError as error:
@@ -126,7 +145,7 @@ def append_event(repository: Path, event: DeviationEvent) -> Path:
             require_change_workspace(repository, event.change_id, event.member)
     target = ledger_path(repository, event.change_id)
     target.parent.mkdir(parents=True, exist_ok=True)
-    encoded = EVENT_ADAPTER.dump_json(event) + b"\n"
+    encoded = event_json(event).encode("utf-8") + b"\n"
     if len(encoded) > 65_536:
         raise DeviationError("deviation event exceeds the atomic record bound")
     descriptor = os.open(target, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
@@ -185,8 +204,8 @@ def read_states(repository: Path, change_id: str) -> tuple[DeviationState, ...]:
         raise DeviationError(f"deviation ledger is unreadable: {error}") from error
     for number, line in enumerate(lines, start=1):
         try:
-            event = EVENT_ADAPTER.validate_json(line)
-        except ValidationError as error:
+            event = parse_event(line)
+        except ValueError as error:
             raise DeviationError(f"invalid deviation event at line {number}: {error}") from error
         if event.change_id != change_id:
             raise DeviationError(f"deviation event at line {number} belongs to another change")
@@ -255,7 +274,7 @@ def review_snapshot(
             for state in read_states(repository, change_id)
             if _visible_state(repository, state, member_tips)
         )
-        content = b"\n".join(state.model_dump_json().encode() for state in states)
+        content = b"\n".join(event_json(state).encode("utf-8") for state in states)
         ledgers[change_id] = hashlib.sha256(content).hexdigest()
     return {"changes": sorted(selected), "members": sorted(set(members)), "ledgers": ledgers}
 
@@ -284,16 +303,18 @@ def reconciliation_summary(
         for state in states:
             recorded_targets = state.resolution.targets if state.resolution else ()
             if state.resolution and target_moves:
-                state = state.model_copy(
-                    update={
-                        "resolution": state.resolution.model_copy(
-                            update={
+                state = replace(
+                    state,
+                    **{
+                        "resolution": replace(
+                            state.resolution,
+                            **{
                                 "targets": tuple(
                                     target_moves.get(path, path) for path in recorded_targets
                                 )
-                            }
+                            },
                         )
-                    }
+                    },
                 )
             deviation_count += 1
             if state.resolution is None:
@@ -457,8 +478,8 @@ def _validate_identity(value: str) -> None:
     if "/" in value or "\\" in value or value in {".", ".."}:
         raise DeviationError(f"invalid change identity: {value}")
     try:
-        TypeAdapter(Identifier).validate_python(value, strict=True)
-    except ValidationError as error:
+        validate_value(value, Identifier)
+    except ValueError as error:
         raise DeviationError(f"invalid change identity: {value}") from error
 
 
@@ -564,7 +585,7 @@ def main(arguments: list[str] | None = None) -> int:
                     raise DeviationError(f"duplicate deviation resolution: {event.id}")
                 if event.member != state.discovered.member:
                     raise DeviationError(f"deviation member changed during resolution: {event.id}")
-                _validate_resolution(repository, state.model_copy(update={"resolution": event}))
+                _validate_resolution(repository, replace(state, **{"resolution": event}))
                 path = append_event(repository, event)
                 result = {
                     "schema_version": 1,
@@ -578,7 +599,7 @@ def main(arguments: list[str] | None = None) -> int:
                     "status": "reconciled",
                     **reconciliation_summary(repository, tuple(parsed.change)),
                 }
-    except (DeviationError, OSError, ManifestError, ValidationError) as error:
+    except (DeviationError, OSError, ManifestError, ValueError) as error:
         print(
             json.dumps(
                 {"schema_version": 1, "status": "refused", "reason": str(error)}, sort_keys=True

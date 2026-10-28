@@ -1,8 +1,9 @@
 from pathlib import Path
-from subprocess import CalledProcessError, CompletedProcess
 
 import pytest
 
+from signetum import git
+from signetum.git import GitError
 from signetum.traceability import boundary
 from signetum.traceability.boundary import (
     GitInventoryProvider,
@@ -16,12 +17,11 @@ def test_inventory_queries_git_once_and_decodes_nul_separated_paths(
 ) -> None:
     calls: list[tuple[object, ...]] = []
 
-    def fake_run(*args: object, **kwargs: object) -> CompletedProcess[bytes]:
+    def fake_inventory(*args: object, **kwargs: object) -> str:
         calls.append((*args, kwargs))
-        return CompletedProcess(args=[], returncode=0, stdout=b"a.txt\0docs/b.md\0")
+        return "a.txt\0docs/b.md\0"
 
-    monkeypatch.setattr(boundary, "which", lambda executable: "/usr/bin/git")
-    monkeypatch.setattr(boundary, "run", fake_run)
+    monkeypatch.setattr(boundary, "git_output", fake_inventory)
 
     inventory = GitInventoryProvider().read(tmp_path)
 
@@ -32,7 +32,7 @@ def test_inventory_queries_git_once_and_decodes_nul_separated_paths(
 def test_inventory_fails_when_git_is_unavailable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(boundary, "which", lambda executable: None)
+    monkeypatch.setattr(git, "which", lambda executable: None)
 
     with pytest.raises(OSError, match="unavailable"):
         GitInventoryProvider().read(tmp_path)
@@ -41,12 +41,10 @@ def test_inventory_fails_when_git_is_unavailable(
 def test_inventory_normalizes_git_failure_without_leaking_subprocess_details(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(boundary, "which", lambda executable: "/usr/bin/git")
+    def fail(*args: object, **kwargs: object) -> str:
+        raise GitError("fixture inventory failed")
 
-    def fail(*args: object, **kwargs: object) -> CompletedProcess[bytes]:
-        raise CalledProcessError(returncode=128, cmd=["git", "ls-files"])
-
-    monkeypatch.setattr(boundary, "run", fail)
+    monkeypatch.setattr(boundary, "git_output", fail)
 
     with pytest.raises(OSError, match="repository inventory failed"):
         GitInventoryProvider().read(tmp_path)

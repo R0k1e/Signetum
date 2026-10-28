@@ -39,6 +39,8 @@ The generated package is standard-library code; adapters own repository effects.
 | `worktrunk` | Supervised Mise execution, repository environment projection and registered workspace inventory parsing. |
 | `preparation` | Configured preparation execution with clean or staged-state guards and unchanged source identity. |
 | `operation_cli` | Shared argument refusals, result categories and retained operation diagnostics. |
+| `contract_values`, `change.models`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
+| `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and the locked append-only ledger. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
 | `impact`, `validation` | Rule selection, dependency graphs and policy-bound graph identity. |
 | `evidence.receipts`, `validation.receipt_store`, `validation.admission`, `validation.inheritance` | Exact evidence values/storage, complete member qualification and conservative ancestor reuse. |
@@ -62,6 +64,6 @@ dependencies and replacements rather than the unresolved enabled list; catalog
 selection does not implicitly execute commands omitted by the repository.
 
 [Tooling alignment](../../changes/align-perdura-development-tooling/specs/tooling.toml)
-still owns the remaining lifecycle orchestration and durable change-authority
-migration. Shared validation modules alone do not
-complete that change.
+still owns the remaining lifecycle orchestration and template integration of
+shared change ownership and decision numbering. Shared validation and authority
+modules alone do not complete that change.

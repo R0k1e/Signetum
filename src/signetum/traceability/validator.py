@@ -1,36 +1,37 @@
 """Complete static relation validation for governed changes."""
 
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import PurePosixPath
-
-from pydantic import Field
 
 from signetum.change.models import (
     AcceptanceResult,
     ClauseDisposition,
     Decision,
     DecisionStatus,
-    FrozenModel,
     Plan,
     Review,
     Specification,
     SpecificationStatus,
 )
+from signetum.contract_values import FrozenContract
 from signetum.traceability.boundary import (
     RepositoryInventory,
     TraceabilityManifest,
 )
 
 
-class TraceabilityIssue(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class TraceabilityIssue(FrozenContract):
     code: str
     file: str
     field: str
     reason: str
 
 
-class TraceabilityReport(FrozenModel):
-    schema_version: int = Field(default=1)
+@dataclass(frozen=True, kw_only=True)
+class TraceabilityReport(FrozenContract):
+    schema_version: int = 1
     valid: bool
     issues: tuple[TraceabilityIssue, ...]
 

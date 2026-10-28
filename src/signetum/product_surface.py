@@ -1,12 +1,12 @@
 """Check the tracked, repository-relative public documentation surface."""
 
 import re
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
-from pydantic import Field
-
-from signetum.change.models import FrozenModel, require_relative_path
+from signetum.change.models import require_relative_path
+from signetum.contract_values import FrozenContract
 from signetum.traceability.boundary import RepositoryInventory
 
 REQUIRED_PRODUCT_PATHS = (
@@ -58,15 +58,17 @@ REQUIRED_PRODUCT_CONTENT = {
 _MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
 
 
-class ProductSurfaceIssue(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class ProductSurfaceIssue(FrozenContract):
     code: str
     source: str
     target: str
     reason: str
 
 
-class ProductSurfaceReport(FrozenModel):
-    schema_version: int = Field(default=1)
+@dataclass(frozen=True, kw_only=True)
+class ProductSurfaceReport(FrozenContract):
+    schema_version: int = 1
     valid: bool
     issues: tuple[ProductSurfaceIssue, ...]
 

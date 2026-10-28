@@ -367,6 +367,12 @@ def test_rendered_template_retains_and_reconciles_execution_deviations(tmp_path:
         .replace("implementation_authorized = false", "implementation_authorized = true"),
         encoding="utf-8",
     )
+    for command in (
+        ("git", "add", "."),
+        ("git", "commit", "-m", "approve fixture specification"),
+        ("git", "switch", "-c", "impl/first-change"),
+    ):
+        subprocess.run(command, cwd=rendered, check=True, capture_output=True)
     runtime = rendered / ".agents/repo-dev/runtime/deviations.py"
 
     approval = subprocess.run(
@@ -444,6 +450,8 @@ def test_rendered_template_retains_and_reconciles_execution_deviations(tmp_path:
 def _traceability(
     repository: Path, changes_root: str = "changes"
 ) -> subprocess.CompletedProcess[str]:
+    # These renderer fixtures are repositories, like real template consumers.
+    subprocess.run(("git", "init", "-b", "main"), cwd=repository, check=True, capture_output=True)
     validator = repository / ".agents/repo-dev/runtime/traceability.py"
     return subprocess.run(
         (
@@ -469,16 +477,16 @@ def test_rendered_template_accepts_the_complete_toml_example(tmp_path: Path) -> 
     result = _traceability(rendered, "examples")
 
     assert result.returncode == 0
-    assert '"valid": true' in result.stdout
+    assert json.loads(result.stdout)["valid"] is True
 
 
 @pytest.mark.parametrize(
     ("mutation", "issue"),
     [
-        ("missing-plan", "missing-plan"),
-        ("duplicate-owner", "duplicate-clause-owner"),
-        ("unknown-clause", "unknown-review-clause"),
-        ("uncovered-plan", "plan-missing-clause"),
+        ("missing-plan", "dangling-plan"),
+        ("duplicate-owner", "duplicate-owner"),
+        ("unknown-clause", "unknown-clause"),
+        ("uncovered-plan", "missing-obligation"),
         ("missing-deferral", "missing-specification"),
     ],
 )
@@ -518,4 +526,4 @@ def test_rendered_template_rejects_broken_traceability(
     result = _traceability(rendered, "examples")
 
     assert result.returncode == 3
-    assert f'"code": "{issue}"' in result.stdout
+    assert issue in {item["code"] for item in json.loads(result.stdout)["issues"]}

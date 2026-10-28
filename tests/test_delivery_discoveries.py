@@ -1,5 +1,6 @@
 """Final reviews discoveries of exact admitted members and stable decision identities."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -141,7 +142,7 @@ def test_unrelated_pending_member_does_not_enter_batch_review(tmp_path):
     other = tmp_path / "unrelated"
     _git(member, "worktree", "add", "-b", "impl/unrelated", str(other), "HEAD")
     (other / "changes/unrelated").mkdir(parents=True)
-    event = discovery(other, "unrelated").model_copy(update={"member": "impl/unrelated"})
+    event = replace(discovery(other, "unrelated"), **{"member": "impl/unrelated"})
     append_event(other, event)
     lifecycle.validate(member, "member")
     lifecycle.admit(batch, (member,))

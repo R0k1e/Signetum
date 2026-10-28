@@ -1,12 +1,15 @@
 """Versioned JSON public boundary for traceability checking and status queries."""
 
+import argparse
 import json
+import sys
 from enum import IntEnum
 from pathlib import Path
 from typing import TextIO
 
-from pydantic import ValidationError
-
+from signetum.change.scope import changes_root
+from signetum.manifest import load_manifest
+from signetum.serialization import contract_mapping
 from signetum.status.models import EvidenceSnapshot
 from signetum.status.projector import project_status
 from signetum.traceability.boundary import (
@@ -108,9 +111,9 @@ def query(
             "schema_version": 1,
             "command": "traceability",
             "valid": valid,
-            "changes": [projection.model_dump(mode="json") for projection in projections],
+            "changes": [contract_mapping(projection) for projection in projections],
             "issues": [
-                issue.model_dump(mode="json")
+                contract_mapping(issue)
                 for issue in (
                     *(issue for report in reports for issue in report.issues),
                     *corpus_issues,
@@ -123,19 +126,52 @@ def query(
                 stderr.write(f"{issue['file']}:{issue['field']}: {issue['reason']}\n")
             return ExitCode.VALIDATION_FAILURE
         return ExitCode.SUCCESS
-    except (OSError, KeyError, ValueError, ValidationError) as error:
-        stdout.write(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "command": "traceability",
-                    "valid": False,
-                    "issues": [{"code": "invocation-error", "reason": str(error)}],
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            + "\n"
+    except (OSError, KeyError, ValueError) as error:
+        return _query_failure(error, stdout, stderr)
+
+
+def _query_failure(error: Exception, stdout: TextIO, stderr: TextIO) -> ExitCode:
+    stdout.write(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "command": "traceability",
+                "valid": False,
+                "issues": [{"code": "invocation-error", "reason": str(error)}],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
         )
-        stderr.write(f"traceability: {error}\n")
-        return ExitCode.INVOCATION_ERROR
+        + "\n"
+    )
+    stderr.write(f"traceability: {error}\n")
+    return ExitCode.INVOCATION_ERROR
+
+
+def main(arguments: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repository", type=Path, default=Path("."))
+    parser.add_argument("--changes-root")
+    parser.add_argument("--decision-root", action="append")
+    parser.add_argument("--legacy-root", action="append", default=[])
+    parsed = parser.parse_args(arguments)
+    try:
+        if parsed.changes_root is None or parsed.decision_root is None:
+            manifest = load_manifest(parsed.repository / "signetum.toml")
+            root = parsed.changes_root or changes_root(manifest)
+            decisions = tuple(parsed.decision_root or (manifest.repository.decisions,))
+        else:
+            root, decisions = parsed.changes_root, tuple(parsed.decision_root)
+        authority = TraceabilityManifest(
+            schema_version=1,
+            changes_root=root,
+            decision_roots=decisions,
+            legacy_roots=tuple(parsed.legacy_root),
+        )
+    except (OSError, ValueError) as error:
+        return int(_query_failure(error, sys.stdout, sys.stderr))
+    return int(query(parsed.repository, authority, EvidenceSnapshot(), sys.stdout, sys.stderr))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

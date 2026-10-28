@@ -1,9 +1,11 @@
 """Typed observations and immutable status projections."""
 
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from signetum.change.models import ClauseId, FrozenModel, Identifier
+from signetum.change.models import ClauseId, Identifier
+from signetum.contract_values import FrozenContract
 
 
 class DerivedState(StrEnum):
@@ -17,23 +19,27 @@ class DerivedState(StrEnum):
     EXCLUDED = "excluded"
 
 
-class MemberObservation(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class MemberObservation(FrozenContract):
     plan_id: Identifier
     commit: str
     ready: bool
 
 
-class IntegrationObservation(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class IntegrationObservation(FrozenContract):
     member_commit: str
     batch_commit: str
 
 
-class DeliveryObservation(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class DeliveryObservation(FrozenContract):
     batch_commit: str
     delivery_commit: str
 
 
-class EvidenceSnapshot(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class EvidenceSnapshot(FrozenContract):
     members: tuple[MemberObservation, ...] = ()
     integrations: tuple[IntegrationObservation, ...] = ()
     deliveries: tuple[DeliveryObservation, ...] = ()
@@ -44,7 +50,8 @@ class EvidenceProvider(Protocol):
         """Return typed observations bound to exact repository identities."""
 
 
-class ClauseProjection(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class ClauseProjection(FrozenContract):
     clause: ClauseId
     state: DerivedState
     specification: Identifier | None
@@ -53,7 +60,8 @@ class ClauseProjection(FrozenModel):
     delivery_commit: str | None
 
 
-class StatusProjection(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class StatusProjection(FrozenContract):
     schema_version: int = 1
     review: Identifier
     state: DerivedState

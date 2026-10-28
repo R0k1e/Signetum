@@ -1,26 +1,28 @@
 """Repository inventory and reference boundaries."""
 
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from shutil import which
-from subprocess import CalledProcessError, run  # nosec B404
-from typing import Protocol
+from typing import Annotated, Protocol
 
-from pydantic import Field
+from signetum.change.models import require_relative_path
+from signetum.contract_values import FrozenContract
+from signetum.git import GitError, GitInfrastructureError, git_output
+from signetum.serialization import Constraints
 
-from signetum.change.models import FrozenModel, require_relative_path
 
-
-class TraceabilityManifest(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class TraceabilityManifest(FrozenContract):
     """Only repository-owned bindings needed by the traceability core."""
 
-    schema_version: int = Field(ge=1)
+    schema_version: Annotated[int, Constraints(minimum=1)]
     changes_root: str = "changes"
     decision_roots: tuple[str, ...] = ("docs/decisions",)
     legacy_roots: tuple[str, ...] = ()
     legacy_inventory: tuple[str, ...] = ()
 
 
-class RepositoryInventory(FrozenModel):
+@dataclass(frozen=True, kw_only=True)
+class RepositoryInventory(FrozenContract):
     paths: frozenset[str]
 
     def contains(self, reference: str) -> bool:
@@ -40,26 +42,21 @@ class GitInventoryProvider:
     """Inventory adapter using Git's tracked/non-ignored path authority."""
 
     def read(self, repository: Path) -> RepositoryInventory:
-        executable = which("git")
-        if executable is None:
-            raise OSError("git executable is unavailable")
         try:
-            completed = run(  # nosec B603
-                [
-                    executable,
-                    "ls-files",
-                    "--cached",
-                    "--others",
-                    "--exclude-standard",
-                    "-z",
-                ],
-                cwd=repository,
-                check=True,
-                capture_output=True,
+            output = git_output(
+                repository,
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+                strip=False,
             )
-        except CalledProcessError as error:
+        except GitInfrastructureError as error:
+            raise OSError(str(error)) from error
+        except GitError as error:
             raise OSError("Git repository inventory failed") from error
-        paths = frozenset(item for item in completed.stdout.decode().split("\0") if item)
+        paths = frozenset(item for item in output.split("\0") if item)
         return RepositoryInventory(paths=paths)
 
 

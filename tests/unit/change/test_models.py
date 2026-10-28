@@ -1,7 +1,7 @@
+from dataclasses import FrozenInstanceError
 from datetime import date
 
 import pytest
-from pydantic import ValidationError
 
 from signetum.change.models import (
     Clause,
@@ -21,13 +21,13 @@ def test_review_is_strict_and_immutable() -> None:
         clauses=(Clause(id="REQ-1", statement="Observable behavior"),),
     )
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(FrozenInstanceError):
         review.__setattr__("status", ReviewStatus.CLOSED)
 
 
 def test_review_rejects_duplicate_clause_identifiers() -> None:
     clause = Clause(id="REQ-1", statement="Observable behavior")
-    with pytest.raises(ValidationError, match="unique"):
+    with pytest.raises(ValueError, match="unique"):
         Review(
             schema_version=1,
             id="change",
