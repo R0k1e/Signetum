@@ -9,7 +9,7 @@ import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tempfile
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
@@ -44,7 +44,6 @@ from _signetum_runtime.manifest import (
 )
 from _signetum_runtime.operation_cli import OperationParser, run_operation
 from _signetum_runtime.operations import AdmissionError, InfrastructureError
-from _signetum_runtime.process import run_command
 from _signetum_runtime.profile_catalog import (
     ProfileError,
     ProfileResourceError,
@@ -77,118 +76,14 @@ from _signetum_runtime.workspaces import (
 from _signetum_runtime.workspaces import (
     state_root as _state_root,
 )
+from _signetum_runtime.worktrunk import WorkspaceIdentity, parse_worktrees
+from _signetum_runtime.worktrunk import run_tool as _run_tool
+from _signetum_runtime.worktrunk import worktrunk as _worktrunk
 from deviations import DeviationError, approval_view, reconciliation_summary
 
 
-@dataclass(frozen=True)
-class WorkspaceIdentity:
-    branch: str
-    path: Path
-    head: str
-    dirty: bool
-
-
-def _mise_executable() -> str:
-    executable = which("mise")
-    if executable is None:
-        raise InfrastructureError(
-            "Mise executable is unavailable; install Mise and run `mise install` in the repository"
-        )
-    return executable
-
-
-def _run_tool(
-    repository: Path,
-    command: tuple[str, ...],
-    *,
-    required: bool = True,
-    timeout_seconds: float = 1800,
-    environment: dict[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    environment = dict(os.environ if environment is None else environment)
-    for name in tuple(environment):
-        if name.startswith("GIT_") or name in {
-            "PYTHONHOME",
-            "PYTHONPATH",
-            "UV_PROJECT_ENVIRONMENT",
-            "VIRTUAL_ENV",
-        }:
-            environment.pop(name)
-    environment["MISE_TRUSTED_CONFIG_PATHS"] = str(repository.resolve())
-    try:
-        completed = run_command(
-            repository,
-            (_mise_executable(), "exec", "--", *command),
-            timeout_seconds=timeout_seconds,
-            environment=environment,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        if required:
-            raise InfrastructureError(
-                f"command could not complete: {command[0]}: {error}"
-            ) from error
-        raise
-    if not required:
-        return completed
-    if completed.returncode != 0:
-        diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
-        detail = diagnostic or f"Mise could not execute {command[0]}"
-        raise InfrastructureError(f"{detail}; run `mise install` in the repository")
-    return completed
-
-
-def _worktrunk(
-    repository: Path, arguments: tuple[str, ...], *, json_output: bool = False
-) -> object:
-    completed = _run_tool(
-        repository,
-        (
-            "wt",
-            "-C",
-            str(repository),
-            "--yes",
-            "--config-set",
-            "list.json-schema=2",
-            *arguments,
-        ),
-    )
-    if not json_output:
-        return completed.stdout
-    try:
-        return json.loads(completed.stdout)
-    except json.JSONDecodeError as error:
-        raise AdmissionError(f"invalid Worktrunk JSON: {error.msg}") from error
-
-
 def _worktrees(repository: Path) -> tuple[WorkspaceIdentity, ...]:
-    payload = _worktrunk(repository, ("list", "--format=json"), json_output=True)
-    if not isinstance(payload, dict) or payload.get("schema") != 2:
-        raise AdmissionError("invalid Worktrunk JSON: expected schema 2 envelope")
-    items = payload.get("items")
-    if not isinstance(items, list):
-        raise AdmissionError("invalid Worktrunk JSON: items must be a list")
-    result: list[WorkspaceIdentity] = []
-    for item in items:
-        if not isinstance(item, dict) or not isinstance(item.get("worktree"), dict):
-            continue
-        branch, head, worktree = item.get("branch"), item.get("head"), item["worktree"]
-        changes = worktree.get("changes")
-        if (
-            not isinstance(branch, str)
-            or not isinstance(head, dict)
-            or not isinstance(head.get("sha"), str)
-            or not isinstance(worktree.get("path"), str)
-            or not isinstance(changes, dict)
-        ):
-            raise AdmissionError("invalid Worktrunk JSON: incomplete registered workspace identity")
-        dirty = any(
-            changes.get(name) is True
-            for name in ("staged", "modified", "untracked", "renamed", "deleted", "conflicted")
-        )
-        result.append(
-            WorkspaceIdentity(branch, Path(worktree["path"]).resolve(), head["sha"], dirty)
-        )
-    return tuple(result)
+    return parse_worktrees(_worktrunk(repository, ("list", "--format=json"), json_output=True))
 
 
 def _registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:

@@ -1,5 +1,6 @@
 """Observable changed behavior against both native repository frontends."""
 
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -19,7 +20,9 @@ def diagnostic(request, repository, monkeypatch, tmp_path):
     if request.param == "template":
         # The host launcher is an effect; checks and Git below remain native.
         def tool(repository, command, *, required=True, **options):
-            return runtime.run_command(repository, command, **options)
+            return importlib.import_module("_signetum_runtime.process").run_command(
+                repository, command, **options
+            )
 
         monkeypatch.setattr(runtime, "_run_tool", tool)
 

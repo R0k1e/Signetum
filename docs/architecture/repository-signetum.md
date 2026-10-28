@@ -36,6 +36,7 @@ The generated package is standard-library code; adapters own repository effects.
 | `profiles.catalog`, `serialization` | Owned profile syntax, maintained catalog parsing and dependency/authority composition; portable typed JSON values. |
 | `delivery` | Remote-first publication and exact interrupted-publication recovery after adapter-owned qualification. |
 | `operations`, `git`, `workspaces` | Operation values, isolated Git context and immutable workspace/change records. |
+| `worktrunk` | Supervised Mise execution, repository environment projection and registered workspace inventory parsing. |
 | `operation_cli` | Shared argument refusals, result categories and retained operation diagnostics. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
 | `impact`, `validation` | Rule selection, dependency graphs and policy-bound graph identity. |

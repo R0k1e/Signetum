@@ -106,9 +106,11 @@ def test_missing_git_is_infrastructure_without_a_log_authority(frontend, monkeyp
 
 
 def test_missing_host_launcher_is_infrastructure(frontend, tmp_path, monkeypatch, capsys):
-    launcher = importlib.import_module("signetum.worktrunk") if frontend is lifecycle else frontend
+    launcher = importlib.import_module(
+        "signetum.worktrunk" if frontend is lifecycle else "_signetum_runtime.worktrunk"
+    )
     monkeypatch.setattr(launcher, "which", lambda executable: None)
-    run = getattr(launcher, "run_tool" if frontend is lifecycle else "_run_tool")
+    run = launcher.run_tool
     monkeypatch.setattr(frontend, "changed", lambda *a, **k: run(tmp_path, ("wt", "--version")))
     monkeypatch.setattr(frontend, "_state_root", lambda repository: tmp_path)
     assert frontend.main(["changed"]) == 4
