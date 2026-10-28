@@ -64,7 +64,9 @@ A change package owns one isolated implementation branch from proposal through
 approval and implementation. The shared Git state binds its owner at the first
 discovery or readiness check and refuses a second implementation branch. A
 member is ready only with approved behavior and required decisions plus its own
-implementation commit after approval. A package-only member remains plan stage.
+implementation commit after approval. A package-only member remains plan stage. A member without a carried approved
+change package is refused before checks and admission, even when it has an
+otherwise matching test receipt.
 Readiness and final validation require member and batch workspace roles respectively.
 
 Actual committed paths identify each batch's first-delivered changes and their

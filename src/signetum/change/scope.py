@@ -294,7 +294,7 @@ def require_member_changes(
     if not commits:
         raise ChangeError("member has no own implementation commits")
     if not carried:
-        return carried
+        raise ChangeError("member requires an approved change package")
     root = changes_root(manifest) + "/"
     decisions = manifest.repository.decisions.rstrip("/") + "/"
     approved = False
