@@ -8,6 +8,7 @@ from shutil import which
 import pytest
 
 from signetum import lifecycle
+from signetum.operations import OperationFailed
 from signetum.workspaces import WorkspaceRecord, write_record
 
 
@@ -66,7 +67,7 @@ def test_rejected_push_keeps_target_at_base(tmp_path, monkeypatch):
     hook.write_text("#!/bin/sh\nexit 1\n")
     hook.chmod(0o755)
 
-    with pytest.raises(lifecycle.AdmissionError):
+    with pytest.raises(OperationFailed):
         lifecycle.batch_deliver(source, target, base, tip)
 
     assert git(target, "rev-parse", "HEAD") == base

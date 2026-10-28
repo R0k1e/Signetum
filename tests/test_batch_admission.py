@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
+from dataclasses import asdict, replace
 from pathlib import Path
 from shutil import which
 from typing import Literal
@@ -11,6 +13,7 @@ from typing import Literal
 import pytest
 
 import signetum.lifecycle as lifecycle
+from signetum.validation.execution import build_evidence_identity
 from signetum.workspaces import WorkspaceRecord, write_record
 
 
@@ -99,20 +102,21 @@ def _evidence_receipt(
 ) -> Path:
     """Write one durable lifecycle receipt proving the given shard commands."""
 
+    manifest = lifecycle.load_manifest(member / "signetum.toml")
+    base = lifecycle._recorded_base(member)
+    selection = lifecycle._selection(member, base, manifest)
+    shards, _ = lifecycle._member_shards(manifest, selection)
+    graph, inputs = lifecycle._runtime_validation(
+        manifest, member_shards=shards if gate == "member" else None
+    )
+    identity = build_evidence_identity(
+        graph, replace(inputs, base=base), lifecycle.RepositoryValidationAdapter(member)
+    )
     evidence = {
         "schema_version": 3,
         "protocol": "reposeal.validation-evidence@3",
-        "schema_digest": "sha256:" + "9" * 64,
-        "identity": {
-            "commit": "a" * 40,
-            "tree": tree,
-            "base": None,
-            "configuration": {"path": "signetum.toml", "digest": "sha256:" + "1" * 64},
-            "profiles": [],
-            "graph": "sha256:" + "2" * 64,
-            "lockfiles": [],
-            "tools": [],
-        },
+        "schema_digest": manifest.signetum.evidence_schema_digest,
+        "identity": {**asdict(identity), "tree": tree},
         "selection": None,
         "execution": {
             "gates": [gate],
@@ -390,7 +394,7 @@ def test_a_completed_final_gate_satisfies_member_admission(tmp_path: Path) -> No
     assert admitted[0]["ready_evidence"] == "final-lifecycle-frozen.json"
 
 
-def test_evidence_survives_a_commit_which_did_not_change_the_tree(tmp_path: Path) -> None:
+def test_reworded_member_requires_fresh_exact_tip_evidence(tmp_path: Path) -> None:
     member, batch, _ = _member_and_batch(tmp_path)
     tree = _git(member, "rev-parse", "HEAD^{tree}")
     _evidence_receipt(
@@ -407,12 +411,8 @@ def test_evidence_survives_a_commit_which_did_not_change_the_tree(tmp_path: Path
     assert amended != original
     assert _git(member, "rev-parse", "HEAD^{tree}") == tree
 
-    result = lifecycle.admit(batch, (member,))
-
-    admitted = result["admitted"]
-    assert isinstance(admitted, list)
-    assert admitted[0]["original"] == amended
-    assert admitted[0]["ready_evidence"] == "member-lifecycle-ready.json"
+    with pytest.raises(lifecycle.AdmissionError, match="no evidence proving its selected"):
+        lifecycle.admit(batch, (member,))
 
 
 def test_evidence_proving_the_wrong_commands_is_not_admission(tmp_path: Path) -> None:
@@ -429,15 +429,39 @@ def test_evidence_proving_the_wrong_commands_is_not_admission(tmp_path: Path) ->
         lifecycle.admit(batch, (member,))
 
 
-def test_a_member_whose_authority_is_final_records_a_deferred_closure(tmp_path: Path) -> None:
+def test_requires_final_does_not_replace_member_evidence(tmp_path: Path) -> None:
     member, batch, _ = _member_and_batch(tmp_path, path="docs/note.md")
+    with pytest.raises(lifecycle.AdmissionError, match="no evidence proving its selected"):
+        lifecycle.admit(batch, (member,))
 
-    result = lifecycle.admit(batch, (member,))
 
-    admitted = result["admitted"]
-    assert isinstance(admitted, list)
-    assert admitted[0]["ready_evidence"].startswith("deferred:requires-final:")
-    assert "governance" in admitted[0]["ready_evidence"]
+@pytest.mark.parametrize(
+    "field", ["commit", "base", "configuration", "profiles", "graph", "tools", "lockfiles"]
+)
+def test_admission_refuses_different_validation_inputs(tmp_path: Path, field: str) -> None:
+    member, batch, _ = _member_and_batch(tmp_path)
+    path = _evidence_receipt(
+        member,
+        "member-lifecycle-stale.json",
+        gate="member",
+        tree=_git(member, "rev-parse", "HEAD^{tree}"),
+        commands=(MEMBER_COMMAND,),
+    )
+    payload = json.loads(path.read_text())
+    identity = payload["evidence"]["identity"]
+    replacements = {
+        "commit": "a" * 40,
+        "base": "b" * 40,
+        "configuration": {"path": "signetum.toml", "digest": "sha256:" + "1" * 64},
+        "profiles": ["different@1"],
+        "graph": "sha256:" + "2" * 64,
+        "tools": [{"name": "other", "identity": "1"}],
+        "lockfiles": [{"path": "other.lock", "digest": "sha256:" + "3" * 64}],
+    }
+    identity[field] = replacements[field]
+    path.write_text(json.dumps(payload))
+    with pytest.raises(lifecycle.AdmissionError, match="no evidence proving its selected"):
+        lifecycle.admit(batch, (member,))
 
 
 def test_a_failing_gate_is_refused_as_one_json_result(
@@ -450,7 +474,7 @@ def test_a_failing_gate_is_refused_as_one_json_result(
 
     monkeypatch.setattr(lifecycle, "validate", refuse)
 
-    assert lifecycle.main(["final"]) == 2
+    assert lifecycle.main(["final"]) == 3
 
 
 def _without_change_packages(worktree: Path) -> None:
@@ -518,3 +542,35 @@ def test_both_gates_run_the_declared_traceability_authority() -> None:
 
     for gate in manifest.validation.gates:
         assert authority in gate.shards, f"{gate.name} does not run {authority}"
+
+
+def test_real_failing_member_check_keeps_stdout_machine_readable(tmp_path, monkeypatch, capsys):
+    repository = _repository(tmp_path / "repository")
+    script = repository / "check.py"
+    script.write_text(
+        "import sys\nprint('check output')\nprint('check error', file=sys.stderr)\nsys.exit(1)\n"
+    )
+    manifest = repository / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            'command = ["true"]', "command = " + json.dumps([sys.executable, "check.py"])
+        )
+    )
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-m", "declare failing check")
+    base = _git(repository, "rev-parse", "HEAD")
+    (repository / "seed.txt").write_text("member change")
+    _git(repository, "commit", "-am", "change behavior")
+    _record(repository, "main", base)
+    monkeypatch.chdir(repository)
+
+    assert lifecycle.main(["ready"]) == 3
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert result["status"] == "failed"
+    assert result["operation"] == "ready"
+    assert "check output" in captured.err
+    assert "check error" in captured.err
+    assert "check output" in Path(result["log"]).read_text()
+    assert "check error" in Path(result["log"]).read_text()
+    assert list(lifecycle._receipt_root(repository).glob("member-*.json")) == []

@@ -51,14 +51,12 @@ A member never follows the delivery branch. Batching exists so members work
 from a frozen base and integrate once, so a base which does not move is the
 property that keeps parallel members independent, not a limitation.
 
-Admission requires an evidence property rather than an evidence artifact:
-durable evidence binding the member's exact tree and proving at least the shard
-commands its own selection requires. Evidence is matched by observed tree and by
-shard command digest, never by commit identity, receipt gate, or shard name, so
-an amended trailer, an equivalent rebase, a renamed shard, and a completed final
-gate all satisfy admission when the proven work is the same. When selection
-reports `requires_final`, the final gate is the authority for that member and
-admission records a deferred closure naming the justifying rules.
+Admission requires successful member-safe evidence bound to the exact member
+commit, tree, recorded base, configuration, graph, profiles, lockfiles and tools.
+A completed final gate can supply those checks when its complete input identity
+matches. World outcomes never substitute for tree evidence. A new tip requires
+fresh readiness even when its tree is unchanged. Selection's requires_final
+flag declares additional batch responsibility and never waives member checks.
 
 Delivery
 requires the remote target to equal the approved base, derives members and Plan
@@ -85,3 +83,14 @@ rejection, or justified no-authority-change result. `final` remains check-only:
 it refuses an unresolved ledger and places approval plus reconciliation data in
 the exact final receipt. The Agent projects that data as a delivery review
 before explicit delivery. The review is not another tracked authority.
+
+## Operation results
+
+Lifecycle stdout is one versioned JSON result. The envelope records operation,
+status and exit_code, and keeps the business outcome under outcome. Statuses
+are passed (0), invalid (2), failed (3), infrastructure_error (4), and conflict
+(5). Failure records cause, context, expected recovery and the retained log
+path, or null when the repository log authority is unavailable. Check output
+and diagnostics go to stderr. Missing tools and unavailable identity inputs
+are infrastructure failures; failed checks are validation failures. An open
+merge names batch-continue instead of printing a second result.
