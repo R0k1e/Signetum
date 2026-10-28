@@ -8,7 +8,9 @@ import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from signetum.git import isolated_git_environment
+if __name__ != "__main__":
+    # The standalone supervisor does not import or execute the caller's package.
+    from signetum.git import isolated_git_environment
 
 
 def run_command(
@@ -22,8 +24,9 @@ def run_command(
     try:
         invocation = [
             sys.executable,
-            "-m",
-            "signetum.validation.process",
+            "-I",
+            "-S",
+            str(Path(__file__).resolve()),
             str(lease_read),
             "--",
             *command,

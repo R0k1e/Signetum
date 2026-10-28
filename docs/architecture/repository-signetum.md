@@ -64,5 +64,16 @@ checks whose dependencies failed, continues independent checks, covers world
 findings, re-observes inputs and creates the evidence document. The template
 stores that document rather than reconstructing an alternate receipt shape.
 Graph identity includes every declared shard field, including inheritance and
-ratchet policy. Repository process supervision, inheritance qualification and
-admission consumption still belong to the remaining ALIGN-009 migration.
+ratchet policy. Resource allocation, test recovery, inheritance qualification
+and admission consumption still belong to the remaining ALIGN-009 migration.
+
+Command supervision is owned by `signetum.validation.process` in both runtimes.
+It starts its own source file with isolated Python and site-packages disabled,
+so a supervisor never requires the installed engine or loads the caller's
+package. A caller-held pipe controls each independent command process group;
+timeouts or caller termination kill the group, including nested owners through
+their own leases. The template's Mise adapter preserves environment isolation
+and forwards shard deadlines; tool probes and findings have separate 60-second
+limits. Shard timeout reports a failed check with its declared bound; tool and
+findings timeouts report explicit observation diagnostics. Unifying the legacy
+template's public operation error envelope remains part of ALIGN-009.

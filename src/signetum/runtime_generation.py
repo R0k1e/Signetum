@@ -22,6 +22,7 @@ MODULES = {
     "signetum.impact": "impact.py",
     "signetum.validation": "validation.py",
     "signetum.validation.execution": "execution.py",
+    "signetum.validation.process": "process.py",
     "signetum.profiles.pip_audit": "pip_audit.py",
 }
 

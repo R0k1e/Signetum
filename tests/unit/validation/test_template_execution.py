@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -84,3 +85,43 @@ print(json.dumps(result))
     else:
         assert result["status"] == "passed"
         assert observed.read_text().splitlines() == ["bootstrap", "dependent", "independent"]
+
+
+def test_template_shard_deadline_terminates_its_descendants(tmp_path):
+    runtime = Path(__file__).parents[3] / "template/.agents/repo-dev/runtime"
+    marker = tmp_path / "orphan"
+    child = "import sys,time; from pathlib import Path; time.sleep(2); Path(sys.argv[1]).touch()"
+    parent = "import subprocess,sys; subprocess.run([sys.executable,'-c',sys.argv[1],sys.argv[2]])"
+    command = [sys.executable, "-c", parent, child, str(marker)]
+    script = """
+import json,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+import lifecycle
+shard=lifecycle.ValidationShard('core:hang',tuple(json.loads(sys.argv[3])),timeout_seconds=1)
+result=lifecycle._ValidationAdapter(Path(sys.argv[2])).run_shard(shard)
+assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
+print(json.dumps({'succeeded':result.succeeded,'diagnostic':result.diagnostic}))
+"""
+    completed = subprocess.run(  # noqa: S603 -- isolated interpreter and native fixture commands
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            script,
+            str(runtime),
+            str(tmp_path),
+            json.dumps(command),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=8,
+    )
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
+    assert result["succeeded"] is False
+    assert "did not return within 1s" in result["diagnostic"]
+    time.sleep(1.5)
+    assert not marker.exists(), "template timeout left a descendant running"
