@@ -15,6 +15,15 @@ def _run(
     arguments: list[str], report: Path, *, nodes: list[str] | None = None
 ) -> tuple[int, list[dict[str, str]]]:
     environment = dict(os.environ, SIGNETUM_PYTEST_REPORT=str(report))
+    # Pytest controllers and xdist workers load the same packaged plugin without
+    # importing the engine. Only this temporary directory joins their search path.
+    plugins = report.parent / "plugins"
+    plugins.mkdir(exist_ok=True)
+    (plugins / "_signetum_pytest_report.py").write_bytes(
+        Path(__file__).with_name("pytest_report.py").read_bytes()
+    )
+    search = environment.get("PYTHONPATH", "")
+    environment["PYTHONPATH"] = str(plugins) + (os.pathsep + search if search else "")
     environment.pop("SIGNETUM_RETRY_NODES", None)
     # A fresh controller, including serial retries, must not inherit an outer
     # xdist worker identity. Its own workers receive new identities from xdist.
@@ -36,7 +45,16 @@ def _run(
         if importlib.util.find_spec("pytest_cov") is not None:
             arguments.append("--cov-append")
     result = subprocess.run(  # noqa: S603  # nosec B603 -- fixed executable, no shell
-        [sys.executable, "-m", "pytest", "-p", "signetum.validation.pytest_report", *arguments],
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.path.insert(0,sys.argv.pop(1)); import pytest; "
+            "raise SystemExit(pytest.main(sys.argv[1:]))",
+            str(plugins),
+            "-p",
+            "_signetum_pytest_report",
+            *arguments,
+        ],
         env=environment,
         check=False,
     )

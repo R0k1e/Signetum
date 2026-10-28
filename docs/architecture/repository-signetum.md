@@ -64,7 +64,7 @@ checks whose dependencies failed, continues independent checks, covers world
 findings, re-observes inputs and creates the evidence document. The template
 stores that document rather than reconstructing an alternate receipt shape.
 Graph identity includes every declared shard field, including inheritance and
-ratchet policy. Resource allocation, test recovery, inheritance qualification
+ratchet policy. Resource allocation, inheritance qualification
 and admission consumption still belong to the remaining ALIGN-009 migration.
 
 Command supervision is owned by `signetum.validation.process` in both runtimes.
@@ -77,3 +77,15 @@ and forwards shard deadlines; tool probes and findings have separate 60-second
 limits. Shard timeout reports a failed check with its declared bound; tool and
 findings timeouts report explicit observation diagnostics. Unifying the legacy
 template's public operation error envelope remains part of ALIGN-009.
+
+Pytest recovery uses the generated `pytest_runner.py` and `pytest_report.py`.
+The runner stages the packaged report plugin in its temporary directory so
+controllers and workers do not import the engine. Both frontends retain the
+same failed-node-only serial retry and original phase reports. The shared
+`signetum.validation.recovery` boundary interprets command results and validates
+recovery reports, rather than maintaining that parser inside each adapter.
+It also owns the bounded successful observation history. Each frontend names
+its receipt document shape explicitly; nested lifecycle projections do not
+silently become additional observations. The template consumes its declared
+recovery threshold and window, retains recovered failures in evidence, and
+refuses a repeated member recovery through the shared execution engine.

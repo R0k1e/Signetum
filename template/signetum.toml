@@ -91,12 +91,12 @@ requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:unit"
-command = ["uv", "run", "--no-sync", "pytest", "tests/unit"]
+command = ["uv", "run", "--no-sync", "python", ".agents/repo-dev/runtime/_signetum_runtime/pytest_runner.py", "--", "tests/unit"]
 requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:integration"
-command = ["uv", "run", "--no-sync", "pytest", "tests/integration"]
+command = ["uv", "run", "--no-sync", "python", ".agents/repo-dev/runtime/_signetum_runtime/pytest_runner.py", "--", "tests/integration"]
 requires = ["python:sync"]
 
 [[validation.shards]]

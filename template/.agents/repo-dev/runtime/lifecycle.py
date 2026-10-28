@@ -9,6 +9,7 @@ import os
 import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
+import tempfile
 import tomllib
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
@@ -30,6 +31,7 @@ from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.impact import select_paths
 from _signetum_runtime.operations import AdmissionError
 from _signetum_runtime.process import run_command
+from _signetum_runtime.recovery import shard_execution, with_recovery_history
 from _signetum_runtime.validation import (
     GateDeclaration,
     ToolDeclaration,
@@ -82,8 +84,9 @@ def _run_tool(
     *,
     required: bool = True,
     timeout_seconds: float = 1800,
+    environment: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    environment = os.environ.copy()
+    environment = dict(os.environ if environment is None else environment)
     for name in tuple(environment):
         if name.startswith("GIT_") or name in {
             "PYTHONHOME",
@@ -343,27 +346,41 @@ class _ValidationAdapter:
         return identity
 
     def _run(
-        self, command: tuple[str, ...], *, timeout_seconds: float
+        self,
+        command: tuple[str, ...],
+        *,
+        timeout_seconds: float,
+        environment: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         try:
             return _run_tool(
-                self.repository, command, required=False, timeout_seconds=timeout_seconds
+                self.repository,
+                command,
+                required=False,
+                timeout_seconds=timeout_seconds,
+                environment=environment,
             )
         except (OSError, AdmissionError) as error:
             raise ValidationInfrastructureError(str(error)) from error
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
-        try:
-            completed = self._run(shard.command, timeout_seconds=shard.timeout_seconds)
-        except subprocess.TimeoutExpired:
-            return ShardExecution(
-                False, f"{shard.name} did not return within {shard.timeout_seconds}s"
-            )
-        for output in (completed.stdout, completed.stderr):
-            if output:
-                print(output, file=sys.stderr, end="" if output.endswith("\n") else "\n")
-        diagnostic = completed.stderr.strip() or completed.stdout.strip()
-        return ShardExecution(completed.returncode == 0, diagnostic)
+        with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
+            report = Path(scratch) / "recovered.json"
+            try:
+                completed = self._run(
+                    shard.command,
+                    timeout_seconds=shard.timeout_seconds,
+                    environment=dict(
+                        os.environ,
+                        SIGNETUM_RECOVERY_REPORT=str(report),
+                        SIGNETUM_VALIDATION_WORKERS="0",
+                    ),
+                )
+            except subprocess.TimeoutExpired:
+                return ShardExecution(
+                    False, f"{shard.name} did not return within {shard.timeout_seconds}s"
+                )
+            return shard_execution(shard.name, completed, report)
 
     def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
         try:
@@ -410,6 +427,13 @@ def _run_gate(
         if identity.get("evidence_protocol") != "reposeal.validation-evidence@3":
             raise AdmissionError("unsupported evidence protocol")
         selected = ValidationSelection.from_mapping(selection) if selection is not None else None
+
+        def recovery_setting(name: str, default: int) -> int:
+            value = validation.get(name, default)
+            if type(value) is not int or value < 1:
+                raise AdmissionError(f"validation.{name} must be a positive integer")
+            return value
+
         inputs = ValidationInputs(
             configuration_path="signetum.toml",
             profiles=tuple(sorted(_strings(profiles.get("enabled", []), "profiles.enabled"))),
@@ -421,7 +445,10 @@ def _run_gate(
             selection=selected,
             schema_digest=schema,
             waivers=_load_waivers(repository),
+            recovery_threshold=recovery_setting("recovery_threshold", 3),
+            recovery_window=recovery_setting("recovery_window", 20),
         )
+        inputs = with_recovery_history(inputs, _receipt_root(repository), evidence_field="evidence")
         receipt = execute_gate(graph, kind, inputs, _ValidationAdapter(repository))
         _require_clean(repository)
         return receipt

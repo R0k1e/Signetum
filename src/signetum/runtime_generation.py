@@ -23,6 +23,9 @@ MODULES = {
     "signetum.validation": "validation.py",
     "signetum.validation.execution": "execution.py",
     "signetum.validation.process": "process.py",
+    "signetum.validation.pytest_runner": "pytest_runner.py",
+    "signetum.validation.pytest_report": "pytest_report.py",
+    "signetum.validation.recovery": "recovery.py",
     "signetum.profiles.pip_audit": "pip_audit.py",
 }
 
