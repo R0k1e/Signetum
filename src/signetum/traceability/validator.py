@@ -88,6 +88,7 @@ class TraceabilityValidator:
         decisions: tuple[tuple[str, Decision], ...],
     ) -> TraceabilityReport:
         decisions_by_path = {path: decision for path, decision in decisions}
+        decisions_by_name = {decision.name: decision for _, decision in decisions}
         issues: list[TraceabilityIssue] = []
         if review.schema_version != 1:
             issues.append(
@@ -259,7 +260,16 @@ class TraceabilityValidator:
                         )
                     )
                 elif obtained.superseded_by:
-                    replacement = ", ".join(obtained.superseded_by)
+                    complete_replacements = tuple(
+                        reference
+                        for reference in obtained.superseded_by
+                        if (successor := decisions_by_name.get(reference.rsplit("/", 1)[-1]))
+                        is None
+                        or obtained.name not in successor.partially_supersedes
+                    )
+                    if not complete_replacements:
+                        continue
+                    replacement = ", ".join(complete_replacements)
                     issues.append(
                         self._issue(
                             "superseded-decision",

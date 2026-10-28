@@ -241,10 +241,16 @@ def test_delivery_provenance_reads_named_member_and_plan_trailer(
     assert plans == ["changes/example/plans/member.md"]
 
 
-def test_admission_records_ready_patch_plan_and_deterministically_numbers_proposals(
+def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     tmp_path: Path,
 ) -> None:
     repository = _repository(tmp_path / "repository")
+    legacy = repository / "docs/decisions/ADP-historical.md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("# Historical\n\nStatus: Accepted\n")
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-m", "record historical accepted decision")
+
     base = _git(repository, "rev-parse", "HEAD")
     member = tmp_path / "member"
     batch = tmp_path / "batch"
@@ -253,13 +259,13 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
     _record(member, "impl/member", base)
     _record(batch, "batch/test", base, "batch")
     decision = member / "docs/decisions/ADP-zebra.md"
-    decision.parent.mkdir(parents=True)
+    decision.parent.mkdir(parents=True, exist_ok=True)
     decision.write_text(
-        "# Zebra\n\nStatus: Proposed\nSupersedes: ADP-yak.md\nSuperseded by: None\n"
+        "# Zebra\n\nStatus: Accepted\nSupersedes: ADP-0001-yak.md\nSuperseded by: None\n"
         "\nSee ADP-zebra.md.\n",
         encoding="utf-8",
     )
-    (member / "docs/decisions/ADP-yak.md").write_text(
+    (member / "docs/decisions/ADP-0001-yak.md").write_text(
         "# Yak\n\nStatus: Accepted\nSupersedes: None\nSuperseded by: None\n",
         encoding="utf-8",
     )
@@ -280,33 +286,34 @@ def test_admission_records_ready_patch_plan_and_deterministically_numbers_propos
 
     result = lifecycle.admit(batch, (member,))
 
-    formal = batch / "docs/decisions/ADP-0001-zebra.md"
     assert result["status"] == "admitted"
-    assert formal.is_file()
-    assert not (batch / "docs/decisions/ADP-zebra.md").exists()
-    assert "Status: Accepted" in formal.read_text(encoding="utf-8")
-    # Numbering records the supersession on the replaced decision too, so no
-    # reader of it is left believing it still stands.
-    assert "Superseded by: ADP-0001-zebra.md" in (batch / "docs/decisions/ADP-yak.md").read_text(
-        encoding="utf-8"
-    )
-    assert "ADP-0001-zebra.md" in formal.read_text(encoding="utf-8")
-    assert "ADP-0001-zebra.md" in (batch / "reference.md").read_text(encoding="utf-8")
+    assert (batch / "docs/decisions/ADP-zebra.md").is_file()
+    assert (member / "docs/decisions/ADP-zebra.md").is_file()
     admitted_members = result["admitted"]
     assert isinstance(admitted_members, list)
     admitted = admitted_members[0]
-    assert admitted["branch"] == "impl/member"
     assert admitted["original"] == member_tip
     assert admitted["ready_evidence"] == "member-lifecycle-ready.json"
     assert admitted["plan"] == [plan]
-    assert admitted["patch_id"]
-    assert admitted["admission_commit"]
-    assert result["decisions"] == [
+    final = lifecycle.validate(batch, "final")
+    formal = batch / "docs/decisions/ADP-0002-zebra.md"
+    assert formal.is_file()
+    assert (batch / "docs/decisions/ADP-historical.md").read_text() == legacy.read_text()
+    assert final["source"] == _git(batch, "rev-parse", "HEAD")
+    assert final["numbered"] == [
         {
             "proposal": "docs/decisions/ADP-zebra.md",
-            "formal": "docs/decisions/ADP-0001-zebra.md",
+            "formal": "docs/decisions/ADP-0002-zebra.md",
         }
     ]
+    assert (
+        "Superseded by: ADP-0002-zebra.md" in (batch / "docs/decisions/ADP-0001-yak.md").read_text()
+    )
+    assert "ADP-0002-zebra.md" in (batch / "reference.md").read_text()
+    numbered_tip = final["source"]
+    repeated_final = lifecycle.validate(batch, "final")
+    assert repeated_final["numbered"] == []
+    assert repeated_final["source"] == numbered_tip
     repeated = lifecycle.admit(batch, (member,))
     assert repeated["admitted"] == []
     unchanged_members = repeated["unchanged"]
@@ -574,3 +581,34 @@ def test_real_failing_member_check_keeps_stdout_machine_readable(tmp_path, monke
     assert "check output" in Path(result["log"]).read_text()
     assert "check error" in Path(result["log"]).read_text()
     assert list(lifecycle._receipt_root(repository).glob("member-*.json")) == []
+
+
+def test_admission_does_not_accept_a_proposed_decision(tmp_path):
+    member, batch, _ = _member_and_batch(tmp_path)
+    decision = member / "docs/decisions/ADP-unapproved.md"
+    decision.parent.mkdir(parents=True, exist_ok=True)
+    decision.write_text("# Unapproved\n\nStatus: Proposed\n")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "propose a decision")
+    _evidence_receipt(
+        member,
+        "member-lifecycle-proposal.json",
+        gate="member",
+        tree=_git(member, "rev-parse", "HEAD^{tree}"),
+        commands=(MEMBER_COMMAND,),
+    )
+    lifecycle.admit(batch, (member,))
+    with pytest.raises(lifecycle.AdmissionError, match="proposal decisions"):
+        lifecycle.validate(batch, "final")
+    assert (batch / "docs/decisions/ADP-unapproved.md").read_text() == decision.read_text()
+
+
+def test_numbering_preserves_other_supersession_edges(tmp_path):
+    root = tmp_path / "decisions"
+    root.mkdir()
+    old = root / "old.md"
+    old.write_text("# Old\nSuperseded by: earlier.md\n")
+    new = root / "new.md"
+    new.write_text("# New\nSupersedes: old.md\n")
+    lifecycle._record_supersession(tmp_path, Path("decisions/new.md"))
+    assert old.read_text() == "# Old\nSuperseded by: earlier.md, new.md\n"

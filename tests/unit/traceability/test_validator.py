@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -202,3 +203,32 @@ def test_rejection_requires_an_existing_new_change() -> None:
     )
 
     assert "dangling-linked-change" in {issue.code for issue in report.issues}
+
+
+@pytest.mark.parametrize("partial", [False, True])
+def test_partial_supersession_preserves_the_remaining_decision_authority(partial):
+    review_path, review, specifications, plans, inventory, decisions = _documents()
+    old_path, old = decisions[0]
+    new_path = "decisions/new.md"
+    old = old.model_copy(update={"superseded_by": ("new.md",)})
+    new = old.model_copy(
+        update={
+            "path": new_path,
+            "supersedes": (old.name,),
+            "superseded_by": (),
+            "partially_supersedes": (old.name,) if partial else (),
+        }
+    )
+    report = TraceabilityValidator().validate(
+        TraceabilityManifest(schema_version=1),
+        inventory.model_copy(update={"paths": inventory.paths | {new_path}}),
+        review_path,
+        review,
+        specifications,
+        plans,
+        None,
+        ((old_path, old), (new_path, new)),
+    )
+    assert report.valid is partial
+    if not partial:
+        assert {issue.code for issue in report.issues} == {"superseded-decision"}

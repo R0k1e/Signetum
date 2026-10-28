@@ -75,3 +75,23 @@ def test_superseding_an_absent_decision_is_refused(tmp_path: Path) -> None:
     issues = decision_corpus_issues(((successor.path, successor),))
 
     assert [issue.code for issue in issues] == ["dangling-supersession"]
+
+
+def test_partial_supersession_is_loaded_as_an_explicit_edge(tmp_path):
+    path = tmp_path / "ADP-new.md"
+    path.write_text(
+        HEADER.format(status="Accepted", supersedes="ADP-old.md", superseded_by="None")
+        + "\nPartially supersedes: ADP-old.md\n"
+    )
+    decision = load_decision(path, "decisions/ADP-new.md")
+    assert decision.partially_supersedes == ("ADP-old.md",)
+
+
+def test_partial_scope_cannot_refer_to_an_undeclared_supersession(tmp_path):
+    path = tmp_path / "ADP-new.md"
+    path.write_text(
+        HEADER.format(status="Accepted", supersedes="None", superseded_by="None")
+        + "\nPartially supersedes: ADP-old.md\n"
+    )
+    with pytest.raises(ValueError, match="partial supersessions"):
+        load_decision(path, "decisions/ADP-new.md")

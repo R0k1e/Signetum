@@ -52,6 +52,13 @@ class Decision(FrozenModel):
     status: DecisionStatus
     supersedes: tuple[str, ...] = ()
     superseded_by: tuple[str, ...] = ()
+    partially_supersedes: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def partial_edges_are_supersessions(self) -> "Decision":
+        if not set(self.partially_supersedes) <= set(self.supersedes):
+            raise ValueError("partial supersessions must also be declared under Supersedes")
+        return self
 
     @property
     def name(self) -> str:
