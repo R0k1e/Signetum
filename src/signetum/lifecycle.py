@@ -50,6 +50,7 @@ from signetum.operations import (
     OperationStatus,
 )
 from signetum.policy import delivery_policy
+from signetum.profiles import ProfileError, ProfileResourceError
 from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.validation import (
@@ -999,6 +1000,7 @@ def main(arguments: list[str] | None = None) -> int:
     except (
         OperationError,
         ManifestError,
+        ProfileError,
         ValidationGraphError,
         ValidationExecutionError,
         WorkspaceError,
@@ -1008,7 +1010,7 @@ def main(arguments: list[str] | None = None) -> int:
         if isinstance(error, OperationError):
             status = error.status
             expected = error.expected
-        elif isinstance(error, ValidationInfrastructureError):
+        elif isinstance(error, (ValidationInfrastructureError, ProfileResourceError)):
             status = OperationStatus.INFRASTRUCTURE_ERROR
             expected = "restore the declared validation inputs and tools, then retry"
         elif isinstance(error, ValidationExecutionError):

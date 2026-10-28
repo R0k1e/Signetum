@@ -35,6 +35,12 @@ from _signetum_runtime.impact import select_paths
 from _signetum_runtime.inheritance import find_test_inheritance
 from _signetum_runtime.operations import AdmissionError
 from _signetum_runtime.process import run_command
+from _signetum_runtime.profile_catalog import (
+    ProfileError,
+    ProfileResourceError,
+    load_catalog,
+    resolve_profiles,
+)
 from _signetum_runtime.ratchet import ratchet_baseline, run_ratchet
 from _signetum_runtime.receipt_store import ReceiptStore
 from _signetum_runtime.recovery import shard_execution, with_recovery_history
@@ -443,6 +449,20 @@ def _configured_validation(
         )
     graph = resolve_validation_graph((contribution,))
     profiles = _mapping(data.get("profiles", {}), "profiles")
+    try:
+        if set(profiles) - {"enabled", "replacements"}:
+            raise ProfileError("unsupported profile selection fields")
+        catalog_root = Path(__file__).parent / "_signetum_runtime/profile_resources"
+        catalog = load_catalog(lambda name: (catalog_root / name).read_text(encoding="utf-8"))
+        resolved = resolve_profiles(
+            tuple(_strings(profiles.get("enabled", []), "profiles.enabled")),
+            replacements=_mapping(profiles.get("replacements", {}), "profiles.replacements"),
+            catalog=catalog,
+        )
+    except ProfileResourceError as error:
+        raise ValidationInfrastructureError(str(error)) from error
+    except ProfileError as error:
+        raise AdmissionError(str(error)) from error
     repository_config = _mapping(data.get("repository"), "repository")
     identity = _mapping(data.get("signetum"), "signetum")
     schema = identity.get("evidence_schema_digest")
@@ -460,7 +480,7 @@ def _configured_validation(
 
     inputs = ValidationInputs(
         configuration_path="signetum.toml",
-        profiles=tuple(sorted(_strings(profiles.get("enabled", []), "profiles.enabled"))),
+        profiles=tuple(sorted(profile.identity for profile in resolved)),
         lockfiles=tuple(
             sorted(_strings(repository_config.get("lockfiles", []), "repository.lockfiles"))
         ),

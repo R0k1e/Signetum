@@ -16,6 +16,8 @@ from pydantic import (
     model_validator,
 )
 
+from signetum.profiles.catalog import validate_selection
+
 
 class ManifestError(ValueError):
     """A repository configuration violates the supported public contract."""
@@ -61,24 +63,10 @@ class ProfileSelection(BaseModel):
     enabled: tuple[str, ...] = ()
     replacements: dict[str, str] = Field(default_factory=dict)
 
-    @field_validator("enabled")
-    @classmethod
-    def validate_enabled(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        if len(value) != len(set(value)):
-            raise ValueError("profiles.enabled must contain unique identities")
-        for identity in value:
-            _validate_profile_identity(identity)
-        return value
-
-    @field_validator("replacements")
-    @classmethod
-    def validate_replacements(cls, value: dict[str, str]) -> dict[str, str]:
-        for target, replacement in value.items():
-            _validate_profile_identity(target)
-            _validate_profile_identity(replacement)
-            if target == replacement:
-                raise ValueError("a profile cannot replace itself")
-        return value
+    @model_validator(mode="after")
+    def validate_profile_selection(self) -> "ProfileSelection":
+        validate_selection(self.enabled, self.replacements)
+        return self
 
 
 class RepositoryBindings(BaseModel):
@@ -257,11 +245,6 @@ class RepositoryManifest(BaseModel):
 
 
 _MAPPING = TypeAdapter(dict[str, object])
-
-
-def _validate_profile_identity(value: str) -> None:
-    if fullmatch(r"[a-z][a-z0-9-]*@[1-9][0-9]*", value) is None:
-        raise ValueError(f"profile identity must be immutable: {value}")
 
 
 def load_manifest(path: str | Path) -> RepositoryManifest:

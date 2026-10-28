@@ -10,9 +10,11 @@ from importlib.resources import files
 from pathlib import Path
 
 from signetum import __version__
+from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
 
 RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
 MODULES = {
+    "signetum.profiles.catalog": "profile_catalog.py",
     "signetum.delivery": "delivery.py",
     "signetum.operations": "operations.py",
     "signetum.serialization": "serialization.py",
@@ -106,6 +108,9 @@ def runtime_files() -> dict[str, bytes]:
         source_bytes = source.read_bytes()
         sources[module] = hashlib.sha256(source_bytes).hexdigest()
         result[destination] = portable_source(module, source_bytes.decode("utf-8"))
+    profile_resources = files("signetum.resources.profiles")
+    for name in PROFILE_RESOURCE_NAMES:
+        result["profile_resources/" + name] = (profile_resources / name).read_bytes()
     metadata = [
         "# Public content identities generated from installed engine sources.",
         "schema_version = 1",
@@ -165,7 +170,9 @@ def generate_runtime(template: Path, *, check: bool = False) -> None:
                 raise ValueError(f"unmanaged generated runtime path: {path}")
     directory.mkdir(parents=True, exist_ok=True)
     for name, content in expected.items():
-        (directory / name).write_bytes(content)
+        target = directory / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
 
 
 def main() -> None:
