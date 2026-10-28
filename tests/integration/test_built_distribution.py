@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -56,9 +57,30 @@ def test_installed_wheel_generates_the_same_portable_runtime(tmp_path):
     )
     for command in commands:
         subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)  # noqa: S603 -- fixed tools and disposable artifact paths
+    runtime = output / RUNTIME_DIRECTORY
     actual = {
-        path.name: path.read_bytes()
-        for path in (output / RUNTIME_DIRECTORY).iterdir()
+        path.relative_to(runtime).as_posix(): path.read_bytes()
+        for path in runtime.rglob("*")
         if path.is_file()
     }
     assert actual == runtime_files()
+    catalog_probe = """
+import json,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from _signetum_runtime.profile_catalog import load_catalog,resolve_profiles
+root=Path(sys.argv[1])/'_signetum_runtime/profile_resources'
+catalog=load_catalog(lambda name:(root/name).read_text(encoding='utf-8'))
+resolved=resolve_profiles(('python-default@1','git-worktrunk@1'),catalog=catalog)
+assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
+print(json.dumps([item.identity for item in resolved]))
+"""
+    result = subprocess.run(  # noqa: S603 -- isolated installed output, no engine/site packages
+        [str(python), "-I", "-S", "-c", catalog_probe, str(runtime.parent)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == ["shared-core@1", "python-default@1", "git-worktrunk@1"]

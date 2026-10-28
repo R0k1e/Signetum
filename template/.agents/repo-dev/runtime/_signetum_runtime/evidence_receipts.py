@@ -8,9 +8,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 
-from .serialization import ValueDecodeError, dataclass_from_mapping, load_json
-
-type JsonValue = dict[str, JsonValue] | list[JsonValue] | str | int | float | bool | None
+from .serialization import JsonValue, ValueDecodeError, dataclass_from_mapping, load_json
 
 
 class ReceiptError(ValueError):

@@ -8,6 +8,8 @@ from functools import cache
 from types import UnionType
 from typing import NoReturn, TypeAliasType, Union, get_args, get_origin, get_type_hints
 
+type JsonValue = dict[str, JsonValue] | list[JsonValue] | str | int | float | bool | None
+
 
 class ValueDecodeError(ValueError):
     """A serialized value does not have its declared structure or primitive type."""

@@ -9,10 +9,12 @@ import shutil
 import subprocess
 import sys
 import tomllib
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
+from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
 from signetum.runtime_generation import generate_runtime, portable_source, runtime_files
 from signetum.template import render_template, validate_template
 
@@ -128,3 +130,10 @@ def test_generation_refuses_a_symlinked_parent(tmp_path):
     with pytest.raises(ValueError, match="symlink"):
         generate_runtime(target)
     assert list(outside.iterdir()) == []
+
+
+def test_runtime_catalog_resources_are_exact_installed_resource_bytes():
+    outputs = runtime_files()
+    resources = files("signetum.resources.profiles")
+    for name in PROFILE_RESOURCE_NAMES:
+        assert outputs["profile_resources/" + name] == (resources / name).read_bytes()

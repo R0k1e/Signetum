@@ -32,6 +32,7 @@ The generated package is standard-library code; adapters own repository effects.
 
 | Shared authority | Responsibility |
 | --- | --- |
+| `profiles.catalog`, `serialization` | Owned profile syntax, maintained catalog parsing and dependency/authority composition; portable typed JSON values. |
 | `delivery` | Remote-first publication and exact interrupted-publication recovery after adapter-owned qualification. |
 | `operations`, `git`, `workspaces` | Operation values, isolated Git context and immutable workspace/change records. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
@@ -49,7 +50,12 @@ template uses one configuration projection for validation and admission.
 resource observations and explicit host-adapter observations consume the same
 budget algorithm.
 
+Profile resources are emitted byte-for-byte from the installed engine catalog.
+Both adapters use the same parser and resolver. Evidence names resolved
+dependencies and replacements rather than the unresolved enabled list; catalog
+selection does not implicitly execute commands omitted by the repository.
+
 [Tooling alignment](../../changes/align-perdura-development-tooling/specs/tooling.toml)
-still owns the remaining manifest/profile normalization, lifecycle orchestration
+still owns the remaining manifest normalization, lifecycle orchestration
 and durable change-authority migration. Shared validation modules alone do not
 complete that change.
