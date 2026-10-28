@@ -26,6 +26,7 @@ from signetum.change.scope import (
     member_scope,
     require_member_changes,
 )
+from signetum.decision_identity import numbered_targets
 from signetum.deviations import (
     DeviationError,
     approval_view,
@@ -33,6 +34,7 @@ from signetum.deviations import (
     reconciliation_summary,
 )
 from signetum.evidence.receipts import EvidenceReceipt, ReceiptError, ValidationSelection
+from signetum.execution_review import execution_review_inputs
 from signetum.git import GitError, git_output, run_git
 from signetum.impact import select_paths
 from signetum.manifest import ManifestError, RepositoryManifest, load_manifest
@@ -252,11 +254,23 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
         if rewritten:
             raise AdmissionError(f"batch rewrites delivered commitments: {', '.join(rewritten)}")
         change_ids = scope.first_delivered
+        target_moves = numbered_targets(
+            repository, evidence_base, source, manifest.repository.decisions
+        )
+
         member_recoveries = member_recovery_review(
             repository, evidence_base, source, _receipt_root(repository)
         )
         try:
-            reconciliation = reconciliation_summary(repository, change_ids)
+            review_inputs = execution_review_inputs(
+                repository, manifest, evidence_base, source, _receipt_root(repository)
+            )
+            reconciliation = reconciliation_summary(
+                repository,
+                tuple(review_inputs["changes"]),
+                target_moves=target_moves,
+                member_tips=review_inputs["member_tips"],
+            )
             approvals = [
                 approval_view(repository, change_id, root=changes_root(manifest))
                 for change_id in change_ids
@@ -311,6 +325,23 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
     )
     receipt = execute_gate(graph, gate, inputs, adapter, inherited=inherited)
     adapter.require_clean()
+    if kind == "final":
+        if evidence_base is None:
+            raise AdmissionError("final has no recorded batch base")
+        try:
+            if (
+                execution_review_inputs(
+                    repository, manifest, evidence_base, source, _receipt_root(repository)
+                )
+                != review_inputs
+            ):
+                raise AdmissionError(
+                    "delivery review inputs changed during validation; rerun final"
+                )
+        except DeviationError as error:
+            raise AdmissionError(
+                f"delivery review inputs changed during validation: {error}"
+            ) from error
     receipt_path = ReceiptStore(_receipt_root(repository)).write(gate, receipt)
     payload = {
         "schema_version": 2,
@@ -323,6 +354,7 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
     }
     if reconciliation is not None and approvals is not None and scope is not None:
         payload["delivery_review"] = {
+            "inputs": review_inputs,
             "recovered_flake_defects": member_recoveries
             + recovery_projection(receipt, receipt_path, member=None),
             "approvals": approvals,
@@ -595,7 +627,15 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
         "-m",
         "signetum: allocate formal decision identities",
         "-m",
-        f"Signetum-Decision-Base: {base}",
+        "\n".join(
+            (
+                f"Signetum-Decision-Base: {base}",
+                *(
+                    "Signetum-Decision-Rename: " + json.dumps([item["proposal"], item["formal"]])
+                    for item in rewrites
+                ),
+            )
+        ),
     )
     return rewrites
 
@@ -836,6 +876,21 @@ def batch_deliver(
     )
     if matching_receipt is None:
         raise AdmissionError("final receipt does not bind the expected batch tip")
+
+    payload = json.loads(matching_receipt.read_text(encoding="utf-8"))
+    review = payload.get("delivery_review")
+    try:
+        current_inputs = execution_review_inputs(
+            source,
+            load_manifest(source / "signetum.toml"),
+            expected_base,
+            expected_tip,
+            _receipt_root(source),
+        )
+    except DeviationError as error:
+        raise AdmissionError(f"delivery review inputs changed: {error}") from error
+    if not isinstance(review, dict) or review.get("inputs") != current_inputs:
+        raise AdmissionError("delivery review inputs changed or are absent; rerun final")
 
     target_branch = _branch(target)
     if target_branch != delivery_policy(source).branch:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import cache
@@ -15,6 +14,7 @@ from signetum.change.models import (
     Specification,
     SpecificationStatus,
 )
+from signetum.decision_identity import numbered_targets
 from signetum.git import GitError, git_output, run_git
 from signetum.manifest import ManifestError, RepositoryManifest
 from signetum.operations import OperationError
@@ -182,26 +182,12 @@ def changed_commitments(
     )
     if not paths:
         return ()
-    renames = git_output(
-        repository,
-        "log",
-        "--reverse",
-        "--no-merges",
-        "--format=",
-        "--name-status",
-        "--find-renames=50%",
-        "--diff-filter=R",
-        f"{base}..{tip}",
-        "--",
-        manifest.repository.decisions,
-    )
-    rewrites: list[tuple[str, str]] = []
-    for line in filter(None, renames.splitlines()):
-        _, before, after = line.split("\t")
-        old, new = PurePosixPath(before), PurePosixPath(after)
-        numbered = re.fullmatch(r"ADP-\d{4}-(.+)\.md", new.name)
-        if numbered and old.parent == new.parent and old.name == f"ADP-{numbered[1]}.md":
-            rewrites.append((old.name, new.name))
+    rewrites = [
+        (PurePosixPath(old).name, PurePosixPath(new).name)
+        for old, new in numbered_targets(
+            repository, base, tip, manifest.repository.decisions
+        ).items()
+    ]
     changed: list[str] = []
     for path in paths:
         before = run_git(repository, "show", f"{base}:{path}")
