@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 import tomllib
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from signetum.change.scope import changes_root
-from signetum.git import GitError, git_output
+from signetum.git import GitError, git_output, run_git
 from signetum.manifest import load_manifest
 from signetum.workspaces import WorkspaceError, claim_change
 
@@ -59,6 +61,7 @@ class Discovered(FrozenModel):
     original_commitment: str = Field(min_length=1)
     action: str = Field(min_length=1)
     impact: str = Field(min_length=1)
+    source_commit: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 
 
 class Resolved(FrozenModel):
@@ -104,6 +107,10 @@ def append_event(repository: Path, event: DeviationEvent) -> Path:
     """Validate and append exactly one complete event with O_APPEND semantics."""
     if isinstance(event, Discovered):
         require_change_workspace(repository, event.change_id, event.member)
+        source = git_output(repository, "rev-parse", "HEAD")
+        if event.source_commit is not None and event.source_commit != source:
+            raise DeviationError("discovery source differs from the observed member commit")
+        event = event.model_copy(update={"source_commit": source})
         try:
             claim_change(git_common_dir(repository) / "signetum", event.change_id, event.member)
         except WorkspaceError as error:
@@ -142,14 +149,20 @@ def require_change_workspace(repository: Path, change_id: str, member: str) -> N
         raise DeviationError(f"change package {root}/{change_id} is absent from member {member}")
 
 
-def changes_naming_member(repository: Path, member: str) -> tuple[str, ...]:
+def changes_naming_member(
+    repository: Path, member: str, *, tips: Sequence[str] | None = None
+) -> tuple[str, ...]:
     root = git_common_dir(repository) / "signetum" / "changes"
     named: list[str] = []
     for ledger in sorted(root.rglob("deviations.jsonl")):
         if json.dumps(member) not in ledger.read_text(encoding="utf-8"):
             continue
         change_id = ledger.parent.relative_to(root).as_posix()
-        if any(state.discovered.member == member for state in read_states(repository, change_id)):
+        if any(
+            state.discovered.member == member
+            and _visible_state(repository, state, {member: tips} if tips is not None else None)
+            for state in read_states(repository, change_id)
+        ):
             named.append(change_id)
     return tuple(named)
 
@@ -192,7 +205,63 @@ def read_states(repository: Path, change_id: str) -> tuple[DeviationState, ...]:
     )
 
 
-def reconciliation_summary(repository: Path, change_ids: tuple[str, ...]) -> dict[str, object]:
+def _visible_state(
+    repository: Path, state: DeviationState, member_tips: Mapping[str, Sequence[str]] | None
+) -> bool:
+    event = state.discovered
+    if member_tips is None or event.member not in member_tips or event.source_commit is None:
+        return True
+    for tip in member_tips[event.member]:
+        result = run_git(repository, "merge-base", "--is-ancestor", event.source_commit, tip)
+        if result.returncode == 0:
+            return True
+        if result.returncode != 1:
+            raise DeviationError(f"discovery source cannot be verified: {event.source_commit}")
+    return False
+
+
+class ReviewSnapshot(TypedDict):
+    changes: list[str]
+    members: list[str]
+    ledgers: dict[str, str]
+
+
+def review_snapshot(
+    repository: Path,
+    change_ids: tuple[str, ...],
+    members: tuple[str, ...],
+    *,
+    member_tips: Mapping[str, Sequence[str]] | None = None,
+) -> ReviewSnapshot:
+    """Bind retained execution records, including newly named change packages."""
+    selected = set(change_ids)
+    for member in members:
+        selected.update(
+            changes_naming_member(
+                repository,
+                member,
+                tips=member_tips.get(member) if member_tips is not None else None,
+            )
+        )
+    ledgers: dict[str, str] = {}
+    for change_id in sorted(selected):
+        states = tuple(
+            state
+            for state in read_states(repository, change_id)
+            if _visible_state(repository, state, member_tips)
+        )
+        content = b"\n".join(state.model_dump_json().encode() for state in states)
+        ledgers[change_id] = hashlib.sha256(content).hexdigest()
+    return {"changes": sorted(selected), "members": sorted(set(members)), "ledgers": ledgers}
+
+
+def reconciliation_summary(
+    repository: Path,
+    change_ids: tuple[str, ...],
+    *,
+    target_moves: Mapping[str, str] | None = None,
+    member_tips: Mapping[str, Sequence[str]] | None = None,
+) -> dict[str, object]:
     """Validate terminal resolutions and return delivery-review source data."""
     changes: list[dict[str, object]] = []
     pending: list[str] = []
@@ -201,9 +270,26 @@ def reconciliation_summary(repository: Path, change_ids: tuple[str, ...]) -> dic
     unfinished_work: list[str] = []
     authority_updates: set[str] = set()
     for change_id in sorted(set(change_ids)):
-        states = read_states(repository, change_id)
+        states = tuple(
+            state
+            for state in read_states(repository, change_id)
+            if _visible_state(repository, state, member_tips)
+        )
         rows: list[dict[str, object]] = []
         for state in states:
+            recorded_targets = state.resolution.targets if state.resolution else ()
+            if state.resolution and target_moves:
+                state = state.model_copy(
+                    update={
+                        "resolution": state.resolution.model_copy(
+                            update={
+                                "targets": tuple(
+                                    target_moves.get(path, path) for path in recorded_targets
+                                )
+                            }
+                        )
+                    }
+                )
             deviation_count += 1
             if state.resolution is None:
                 pending.append(f"{change_id}/{state.discovered.id}")
@@ -220,12 +306,14 @@ def reconciliation_summary(repository: Path, change_ids: tuple[str, ...]) -> dic
                     "summary": state.discovered.summary,
                     "classification": state.discovered.classification.value,
                     "member": state.discovered.member,
+                    "source_commit": state.discovered.source_commit,
                     "resolution": (
                         state.resolution.resolution.value
                         if state.resolution is not None
                         else "pending"
                     ),
                     "targets": list(state.resolution.targets) if state.resolution else [],
+                    "recorded_targets": list(recorded_targets),
                     "reason": state.resolution.reason if state.resolution else "",
                 }
             )

@@ -270,3 +270,23 @@ def test_a_linked_member_cannot_resolve_another_active_members_discovery(reposit
     with pytest.raises(DeviationError, match="not the branch checked out"):
         append_event(other, resolution)
     assert read_states(repository, "example")[0].resolution is None
+
+
+def test_new_discovery_binds_the_observed_commit(repository):
+    event = _discovered()
+    append_event(repository, event)
+    state = read_states(repository, "example")[0]
+    assert state.discovered.source_commit == _git(repository, "rev-parse", "HEAD")
+    forged = event.model_copy(update={"id": "forged", "source_commit": "a" * 40})
+    with pytest.raises(DeviationError, match="observed member commit"):
+        append_event(repository, forged)
+
+
+def test_unbound_legacy_discovery_is_not_silently_excluded(repository):
+    event = json.loads(_discovered().model_dump_json())
+    event.pop("source_commit")
+    path = ledger_path(repository, "example")
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(event) + "\n")
+    with pytest.raises(DeviationError, match="unresolved deviations"):
+        reconciliation_summary(repository, ("example",), member_tips={"impl/example": ("HEAD",)})

@@ -69,7 +69,13 @@ Readiness and final validation require member and batch workspace roles respecti
 
 Actual committed paths identify each batch's first-delivered changes and their
 Plans; a trailer cannot omit or invent delivery scope. Final reviews first-delivered
-packages and lists historical Plan edits separately. Delivered Review and
+packages and lists historical Plan edits separately. Its reconciliation also
+covers discoveries associated with every exact admitted member, including
+packages whose approval was delivered earlier. It does not reopen their approval
+or include unrelated active members. New discoveries bind the observed source
+commit; later unadmitted commits do not enter an earlier batch. Legacy discoveries
+without a commit remain conservatively visible. Once the later tip is admitted,
+its retained discoveries must also reconcile. Delivered Review and
 Specification edits are refused except for exact decision-numbering substitutions.
 A later intent requires its own change rather than rewriting accepted history.
 
@@ -188,7 +194,10 @@ architecture authority, behavior test, explicit follow-up Change, justified
 rejection, or justified no-authority-change result. `final` numbers accepted proposals under the batch lock, then validates the
 frozen resulting tip. It refuses unapproved proposals and an unresolved ledger and places approval plus reconciliation data in
 the exact final receipt. The Agent projects that data as a delivery review
-before explicit delivery. The review is not another tracked authority.
+before explicit delivery. The review is not another tracked authority. Its inputs bind canonical retained
+execution records and the bytes of each admitted member receipt. Final rechecks
+those inputs after validation before writing a receipt, and delivery rechecks
+them before publication; a changed or missing binding requires final again.
 
 The delivery review projects recovered defects from the exact member receipts
 named in admission provenance and from the current final receipt, preserving
@@ -210,7 +219,11 @@ merge names batch-continue instead of printing a second result.
 Final numbers newly accepted, unnumbered decisions once under the batch lock.
 Accepted historical decisions already present at the base keep their identities.
 Numbering preserves existing supersession edges and never changes approval
-status. A successor uses Partially supersedes for the subset of Supersedes
+status. Each numbering commit records exact `Signetum-Decision-Rename` pairs
+bound to its batch base. Review projects recorded resolution targets through
+those verified committed identity moves, retaining both original and current
+paths without rewriting the ledger. Delivered-commitment normalization consumes
+the same mapping rather than inferring moves from rename similarity. A successor uses Partially supersedes for the subset of Supersedes
 edges whose unaffected clauses remain authoritative; complete replacements
 continue to invalidate current authority citations.
 

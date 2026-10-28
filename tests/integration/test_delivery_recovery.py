@@ -6,8 +6,11 @@ from pathlib import Path
 from shutil import which
 
 import pytest
+from test_batch_admission import MANIFEST
 
 from signetum import lifecycle
+from signetum.execution_review import execution_review_inputs
+from signetum.manifest import load_manifest
 from signetum.operations import OperationFailed
 from signetum.workspaces import WorkspaceRecord, write_record
 
@@ -31,6 +34,7 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     git(target, "config", "user.name", "Delivery Test")
     git(target, "config", "user.email", "delivery@example.invalid")
     (target / "content").write_text("base")
+    (target / "signetum.toml").write_text(MANIFEST)
     policy = target / ".agents/repo-dev/repo.yaml"
     policy.parent.mkdir(parents=True)
     policy.write_text("delivery:\n  branch: main\n")
@@ -53,7 +57,18 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     )
     receipts = lifecycle._receipt_root(source)
     (receipts / "final-test.json").write_text(
-        json.dumps({"source": tip, "base": base, "valid": True})
+        json.dumps(
+            {
+                "source": tip,
+                "base": base,
+                "valid": True,
+                "delivery_review": {
+                    "inputs": execution_review_inputs(
+                        source, load_manifest(source / "signetum.toml"), base, tip, receipts
+                    )
+                },
+            }
+        )
     )
     (receipts / "final-zzz.json").write_text(
         json.dumps({"source": base, "base": base, "valid": True})
