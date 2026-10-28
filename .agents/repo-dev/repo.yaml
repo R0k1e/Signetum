@@ -28,7 +28,7 @@ repository:
     profiles: signetum.resources.profiles
   validation:
     targeted: uv run pytest tests/unit tests/integration/test_cli_manifest.py
-    complete: uv run pre-commit run --all-files
+    complete: uv run signetum lifecycle final
   lifecycle:
     public_operations:
       - workspace-open

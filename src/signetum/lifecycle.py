@@ -61,6 +61,7 @@ from signetum.validation.execution import (
     execute_gate,
     require_recovery_limit,
 )
+from signetum.validation.inheritance import find_test_inheritance
 from signetum.validation.repository import (
     ReceiptStore,
     RepositoryValidationAdapter,
@@ -68,6 +69,7 @@ from signetum.validation.repository import (
     with_recovery_history,
 )
 from signetum.validation.repository import configured_validation as _runtime_validation
+from signetum.validation.review import member_recovery_review, recovery_projection
 from signetum.waivers import WaiverError, load_waivers
 from signetum.workspace_operations import (
     batch_discard,
@@ -219,6 +221,7 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
             raise AdmissionError(str(error)) from error
     evidence_base = _recorded_base(repository) if kind == "final" else None
     scope = None
+    member_recoveries = []
     if kind == "final":
         if evidence_base is None:
             raise AdmissionError("final has no recorded batch base")
@@ -231,6 +234,9 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
         if rewritten:
             raise AdmissionError(f"batch rewrites delivered commitments: {', '.join(rewritten)}")
         change_ids = scope.first_delivered
+        member_recoveries = member_recovery_review(
+            repository, evidence_base, source, _receipt_root(repository)
+        )
         try:
             reconciliation = reconciliation_summary(repository, change_ids)
             approvals = [
@@ -278,7 +284,15 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
         _receipt_root(repository),
     )
     adapter = RepositoryValidationAdapter(repository)
-    receipt = execute_gate(graph, gate, inputs, adapter)
+    inherited = (
+        find_test_inheritance(
+            repository, manifest, graph, inputs, adapter, _receipt_root(repository)
+        )
+        if kind == "member"
+        else None
+    )
+    receipt = execute_gate(graph, gate, inputs, adapter, inherited=inherited)
+    adapter.require_clean()
     receipt_path = ReceiptStore(_receipt_root(repository)).write(gate, receipt)
     payload = {
         "schema_version": 2,
@@ -291,6 +305,8 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
     }
     if reconciliation is not None and approvals is not None and scope is not None:
         payload["delivery_review"] = {
+            "recovered_flake_defects": member_recoveries
+            + recovery_projection(receipt, receipt_path, member=None),
             "approvals": approvals,
             "reconciliation": reconciliation,
             "previously_delivered": [

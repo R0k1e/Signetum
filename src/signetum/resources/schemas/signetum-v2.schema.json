@@ -195,6 +195,8 @@
               "requires": {
                 "$ref": "#/$defs/uniqueStrings"
               },
+              "inherit": {"type": "boolean"},
+              "timeout_seconds": {"type": "integer", "minimum": 1},
               "evidence": {
                 "enum": [
                   "tree",

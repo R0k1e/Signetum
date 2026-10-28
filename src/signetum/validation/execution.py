@@ -40,6 +40,15 @@ class ShardExecution:
     recovered: tuple[dict[str, JsonValue], ...] = ()
 
 
+@dataclass(frozen=True)
+class InheritedEvidence:
+    """Adapter-verified ancestor evidence and the test shards permitted to inherit."""
+
+    receipt: EvidenceReceipt
+    source_receipt: str
+    shards: frozenset[str]
+
+
 class ValidationAdapter(Protocol):
     """Repository-owned effects required by the generic execution engine."""
 
@@ -164,6 +173,8 @@ def execute_gate(
     gate: str,
     inputs: ValidationInputs,
     adapter: ValidationAdapter,
+    *,
+    inherited: InheritedEvidence | None = None,
 ) -> EvidenceReceipt:
     """Execute one resolved gate and compose only its successful shard evidence.
 
@@ -178,6 +189,23 @@ def execute_gate(
     failures: list[str] = []
     unproven: set[str] = set()
     recovered: list[dict[str, JsonValue]] = []
+    inherited_names: list[str] = []
+    reusable: dict[str, ShardOutcome] = {}
+    if inherited is not None and gate == "member":
+        previous = inherited.receipt
+        if (
+            previous.execution.gates == ("member",)
+            and previous.completeness.member
+            and previous.schema_digest == inputs.schema_digest
+            and replace(previous.identity, commit=identity.commit, tree=identity.tree) == identity
+        ):
+            reusable = {
+                outcome.name: outcome
+                for outcome in previous.execution.shards
+                if outcome.name in inherited.shards
+                and outcome.evidence == "tree"
+                and outcome.status == "passed"
+            }
     for name in graph.execution_order(gate):
         shard = shard_by_name[name]
         blocked = sorted(unproven.intersection(shard.requires))
@@ -186,7 +214,11 @@ def execute_gate(
             failures.append(f"{name}: skipped after {', '.join(blocked)}")
             continue
         try:
-            outcome = _resolve_outcome(shard, inputs, adapter, today=today, recovered=recovered)
+            if shard.inherit and name in reusable and reusable[name].command_digest == shard.digest:
+                outcome = reusable[name]
+                inherited_names.append(name)
+            else:
+                outcome = _resolve_outcome(shard, inputs, adapter, today=today, recovered=recovered)
         except ValidationExecutionError as error:
             unproven.add(name)
             failures.append(str(error))
@@ -202,6 +234,8 @@ def execute_gate(
         )
     if failures:
         raise ValidationExecutionError("; ".join(failures))
+    if build_evidence_identity(graph, inputs, adapter) != identity:
+        raise ValidationExecutionError("validation inputs changed during execution")
     if gate == "member":
         require_recovery_limit(recovered, inputs)
     receipt = combine_shard_evidence(
@@ -209,15 +243,27 @@ def execute_gate(
         required_shards=graph.execution_order(gate),
         receipts=tuple(receipts),
     )
-    if recovered:
-        return replace(
-            receipt,
-            extensions={
-                "recovered_flake_defects": [
-                    {**defect, "gate": gate, "source": identity.commit} for defect in recovered
-                ]
-            },
-        )
+    extensions: dict[str, JsonValue] = {}
+    defects: list[JsonValue] = [
+        {**defect, "gate": gate, "source": identity.commit} for defect in recovered
+    ]
+    if inherited_names and inherited is not None:
+        extensions["inherited_test_evidence_from"] = {
+            "commit": inherited.receipt.identity.commit,
+            "receipt": inherited.source_receipt,
+            "shards": inherited_names,
+        }
+        prior_defects = inherited.receipt.extensions.get("recovered_flake_defects", [])
+        if isinstance(prior_defects, list):
+            defects.extend(
+                {**defect, "inherited_from": inherited.source_receipt}
+                for defect in prior_defects
+                if isinstance(defect, dict) and defect.get("shard") in inherited_names
+            )
+    if defects:
+        extensions["recovered_flake_defects"] = defects
+    if extensions:
+        return replace(receipt, extensions=extensions)
     return receipt
 
 

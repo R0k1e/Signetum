@@ -93,6 +93,7 @@ requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:pytest"
+inherit = true
 command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--"]
 requires = ["engine:sync"]
 

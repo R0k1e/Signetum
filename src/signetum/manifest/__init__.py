@@ -161,6 +161,13 @@ class ValidationShard(BaseModel):
     evidence: Literal["tree", "world"] = "tree"
     findings_command: tuple[str, ...] = ()
     timeout_seconds: int = Field(default=1800, gt=0)
+    inherit: bool = False
+
+    @model_validator(mode="after")
+    def validate_inheritance(self) -> "ValidationShard":
+        if self.inherit and self.evidence != "tree":
+            raise ValueError("only tree test evidence can be inherited")
+        return self
 
     @field_validator("findings_command")
     @classmethod

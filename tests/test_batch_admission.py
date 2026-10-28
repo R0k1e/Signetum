@@ -12,9 +12,10 @@ from typing import Literal
 
 import pytest
 from change_fixtures import approve_change as _approve_change
+from pydantic import JsonValue
 
 import signetum.lifecycle as lifecycle
-from signetum.validation.execution import build_evidence_identity
+from signetum.validation.execution import ShardExecution, build_evidence_identity
 from signetum.workspaces import WorkspaceRecord, write_record
 
 
@@ -384,6 +385,50 @@ def test_a_completed_final_gate_satisfies_member_admission(tmp_path: Path) -> No
     admitted = result["admitted"]
     assert isinstance(admitted, list)
     assert admitted[0]["ready_evidence"] == "final-lifecycle-frozen.json"
+
+
+def test_final_review_projects_member_and_final_recovered_defects(tmp_path, monkeypatch):
+    member, batch, _ = _member_and_batch(tmp_path)
+    defect: dict[str, JsonValue] = {
+        "node_id": "tests/test_contract.py::test_contract",
+        "first_failure": [{"phase": "call", "outcome": "failed", "diagnostic": "first contention"}],
+    }
+    monkeypatch.setattr(
+        lifecycle.RepositoryValidationAdapter,
+        "run_shard",
+        lambda self, shard: ShardExecution(True, recovered=(defect,)),
+    )
+    ready = lifecycle.validate(member, "member")
+    lifecycle.admit(batch, (member,))
+    final = lifecycle.validate(batch, "final")
+    review = final["delivery_review"]
+    assert isinstance(review, dict)
+    defects = review["recovered_flake_defects"]
+    assert len(defects) == 2
+    assert {item["source_gate"] for item in defects} == {"member", "final"}
+    assert any(item["source_receipt"] == ready["receipt"] for item in defects)
+    assert all("first contention" in str(item["first_failure"]) for item in defects)
+
+
+@pytest.mark.parametrize("damage", ["missing", "altered", "different-tip"])
+def test_final_refuses_invalid_provenance_named_member_evidence(tmp_path, damage):
+    member, batch, _ = _member_and_batch(tmp_path)
+    ready = lifecycle.validate(member, "member")
+    lifecycle.admit(batch, (member,))
+    receipt = ready["receipt"]
+    assert isinstance(receipt, str)
+    path = Path(receipt)
+    if damage == "missing":
+        path.unlink()
+    else:
+        payload = json.loads(path.read_text())
+        if damage == "altered":
+            payload["evidence"]["extensions"]["unexpected"] = "changed"
+        else:
+            payload["evidence"]["identity"]["commit"] = "f" * 40
+        path.write_text(json.dumps(payload))
+    with pytest.raises(lifecycle.AdmissionError, match="admitted member evidence"):
+        lifecycle.validate(batch, "final")
 
 
 def test_final_evidence_cannot_bypass_repeated_member_recovery_policy(tmp_path: Path) -> None:

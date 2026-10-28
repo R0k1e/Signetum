@@ -12,6 +12,10 @@ check and format contracts, Bandit scan, and dependency audit used by CI; the
 older isolated pre-commit tool version is feedback rather than the sole static
 authority.
 
+The named pytest shard owns gate test execution. Pre-commit composes static
+hooks only, so inherited member tests are not secretly rerun by a static hook.
+The declared complete operation is the configured final lifecycle gate.
+
 Every shard declares an evidence class. A `tree` shard is a pure function of
 the observed tree and the bound tool identities, so a successful identity stays
 successful. A `world` shard also reads mutable state outside the tree, such as
@@ -70,6 +74,19 @@ matches. World outcomes never substitute for tree evidence. A new tip requires
 fresh readiness even when its tree is unchanged. Selection's requires_final
 flag declares additional batch responsibility and never waives member checks.
 
+Only tree test shards explicitly declaring `inherit = true` may reuse the
+nearest receipted first-parent ancestor in the member's `base..HEAD` range.
+The ancestor's committed tree and file inputs must verify, and base,
+configuration, profiles, graph, schema, lockfiles and current tool identities
+must still match. Every intervening path must be explained and select no
+inheritable test, including through gate/dependency expansion; changed tests
+always prevent inheritance. An incompatible or damaged nearest receipt runs
+tests again instead of falling back to an older one. Static checks rerun.
+The new receipt binds the new tip and records `inherited_test_evidence_from`;
+carried first failures remain visible without counting as new recoveries.
+Final never inherits tests. Before publishing success, gates re-observe their
+input identity and require the workspace to remain clean.
+
 The Python test adapter is `python -m signetum.validation.pytest_runner -- <pytest
 arguments>`. Only pytest exit 1 with one through thirty explicitly failed nodes
 permits one retry. The retry preserves repository pytest configuration, selects
@@ -113,6 +130,12 @@ rejection, or justified no-authority-change result. `final` numbers accepted pro
 frozen resulting tip. It refuses unapproved proposals and an unresolved ledger and places approval plus reconciliation data in
 the exact final receipt. The Agent projects that data as a delivery review
 before explicit delivery. The review is not another tracked authority.
+
+The delivery review projects recovered defects from the exact member receipts
+named in admission provenance and from the current final receipt, preserving
+the source receipt, gate, commit and complete first failure. Missing, altered
+or differently bound admitted evidence refuses final; unrelated local receipts
+never enter the review.
 
 ## Operation results
 

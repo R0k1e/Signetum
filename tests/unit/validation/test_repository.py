@@ -1,4 +1,5 @@
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -157,3 +158,38 @@ def test_repository_adapter_refuses_escaping_and_missing_inputs(tmp_path: Path) 
         adapter.read_file("../outside")
     with pytest.raises(ValidationExecutionError, match="unavailable"):
         adapter.read_file("missing.lock")
+
+
+@pytest.mark.parametrize("path", ["uv.lock", "unexpected-source.py"])
+def test_validation_cannot_publish_success_after_mutating_inputs(tmp_path, path):
+    repository = _repository(tmp_path)
+    graph = resolve_validation_graph(
+        (
+            GraphContribution(
+                "fixture",
+                (
+                    ValidationShard(
+                        "test:mutate",
+                        (
+                            sys.executable,
+                            "-c",
+                            "from pathlib import Path; import sys; "
+                            "Path(sys.argv[1]).write_text('changed')",
+                            path,
+                        ),
+                    ),
+                ),
+                (GateDeclaration("final", ("test:mutate",)),),
+            ),
+        )
+    )
+    receipts = tmp_path / "receipts"
+    with pytest.raises(ValidationExecutionError, match=r"inputs changed|worktree is not clean"):
+        run_repository_gate(
+            repository,
+            graph,
+            "final",
+            ValidationInputs("signetum.toml", (), ("uv.lock",), ()),
+            receipts,
+        )
+    assert not list(receipts.glob("*.json"))
