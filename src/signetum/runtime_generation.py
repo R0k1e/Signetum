@@ -14,6 +14,18 @@ from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
 
 RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
 MODULES = {
+    "signetum.change.authority": "change_authority.py",
+    "signetum.deviations": "deviations.py",
+    "signetum.contract_values": "contract_values.py",
+    "signetum.change.models": "change_models.py",
+    "signetum.change.scope": "change_scope.py",
+    "signetum.decision_identity": "decision_identity.py",
+    "signetum.status.models": "status_models.py",
+    "signetum.status.projector": "status_projector.py",
+    "signetum.traceability.boundary": "traceability_boundary.py",
+    "signetum.traceability.loading": "traceability_loading.py",
+    "signetum.traceability.validator": "traceability_validator.py",
+    "signetum.traceability.cli": "traceability_cli.py",
     "signetum.manifest": "manifest.py",
     "signetum.validation.configuration": "configuration.py",
     "signetum.profiles.catalog": "profile_catalog.py",

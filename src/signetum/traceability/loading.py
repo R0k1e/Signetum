@@ -2,9 +2,8 @@
 
 import re
 import tomllib
+from dataclasses import fields
 from pathlib import Path
-
-from pydantic import TypeAdapter, ValidationError
 
 from signetum.change.models import (
     Decision,
@@ -13,28 +12,29 @@ from signetum.change.models import (
     Review,
     Specification,
 )
+from signetum.serialization import dataclass_from_mapping
 
-_MAPPING = TypeAdapter(dict[str, object])
 _TABLE_ROW = re.compile(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$")
 
 
 def _mapping(document: object, key: str) -> dict[str, object]:
-    outer = _MAPPING.validate_python(document)
-    return _MAPPING.validate_python(outer[key])
+    if not isinstance(document, dict) or not isinstance(document.get(key), dict):
+        raise ValueError(f"missing or invalid {key} contract")
+    return document[key]
 
 
 def parse_review(text: str) -> Review:
     raw = _mapping(tomllib.loads(text), "review")
-    return Review.model_validate(raw, strict=False)
+    return dataclass_from_mapping(Review, raw, use_defaults=True)
 
 
 def parse_specification(text: str) -> Specification:
     raw = _mapping(tomllib.loads(text), "specification")
-    known = set(Specification.model_fields)
+    known = {field.name for field in fields(Specification)}
     extensions = {key: value for key, value in raw.items() if key not in known}
     normalized = {key: value for key, value in raw.items() if key in known}
     normalized["extensions"] = extensions
-    return Specification.model_validate(normalized, strict=False)
+    return dataclass_from_mapping(Specification, normalized, use_defaults=True)
 
 
 def load_review(path: Path) -> Review:
@@ -121,7 +121,8 @@ def load_plan(path: Path, change_id: str) -> Plan:
                     }
                 )
     try:
-        return Plan.model_validate(
+        return dataclass_from_mapping(
+            Plan,
             {
                 "id": f"{change_id}/{path.stem}",
                 "status": fields["status"],
@@ -129,7 +130,7 @@ def load_plan(path: Path, change_id: str) -> Plan:
                 "approved_base": fields["approved_base"],
                 "obligations": obligations,
             },
-            strict=False,
+            use_defaults=True,
         )
-    except (KeyError, ValidationError) as error:
+    except (KeyError, ValueError) as error:
         raise ValueError(f"invalid Plan document: {path}") from error

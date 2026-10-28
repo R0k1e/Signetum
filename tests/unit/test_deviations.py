@@ -3,6 +3,7 @@ from __future__ import annotations
 import fcntl
 import json
 import subprocess
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
@@ -14,11 +15,13 @@ from test_batch_admission import MANIFEST
 from signetum.deviations import (
     DeviationClass,
     DeviationError,
+    DeviationState,
     Discovered,
     ResolutionKind,
     Resolved,
     append_event,
     approval_view,
+    event_json,
     ledger_path,
     main,
     read_states,
@@ -244,14 +247,14 @@ def test_support_cli_refuses_unknown_resolution(
 
 
 def test_discovery_must_be_written_by_the_package_branch(repository):
-    wrong = _discovered().model_copy(update={"member": "impl/elsewhere"})
+    wrong = replace(_discovered(), **{"member": "impl/elsewhere"})
     with pytest.raises(DeviationError, match="not the branch checked out"):
         append_event(repository, wrong)
     assert read_states(repository, "example") == ()
 
 
 def test_discovery_requires_the_change_package_in_the_member(repository):
-    missing = _discovered().model_copy(update={"change_id": "missing"})
+    missing = replace(_discovered(), **{"change_id": "missing"})
     with pytest.raises(DeviationError, match="package changes/missing is absent"):
         append_event(repository, missing)
     assert read_states(repository, "missing") == ()
@@ -280,13 +283,13 @@ def test_new_discovery_binds_the_observed_commit(repository):
     append_event(repository, event)
     state = read_states(repository, "example")[0]
     assert state.discovered.source_commit == _git(repository, "rev-parse", "HEAD")
-    forged = event.model_copy(update={"id": "forged", "source_commit": "a" * 40})
+    forged = replace(event, **{"id": "forged", "source_commit": "a" * 40})
     with pytest.raises(DeviationError, match="observed member commit"):
         append_event(repository, forged)
 
 
 def test_unbound_legacy_discovery_is_not_silently_excluded(repository):
-    event = json.loads(_discovered().model_dump_json())
+    event = json.loads(event_json(_discovered()))
     event.pop("source_commit")
     path = ledger_path(repository, "example")
     path.parent.mkdir(parents=True)
@@ -759,3 +762,27 @@ def test_a_mention_of_accepted_does_not_approve_a_proposed_decision(repository):
     )
     with pytest.raises(DeviationError, match="not accepted"):
         reconciliation_summary(repository, ("example",))
+
+
+def test_portable_codec_preserves_existing_canonical_event_and_state_bytes():
+    event = Discovered(
+        id="stable",
+        change_id="example",
+        member="plan/example",
+        at=datetime(2026, 10, 29, tzinfo=UTC),
+        summary="Stable é",
+        classification=DeviationClass.IMPLEMENTATION_CLARIFICATION,
+        original_commitment="Keep behavior",
+        action="Reuse owner",
+        impact="None",
+    )
+    expected = (
+        '{"event":"discovered","id":"stable","change_id":"example",'
+        '"member":"plan/example","at":"2026-10-29T00:00:00Z","summary":"Stable é",'
+        '"classification":"implementation_clarification","original_commitment":"Keep behavior",'
+        '"action":"Reuse owner","impact":"None","source_commit":null}'
+    )
+    assert event_json(event) == expected
+    assert event_json(DeviationState(discovered=event)) == (
+        '{"discovered":' + expected + ',"resolution":null}'
+    )

@@ -14,6 +14,7 @@ from signetum.product_surface import validate_product_surface
 from signetum.profiles import ProfileError, resolve_profiles
 from signetum.profiles.pip_audit import report as pip_audit_report
 from signetum.release import ReleaseError, preflight
+from signetum.serialization import json_value
 from signetum.site import build_site
 from signetum.status.models import EvidenceSnapshot
 from signetum.template import render_template, validate_template
@@ -177,7 +178,7 @@ def check_product_surface(
             )
         )
         raise typer.Exit(code=2) from error
-    typer.echo(report.model_dump_json())
+    typer.echo(json.dumps(json_value(report)))
     if not report.valid:
         raise typer.Exit(code=3)
 
