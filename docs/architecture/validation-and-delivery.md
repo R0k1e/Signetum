@@ -16,6 +16,29 @@ The named pytest shard owns gate test execution. Pre-commit composes static
 hooks only, so inherited member tests are not secretly rerun by a static hook.
 The declared complete operation is the configured final lifecycle gate.
 
+Whole-corpus tree checks may declare a `ratchet_command` which emits one
+version-one diagnostic document: `schema_version = 1` and a `diagnostics` array
+of repository-relative `file`, `rule` and `message` records, with optional
+positive `line` and `column`. Repeated equal records retain their counts;
+positions do not identify a diagnostic. A member compares the current
+multiset with the newest supported synchronized source, or its recorded base
+before any synchronization, and refuses only additional occurrences. Final,
+batch checks and conflict continuation always run the strict `command`.
+World checks and inherited test shards cannot declare a ratchet.
+
+A diagnostic command exits zero only after it measured the tree. An invalid
+or unavailable current measurement is infrastructure failure, never an empty
+finding set. An unavailable baseline is explicitly reported and compared as
+empty; it is never cached. Successful baseline measurements are cached outside
+the tree by source commit, command, observed tools and runner implementation.
+The snapshot uses a temporary archive plus an isolated Git inventory, without
+registering a worktree; a refresh verifies the extracted files against the
+committed tree, including export attributes. Traceability and ty adapters
+translate their structured reports into this protocol. The named ty shard,
+rather than a duplicate static hook, owns type-check execution. Python check
+identity includes installed package versions and actual implementation bytes,
+so editable tool changes cannot reuse a stale baseline.
+
 Every shard declares an evidence class. A `tree` shard is a pure function of
 the observed tree and the bound tool identities, so a successful identity stays
 successful. A `world` shard also reads mutable state outside the tree, such as
@@ -67,12 +90,26 @@ merges, so siblings' packages do not become the caller's ownership. Changed
 lockfiles or generated inputs are followed by explicit worktree preparation.
 Readiness remains a judgement of the member's own implementation.
 
+Supported synchronization records source authorization under shared Git state
+before merging. It binds the recorded base, previous tip and exact verified
+delivery or batch source. Conflict resolution may complete that same merge;
+a commit trailer alone cannot authorize a source. Member path selection tracks
+own first-parent edits, adopted source content and hand repairs. Restoring
+original-base content after a sync remains an owned repair when it differs
+from the synchronized source; reverting an own edit to inherited content does
+not claim a sibling's package. The recorded base itself never changes.
+
 Admission requires successful member-safe evidence bound to the exact member
 commit, tree, recorded base, configuration, graph, profiles, lockfiles and tools.
 A completed final gate can supply those checks when its complete input identity
 matches. World outcomes never substitute for tree evidence. A new tip requires
 fresh readiness even when its tree is unchanged. Selection's requires_final
 flag declares additional batch responsibility and never waives member checks.
+
+Admission requires the member graph's dependency closure, not just its named
+root checks. Ratchet results must still qualify against the currently verified
+source; losing or changing that qualification requires fresh readiness.
+Strict final evidence remains a stronger alternative for the same exact tip.
 
 Only tree test shards explicitly declaring `inherit = true` may reuse the
 nearest receipted first-parent ancestor in the member's `base..HEAD` range.
@@ -104,6 +141,14 @@ current run. Final may record recovery for review, but consuming final evidence
 for member admission applies the same refusal. Lifecycle projections do not
 count as additional receipts. Shard timeouts terminate the owned process group,
 including the pytest adapter's child processes, before returning a failure.
+
+Each nested check adapter owns an independent process group and deadline. A
+supervisor watches a parent-held pipe and terminates its group if its caller
+dies, including when an outer deadline kills that caller. Tool identity
+and findings commands also run through the bounded command owner; inherited
+Git context cannot redirect their repository. Missing tools or unavailable
+measurements retain their infrastructure classification when gate failures
+are combined.
 
 Delivery
 requires the remote target to equal the approved base, derives members and Plan

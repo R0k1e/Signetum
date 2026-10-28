@@ -51,7 +51,6 @@ from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.validation import (
     ValidationGraphError,
-    command_digest,
 )
 from signetum.validation.execution import (
     ValidationExecutionError,
@@ -62,6 +61,7 @@ from signetum.validation.execution import (
     require_recovery_limit,
 )
 from signetum.validation.inheritance import find_test_inheritance
+from signetum.validation.ratchet import ratchet_baseline
 from signetum.validation.repository import (
     ReceiptStore,
     RepositoryValidationAdapter,
@@ -161,8 +161,12 @@ def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> 
     if not files:
         raise AdmissionError("workspace has no committed contribution to validate")
     member_shards, deferred = _member_shards(manifest, selected, member_closure=False)
-    graph, _ = _runtime_validation(manifest, member_shards=member_shards)
-    checks = {"executed": []} if validate_only else run_diagnostic_gate(repository, graph, "member")
+    graph, inputs = _runtime_validation(manifest, member_shards=member_shards)
+    checks = (
+        {"executed": []}
+        if validate_only
+        else run_diagnostic_gate(repository, graph, "member", member_base=base, tools=inputs.tools)
+    )
     if _git(repository, "rev-parse", "HEAD") != source:
         raise ValidationExecutionError("diagnostic changed the committed source")
     try:
@@ -187,6 +191,7 @@ def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> 
         "explain": explain,
         "executed": checks["executed"],
         "checks_started": bool(checks["executed"]),
+        "shard_details": checks.get("shard_details", {}),
         "recovered_flake_defects": checks.get("recovered_flake_defects", []),
         "deferred_world_shards": deferred,
     }
@@ -296,7 +301,7 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
         ),
         _receipt_root(repository),
     )
-    adapter = RepositoryValidationAdapter(repository)
+    adapter = RepositoryValidationAdapter(repository, member_base=base)
     inherited = (
         find_test_inheritance(
             repository, manifest, graph, inputs, adapter, _receipt_root(repository)
@@ -368,15 +373,20 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
         raise AdmissionError("member does not descend from its recorded base")
     selection = _selection(member, base, manifest)
     required_names, _ = _member_shards(manifest, selection)
-    declared = {item.name: item.command for item in manifest.validation.shards}
-    required = frozenset(command_digest(declared[name]) for name in required_names)
+    graph, inputs = _runtime_validation(manifest, member_shards=required_names)
+    closure = set(graph.execution_order("member"))
+    required = frozenset(shard.digest for shard in graph.shards if shard.name in closure)
+    ratchets = tuple(
+        shard.name for shard in graph.shards if shard.name in closure and shard.ratchet_command
+    )
+    qualified_base = ratchet_baseline(member, base, tip) if ratchets else None
     adapter = RepositoryValidationAdapter(member)
-    expected = {}
-    for gate in ("member", "final"):
-        graph, inputs = _runtime_validation(
-            manifest, member_shards=required_names if gate == "member" else None
-        )
-        expected[gate] = build_evidence_identity(graph, replace(inputs, base=base), adapter)
+    member_identity = build_evidence_identity(graph, replace(inputs, base=base), adapter)
+    final_graph, _ = _runtime_validation(manifest)
+    expected = {
+        "member": member_identity,
+        "final": replace(member_identity, graph=final_graph.digest),
+    }
     for path in sorted(_receipt_root(member).glob("*-lifecycle-*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -390,6 +400,19 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
         identity = expected.get(receipt.execution.gates[0])
         if identity is None or identity.commit != tip or receipt.identity != identity:
             continue
+        if receipt.execution.gates == ("member",) and ratchets:
+            details = receipt.extensions.get("shard_details", {})
+            if not isinstance(details, dict):
+                continue
+            qualified = True
+            for name in ratchets:
+                detail = details.get(name)
+                report = detail.get("ratchet") if isinstance(detail, dict) else None
+                if not isinstance(report, dict) or report.get("baseline") != qualified_base:
+                    qualified = False
+                    break
+            if not qualified:
+                continue
         proven = frozenset(
             outcome.command_digest
             for outcome in receipt.execution.shards

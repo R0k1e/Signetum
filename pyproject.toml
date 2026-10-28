@@ -74,8 +74,8 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 "tests/integration/test_delivery_recovery.py" = ["S101", "S603"]
 "tests/unit/validation/test_repository.py" = ["S101", "S603"]
 "tests/test_batch_admission.py" = ["S101", "S603"]
-# Security-boundary rationale: workspace scenarios execute only fixture-declared commands.
-"tests/test_workspace_operations.py" = ["S101", "S603"]
+# Security-boundary rationale: the shared fixture executes only fixture-declared commands.
+"tests/conftest.py" = ["S603"]
 "tests/unit/validation/test_shard_bounds_and_locks.py" = ["S101", "S603", "S607"]
 # Security-boundary rationale: this lifecycle authority invokes the fixed Git
 # executable with tuple arguments after validating repository identities.
@@ -104,9 +104,14 @@ addopts = ["--cov=signetum", "--cov-report=term-missing", "--cov-fail-under=90"]
 [tool.coverage.run]
 branch = true
 source = ["signetum"]
+patch = ["subprocess", "execv"]
 # Lifecycle orchestration is exercised through behavioral Git-boundary tests;
 # excluding the moved authority preserves the v2 coverage boundary.
-omit = ["src/signetum/lifecycle.py"]
+# Keep the existing module boundary when a measured child changes directory.
+omit = ["*/signetum/lifecycle.py"]
+
+[tool.coverage.report]
+precision = 2
 
 [tool.ty.environment]
 python-version = "3.12"

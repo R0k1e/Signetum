@@ -13,6 +13,7 @@ from signetum.manifest import load_manifest, parse_manifest
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.policy import delivery_policy
 from signetum.provenance import attested_base, members_and_plans
+from signetum.synchronization import authorize_source
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import (
     WorkspaceError,
@@ -219,6 +220,7 @@ def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, obj
         raise AdmissionError("workspace-sync requires an implementation member")
     if batch is None:
         branch, source = fresh_delivery(repository)
+        authorize_source(repository, record.base, source, "delivery")
         return _merge_source(repository, source, f"origin/{branch}")
     if state_root(repository) != state_root(batch):
         raise AdmissionError("batch synchronization requires the same repository")
@@ -230,6 +232,7 @@ def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, obj
         if batch_record.kind != "batch" or attested_base(batch, source) != batch_record.base:
             raise AdmissionError("synchronization source has no verified batch provenance")
         members_and_plans(batch, batch_record.base, source)
+        authorize_source(repository, record.base, source, "batch")
         return _merge_source(repository, source, f"batch/{batch_record.branch}")
 
 

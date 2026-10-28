@@ -49,7 +49,9 @@ def test_changed_contract_vectors_are_shared(
     )["cases"]
     for vector in vectors:
         monkeypatch.setattr(engine_lifecycle, "_require_clean", lambda repository: None)
-        monkeypatch.setattr(engine_lifecycle, "run_diagnostic_gate", lambda *args: {"executed": []})
+        monkeypatch.setattr(
+            engine_lifecycle, "run_diagnostic_gate", lambda *args, **kwargs: {"executed": []}
+        )
         monkeypatch.setattr(
             engine_lifecycle,
             "member_contribution_paths",

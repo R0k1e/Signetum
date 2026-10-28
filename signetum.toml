@@ -20,7 +20,7 @@ lockfiles = ["uv.lock"]
 name = "engine.source"
 paths = ["src/**"]
 profiles = ["python-default@1"]
-shards = ["engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
+shards = ["engine:ruff", "engine:format", "engine:bandit", "engine:ty", "engine:pytest"]
 
 [[impact.rules]]
 name = "engine.unit"
@@ -39,7 +39,7 @@ requires_final = true
 name = "engine.toolchain"
 paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**"]
 profiles = ["python-default@1"]
-shards = ["engine:sync", "engine:traceability", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
 requires_final = true
 
 [[impact.rules]]
@@ -49,13 +49,29 @@ shards = ["engine:precommit"]
 requires_final = true
 
 [validation]
-member_required = ["engine:build", "engine:pytest"]
+member_required = ["engine:build", "engine:pytest", "engine:traceability", "engine:ty"]
 recovery_window = 20
 recovery_threshold = 3
 
 [[validation.tools]]
 name = "uv"
 identity_command = ["uv", "--version"]
+
+[[validation.tools]]
+name = "python-checks"
+identity_command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.tool_identity"]
+
+[[validation.tools]]
+name = "ty"
+identity_command = ["uv", "run", "--no-sync", "ty", "--version"]
+
+[[validation.tools]]
+name = "ruff"
+identity_command = ["uv", "run", "--no-sync", "ruff", "--version"]
+
+[[validation.tools]]
+name = "bandit"
+identity_command = ["uv", "run", "--no-sync", "bandit", "--version"]
 
 [[validation.shards]]
 name = "engine:sync"
@@ -69,12 +85,19 @@ requires = ["engine:sync"]
 [[validation.shards]]
 name = "engine:traceability"
 command = ["uv", "run", "--no-sync", "signetum", "check", "traceability", "--repository", "."]
+ratchet_command = ["uv", "run", "--active", "--no-project", "--no-sync", "python", "-m", "signetum.validation.diagnostics", "traceability"]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:ty"
+command = ["uv", "run", "--no-sync", "ty", "check"]
+ratchet_command = ["uv", "run", "--active", "--no-project", "--no-sync", "python", "-m", "signetum.profiles.ty"]
 requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:precommit"
 command = ["uv", "run", "pre-commit", "run", "--all-files"]
-requires = ["engine:sync"]
+requires = ["engine:sync", "engine:ty"]
 
 [[validation.shards]]
 name = "engine:ruff"
@@ -106,11 +129,11 @@ requires = ["engine:sync"]
 
 [[validation.gates]]
 name = "member"
-shards = ["engine:sync", "engine:traceability", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
 
 [[validation.gates]]
 name = "final"
-shards = ["engine:sync", "engine:traceability", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
 
 [[validation.gates]]
 name = "prepare"
@@ -118,4 +141,4 @@ shards = ["engine:sync"]
 
 [[validation.gates]]
 name = "batch"
-shards = ["engine:sync", "engine:traceability", "engine:ruff", "engine:format", "engine:bandit"]
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:ruff", "engine:format", "engine:bandit"]

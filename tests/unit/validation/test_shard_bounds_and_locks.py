@@ -1,5 +1,6 @@
 """A shard cannot run unbounded, and one operator mutates a batch at a time."""
 
+import json
 import subprocess
 import sys
 import time
@@ -15,6 +16,8 @@ from signetum.validation import (
     ValidationShard,
     resolve_validation_graph,
 )
+from signetum.validation.execution import ValidationInfrastructureError
+from signetum.validation.process import run_command
 from signetum.validation.repository import RepositoryValidationAdapter
 
 
@@ -51,6 +54,41 @@ def test_a_shard_which_does_not_return_is_reported_as_such(tmp_path: Path) -> No
     assert "core:hang" in execution.diagnostic
 
 
+def test_missing_executable_is_infrastructure_failure(tmp_path):
+    shard = ValidationShard("test:missing", (str(tmp_path / "missing-command"),))
+    with pytest.raises(ValidationInfrastructureError, match="unavailable"):
+        RepositoryValidationAdapter(tmp_path).run_shard(shard)
+
+
+@pytest.mark.parametrize("times_out", [False, True])
+def test_nested_runner_owns_group_and_returns_control_to_its_adapter(tmp_path, times_out):
+    header = (
+        "import os, sys, json, subprocess; from pathlib import Path; "
+        "from signetum.validation.process import run_command\n"
+    )
+    if times_out:
+        body = (
+            "try:\n"
+            "    run_command(Path.cwd(), [sys.executable, '-c', 'import time; time.sleep(30)'], "
+            "timeout_seconds=0.2)\n"
+            "except subprocess.TimeoutExpired:\n"
+            "    print('handled timeout')\n"
+        )
+    else:
+        body = (
+            "child='import os; print(os.getpgrp())'\n"
+            "result=run_command(Path.cwd(), [sys.executable, '-c', child], timeout_seconds=3)\n"
+            "print(json.dumps([os.getpgrp(), int(result.stdout)]))\n"
+        )
+    result = run_command(tmp_path, (sys.executable, "-c", header + body), timeout_seconds=5)
+    assert result.returncode == 0, result.stderr
+    if times_out:
+        assert result.stdout.strip() == "handled timeout"
+    else:
+        parent, child = json.loads(result.stdout)
+        assert parent != child
+
+
 def test_the_time_bound_is_part_of_the_graph_identity() -> None:
     def graph(bound: int) -> str:
         return resolve_validation_graph(
@@ -66,7 +104,8 @@ def test_the_time_bound_is_part_of_the_graph_identity() -> None:
     assert graph(60) != graph(120)
 
 
-def test_timeout_terminates_descendants_before_returning(tmp_path):
+@pytest.mark.parametrize("nested_adapter", [False, True])
+def test_timeout_terminates_descendants_before_returning(tmp_path, nested_adapter):
     marker = tmp_path / "orphan-finished"
     child = (
         "import time; from pathlib import Path; time.sleep(2); "
@@ -75,6 +114,13 @@ def test_timeout_terminates_descendants_before_returning(tmp_path):
     parent = (
         "import subprocess, sys; subprocess.run([sys.executable, '-c', sys.argv[1], sys.argv[2]])"
     )
+    if nested_adapter:
+        parent = (
+            "import sys; from pathlib import Path; "
+            "from signetum.validation.process import run_command; "
+            "run_command(Path.cwd(), [sys.executable, '-c', sys.argv[1], sys.argv[2]], "
+            "timeout_seconds=30)"
+        )
     shard = ValidationShard(
         "test:children", (sys.executable, "-c", parent, child, str(marker)), timeout_seconds=1
     )
@@ -122,3 +168,26 @@ def test_every_gate_shard_depends_on_the_shard_which_builds_the_environment() ->
             if name != environment and environment not in requires[name]
         ]
         assert unprepared == [], f"{gate.name} runs {unprepared} without {environment}"
+
+
+def test_inner_deadline_terminates_descendants_without_killing_outer_adapter(tmp_path):
+    marker = tmp_path / "inner-orphan"
+    child = "import time,sys; from pathlib import Path; time.sleep(2); Path(sys.argv[1]).touch()"
+    parent = "import subprocess,sys; subprocess.run([sys.executable,'-c',sys.argv[1],sys.argv[2]])"
+    adapter = (
+        "import sys,time,subprocess; from pathlib import Path; "
+        "from signetum.validation.process import run_command\n"
+        "started=time.monotonic()\n"
+        "try:\n"
+        "    run_command(Path.cwd(), [sys.executable,'-c',sys.argv[1],sys.argv[2],sys.argv[3]], "
+        "timeout_seconds=0.5)\n"
+        "except subprocess.TimeoutExpired:\n"
+        "    print(time.monotonic()-started)\n"
+    )
+    result = run_command(
+        tmp_path, (sys.executable, "-c", adapter, parent, child, str(marker)), timeout_seconds=5
+    )
+    assert result.returncode == 0, result.stderr
+    assert float(result.stdout) < 1.5
+    time.sleep(2)
+    assert not marker.exists()

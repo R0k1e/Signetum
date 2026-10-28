@@ -196,6 +196,7 @@
                 "$ref": "#/$defs/uniqueStrings"
               },
               "inherit": {"type": "boolean"},
+              "ratchet_command": {"$ref": "#/$defs/argv"},
               "timeout_seconds": {"type": "integer", "minimum": 1},
               "evidence": {
                 "enum": [
