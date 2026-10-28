@@ -24,12 +24,6 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-      - id: ty
-        name: ty
-        entry: uv run ty check
-        language: system
-        pass_filenames: false
-        types: [python]
       - id: typos
         name: typos
         entry: uv run typos

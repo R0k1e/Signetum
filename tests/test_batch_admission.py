@@ -15,6 +15,7 @@ from change_fixtures import approve_change as _approve_change
 from pydantic import JsonValue
 
 import signetum.lifecycle as lifecycle
+from signetum.validation import command_digest
 from signetum.validation.execution import ShardExecution, build_evidence_identity
 from signetum.workspaces import WorkspaceRecord, write_record
 
@@ -141,7 +142,7 @@ def _evidence_receipt(
             "shards": [
                 {
                     "name": f"repo:proven-{index}",
-                    "command_digest": lifecycle.command_digest(command),
+                    "command_digest": command_digest(command),
                     "evidence": "tree",
                     "status": "passed",
                     "observed_at": None,

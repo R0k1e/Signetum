@@ -1,7 +1,6 @@
 """Real Git scenarios for supported workspace recovery and removal."""
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -12,110 +11,9 @@ from signetum import lifecycle
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
 from signetum.git import git_output, run_git
-from signetum.operations import AdmissionError, InfrastructureError, MergeConflict
+from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.validation.execution import ValidationExecutionError
 from signetum.workspaces import branch_name, read_record, state_root
-
-
-@pytest.fixture
-def repository(tmp_path, monkeypatch):
-    root = tmp_path / "repository"
-    root.mkdir()
-    git_output(root, "init", "-b", "main")
-    git_output(root, "config", "user.name", "Workspace Test")
-    git_output(root, "config", "user.email", "workspace@example.invalid")
-    state = tmp_path / "preparation"
-    state.mkdir()
-    command = [
-        sys.executable,
-        "-c",
-        "from pathlib import Path; import sys; p=Path(sys.argv[1]); "
-        "n=p/'attempts'; n.write_text(str(int(n.read_text())+1) if n.exists() else '1'); "
-        "sys.exit(13 if (p/'fail').exists() else 0)",
-        str(state),
-    ]
-    (root / "signetum.toml").write_text(
-        'schema_version = 2\n[signetum]\nprotocol = 2\ntemplate_version = "0.2.0"\n'
-        '[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
-        'specifications = "changes/*/specs/*.toml"\nplans = "changes/*/plans/*.md"\n'
-        'decisions = "docs/decisions"\n'
-        '[[impact.rules]]\nname = "all"\npaths = ["**"]\nshards = ["test:check"]\n'
-        '[validation]\nmember_required = ["test:check"]\n'
-        '[[validation.shards]]\nname = "test:check"\ncommand = ["true"]\n'
-        '[[validation.shards]]\nname = "test:prepare"\ncommand = ' + json.dumps(command) + "\n"
-        '[[validation.gates]]\nname = "prepare"\nshards = ["test:prepare"]\n'
-        '[[validation.gates]]\nname = "member"\nshards = ["test:check"]\n'
-        '[[validation.gates]]\nname = "final"\nshards = ["test:check"]\n'
-        '[[validation.gates]]\nname = "batch"\nshards = ["test:check"]\n'
-    )
-    policy = root / ".agents/repo-dev/repo.yaml"
-    policy.parent.mkdir(parents=True)
-    policy.write_text("delivery:\n  branch: main\n")
-    (root / "seed.txt").write_text("base\n")
-    git_output(root, "add", ".")
-    git_output(root, "commit", "-m", "base")
-    remote = tmp_path / "remote.git"
-    remote.mkdir()
-    git_output(remote, "init", "--bare")
-    git_output(root, "remote", "add", "origin", str(remote))
-    git_output(root, "push", "origin", "main")
-
-    def native_worktrunk(repository, arguments, *, json_output=False):
-        del json_output
-        if arguments[0] == "list":
-            items = []
-            for block in git_output(root, "worktree", "list", "--porcelain").split("\n\n"):
-                fields = dict(line.split(" ", 1) for line in block.splitlines() if " " in line)
-                branch = fields.get("branch", "").removeprefix("refs/heads/")
-                if not branch:
-                    continue
-                path = Path(fields["worktree"])
-                items.append(
-                    {
-                        "branch": branch,
-                        "head": {"sha": fields["HEAD"]},
-                        "worktree": {
-                            "path": str(path),
-                            "changes": {
-                                "modified": bool(git_output(path, "status", "--porcelain")),
-                            },
-                        },
-                    }
-                )
-            return {"schema": 2, "items": items}
-        if arguments[0] == "switch":
-            branch = arguments[arguments.index("--create") + 1]
-            base = arguments[arguments.index("--base") + 1]
-            path = tmp_path / ("wt-" + branch.replace("/", "-"))
-            assert "--no-hooks" in arguments and "--no-cd" in arguments
-            git_output(root, "worktree", "add", "-b", branch, str(path), base)
-            return {}
-        assert arguments[0] == "remove"
-        assert {"--foreground", "--no-hooks", "--force-delete"} <= set(arguments)
-        path = Path(arguments[-2])
-        branch = branch_name(path)
-        git_output(
-            root, "worktree", "remove", *(("--force",) if "--force" in arguments else ()), str(path)
-        )
-        git_output(root, "branch", "-D", branch)
-        return {"kind": "worktree", "branch_outcome": "deleted"}
-
-    def native_preparation(repository, command, **kwargs):
-        result = subprocess.run(
-            command,
-            cwd=repository,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=kwargs["timeout_seconds"],
-        )
-        if result.returncode:
-            raise InfrastructureError(f"fixture preparation exited {result.returncode}")
-        return result
-
-    monkeypatch.setattr(wt, "worktrunk", native_worktrunk)
-    monkeypatch.setattr(wt, "run_tool", native_preparation)
-    return root, state
 
 
 def opened(repository, branch):
@@ -123,6 +21,157 @@ def opened(repository, branch):
     path = result["worktree"]
     assert isinstance(path, str)
     return Path(path)
+
+
+def preparation_command(repository, command):
+    path = repository / "signetum.toml"
+    manifest = lifecycle.load_manifest(path)
+    previous = next(
+        shard.command for shard in manifest.validation.shards if shard.name == "test:prepare"
+    )
+    path.write_text(path.read_text().replace(json.dumps(list(previous)), json.dumps(command)))
+
+
+def test_open_never_adopts_the_delivery_workspace(repository):
+    root, state = repository
+    before = git_output(root, "worktree", "list", "--porcelain")
+    with pytest.raises(AdmissionError, match="delivery worktree"):
+        ops.workspace_open(root, "main", "HEAD")
+    assert git_output(root, "worktree", "list", "--porcelain") == before
+    assert not (state / "attempts").exists()
+
+
+def test_open_refuses_ambiguous_registered_branch_without_preparing(repository):
+    root, state = repository
+    member = opened(root, "plan/duplicate")
+    duplicate = root.parent / "duplicate"
+    git_output(root, "worktree", "add", "--force", str(duplicate), "plan/duplicate")
+    with pytest.raises(AdmissionError, match="registered more than once"):
+        ops.workspace_open(root, "plan/duplicate", "HEAD")
+    assert (state / "attempts").read_text() == "1"
+    assert member.exists() and duplicate.exists()
+
+
+def test_open_recovers_creation_interruption_only_at_the_exact_base(repository):
+    root, _ = repository
+    base = git_output(root, "rev-parse", "HEAD")
+    member = root.parent / "unregistered"
+    git_output(root, "worktree", "add", "-b", "plan/recover-create", str(member), base)
+    result = ops.workspace_open(root, "plan/recover-create", base)
+    assert result["resumed"] is True
+    assert read_record(state_root(root), "plan/recover-create").base == base
+    assert git_output(member, "rev-parse", "HEAD") == base
+
+
+def test_prepare_requires_a_declared_gate(repository):
+    root, _ = repository
+    member = opened(root, "plan/no-prepare")
+    manifest = member / "signetum.toml"
+    commit_file(
+        member,
+        "signetum.toml",
+        manifest.read_text().replace(
+            '[[validation.gates]]\nname = "prepare"\nshards = ["test:prepare"]\n', ""
+        ),
+    )
+    with pytest.raises(AdmissionError, match="declare a prepare gate"):
+        ops.worktree_prepare(member)
+
+
+@pytest.mark.parametrize("path", ["seed.txt", "untracked.txt"])
+def test_merge_preparation_refuses_unstaged_work(repository, path):
+    root, state = repository
+    member = opened(root, "plan/unstaged-prepare")
+    (member / path).write_text("retain me")
+    with pytest.raises(AdmissionError, match="all merge resolutions staged"):
+        ops.worktree_prepare(member, allow_merge=True)
+    assert (member / path).read_text() == "retain me"
+    assert (state / "attempts").read_text() == "1"
+
+
+@pytest.mark.parametrize("stage", [False, True])
+def test_preparation_cannot_rewrite_a_staged_resolution(repository, stage, capsys):
+    root, _ = repository
+    member = opened(root, "plan/changed-resolution")
+    script = (
+        "from pathlib import Path; import sys, subprocess; "
+        "Path('seed.txt').write_text('tool modification'); "
+        "print('tool stdout'); print('tool stderr', file=sys.stderr)"
+    )
+    if stage:
+        script += "; subprocess.run(['git', 'add', 'seed.txt'], check=True)"
+    preparation_command(member, [sys.executable, "-c", script])
+    (member / "seed.txt").write_text("staged resolution")
+    git_output(member, "add", ".")
+    before = git_output(member, "rev-parse", "HEAD")
+    with pytest.raises(OperationFailed, match="changed the staged merge"):
+        ops.worktree_prepare(member, allow_merge=True)
+    assert git_output(member, "rev-parse", "HEAD") == before
+    assert (member / "seed.txt").read_text() == "tool modification"
+    output = capsys.readouterr().err
+    assert "tool stdout" in output and "tool stderr" in output
+
+
+def test_preparation_cannot_advance_the_committed_source(repository):
+    root, _ = repository
+    member = opened(root, "plan/changed-head")
+    base = lifecycle._recorded_base(member)
+    preparation_command(member, ["git", "commit", "--allow-empty", "-m", "tool changed HEAD"])
+    git_output(member, "add", ".")
+    git_output(member, "commit", "-m", "declare tool behavior")
+    before = git_output(member, "rev-parse", "HEAD")
+    with pytest.raises(OperationFailed, match="committed source identity"):
+        ops.worktree_prepare(member)
+    assert git_output(member, "rev-parse", "HEAD") != before
+    assert lifecycle._recorded_base(member) == base
+
+
+@pytest.mark.parametrize("selector", [{}, {"all_delivered": True, "branch": "main"}])
+def test_cleanup_refuses_ambiguous_scope_before_contacting_remote(repository, selector):
+    root, _ = repository
+    git_output(root, "remote", "remove", "origin")
+    before = git_output(root, "worktree", "list", "--porcelain")
+    with pytest.raises(AdmissionError, match="select one worktree"):
+        ops.cleanup(root, **selector)
+    assert git_output(root, "worktree", "list", "--porcelain") == before
+
+
+def test_sync_refuses_a_batch_as_the_receiving_workspace(repository):
+    root, _ = repository
+    batch = Path(str(ops.open_workspace(root, "batch/receiver", "HEAD", kind="batch")["worktree"]))
+    before = git_output(batch, "rev-parse", "HEAD")
+    with pytest.raises(AdmissionError, match="implementation member"):
+        ops.workspace_sync(batch)
+    assert git_output(batch, "rev-parse", "HEAD") == before
+
+
+@pytest.mark.parametrize("foreign_repository", [False, True])
+def test_sync_refuses_a_source_without_same_repository_batch_authority(
+    repository, foreign_repository
+):
+    root, _ = repository
+    member = opened(root, "plan/sync-receiver")
+    if foreign_repository:
+        source = root.parent / "foreign"
+        source.mkdir()
+        git_output(source, "init")
+        expected = "same repository"
+    else:
+        source = opened(root, "plan/not-a-batch")
+        expected = "verified batch provenance"
+    before = git_output(member, "rev-parse", "HEAD")
+    with pytest.raises(AdmissionError, match=expected):
+        ops.workspace_sync(member, source)
+    assert git_output(member, "rev-parse", "HEAD") == before
+
+
+def test_batch_discard_cannot_remove_an_implementation_member(repository):
+    root, _ = repository
+    member = opened(root, "plan/retain-member")
+    with pytest.raises(AdmissionError, match="batch"):
+        ops.batch_discard(member)
+    assert member.exists()
+    assert branch_name(member) == "plan/retain-member"
 
 
 def commit_file(repository, name, value="work"):

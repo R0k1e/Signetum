@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
-import subprocess
+
+# Git uses a resolved executable, explicit argv and no shell.
+import subprocess  # nosec B404
+from collections.abc import Mapping
 from pathlib import Path
 from shutil import which
 
@@ -14,10 +17,8 @@ class GitError(AdmissionError):
     """Git could not establish or change the requested repository state."""
 
 
-def run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-    executable = which("git")
-    if executable is None:
-        raise GitError("Git executable is unavailable")
+def isolated_git_environment(source: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Do not let inherited Git context redirect a command's declared repository."""
     repository_context = {
         "GIT_DIR",
         "GIT_WORK_TREE",
@@ -27,15 +28,24 @@ def run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[st
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     }
     environment = {
-        name: value for name, value in os.environ.items() if name not in repository_context
+        name: value
+        for name, value in (source if source is not None else os.environ).items()
+        if name not in repository_context
     }
     environment["GIT_TERMINAL_PROMPT"] = "0"
+    return environment
+
+
+def run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    executable = which("git")
+    if executable is None:
+        raise GitError("Git executable is unavailable")
     return subprocess.run(  # nosec B603 -- resolved Git, explicit argv, no shell
         (executable, "-C", str(repository), *arguments),
         check=False,
         capture_output=True,
         text=True,
-        env=environment,
+        env=isolated_git_environment(),
     )
 
 

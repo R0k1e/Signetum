@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from pydantic import JsonValue
 from test_workspace_operations import commit_file, opened
-from test_workspace_operations import repository as repository
 
 from signetum import lifecycle
 from signetum.git import git_output

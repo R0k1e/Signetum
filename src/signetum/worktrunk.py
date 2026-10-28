@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
+
+# Worktrunk executes through the resolved Mise command without a shell.
+import subprocess  # nosec B404
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import which

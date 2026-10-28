@@ -162,11 +162,16 @@ class ValidationShard(BaseModel):
     findings_command: tuple[str, ...] = ()
     timeout_seconds: int = Field(default=1800, gt=0)
     inherit: bool = False
+    ratchet_command: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def validate_inheritance(self) -> "ValidationShard":
         if self.inherit and self.evidence != "tree":
             raise ValueError("only tree test evidence can be inherited")
+        if self.ratchet_command and (self.evidence != "tree" or self.inherit):
+            raise ValueError("ratchet is only for non-inherited tree checks")
+        if any(not argument for argument in self.ratchet_command):
+            raise ValueError("ratchet command must be non-empty")
         return self
 
     @field_validator("findings_command")

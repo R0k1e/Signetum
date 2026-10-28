@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import signal
 import subprocess  # nosec B404 -- declarative argv, never a shell
 import sys
 import tempfile
@@ -38,13 +37,17 @@ from signetum.validation.execution import (
     build_evidence_identity,
     execute_gate,
 )
+from signetum.validation.process import run_command
+from signetum.validation.ratchet import run_ratchet
 
 
 class RepositoryValidationAdapter:
     """Execute a resolved graph against one clean repository worktree."""
 
-    def __init__(self, repository: Path) -> None:
+    def __init__(self, repository: Path, *, member_base: str | None = None) -> None:
         self.repository = repository.resolve()
+        self.member_base = member_base
+        self.observed_tools: dict[str, str] = {}
 
     def _git(self, *arguments: str) -> str:
         try:
@@ -74,50 +77,42 @@ class RepositoryValidationAdapter:
             ) from error
 
     def identify_tool(self, tool: ToolDeclaration) -> str:
-        completed = subprocess.run(  # nosec B603
-            tool.identity_command,
-            cwd=self.repository,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            completed = run_command(self.repository, tool.identity_command, timeout_seconds=60)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise ValidationInfrastructureError(
+                f"tool identity unavailable: {tool.name}: {error}"
+            ) from error
         if completed.returncode:
             raise ValidationInfrastructureError(f"tool identity command failed: {tool.name}")
         identity = completed.stdout.strip()
         if not identity:
             raise ValidationInfrastructureError(f"tool identity is empty: {tool.name}")
+        self.observed_tools[tool.name] = identity
         return identity
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
+        if shard.ratchet_command and self.member_base is not None:
+            return run_ratchet(
+                self.repository, shard, self.member_base, tuple(sorted(self.observed_tools.items()))
+            )
         with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
             report = Path(scratch) / "recovered.json"
-            return self._run_shard(shard, report)
+            try:
+                return self._run_shard(shard, report)
+            except OSError as error:
+                raise ValidationInfrastructureError(
+                    f"shard command unavailable: {shard.name}: {error}"
+                ) from error
 
     def _run_shard(self, shard: ValidationShard, report: Path) -> ShardExecution:
         try:
-            with subprocess.Popen(  # nosec B603
+            completed = run_command(
+                self.repository,
                 shard.command,
-                cwd=self.repository,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
-                start_new_session=True,
-            ) as process:
-                try:
-                    stdout, stderr = process.communicate(timeout=shard.timeout_seconds)
-                except subprocess.TimeoutExpired:
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    stdout, stderr = process.communicate()
-                    raise subprocess.TimeoutExpired(
-                        shard.command, shard.timeout_seconds, output=stdout, stderr=stderr
-                    ) from None
-                completed = subprocess.CompletedProcess(
-                    shard.command, process.returncode, stdout, stderr
-                )
+                timeout_seconds=shard.timeout_seconds,
+                environment=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
+            )
         except subprocess.TimeoutExpired:
             # A shard which never returns is otherwise indistinguishable from a
             # slow one, so the gate would wait forever and report nothing.
@@ -161,13 +156,14 @@ class RepositoryValidationAdapter:
         ordinary case.
         """
 
-        completed = subprocess.run(  # nosec B603
-            shard.findings_command,
-            cwd=self.repository,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            completed = run_command(
+                self.repository, shard.findings_command, timeout_seconds=shard.timeout_seconds
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise ValidationInfrastructureError(
+                f"findings command unavailable: {shard.name}: {error}"
+            ) from error
         try:
             return parse_findings(completed.stdout)
         except FindingsError as error:
@@ -224,6 +220,7 @@ def run_repository_gate(
     adapter = RepositoryValidationAdapter(repository)
     adapter.require_clean()
     inputs = with_recovery_history(inputs, receipt_root)
+    adapter.member_base = inputs.base if gate == "member" else None
     receipt = execute_gate(graph, gate, inputs, adapter)
     adapter.require_clean()
     return receipt, ReceiptStore(receipt_root).write(gate, receipt)
@@ -303,6 +300,7 @@ def configured_validation(
             item.findings_command,
             item.timeout_seconds,
             item.inherit,
+            item.ratchet_command,
         )
         for item in manifest.validation.shards
     ]
@@ -333,6 +331,8 @@ def run_diagnostic_gate(
     *,
     executed: set[str] | None = None,
     advisory_world: bool = False,
+    member_base: str | None = None,
+    tools: tuple[ToolDeclaration, ...] = (),
 ) -> dict[str, object]:
     """Execute checks without granting readiness or publishing delivery evidence."""
     proven = executed if executed is not None else set()
@@ -340,12 +340,17 @@ def run_diagnostic_gate(
     names: list[str] = []
     advisories: list[dict[str, str]] = []
     recovered = []
-    adapter = RepositoryValidationAdapter(repository)
+    adapter = RepositoryValidationAdapter(repository, member_base=member_base)
+    for tool in tools:
+        adapter.identify_tool(tool)
+    details = {}
     for name in graph.execution_order(gate):
         shard = by_name[name]
         if shard.evidence == "tree" and shard.digest in proven:
             continue
         result = adapter.run_shard(shard)
+        if result.details:
+            details[name] = result.details
         recovered.extend({**defect, "shard": name} for defect in result.recovered)
         names.append(name)
         if not result.succeeded:
@@ -355,4 +360,9 @@ def run_diagnostic_gate(
             raise ValidationExecutionError(result.diagnostic or f"check failed: {name}")
         if shard.evidence == "tree":
             proven.add(shard.digest)
-    return {"executed": names, "advisories": advisories, "recovered_flake_defects": recovered}
+    return {
+        "executed": names,
+        "advisories": advisories,
+        "recovered_flake_defects": recovered,
+        "shard_details": details,
+    }

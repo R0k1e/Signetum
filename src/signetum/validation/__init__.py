@@ -47,6 +47,7 @@ class ValidationShard:
     findings_command: tuple[str, ...] = ()
     timeout_seconds: int = 1800
     inherit: bool = False
+    ratchet_command: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if _NAME.fullmatch(self.name) is None:
@@ -67,6 +68,12 @@ class ValidationShard:
             raise ValidationGraphError(f"only tree test evidence can be inherited: {self.name}")
         if not isinstance(self.inherit, bool):
             raise ValidationGraphError(f"inherit must be a boolean: {self.name}")
+        if self.ratchet_command and (self.evidence != "tree" or self.inherit):
+            raise ValidationGraphError(
+                f"ratchet is only for non-inherited tree checks: {self.name}"
+            )
+        if any(not argument for argument in self.ratchet_command):
+            raise ValidationGraphError(f"ratchet command must be non-empty: {self.name}")
 
     @property
     def digest(self) -> str:
@@ -148,6 +155,9 @@ class ValidationConfiguration:
             inherit = raw.get("inherit", False)
             if not isinstance(inherit, bool):
                 raise ValidationGraphError("shard.inherit must be a boolean")
+            timeout = raw.get("timeout_seconds", 1800)
+            if type(timeout) is not int:
+                raise ValidationGraphError("shard.timeout_seconds must be an integer")
             shards.append(
                 ValidationShard(
                     name,
@@ -156,6 +166,10 @@ class ValidationConfiguration:
                     evidence,
                     _tuple_of_strings(raw.get("findings_command", ()), "shard.findings_command"),
                     inherit=inherit,
+                    timeout_seconds=timeout,
+                    ratchet_command=_tuple_of_strings(
+                        raw.get("ratchet_command", ()), "shard.ratchet_command"
+                    ),
                 )
             )
 

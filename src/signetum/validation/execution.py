@@ -38,6 +38,7 @@ class ShardExecution:
     succeeded: bool
     diagnostic: str = ""
     recovered: tuple[dict[str, JsonValue], ...] = ()
+    details: dict[str, JsonValue] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -136,11 +137,14 @@ def _resolve_outcome(
     *,
     today: date,
     recovered: list[dict[str, JsonValue]],
+    details: dict[str, JsonValue],
 ) -> ShardOutcome:
     """Execute one shard and decide whether it produced reusable evidence."""
 
     observed_at = datetime.now(UTC).isoformat() if shard.evidence == "world" else None
     execution = adapter.run_shard(shard)
+    if execution.details:
+        details[shard.name] = execution.details
     if execution.succeeded:
         recovered.extend({**defect, "shard": shard.name} for defect in execution.recovered)
         return ShardOutcome(shard.name, shard.digest, shard.evidence, "passed", observed_at)
@@ -187,9 +191,11 @@ def execute_gate(
     shard_by_name = {shard.name: shard for shard in graph.shards}
     receipts: list[EvidenceReceipt] = []
     failures: list[str] = []
+    validation_failed = False
     unproven: set[str] = set()
     recovered: list[dict[str, JsonValue]] = []
     inherited_names: list[str] = []
+    shard_details: dict[str, JsonValue] = {}
     reusable: dict[str, ShardOutcome] = {}
     if inherited is not None and gate == "member":
         previous = inherited.receipt
@@ -218,10 +224,13 @@ def execute_gate(
                 outcome = reusable[name]
                 inherited_names.append(name)
             else:
-                outcome = _resolve_outcome(shard, inputs, adapter, today=today, recovered=recovered)
+                outcome = _resolve_outcome(
+                    shard, inputs, adapter, today=today, recovered=recovered, details=shard_details
+                )
         except ValidationExecutionError as error:
             unproven.add(name)
             failures.append(str(error))
+            validation_failed |= not isinstance(error, ValidationInfrastructureError)
             continue
         receipts.append(
             EvidenceReceipt.shard(
@@ -233,7 +242,10 @@ def execute_gate(
             )
         )
     if failures:
-        raise ValidationExecutionError("; ".join(failures))
+        failure_type = (
+            ValidationExecutionError if validation_failed else ValidationInfrastructureError
+        )
+        raise failure_type("; ".join(failures))
     if build_evidence_identity(graph, inputs, adapter) != identity:
         raise ValidationExecutionError("validation inputs changed during execution")
     if gate == "member":
@@ -244,6 +256,8 @@ def execute_gate(
         receipts=tuple(receipts),
     )
     extensions: dict[str, JsonValue] = {}
+    if shard_details:
+        extensions["shard_details"] = shard_details
     defects: list[JsonValue] = [
         {**defect, "gate": gate, "source": identity.commit} for defect in recovered
     ]

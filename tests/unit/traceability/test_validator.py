@@ -8,11 +8,13 @@ from signetum.change.models import (
     AcceptanceResult,
     ClauseDisposition,
     Decision,
+    DecisionStatus,
     Plan,
     Review,
     ReviewAcceptance,
     ReviewStatus,
     Specification,
+    SpecificationStatus,
 )
 from signetum.traceability.boundary import (
     RepositoryInventory,
@@ -76,6 +78,73 @@ def test_complete_change_is_valid() -> None:
     )
     assert report.valid
     assert report.issues == ()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("review-schema", "unsupported-schema"),
+        ("specification-schema", "unsupported-schema"),
+        ("different-review", "unknown-review"),
+        ("unknown-clause", "unknown-clause"),
+        ("wrong-clause-owner", "ownership-mismatch"),
+        ("superseded-owner", "superseded-owner"),
+        ("unloaded-plan", "unparsed-plan"),
+        ("wrong-plan-owner", "wrong-plan-owner"),
+        ("extra-obligation", "unexpected-obligation"),
+        ("unloaded-decision", "unreadable-decision"),
+        ("draft-decision", "unaccepted-decision"),
+        ("rejected-decision", "unaccepted-decision"),
+    ],
+)
+def test_change_corpus_refuses_broken_authority_relations(mutation, expected):
+    review_path, review, specifications, plans, inventory, decisions = _documents()
+    path, specification = specifications[0]
+    if mutation == "review-schema":
+        review = review.model_copy(update={"schema_version": 2})
+    elif mutation == "specification-schema":
+        specification = specification.model_copy(update={"schema_version": 2})
+    elif mutation == "different-review":
+        specification = specification.model_copy(
+            update={"review": specification.review.model_copy(update={"id": "another-change"})}
+        )
+    elif mutation == "unknown-clause":
+        specification = specification.model_copy(
+            update={"review": specification.review.model_copy(update={"clauses": ("UNKNOWN",)})}
+        )
+    elif mutation == "wrong-clause-owner":
+        specification = specification.model_copy(update={"id": "example/another-owner"})
+    elif mutation == "superseded-owner":
+        specification = specification.model_copy(update={"status": SpecificationStatus.SUPERSEDED})
+    elif mutation == "unloaded-plan":
+        plans = tuple(item for item in plans if item[0] != specification.plan)
+    elif mutation in ("wrong-plan-owner", "extra-obligation"):
+        plan_path, plan = plans[0]
+        if mutation == "wrong-plan-owner":
+            plan = plan.model_copy(update={"specification": specifications[1][0]})
+        else:
+            obligation = plan.obligations[0].model_copy(update={"clauses": ("REQ-1", "REQ-2")})
+            plan = plan.model_copy(update={"obligations": (obligation,)})
+        plans = ((plan_path, plan), *plans[1:])
+    elif mutation == "unloaded-decision":
+        decisions = ()
+    else:
+        decision_path, decision = decisions[0]
+        status = DecisionStatus.DRAFT if mutation == "draft-decision" else DecisionStatus.REJECTED
+        decisions = ((decision_path, decision.model_copy(update={"status": status})),)
+    specifications = ((path, specification), *specifications[1:])
+    report = TraceabilityValidator().validate(
+        TraceabilityManifest(schema_version=1),
+        inventory,
+        review_path,
+        review,
+        specifications,
+        plans,
+        None,
+        decisions,
+    )
+    assert not report.valid
+    assert expected in {issue.code for issue in report.issues}
 
 
 @given(st.sampled_from(["REQ-1", "REQ-2"]))

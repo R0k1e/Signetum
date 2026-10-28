@@ -21,7 +21,11 @@ from signetum.validation import (
     ValidationShard,
     resolve_validation_graph,
 )
-from signetum.validation.execution import ValidationExecutionError, ValidationInputs
+from signetum.validation.execution import (
+    ValidationExecutionError,
+    ValidationInfrastructureError,
+    ValidationInputs,
+)
 from signetum.validation.repository import (
     ReceiptStore,
     RepositoryValidationAdapter,
@@ -193,3 +197,79 @@ def test_validation_cannot_publish_success_after_mutating_inputs(tmp_path, path)
             receipts,
         )
     assert not list(receipts.glob("*.json"))
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        "not JSON",
+        "{}",
+        '[{"node_id": ""}]',
+        '[{"node_id":"test_contract","first_failure":[]}]',
+        '[{"node_id":"test_contract","first_failure":[{"outcome":"passed"}]}]',
+    ],
+)
+def test_malformed_recovery_evidence_cannot_be_published_as_success(tmp_path, report):
+    command = (
+        sys.executable,
+        "-c",
+        "import os, sys; from pathlib import Path; "
+        "Path(os.environ['SIGNETUM_RECOVERY_REPORT']).write_text(sys.argv[1])",
+        report,
+    )
+    with pytest.raises(ValidationExecutionError, match="invalid recovery report"):
+        RepositoryValidationAdapter(tmp_path).run_shard(ValidationShard("test:recovery", command))
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        (sys.executable, "-c", "pass"),
+        (sys.executable, "-c", "raise SystemExit(13)"),
+        ("MISSING",),
+    ],
+)
+def test_tool_without_a_successful_nonempty_identity_cannot_supply_evidence(tmp_path, command):
+    if command == ("MISSING",):
+        command = (str(tmp_path / "missing-identity-command"),)
+    with pytest.raises(ValidationInfrastructureError):
+        RepositoryValidationAdapter(tmp_path).identify_tool(ToolDeclaration("fixture", command))
+
+
+def test_non_repository_cannot_supply_a_commit_identity(tmp_path):
+    with pytest.raises(ValidationInfrastructureError):
+        RepositoryValidationAdapter(tmp_path).commit_identity()
+
+
+@pytest.mark.parametrize("valid", [False, True])
+def test_world_findings_report_must_be_valid_even_when_command_exits_nonzero(tmp_path, valid):
+    document = (
+        '{"schema_version":1,"findings":[{"id":"fixture-finding",'
+        '"locator":"pip:fixture@1.0","summary":"Fixture diagnostic"}]}'
+        if valid
+        else "not JSON"
+    )
+    command = (
+        sys.executable,
+        "-c",
+        "import sys; print(sys.argv[1]); raise SystemExit(1)",
+        document,
+    )
+    shard = ValidationShard("test:audit", ("false",), evidence="world", findings_command=command)
+    adapter = RepositoryValidationAdapter(tmp_path)
+    if valid:
+        assert adapter.report_findings(shard)[0].id == "fixture-finding"
+    else:
+        with pytest.raises(ValidationExecutionError, match="not JSON"):
+            adapter.report_findings(shard)
+
+
+def test_unavailable_findings_command_cannot_produce_a_waivable_report(tmp_path):
+    shard = ValidationShard(
+        "test:audit",
+        ("false",),
+        evidence="world",
+        findings_command=(str(tmp_path / "missing-findings-command"),),
+    )
+    with pytest.raises(ValidationInfrastructureError):
+        RepositoryValidationAdapter(tmp_path).report_findings(shard)
