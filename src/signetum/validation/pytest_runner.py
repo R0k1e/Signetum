@@ -16,6 +16,18 @@ def _run(
 ) -> tuple[int, list[dict[str, str]]]:
     environment = dict(os.environ, SIGNETUM_PYTEST_REPORT=str(report))
     environment.pop("SIGNETUM_RETRY_NODES", None)
+    # A fresh controller, including serial retries, must not inherit an outer
+    # xdist worker identity. Its own workers receive new identities from xdist.
+    for name in tuple(environment):
+        if name.startswith("PYTEST_XDIST_"):
+            environment.pop(name)
+    if (workers := environment.get("SIGNETUM_VALIDATION_WORKERS")) is not None:
+        if not workers.isdecimal():
+            raise ValueError("invalid allocated worker count")
+        if importlib.util.find_spec("xdist") is not None:
+            arguments = [*arguments, "-n", workers]
+        elif int(workers):
+            raise RuntimeError("allocated workers require pytest-xdist")
     if nodes is not None:
         environment["SIGNETUM_RETRY_NODES"] = json.dumps(nodes)
         arguments = [*arguments, "-k", "", "-m", "", "--maxfail=0"]

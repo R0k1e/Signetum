@@ -9,6 +9,7 @@ description = "Signetum: seal every change with evidence"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "psutil>=7,<8",
     "pydantic>=2.12,<3",
     "pyyaml>=6.0,<7",
     "typer>=0.20,<1",
@@ -26,6 +27,7 @@ dev = [
     "pre-commit>=4.3",
     "pytest>=8.4",
     "pytest-cov>=7.0",
+    "pytest-xdist>=3.8,<4",
     "ruff>=0.14",
     "ty>=0.0.1a25",
     "typos>=1.42",

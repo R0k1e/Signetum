@@ -48,8 +48,14 @@ class ValidationShard:
     timeout_seconds: int = 1800
     inherit: bool = False
     ratchet_command: tuple[str, ...] = ()
+    workers: int = 0
+    worker_memory_mb: int = 0
 
     def __post_init__(self) -> None:
+        if any(
+            type(value) is not int or value < 0 for value in (self.workers, self.worker_memory_mb)
+        ):
+            raise ValidationGraphError(f"worker budgets must be non-negative integers: {self.name}")
         if _NAME.fullmatch(self.name) is None:
             raise ValidationGraphError(f"shard name must be namespaced: {self.name}")
         if not self.command or any(not argument for argument in self.command):
@@ -165,6 +171,8 @@ class ValidationConfiguration:
                     _tuple_of_strings(raw.get("requires", ()), "shard.requires"),
                     evidence,
                     _tuple_of_strings(raw.get("findings_command", ()), "shard.findings_command"),
+                    workers=raw.get("workers", 0),
+                    worker_memory_mb=raw.get("worker_memory_mb", 0),
                     inherit=inherit,
                     timeout_seconds=timeout,
                     ratchet_command=_tuple_of_strings(
@@ -280,6 +288,8 @@ def resolve_validation_graph(
                 "findings_command": shard.findings_command,
                 "name": shard.name,
                 "timeout_seconds": shard.timeout_seconds,
+                "workers": shard.workers,
+                "worker_memory_mb": shard.worker_memory_mb,
                 "requires": tuple(sorted(shard.requires)),
             }
             for shard in resolved_shards

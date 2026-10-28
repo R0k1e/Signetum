@@ -124,6 +124,20 @@ carried first failures remain visible without counting as new recoveries.
 Final never inherits tests. Before publishing success, gates re-observe their
 input identity and require the workspace to remain clean.
 
+A command shard may declare `workers` (default zero, serial) and
+`worker_memory_mb` (default zero, no memory estimate). Before execution the
+adapter bounds parallel workers by the declared ceiling, process affinity,
+visible ancestor CPU quotas and live available memory, including container
+memory headroom. An unaffordable worker or unavailable measurement is an
+infrastructure failure. This is a scheduling budget based on declared estimates,
+not an operating-system memory limit. Shards execute sequentially, so their
+budgets do not overlap within one gate. Allocation is passed as
+`SIGNETUM_VALIDATION_WORKERS` and retained under the shard's
+`resource_allocation` evidence. Adapters own translating that count to native
+tool arguments. The pytest adapter requires xdist for positive allocations;
+its failed-node retry remains serial. The engine ceiling is four workers with
+a conservative 1024 MiB estimate per worker, configured in `signetum.toml`.
+
 The Python test adapter is `python -m signetum.validation.pytest_runner -- <pytest
 arguments>`. Only pytest exit 1 with one through thirty explicitly failed nodes
 permits one retry. The retry preserves repository pytest configuration, selects

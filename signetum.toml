@@ -118,6 +118,8 @@ requires = ["engine:sync"]
 name = "engine:pytest"
 inherit = true
 command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--"]
+workers = 4
+worker_memory_mb = 1024
 requires = ["engine:sync"]
 
 [[validation.shards]]

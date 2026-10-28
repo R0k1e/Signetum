@@ -28,6 +28,7 @@ from signetum.validation import (
     ValidationGraph,
     ValidationShard,
     resolve_validation_graph,
+    resources,
 )
 from signetum.validation.execution import (
     ShardExecution,
@@ -92,26 +93,43 @@ class RepositoryValidationAdapter:
         return identity
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
-        if shard.ratchet_command and self.member_base is not None:
-            return run_ratchet(
-                self.repository, shard, self.member_base, tuple(sorted(self.observed_tools.items()))
+        allocation = (
+            resources.allocate_workers(
+                shard.workers, shard.worker_memory_mb, resources.observe_resources()
             )
-        with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
-            report = Path(scratch) / "recovered.json"
-            try:
-                return self._run_shard(shard, report)
-            except OSError as error:
-                raise ValidationInfrastructureError(
-                    f"shard command unavailable: {shard.name}: {error}"
-                ) from error
+            if shard.workers
+            else {"workers": 0, "declared_workers": 0}
+        )
+        if shard.ratchet_command and self.member_base is not None:
+            execution = run_ratchet(
+                self.repository,
+                shard,
+                self.member_base,
+                tuple(sorted(self.observed_tools.items())),
+                workers=allocation["workers"],
+            )
+        else:
+            with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
+                report = Path(scratch) / "recovered.json"
+                try:
+                    execution = self._run_shard(shard, report, allocation["workers"])
+                except OSError as error:
+                    raise ValidationInfrastructureError(
+                        f"shard command unavailable: {shard.name}: {error}"
+                    ) from error
+        return replace(execution, details={**execution.details, "resource_allocation": allocation})
 
-    def _run_shard(self, shard: ValidationShard, report: Path) -> ShardExecution:
+    def _run_shard(self, shard: ValidationShard, report: Path, workers: int) -> ShardExecution:
         try:
             completed = run_command(
                 self.repository,
                 shard.command,
                 timeout_seconds=shard.timeout_seconds,
-                environment=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
+                environment=dict(
+                    os.environ,
+                    SIGNETUM_RECOVERY_REPORT=str(report),
+                    SIGNETUM_VALIDATION_WORKERS=str(workers),
+                ),
             )
         except subprocess.TimeoutExpired:
             # A shard which never returns is otherwise indistinguishable from a
@@ -301,6 +319,8 @@ def configured_validation(
             item.timeout_seconds,
             item.inherit,
             item.ratchet_command,
+            item.workers,
+            item.worker_memory_mb,
         )
         for item in manifest.validation.shards
     ]

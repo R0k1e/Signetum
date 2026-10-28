@@ -21,12 +21,17 @@ from signetum.validation.process import run_command
 from signetum.workspaces import state_root
 
 
-def _measure(repository: Path, command: tuple[str, ...], deadline: float) -> str:
+def _measure(repository: Path, command: tuple[str, ...], deadline: float, workers: int) -> str:
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise ValidationInfrastructureError("ratchet diagnostic deadline exhausted")
     try:
-        result = run_command(repository, command, timeout_seconds=remaining)
+        result = run_command(
+            repository,
+            command,
+            timeout_seconds=remaining,
+            environment=dict(os.environ, SIGNETUM_VALIDATION_WORKERS=str(workers)),
+        )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise ValidationInfrastructureError(f"diagnostic command unavailable: {error}") from error
     if result.returncode:
@@ -65,6 +70,8 @@ def run_ratchet(
     shard: ValidationShard,
     recorded_base: str,
     tools: tuple[tuple[str, str], ...],
+    *,
+    workers: int = 0,
 ) -> ShardExecution:
     deadline = time.monotonic() + shard.timeout_seconds
     tip = git_output(repository, "rev-parse", "HEAD")
@@ -83,7 +90,7 @@ def run_ratchet(
     }
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     cache = state_root(repository) / "validation/ratchets" / f"{key}.json"
-    current = diagnostic_multiset(_measure(repository, shard.ratchet_command, deadline))
+    current = diagnostic_multiset(_measure(repository, shard.ratchet_command, deadline, workers))
     previous: Counter[tuple[str, str, str]] = Counter()
     unavailable = None
     cached = False
@@ -100,7 +107,7 @@ def run_ratchet(
             with tempfile.TemporaryDirectory(prefix="signetum-ratchet-") as scratch:
                 root = Path(scratch) / "source"
                 _materialize(repository, baseline, root)
-                document = _measure(root, shard.ratchet_command, deadline)
+                document = _measure(root, shard.ratchet_command, deadline, workers)
                 previous = diagnostic_multiset(document)
             cache.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile(
