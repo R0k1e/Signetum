@@ -49,6 +49,14 @@ gate rather than letting state the member does not own block its closure. A
 `world` result records the instant it observed the world and is never a
 reusable admission credential.
 
+The engine pytest corpus partitions these classes with the `world` marker.
+The member test command excludes that marker, while the final-only world test
+shard runs native external-state scenarios without inheritance. The independent
+rendered-template member case still runs in the tree shard; its final case
+creates a real batch, consumes the member's ready receipt, and performs the
+native dependency audit. Collection checks prove that the two declared commands
+are disjoint and together cover the full test corpus.
+
 A failing `world` shard runs its declared findings command and reports through
 the tool-neutral Signetum findings document; Signetum never parses a tool's
 native output. Each reported finding is matched against the waivers tracked

@@ -95,6 +95,7 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["world: observes mutable external state and belongs only to final validation"]
 addopts = ["--cov=signetum", "--cov-report=term-missing", "--cov-fail-under=90"]
 
 [tool.coverage.run]
