@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from change_fixtures import approve_change
+from change_fixtures import approve_change, commit_approval
 
 from signetum import lifecycle
 from signetum import workspace_operations as ops
@@ -328,6 +328,7 @@ def test_unadmitted_member_can_sync_verified_batch(repository):
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")
     sibling = opened(root, "plan/sibling")
+    commit_approval(sibling, "sibling")
     commit_file(sibling, "sibling.txt")
     lifecycle.validate(sibling, "member")
     batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
@@ -473,6 +474,8 @@ def test_batch_continuation_validates_staged_repair_before_committing(repository
     git_output(root, "commit", "-am", "declare observable resolution contract")
     base = git_output(root, "rev-parse", "HEAD")
     left, right = opened(root, "plan/left"), opened(root, "plan/right")
+    commit_approval(left, "left")
+    commit_approval(right, "right")
     commit_file(left, "seed.txt", "left")
     commit_file(right, "seed.txt", "right")
     lifecycle.validate(left, "member")
@@ -500,6 +503,7 @@ def test_failed_admission_preparation_keeps_merge_for_supported_retry(repository
     root, state = repository
     base = git_output(root, "rev-parse", "HEAD")
     member = opened(root, "plan/example")
+    commit_approval(member, "example")
     commit_file(member, "own.txt")
     lifecycle.validate(member, "member")
     batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
@@ -523,6 +527,7 @@ def test_validated_delivery_uses_shared_cleanup_and_keeps_the_delivery_worktree(
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")
     member = opened(root, "plan/example")
+    commit_approval(member, "example")
     commit_file(member, "own.txt")
     lifecycle.validate(member, "member")
     opened_batch = lifecycle.batch_open(root, (member,))

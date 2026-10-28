@@ -4,6 +4,7 @@ import json
 import sys
 
 import pytest
+from change_fixtures import commit_approval
 from test_workspace_operations import commit_file, opened
 
 from signetum import lifecycle
@@ -65,6 +66,7 @@ def configured(repository, *, baseline_report=None):
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "declare structured corpus check")
     member = opened(root, "plan/ratchet")
+    commit_approval(member, "example")
     commit_file(member, "diagnostics.json", document({**OLD, "line": 42, "column": 8}))
     return root, member, state
 
@@ -236,6 +238,7 @@ def test_traceability_adapter_compares_real_git_inventories(repository):
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "existing corpus issue")
     member = opened(root, "plan/corpus")
+    commit_approval(member, "example")
     commit_file(member, "note.md")
     assert diagnostic_multiset(traceability_document(member)).total() > 0
     ready = lifecycle.validate(member, "member")

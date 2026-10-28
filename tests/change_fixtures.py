@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from signetum.git import git_output
+
 
 def approve_change(repository: Path, change_id: str = "example") -> None:
     root = repository / "changes" / change_id
@@ -40,3 +42,10 @@ Base: fixture
 | --- | --- | --- |
 | IMPLEMENT | REQ-001 | Implement behavior and run its declared check. |
 """)
+
+
+def commit_approval(repository: Path, change_id: str = "example") -> None:
+    """Give a fixture its own committed approval before implementation."""
+    approve_change(repository, change_id)
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", f"approve change {change_id}")

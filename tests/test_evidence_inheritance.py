@@ -6,6 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from change_fixtures import commit_approval
 from pydantic import JsonValue
 from test_workspace_operations import commit_file, opened
 
@@ -41,7 +42,10 @@ def configured(repository):
         'name = "test:check"\ncommand = ["true"]',
         'name = "test:check"\ninherit = true\ncommand = ' + command("tests"),
     )
-    text += '\n[[impact.rules]]\nname = "docs"\npaths = ["docs/**"]\nshards = ["test:static"]\n'
+    text += (
+        '\n[[impact.rules]]\nname = "docs"\npaths = ["docs/**", "changes/**"]\n'
+        'shards = ["test:static"]\n'
+    )
     text += '\n[[validation.shards]]\nname = "test:static"\ncommand = ' + command("static") + "\n"
     text += (
         '\n[[validation.tools]]\nname = "fixture"\nidentity_command = '
@@ -60,6 +64,7 @@ def configured(repository):
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "declare test inheritance boundary")
     member = opened(root, "plan/inheritance")
+    commit_approval(member, "example")
     (member / "src").mkdir()
     commit_file(member, "src/feature.py", "pass\n")
     first = lifecycle.validate(member, "member")

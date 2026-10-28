@@ -118,6 +118,9 @@ def test_numbering_projects_targets_and_preserves_original_ledger(tmp_path):
 
 def test_new_discovery_during_checks_cannot_publish_a_stale_final_review(tmp_path, monkeypatch):
     member, batch = member_and_batch(tmp_path, historical=True)
+    event = discovery(member, "old", identifier="existing")
+    append_event(member, event)
+    resolve(member, event)
     lifecycle.validate(member, "member")
     lifecycle.admit(batch, (member,))
     original = lifecycle.execute_gate
