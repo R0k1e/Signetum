@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from typing import Protocol
+
+from pydantic import JsonValue
 
 from signetum.evidence.receipts import (
     ArtifactIdentity,
@@ -34,6 +37,7 @@ class ShardExecution:
 
     succeeded: bool
     diagnostic: str = ""
+    recovered: tuple[dict[str, JsonValue], ...] = ()
 
 
 class ValidationAdapter(Protocol):
@@ -71,8 +75,13 @@ class ValidationInputs:
     schema_digest: str = "sha256:" + "0" * 64
     waivers: tuple[Waiver, ...] = field(default=())
     today: date | None = None
+    recovery_history: tuple[frozenset[str], ...] = ()
+    recovery_threshold: int = 3
+    recovery_window: int = 20
 
     def __post_init__(self) -> None:
+        if self.recovery_window < 1 or self.recovery_threshold < 1:
+            raise ValidationExecutionError("recovery window and threshold must be positive")
         if self.configuration_path != "signetum.toml":
             raise ValidationExecutionError("configuration path must be signetum.toml")
         if self.profiles != tuple(sorted(set(self.profiles))):
@@ -117,12 +126,14 @@ def _resolve_outcome(
     adapter: ValidationAdapter,
     *,
     today: date,
+    recovered: list[dict[str, JsonValue]],
 ) -> ShardOutcome:
     """Execute one shard and decide whether it produced reusable evidence."""
 
     observed_at = datetime.now(UTC).isoformat() if shard.evidence == "world" else None
     execution = adapter.run_shard(shard)
     if execution.succeeded:
+        recovered.extend({**defect, "shard": shard.name} for defect in execution.recovered)
         return ShardOutcome(shard.name, shard.digest, shard.evidence, "passed", observed_at)
     if shard.evidence != "world":
         raise ValidationExecutionError(
@@ -166,6 +177,7 @@ def execute_gate(
     receipts: list[EvidenceReceipt] = []
     failures: list[str] = []
     unproven: set[str] = set()
+    recovered: list[dict[str, JsonValue]] = []
     for name in graph.execution_order(gate):
         shard = shard_by_name[name]
         blocked = sorted(unproven.intersection(shard.requires))
@@ -174,7 +186,7 @@ def execute_gate(
             failures.append(f"{name}: skipped after {', '.join(blocked)}")
             continue
         try:
-            outcome = _resolve_outcome(shard, inputs, adapter, today=today)
+            outcome = _resolve_outcome(shard, inputs, adapter, today=today, recovered=recovered)
         except ValidationExecutionError as error:
             unproven.add(name)
             failures.append(str(error))
@@ -190,11 +202,48 @@ def execute_gate(
         )
     if failures:
         raise ValidationExecutionError("; ".join(failures))
-    return combine_shard_evidence(
+    if gate == "member":
+        require_recovery_limit(recovered, inputs)
+    receipt = combine_shard_evidence(
         gate=gate,
         required_shards=graph.execution_order(gate),
         receipts=tuple(receipts),
     )
+    if recovered:
+        return replace(
+            receipt,
+            extensions={
+                "recovered_flake_defects": [
+                    {**defect, "gate": gate, "source": identity.commit} for defect in recovered
+                ]
+            },
+        )
+    return receipt
+
+
+def require_recovery_limit(defects: JsonValue, inputs: ValidationInputs) -> None:
+    """A final receipt used for member admission cannot bypass recovery policy."""
+    if not isinstance(defects, list):
+        raise ValidationExecutionError("invalid recovered robustness defects")
+    repeated = []
+    for defect in defects:
+        if (
+            not isinstance(defect, dict)
+            or not isinstance(defect.get("shard"), str)
+            or not isinstance(defect.get("node_id"), str)
+        ):
+            raise ValidationExecutionError("invalid recovered robustness defect")
+        key = f"{defect['shard']}::{defect['node_id']}"
+        count = 1 + sum(key in history for history in inputs.recovery_history)
+        if count >= inputs.recovery_threshold:
+            repeated.append(f"{key} recoveries={count}")
+    if repeated:
+        raise ValidationExecutionError(
+            "repeated recovered robustness defect: "
+            + "; ".join(repeated)
+            + "; first_failures="
+            + json.dumps(defects, sort_keys=True)
+        )
 
 
 __all__ = [

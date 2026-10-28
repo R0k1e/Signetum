@@ -188,6 +188,8 @@ class ValidationCommands(BaseModel):
     shards: tuple[ValidationShard, ...]
     gates: tuple[ValidationGate, ...]
     member_required: tuple[str, ...] = ()
+    recovery_window: int = Field(default=20, gt=0)
+    recovery_threshold: int = Field(default=3, gt=0)
 
     @field_validator("shards")
     @classmethod
