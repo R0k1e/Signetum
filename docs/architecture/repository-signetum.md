@@ -55,3 +55,14 @@ maintain its own selection algorithm. The evidence values and verifier in
 `signetum.evidence.receipts` are also portable standard-library artifacts, with
 unchanged serialized identities. Their availability does not complete the
 remaining template gate and admission migration owned by ALIGN-009.
+
+The validation graph and generic execution engine are generated from
+`signetum.validation` and `signetum.validation.execution`, including package
+module sources. The template adapter supplies Git identities, declared files,
+tool probes and command effects. Shared execution expands dependencies, skips
+checks whose dependencies failed, continues independent checks, covers world
+findings, re-observes inputs and creates the evidence document. The template
+stores that document rather than reconstructing an alternate receipt shape.
+Graph identity includes every declared shard field, including inheritance and
+ratchet policy. Repository process supervision, inheritance qualification and
+admission consumption still belong to the remaining ALIGN-009 migration.

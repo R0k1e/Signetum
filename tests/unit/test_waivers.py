@@ -201,7 +201,7 @@ sys.path.insert(0, sys.argv[1])
 module = importlib.import_module(sys.argv[2])
 if sys.argv[2] == 'lifecycle':
     load = module._load_waivers
-    cover = module._cover_findings
+    cover = importlib.import_module('_signetum_runtime.waivers').cover_findings
     from _signetum_runtime.findings import Finding
 else:
     load = module.load_waivers

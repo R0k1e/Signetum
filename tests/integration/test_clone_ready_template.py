@@ -10,7 +10,10 @@ from change_fixtures import commit_approval
 from typer.testing import CliRunner
 
 from signetum.cli import app
+from signetum.evidence.receipts import EvidenceReceipt
+from signetum.manifest import load_manifest
 from signetum.template import TOP_LEVEL, render_template, validate_template
+from signetum.validation.repository import configured_validation
 
 ROOT = Path(__file__).parents[2]
 
@@ -216,12 +219,19 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate:
     ready = subprocess.run(
         (runtime_python, "-I", str(runtime), "ready"),
         cwd=rendered,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    assert ready.returncode == 0, ready.stdout + ready.stderr
     assert '"status": "changed"' in diagnostic.stdout
-    assert json.loads(ready.stdout.splitlines()[-1])["status"] == "ready"
+    ready_payload = json.loads(ready.stdout.splitlines()[-1])
+    assert ready_payload["status"] == "ready"
+    member_evidence = EvidenceReceipt.from_json(json.dumps(ready_payload["evidence"]))
+    graph, _ = configured_validation(load_manifest(rendered / "signetum.toml"))
+    assert member_evidence.identity.graph == graph.digest
+    assert {tool.name for tool in member_evidence.identity.tools} == {"uv", "mise"}
+    assert member_evidence.execution.names == tuple(sorted(graph.execution_order("member")))
     if gate == "member":
         return
     batch = tmp_path / "batch"

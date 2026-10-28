@@ -18,8 +18,10 @@ MODULES = {
     "signetum.workspaces": "workspaces.py",
     "signetum.findings": "findings.py",
     "signetum.waivers": "waivers.py",
-    "signetum.evidence.receipts": "receipts.py",
+    "signetum.evidence.receipts": "evidence_receipts.py",
     "signetum.impact": "impact.py",
+    "signetum.validation": "validation.py",
+    "signetum.validation.execution": "execution.py",
     "signetum.profiles.pip_audit": "pip_audit.py",
 }
 
@@ -66,9 +68,11 @@ def runtime_files() -> dict[str, bytes]:
     sources: dict[str, str] = {}
     package = files("signetum")
     for module, destination in sorted(MODULES.items()):
-        source_bytes = package.joinpath(
-            *module.removeprefix("signetum.").split(".")[:-1], module.rsplit(".", 1)[1] + ".py"
-        ).read_bytes()
+        parts = module.removeprefix("signetum.").split(".")
+        source = package.joinpath(*parts[:-1], parts[-1] + ".py")
+        if not source.is_file():
+            source = package.joinpath(*parts, "__init__.py")
+        source_bytes = source.read_bytes()
         sources[module] = hashlib.sha256(source_bytes).hexdigest()
         result[destination] = portable_source(module, source_bytes.decode("utf-8"))
     metadata = [

@@ -10,19 +10,35 @@ import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tomllib
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _signetum_runtime.evidence_receipts import EvidenceReceipt, ReceiptError, ValidationSelection
+from _signetum_runtime.execution import (
+    ShardExecution,
+    ValidationExecutionError,
+    ValidationInfrastructureError,
+    ValidationInputs,
+    execute_gate,
+)
 from _signetum_runtime.findings import Finding, FindingsError, parse_findings
 from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.impact import select_paths
 from _signetum_runtime.operations import AdmissionError
+from _signetum_runtime.validation import (
+    GateDeclaration,
+    ToolDeclaration,
+    ValidationConfiguration,
+    ValidationGraphError,
+    ValidationShard,
+    command_digest,
+    resolve_validation_graph,
+)
 from _signetum_runtime.waivers import Waiver, WaiverError, load_waivers
-from _signetum_runtime.waivers import cover_findings as _cover_findings
 from _signetum_runtime.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
@@ -235,30 +251,6 @@ def _strings(value: object, label: str) -> list[str]:
     return result
 
 
-def _command_digest(command: tuple[str, ...]) -> str:
-    encoded = json.dumps(list(command), separators=(",", ":")).encode()
-    return "sha256:" + hashlib.sha256(encoded).hexdigest()
-
-
-def _parse_findings(document: str) -> tuple[Finding, ...]:
-    """Read the tool-neutral findings document a world shard must emit."""
-
-    try:
-        return parse_findings(document)
-    except FindingsError as error:
-        raise AdmissionError(str(error)) from error
-
-
-@dataclass(frozen=True)
-class _Shard:
-    """One declared validation shard and how its verdict is determined."""
-
-    name: str
-    command: tuple[str, ...]
-    evidence: str
-    findings_command: tuple[str, ...]
-
-
 def _load_waivers(repository: Path) -> tuple[Waiver, ...]:
     try:
         return load_waivers(repository)
@@ -315,95 +307,105 @@ def _member_shards(
     return tuple(selected), tuple(sorted(deferred))
 
 
-def _run_gate(
-    repository: Path, kind: str, selected_shards: tuple[str, ...] | None = None
-) -> list[dict[str, object]]:
-    """Execute one gate and return the outcome recorded for every shard.
+class _ValidationAdapter:
+    """Repository effects for the shared execution and evidence contracts."""
 
-    Every shard whose dependencies held runs even after an earlier shard
-    failed, so one run reports every independent problem it can observe.
-    """
+    def __init__(self, repository: Path) -> None:
+        self.repository = repository.resolve()
+
+    def commit_identity(self) -> str:
+        return _git(self.repository, "rev-parse", "HEAD")
+
+    def tree_identity(self) -> str:
+        return _git(self.repository, "rev-parse", "HEAD^{tree}")
+
+    def read_file(self, path: str) -> bytes:
+        candidate = (self.repository / path).resolve()
+        if not candidate.is_relative_to(self.repository):
+            raise ValidationExecutionError(f"file escapes repository: {path}")
+        try:
+            return candidate.read_bytes()
+        except OSError as error:
+            raise ValidationInfrastructureError(f"validation input unavailable: {path}") from error
+
+    def identify_tool(self, tool: ToolDeclaration) -> str:
+        completed = self._run(tool.identity_command)
+        identity = completed.stdout.strip()
+        if completed.returncode or not identity:
+            raise ValidationInfrastructureError(f"tool identity unavailable: {tool.name}")
+        return identity
+
+    def _run(self, command: tuple[str, ...]) -> subprocess.CompletedProcess[str]:
+        try:
+            return _run_tool(self.repository, command, required=False)
+        except (OSError, AdmissionError) as error:
+            raise ValidationInfrastructureError(str(error)) from error
+
+    def run_shard(self, shard: ValidationShard) -> ShardExecution:
+        completed = self._run(shard.command)
+        for output in (completed.stdout, completed.stderr):
+            if output:
+                print(output, file=sys.stderr, end="" if output.endswith("\n") else "\n")
+        diagnostic = completed.stderr.strip() or completed.stdout.strip()
+        return ShardExecution(completed.returncode == 0, diagnostic)
+
+    def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
+        completed = self._run(shard.findings_command)
+        try:
+            return parse_findings(completed.stdout)
+        except FindingsError as error:
+            raise ValidationExecutionError(str(error)) from error
+
+
+def _run_gate(
+    repository: Path,
+    kind: str,
+    selected_shards: tuple[str, ...] | None = None,
+    *,
+    base: str | None = None,
+    selection: dict[str, object] | None = None,
+) -> EvidenceReceipt:
+    """Execute through the canonical graph, failure and evidence authorities."""
 
     data = _manifest(repository)
-    validation = data.get("validation")
-    if not isinstance(validation, dict):
-        raise AdmissionError("validation graph is unavailable")
-    raw_shards = validation.get("shards")
-    raw_gates = validation.get("gates")
-    if not isinstance(raw_shards, list) or not isinstance(raw_gates, list):
-        raise AdmissionError("validation graph must contain shards and gates")
-    declared: dict[str, _Shard] = {}
-    for shard in raw_shards:
-        if not isinstance(shard, dict) or not isinstance(shard.get("name"), str):
-            raise AdmissionError("validation shard is invalid")
-        command = shard.get("command")
-        if (
-            not isinstance(command, list)
-            or not command
-            or not all(isinstance(argument, str) and argument for argument in command)
-        ):
-            raise AdmissionError("validation shard commands must be non-empty argv lists")
-        evidence = str(shard.get("evidence", "tree"))
-        if evidence not in ("tree", "world"):
-            raise AdmissionError(f"unsupported evidence class: {shard['name']}")
-        findings_command = tuple(
-            _strings(shard.get("findings_command", []), "shard.findings_command")
+    validation = _mapping(data.get("validation"), "validation")
+    try:
+        configuration = ValidationConfiguration.from_mapping("repository", validation)
+        contribution = configuration.contribution
+        graph = resolve_validation_graph((contribution,))
+        graph.gate(kind)
+        if selected_shards is not None:
+            gates = tuple(gate for gate in contribution.gates if gate.name != kind)
+            contribution = replace(
+                contribution, gates=(*gates, GateDeclaration(kind, selected_shards))
+            )
+            graph = resolve_validation_graph((contribution,))
+        profiles = _mapping(data.get("profiles", {}), "profiles")
+        repository_config = _mapping(data.get("repository"), "repository")
+        identity = _mapping(data.get("signetum"), "signetum")
+        schema = identity.get("evidence_schema_digest")
+        if not isinstance(schema, str):
+            raise AdmissionError("evidence schema digest is unavailable")
+        if identity.get("evidence_protocol") != "reposeal.validation-evidence@3":
+            raise AdmissionError("unsupported evidence protocol")
+        selected = ValidationSelection.from_mapping(selection) if selection is not None else None
+        inputs = ValidationInputs(
+            configuration_path="signetum.toml",
+            profiles=tuple(sorted(_strings(profiles.get("enabled", []), "profiles.enabled"))),
+            lockfiles=tuple(
+                sorted(_strings(repository_config.get("lockfiles", []), "repository.lockfiles"))
+            ),
+            tools=configuration.tools,
+            base=base,
+            selection=selected,
+            schema_digest=schema,
+            waivers=_load_waivers(repository),
         )
-        if findings_command and evidence != "world":
-            raise AdmissionError(f"only a world shard reports findings: {shard['name']}")
-        declared[shard["name"]] = _Shard(shard["name"], tuple(command), evidence, findings_command)
-    gate = next(
-        (item for item in raw_gates if isinstance(item, dict) and item.get("name") == kind),
-        None,
-    )
-    if gate is None or not isinstance(gate.get("shards"), list):
-        raise AdmissionError(f"validation gate is unavailable: {kind}")
-    names = tuple(gate["shards"]) if selected_shards is None else selected_shards
-    waivers = _load_waivers(repository)
-    today = datetime.now(UTC).date()
-    outcomes: list[dict[str, object]] = []
-    failures: list[str] = []
-    for name in names:
-        shard = declared.get(name)
-        if shard is None:
-            raise AdmissionError(f"validation shard is unavailable: {name}")
-        observed_at = datetime.now(UTC).isoformat() if shard.evidence == "world" else None
-        completed = _run_tool(repository, shard.command, capture_output=False, required=False)
-        outcome: dict[str, object] = {
-            "name": name,
-            "command_digest": _command_digest(shard.command),
-            "evidence": shard.evidence,
-            "status": "passed",
-            "observed_at": observed_at,
-            "waivers": [],
-            "findings": [],
-        }
-        if completed.returncode == 0:
-            outcomes.append(outcome)
-            continue
-        if shard.evidence != "world":
-            failures.append(f"validation shard failed: {name}")
-            continue
-        if not shard.findings_command:
-            failures.append(f"world shard failed and declares no findings command: {name}")
-            continue
-        reported = _run_tool(repository, shard.findings_command, required=False)
-        try:
-            findings = _parse_findings(reported.stdout)
-        except AdmissionError as error:
-            failures.append(f"{name}: {error}")
-            continue
-        coverage = _cover_findings(name, findings, waivers, today=today)
-        if not coverage.covered:
-            failures.append(coverage.diagnostic(name))
-            continue
-        outcome["status"] = "waived"
-        outcome["waivers"] = list(coverage.waivers)
-        outcome["findings"] = list(coverage.findings)
-        outcomes.append(outcome)
-    if failures:
-        raise AdmissionError("; ".join(failures))
-    return sorted(outcomes, key=lambda item: str(item["name"]))
+        receipt = execute_gate(graph, kind, inputs, _ValidationAdapter(repository))
+        _require_clean(repository)
+        return receipt
+    except (ValidationGraphError, ValidationExecutionError, ReceiptError) as error:
+        raise AdmissionError(str(error)) from error
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
@@ -534,46 +536,19 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         approvals = None
     gate = "member" if kind == "member" else "final"
     manifest = _manifest(repository)
-    selection = changed(repository, True)["selection"] if base is not None else None
+    selection = (
+        _mapping(changed(repository, True)["selection"], "selection") if base is not None else None
+    )
     selected_shards: tuple[str, ...] | None = None
     if isinstance(selection, dict):
         selected_shards, deferred = _member_shards(manifest, selection)
         if deferred:
             selection = dict(selection)
-            selection["reasons"] = list(selection["reasons"]) + [
+            selection["reasons"] = _strings(selection["reasons"], "selection.reasons") + [
                 f"world shard {name} deferred to final" for name in deferred
             ]
-    outcomes = _run_gate(repository, gate, selected_shards)
-    executed_shards = [str(outcome["name"]) for outcome in outcomes]
-    configuration = (repository / "signetum.toml").read_bytes()
-    profiles = _mapping(manifest.get("profiles", {}), "profiles")
-    repository_config = _mapping(manifest.get("repository"), "repository")
-    signetum_config = _mapping(manifest.get("signetum"), "signetum")
-    validation_config = _mapping(manifest.get("validation"), "validation")
-    identity = {
-        "commit": source,
-        "tree": _git(repository, "rev-parse", "HEAD^{tree}"),
-        "base": _git(repository, "rev-parse", base) if base else evidence_base,
-        "configuration": {
-            "path": "signetum.toml",
-            "digest": "sha256:" + hashlib.sha256(configuration).hexdigest(),
-        },
-        "profiles": sorted(_strings(profiles.get("enabled", []), "profiles.enabled")),
-        "graph": "sha256:"
-        + hashlib.sha256(
-            json.dumps(validation_config, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest(),
-        "lockfiles": [
-            {
-                "path": path,
-                "digest": "sha256:" + hashlib.sha256((repository / path).read_bytes()).hexdigest(),
-            }
-            for path in sorted(
-                _strings(repository_config.get("lockfiles", []), "repository.lockfiles")
-            )
-        ],
-        "tools": [],
-    }
+    evidence_base = _git(repository, "rev-parse", base) if base else evidence_base
+    evidence = _run_gate(repository, gate, selected_shards, base=evidence_base, selection=selection)
     payload = {
         "schema_version": 3,
         "kind": kind,
@@ -581,30 +556,9 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         "base": _git(repository, "rev-parse", base) if base else evidence_base,
         "validated_at": datetime.now(UTC).isoformat(),
         "valid": True,
-        "evidence": {
-            "schema_version": 3,
-            "protocol": signetum_config["evidence_protocol"],
-            "schema_digest": signetum_config["evidence_schema_digest"],
-            "identity": identity,
-            "selection": selection,
-            "execution": {
-                "gates": [gate],
-                "shards": outcomes,
-                "external_obligations": [],
-            },
-            "completeness": {
-                "member": gate == "member",
-                "final": gate == "final",
-                "required_shards": sorted(executed_shards),
-                "world_shards": sorted(
-                    str(outcome["name"]) for outcome in outcomes if outcome["evidence"] == "world"
-                ),
-            },
-            "provenance": {"stable_patch_id": None},
-            "extensions": {},
-            "valid": True,
-        },
+        "evidence": json.loads(evidence.to_json()),
     }
+
     if reconciliation is not None and approvals is not None:
         payload["delivery_review"] = {
             "approvals": approvals,
@@ -691,7 +645,7 @@ def _admission_evidence(member: Path, tip: str) -> str:
         for item in raw_shards
         for shard in (_mapping(item, "validation shard"),)
     }
-    required = {_command_digest(commands[name]) for name in required_names}
+    required = {command_digest(commands[name]) for name in required_names}
     tree = _git(member, "rev-parse", f"{tip}^{{tree}}")
     for path in sorted(_receipt_root(member).glob("*.json")):
         try:
