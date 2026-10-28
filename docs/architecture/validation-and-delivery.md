@@ -188,6 +188,17 @@ deviation API to the repository Git common directory at
 therefore share one local execution authority without committing it to the
 product tree.
 
+The public ledger API validates each record or resolution before appending,
+under a nonblocking per-change writer lock. Invalid authority, a repeated ID or
+an already resolved discovery is refused without changing the ledger; a failed
+resolution remains pending and can be corrected through the same API.
+Specification resolutions require approved behavior, an approved linked Plan and
+accepted required decisions. A deferred target must be a valid specification in
+an active change, with its own Review and Plan; a completed Review, withdrawn
+specification or arbitrary existing file cannot carry unfinished work. Completed
+approved specifications remain usable as behavior authority. Declared change
+and decision roots own these checks.
+
 Before final validation, the Agent reconciles every retained discovery into
 the applicable Specification, accepted clarifying or superseding Decision,
 architecture authority, behavior test, explicit follow-up Change, justified
