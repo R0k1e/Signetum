@@ -15,6 +15,7 @@ RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
 MODULES = {
     "signetum.operations": "operations.py",
     "signetum.git": "git.py",
+    "signetum.workspaces": "workspaces.py",
     "signetum.findings": "findings.py",
     "signetum.profiles.pip_audit": "pip_audit.py",
 }

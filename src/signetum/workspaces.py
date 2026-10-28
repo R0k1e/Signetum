@@ -8,13 +8,12 @@ import os
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from re import fullmatch
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import quote
-
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from signetum.git import git_output
 from signetum.operations import AdmissionError, MergeConflict
@@ -26,45 +25,83 @@ class WorkspaceError(ValueError):
     """A workspace record is missing, malformed, or already claimed."""
 
 
-class WorkspaceRecord(BaseModel):
+@dataclass(frozen=True)
+class WorkspaceRecord:
     """What a workspace is, written once when the workspace is created."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
     schema_version: int
-    branch: str = Field(min_length=1)
+    branch: str
     base: str
     kind: Literal["member", "batch"]
     members: tuple[str, ...] = ()
 
-    @field_validator("schema_version")
-    @classmethod
-    def validate_schema_version(cls, value: int) -> int:
-        if value != 1:
-            raise ValueError(f"unsupported workspace record schema: {value}")
-        return value
-
-    @field_validator("base")
-    @classmethod
-    def validate_base(cls, value: str) -> str:
-        if fullmatch(r"[0-9a-f]{40,64}", value) is None:
-            raise ValueError("workspace base must be an exact commit identity")
-        return value
-
-    @field_validator("members")
-    @classmethod
-    def validate_members(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        if len(value) != len(set(value)):
-            raise ValueError("declared members must be unique")
-        return value
+    def __post_init__(self) -> None:
+        if type(self.schema_version) is not int or self.schema_version != 1:
+            raise WorkspaceError(f"unsupported workspace record schema: {self.schema_version}")
+        if not isinstance(self.branch, str) or not self.branch:
+            raise WorkspaceError("workspace record branch is invalid")
+        if (
+            not isinstance(self.base, str)
+            or fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", self.base) is None
+        ):
+            raise WorkspaceError("workspace base must be an exact commit identity")
+        if self.kind not in ("member", "batch"):
+            raise WorkspaceError("workspace record kind is invalid")
+        if not isinstance(self.members, tuple) or any(
+            not isinstance(member, str) or not member for member in self.members
+        ):
+            raise WorkspaceError("declared members must be non-empty strings")
+        if len(self.members) != len(set(self.members)):
+            raise WorkspaceError("declared members must be unique")
 
 
-class ChangeOwner(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+def parse_record(document: object) -> WorkspaceRecord:
+    """Normalize JSON arrays, then apply the one record validator."""
+    required = {"schema_version", "branch", "base", "kind"}
+    if (
+        not isinstance(document, dict)
+        or not required.issubset(document)
+        or set(document) - (required | {"members"})
+    ):
+        raise WorkspaceError("workspace record fields are invalid")
+    members = document.get("members", ())
+    if isinstance(members, list):
+        members = tuple(members)
+    return WorkspaceRecord(
+        schema_version=cast(int, document["schema_version"]),
+        branch=cast(str, document["branch"]),
+        base=cast(str, document["base"]),
+        kind=cast(Literal["member", "batch"], document["kind"]),
+        members=cast(tuple[str, ...], members),
+    )
 
-    schema_version: Literal[1] = 1
-    change_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-    member: str = Field(min_length=1)
+
+@dataclass(frozen=True)
+class ChangeOwner:
+    change_id: str
+    member: str
+    schema_version: int = 1
+
+    def __post_init__(self) -> None:
+        if type(self.schema_version) is not int or self.schema_version != 1:
+            raise WorkspaceError("change owner schema is invalid")
+        if (
+            not isinstance(self.change_id, str)
+            or fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", self.change_id) is None
+        ):
+            raise WorkspaceError("change owner identity is invalid")
+        if not isinstance(self.member, str) or not self.member:
+            raise WorkspaceError("change owner member is invalid")
+
+
+def _parse_owner(document: object) -> ChangeOwner:
+    if not isinstance(document, dict) or set(document) != {"schema_version", "change_id", "member"}:
+        raise WorkspaceError("change owner fields are invalid")
+    return ChangeOwner(
+        schema_version=cast(int, document["schema_version"]),
+        change_id=cast(str, document["change_id"]),
+        member=cast(str, document["member"]),
+    )
 
 
 def claim_change(root: Path, change_id: str, member: str) -> None:
@@ -78,8 +115,8 @@ def claim_change(root: Path, change_id: str, member: str) -> None:
         target = directory / "owner.json"
         if target.exists():
             try:
-                current = ChangeOwner.model_validate_json(target.read_text(encoding="utf-8"))
-            except (OSError, ValidationError) as error:
+                current = _parse_owner(json.loads(target.read_text(encoding="utf-8")))
+            except (OSError, ValueError, TypeError) as error:
                 raise WorkspaceError(f"change owner is unreadable: {change_id}") from error
             if current != owner:
                 raise WorkspaceError(
@@ -90,7 +127,7 @@ def claim_change(root: Path, change_id: str, member: str) -> None:
         descriptor, temporary = tempfile.mkstemp(prefix="owner-", dir=directory)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-                stream.write(owner.model_dump_json() + "\n")
+                stream.write(json.dumps(asdict(owner), separators=(",", ":")) + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, target)
@@ -127,7 +164,7 @@ def write_record(root: Path, record: WorkspaceRecord) -> Path:
         descriptor, temporary = tempfile.mkstemp(prefix="record-", dir=path.parent)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-                stream.write(record.model_dump_json(indent=2) + "\n")
+                stream.write(json.dumps(asdict(record), indent=2) + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, path)
@@ -156,20 +193,19 @@ def read_record(root: Path, branch: str) -> WorkspaceRecord:
     except (OSError, json.JSONDecodeError) as error:
         raise WorkspaceError(f"workspace record for {branch} is unreadable: {error}") from error
     try:
-        return WorkspaceRecord.model_validate(document)
-    except ValidationError as error:
-        first = error.errors()[0]
-        field = ".".join(str(part) for part in first["loc"])
-        message = str(first["msg"]).removeprefix("Value error, ")
-        raise WorkspaceError(
-            f"workspace record for {branch} is invalid: {f'{field}: ' if field else ''}{message}"
-        ) from error
+        record = parse_record(document)
+        if record.branch != branch:
+            raise WorkspaceError("workspace record branch does not match its path")
+        return record
+    except WorkspaceError as error:
+        raise WorkspaceError(f"workspace record for {branch} is invalid: {error}") from error
 
 
 __all__ = [
     "WORKSPACE_DIRECTORY",
     "WorkspaceError",
     "WorkspaceRecord",
+    "parse_record",
     "read_record",
     "record_path",
     "write_record",

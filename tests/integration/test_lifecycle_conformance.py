@@ -9,7 +9,9 @@ from types import ModuleType
 import pytest
 
 from signetum import lifecycle as engine_lifecycle
+from signetum import worktrunk
 from signetum.git import git_output
+from signetum.workspaces import branch_name, read_record, state_root
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -83,3 +85,23 @@ def test_local_validation_state_has_one_git_common_root(
     git_output(tmp_path, "init")
     common = Path(git_output(tmp_path, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     assert runtime._receipt_root(tmp_path) == common / "signetum" / "validation"
+
+
+def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
+    root, _ = repository
+    runtime = _template_lifecycle()
+    monkeypatch.setattr(runtime, "_worktrunk", worktrunk.worktrunk)
+    monkeypatch.setattr(runtime, "admit", lambda batch, members: {})
+    base = git_output(root, "rev-parse", "HEAD")
+    declared = (root,)
+    opened = runtime.batch_open(root, declared)
+    batch = Path(opened["worktree"])
+    branch = branch_name(batch)
+    record = read_record(state_root(root), branch)
+    assert record.kind == "batch"
+    assert record.base == base
+    assert record.members == (str(root.resolve()),)
+    before = runtime._record_path(root, branch).read_bytes()
+    with pytest.raises(runtime.AdmissionError, match="different recorded identity"):
+        runtime._record_workspace(root, branch, base, "member")
+    assert runtime._record_path(root, branch).read_bytes() == before

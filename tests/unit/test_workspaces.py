@@ -9,6 +9,7 @@ from signetum.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
     claim_change,
+    parse_record,
     read_record,
     record_path,
     write_record,
@@ -26,7 +27,7 @@ def _record(**overrides: object) -> WorkspaceRecord:
         "kind": "member",
     }
     values.update(overrides)
-    return WorkspaceRecord.model_validate(values)
+    return parse_record(values)
 
 
 def test_a_branch_name_survives_the_round_trip_through_its_path(tmp_path: Path) -> None:
@@ -120,3 +121,31 @@ def test_a_change_owner_can_retry_but_cannot_fork_its_implementation(tmp_path):
     claim_change(tmp_path, "example", "plan/example")
     with pytest.raises(WorkspaceError, match="already belongs to member plan/example"):
         claim_change(tmp_path, "example", "impl/example")
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"change_id": "example", "member": "plan/example"},
+        {"schema_version": True, "change_id": "example", "member": "plan/example"},
+        {"schema_version": 1, "change_id": "../example", "member": "plan/example"},
+        {"schema_version": 1, "change_id": "example", "member": ""},
+        {"schema_version": 1, "change_id": "example", "member": "plan/example", "extra": "unknown"},
+    ],
+)
+def test_invalid_owner_is_preserved_and_cannot_be_silently_adopted(tmp_path, document):
+    path = tmp_path / "changes/example/owner.json"
+    path.parent.mkdir(parents=True)
+    original = json.dumps(document)
+    path.write_text(original)
+    with pytest.raises(WorkspaceError, match="unreadable"):
+        claim_change(tmp_path, "example", "plan/example")
+    assert path.read_text() == original
+
+
+@pytest.mark.parametrize("members", [["/one"], ("",), (1,)])
+def test_constructed_record_requires_immutable_string_members(members):
+    with pytest.raises(WorkspaceError, match="non-empty strings"):
+        WorkspaceRecord(
+            schema_version=1, branch="plan/example", base=BASE, kind="batch", members=members
+        )
