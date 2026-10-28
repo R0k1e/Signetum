@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -228,6 +229,12 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate:
     ready_payload = json.loads(ready.stdout.splitlines()[-1])
     assert ready_payload["status"] == "ready"
     member_evidence = EvidenceReceipt.from_json(json.dumps(ready_payload["evidence"]))
+    raw_receipt = Path(ready_payload["receipt"].replace("-lifecycle-", "-"))
+    assert EvidenceReceipt.from_json(raw_receipt.read_text()) == member_evidence
+    assert (
+        raw_receipt.name
+        == "member-" + hashlib.sha256(raw_receipt.read_bytes()).hexdigest() + ".json"
+    )
     graph, _ = configured_validation(load_manifest(rendered / "signetum.toml"))
     assert member_evidence.identity.graph == graph.digest
     assert {tool.name for tool in member_evidence.identity.tools} == {"uv", "mise"}

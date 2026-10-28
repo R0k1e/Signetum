@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -30,8 +29,10 @@ from _signetum_runtime.execution import (
 from _signetum_runtime.findings import Finding, FindingsError, parse_findings
 from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.impact import select_paths
+from _signetum_runtime.inheritance import find_test_inheritance
 from _signetum_runtime.operations import AdmissionError
 from _signetum_runtime.process import run_command
+from _signetum_runtime.receipt_store import ReceiptStore
 from _signetum_runtime.recovery import shard_execution, with_recovery_history
 from _signetum_runtime.validation import (
     GateDeclaration,
@@ -220,8 +221,9 @@ def _recorded_base(repository: Path, branch: str | None = None) -> str:
 
 def _write_receipt(repository: Path, kind: str, payload: dict[str, object]) -> Path:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
-    identity = hashlib.sha256(encoded.encode()).hexdigest()
-    target = _receipt_root(repository) / f"{kind}-{identity}.json"
+    evidence = EvidenceReceipt.from_json(json.dumps(payload["evidence"]))
+    raw = ReceiptStore(_receipt_root(repository)).write(kind, evidence)
+    target = raw.with_name(raw.name.replace(f"{kind}-", f"{kind}-lifecycle-", 1))
     target.write_text(encoded, encoding="utf-8")
     return target
 
@@ -458,8 +460,18 @@ def _run_gate(
             recovery_threshold=recovery_setting("recovery_threshold", 3),
             recovery_window=recovery_setting("recovery_window", 20),
         )
-        inputs = with_recovery_history(inputs, _receipt_root(repository), evidence_field="evidence")
-        receipt = execute_gate(graph, kind, inputs, _ValidationAdapter(repository))
+        inputs = with_recovery_history(inputs, _receipt_root(repository))
+        adapter = _ValidationAdapter(repository)
+        inherited = (
+            find_test_inheritance(
+                repository, _impact_rules(data), graph, inputs, adapter, _receipt_root(repository)
+            )
+            if kind == "member"
+            and base is not None
+            and any(shard.inherit for shard in graph.shards)
+            else None
+        )
+        receipt = execute_gate(graph, kind, inputs, adapter, inherited=inherited)
         _require_clean(repository)
         return receipt
     except (ValidationGraphError, ValidationExecutionError, ReceiptError) as error:
@@ -534,18 +546,18 @@ class _ImpactRule:
         )
 
 
+def _impact_rules(manifest: dict[str, object]) -> tuple[_ImpactRule, ...]:
+    impact = _mapping(manifest.get("impact"), "impact")
+    rules = (_mapping(item, "impact rule") for item in _array(impact["rules"], "impact.rules"))
+    return tuple(_ImpactRule.from_mapping(rule) for rule in rules)
+
+
 def changed(repository: Path, explain: bool) -> dict[str, object]:
     base = _recorded_base(repository)
     files = tuple(
         filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
     )
-    try:
-        manifest = _manifest(repository)
-        impact = _mapping(manifest.get("impact"), "impact")
-        rules = [_mapping(item, "impact rule") for item in _array(impact["rules"], "impact.rules")]
-    except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
-        raise AdmissionError(f"invalid impact authority: {error}") from error
-    normalized = tuple(_ImpactRule.from_mapping(rule) for rule in rules)
+    normalized = _impact_rules(_manifest(repository))
     # This frontend's internal boundary consumes the serialized evidence shape.
     selection = json.loads(json.dumps(asdict(select_paths(files, normalized))))
     return {

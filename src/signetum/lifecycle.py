@@ -64,9 +64,9 @@ from signetum.validation.execution import (
 )
 from signetum.validation.inheritance import find_test_inheritance
 from signetum.validation.ratchet import ratchet_baseline
+from signetum.validation.receipt_store import ReceiptStore
 from signetum.validation.recovery import with_recovery_history
 from signetum.validation.repository import (
-    ReceiptStore,
     RepositoryValidationAdapter,
     run_diagnostic_gate,
 )
@@ -318,7 +318,7 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
     adapter = RepositoryValidationAdapter(repository, member_base=base)
     inherited = (
         find_test_inheritance(
-            repository, manifest, graph, inputs, adapter, _receipt_root(repository)
+            repository, manifest.impact.rules, graph, inputs, adapter, _receipt_root(repository)
         )
         if kind == "member"
         else None

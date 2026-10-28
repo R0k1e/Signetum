@@ -27,6 +27,8 @@ MODULES = {
     "signetum.validation.pytest_report": "pytest_report.py",
     "signetum.validation.recovery": "recovery.py",
     "signetum.validation.resources": "resources.py",
+    "signetum.validation.inheritance": "inheritance.py",
+    "signetum.validation.receipt_store": "receipt_store.py",
     "signetum.profiles.pip_audit": "pip_audit.py",
 }
 
@@ -38,7 +40,8 @@ def is_runtime_cache(path: Path) -> bool:
 def portable_source(module: str, source: str) -> bytes:
     """Change only declared internal imports; retain one maintained body."""
     lines = source.splitlines(keepends=True)
-    for node in ast.walk(ast.parse(source)):
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             dependencies = [alias.name for alias in node.names]
         elif isinstance(node, ast.ImportFrom):
@@ -63,6 +66,23 @@ def portable_source(module: str, source: str) -> bytes:
                 not isinstance(node, ast.ImportFrom) or dependency not in MODULES
             ):
                 raise ValueError(f"unbundled dependency {dependency} in {module}")
+    # Flattening package names can change their lexical order. Reorder only
+    # consecutive declared top-level imports; all implementation statements stay.
+    groups: list[list[ast.ImportFrom]] = []
+    pending: list[ast.ImportFrom] = []
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module in MODULES:
+            pending.append(node)
+        elif pending:
+            groups.append(pending)
+            pending = []
+    if pending:
+        groups.append(pending)
+    for group in reversed(groups):
+        chunks = {node: lines[node.lineno - 1 : node.end_lineno] for node in group}
+        ordered = sorted(group, key=lambda node: Path(MODULES[node.module or ""]).stem)
+        for destination, original in reversed(list(zip(group, ordered, strict=True))):
+            lines[destination.lineno - 1 : destination.end_lineno] = chunks[original]
     return (
         f"# Generated from {module}; edit the engine source and regenerate.\n" + "".join(lines)
     ).encode()
