@@ -15,12 +15,28 @@ from datetime import UTC, date, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from shutil import which
-from urllib.parse import quote
+from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _signetum_runtime.findings import FindingsError, parse_findings
 from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.operations import AdmissionError
+from _signetum_runtime.workspaces import (
+    WorkspaceError,
+    WorkspaceRecord,
+    read_record,
+    record_path,
+    write_record,
+)
+from _signetum_runtime.workspaces import (
+    branch_name as _branch,
+)
+from _signetum_runtime.workspaces import (
+    require_clean as _require_clean,
+)
+from _signetum_runtime.workspaces import (
+    state_root as _state_root,
+)
 from deviations import DeviationError, approval_view, reconciliation_summary
 
 
@@ -136,13 +152,6 @@ def _registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:
     return matches[0]
 
 
-def _state_root(repository: Path) -> Path:
-    common = Path(_git(repository, "rev-parse", "--git-common-dir"))
-    if not common.is_absolute():
-        common = repository / common
-    return common.resolve() / "signetum"
-
-
 def _receipt_root(repository: Path) -> Path:
     root = _state_root(repository) / "validation"
     root.mkdir(parents=True, exist_ok=True)
@@ -150,52 +159,30 @@ def _receipt_root(repository: Path) -> Path:
 
 
 def _record_path(repository: Path, branch: str) -> Path:
-    return _state_root(repository) / "workspaces" / f"{quote(branch, safe='')}.json"
+    return record_path(_state_root(repository), branch)
 
 
 def _record_workspace(
-    repository: Path, branch: str, base: str, kind: str, members: tuple[str, ...] = ()
+    repository: Path,
+    branch: str,
+    base: str,
+    kind: Literal["member", "batch"],
+    members: tuple[str, ...] = (),
 ) -> None:
-    path = _record_path(repository, branch)
-    if path.is_file():
-        existing = _read_record(repository, branch)
-        if existing["base"] != base:
-            raise AdmissionError(
-                f"workspace {branch} is already recorded at base {existing['base']}"
-            )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "branch": branch,
-                "base": base,
-                "kind": kind,
-                "members": list(members),
-            },
-            indent=2,
+    try:
+        write_record(
+            _state_root(repository),
+            WorkspaceRecord(schema_version=1, branch=branch, base=base, kind=kind, members=members),
         )
-        + "\n",
-        encoding="utf-8",
-    )
+    except WorkspaceError as error:
+        raise AdmissionError(str(error)) from error
 
 
 def _read_record(repository: Path, branch: str) -> dict[str, object]:
-    path = _record_path(repository, branch)
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as error:
-        # A base is never guessed. A workspace created before this record
-        # existed is adopted by writing the base a human knows it was cut from.
-        raise AdmissionError(f"workspace {branch} has no recorded base at {path}") from error
-    except (OSError, json.JSONDecodeError) as error:
-        raise AdmissionError(f"workspace record for {branch} is unreadable: {error}") from error
-    if not isinstance(document, dict) or document.get("schema_version") != 1:
-        raise AdmissionError(f"unsupported workspace record schema for {branch}")
-    base = document.get("base")
-    if not isinstance(base, str) or re.fullmatch(r"[0-9a-f]{40,64}", base) is None:
-        raise AdmissionError(f"workspace record for {branch} has no exact base")
-    return document
+        return asdict(read_record(_state_root(repository), branch))
+    except WorkspaceError as error:
+        raise AdmissionError(str(error)) from error
 
 
 def _recorded_base(repository: Path, branch: str | None = None) -> str:
@@ -513,6 +500,17 @@ def _run_gate(
 
 
 def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
+    return _open_workspace(repository, branch, base, kind="member", members=())
+
+
+def _open_workspace(
+    repository: Path,
+    branch: str,
+    base: str,
+    *,
+    kind: Literal["member", "batch"],
+    members: tuple[str, ...],
+) -> dict[str, object]:
     root = Path(_git(repository, "rev-parse", "--show-toplevel"))
     source = _git(root, "rev-parse", base)
     _worktrunk(
@@ -532,7 +530,7 @@ def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object
     workspace = _registered_workspace(root, branch)
     if workspace.head != source:
         raise AdmissionError("Worktrunk workspace does not match the exact approved base")
-    _record_workspace(root, branch, source, "member")
+    _record_workspace(root, branch, source, kind, members)
     return {
         "schema_version": 1,
         "status": "opened",
@@ -727,19 +725,6 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         }
     receipt = _write_receipt(repository, kind, payload)
     return {**payload, "status": "ready" if kind == "member" else "final", "receipt": str(receipt)}
-
-
-def _require_clean(worktree: Path) -> None:
-    status = _git(worktree, "status", "--porcelain")
-    if status:
-        raise AdmissionError(f"worktree is not clean: {worktree}")
-
-
-def _branch(worktree: Path) -> str:
-    branch = _git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
-    if not branch:
-        raise AdmissionError(f"member has no branch: {worktree}")
-    return branch
 
 
 def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
@@ -1121,17 +1106,14 @@ def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]
     stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     branch = f"batch/{stamp}"
     approved_base = _git(repository, "rev-parse", "HEAD")
-    opened = workspace_open(repository, branch, "HEAD")
-    batch = Path(str(opened["worktree"]))
-    # A batch is a workspace which declares members, so it carries the same
-    # record a member does and its base is read the same way.
-    _record_workspace(
+    opened = _open_workspace(
         repository,
         branch,
-        approved_base,
-        "batch",
-        tuple(str(member.resolve()) for member in members),
+        "HEAD",
+        kind="batch",
+        members=tuple(str(member.resolve()) for member in members),
     )
+    batch = Path(str(opened["worktree"]))
     _git(
         batch,
         "commit",

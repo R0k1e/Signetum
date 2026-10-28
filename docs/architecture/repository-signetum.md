@@ -32,3 +32,10 @@ its public source/output digest manifest are self-contained standard-library
 artifacts. Boundary adapters call these modules rather than maintaining their
 bodies again. Remaining lifecycle migration is owned by the active
 [tooling alignment specification](../../changes/align-perdura-development-tooling/specs/tooling.toml); generating the initial modules does not complete it.
+
+Workspace records and change owners are validated by standard-library immutable
+values in `signetum.workspaces`, not by distribution-specific models. Workspace
+JSON input is normalized once by `parse_record`; both installed and generated runtimes use
+the same atomic writer and immutable identity checks. A record must match its
+branch path and bind a 40- or 64-character commit identity. Batch creation writes
+its role and initial member list once rather than upgrading a member record.
