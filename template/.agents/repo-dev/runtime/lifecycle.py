@@ -18,6 +18,7 @@ from shutil import which
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _signetum_runtime import resources
 from _signetum_runtime.evidence_receipts import EvidenceReceipt, ReceiptError, ValidationSelection
 from _signetum_runtime.execution import (
     ShardExecution,
@@ -364,6 +365,13 @@ class _ValidationAdapter:
             raise ValidationInfrastructureError(str(error)) from error
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
+        allocation = (
+            resources.allocate_workers(
+                shard.workers, shard.worker_memory_mb, resources.observe_resources()
+            )
+            if shard.workers
+            else {"workers": 0, "declared_workers": 0}
+        )
         with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
             report = Path(scratch) / "recovered.json"
             try:
@@ -373,14 +381,16 @@ class _ValidationAdapter:
                     environment=dict(
                         os.environ,
                         SIGNETUM_RECOVERY_REPORT=str(report),
-                        SIGNETUM_VALIDATION_WORKERS="0",
+                        SIGNETUM_VALIDATION_WORKERS=str(allocation["workers"]),
                     ),
                 )
             except subprocess.TimeoutExpired:
-                return ShardExecution(
+                execution = ShardExecution(
                     False, f"{shard.name} did not return within {shard.timeout_seconds}s"
                 )
-            return shard_execution(shard.name, completed, report)
+            else:
+                execution = shard_execution(shard.name, completed, report)
+        return replace(execution, details={**execution.details, "resource_allocation": allocation})
 
     def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
         try:
