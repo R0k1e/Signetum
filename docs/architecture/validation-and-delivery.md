@@ -62,8 +62,9 @@ admission records a deferred closure naming the justifying rules.
 
 Delivery
 requires the remote target to equal the approved base, derives members and Plan
-trailers from the batch's admitted merge commits, fast-forwards the target,
-pushes without force, and confirms the exact remote identity. Only then does it
+trailers from the batch's admitted merge commits, constructs an outer merge with the approved base and batch tip as parents without
+moving the target, pushes that exact commit without force, and confirms the remote
+identity. Only then does it fast-forward the local target and
 remove the clean batch worktree and clean member worktrees still at their
 admitted commits; a dirty or advanced member is retained and reported. CI may
 check these contracts but does not fix, merge, publish, or delete branches.

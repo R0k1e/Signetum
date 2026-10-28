@@ -1,0 +1,124 @@
+"""Delivery survives remote rejection and interruption without losing local state."""
+
+import json
+import subprocess
+from pathlib import Path
+from shutil import which
+
+import pytest
+
+from signetum import lifecycle
+from signetum.workspaces import WorkspaceRecord, write_record
+
+
+def git(repository: Path, *arguments: str) -> str:
+    executable = which("git")
+    if executable is None:
+        raise RuntimeError("Git is required for delivery scenarios")
+    return subprocess.run(  # nosec B603
+        (executable, "-C", str(repository), *arguments),
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    target = tmp_path / "target"
+    target.mkdir()
+    git(target, "init", "-b", "main")
+    git(target, "config", "user.name", "Delivery Test")
+    git(target, "config", "user.email", "delivery@example.invalid")
+    (target / "content").write_text("base")
+    git(target, "add", ".")
+    git(target, "commit", "-m", "base")
+    base = git(target, "rev-parse", "HEAD")
+    remote = tmp_path / "remote.git"
+    remote.mkdir()
+    git(remote, "init", "--bare")
+    git(target, "remote", "add", "origin", str(remote))
+    git(target, "push", "origin", "main")
+    source = tmp_path / "batch"
+    git(target, "worktree", "add", "-b", "batch/test", str(source))
+    (source / "content").write_text("delivered")
+    git(source, "commit", "-am", "implement")
+    tip = git(source, "rev-parse", "HEAD")
+    write_record(
+        lifecycle._state_root(source),
+        WorkspaceRecord(schema_version=1, branch="batch/test", base=base, kind="batch"),
+    )
+    receipts = lifecycle._receipt_root(source)
+    (receipts / "final-test.json").write_text(
+        json.dumps({"source": tip, "base": base, "valid": True})
+    )
+    (receipts / "final-zzz.json").write_text(
+        json.dumps({"source": base, "base": base, "valid": True})
+    )
+    monkeypatch.setattr(lifecycle, "_attested_base", lambda *args: base)
+    monkeypatch.setattr(lifecycle, "_delivery_provenance", lambda *args: ([], []))
+    monkeypatch.setattr(lifecycle, "_cleanup_delivered_worktrees", lambda *args: ([], []))
+    return source, target, remote, base, tip
+
+
+def test_rejected_push_keeps_target_at_base(tmp_path, monkeypatch):
+    source, target, remote, base, tip = delivery(tmp_path, monkeypatch)
+    hook = remote / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.chmod(0o755)
+
+    with pytest.raises(lifecycle.AdmissionError):
+        lifecycle.batch_deliver(source, target, base, tip)
+
+    assert git(target, "rev-parse", "HEAD") == base
+    assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
+    hook.unlink()
+    result = lifecycle.batch_deliver(source, target, base, tip)
+    landed = git(target, "rev-parse", "HEAD")
+    assert result["remote"] == landed
+    assert git(target, "show", "-s", "--format=%P", landed).split() == [base, tip]
+
+
+def test_published_delivery_resumes_local_move(tmp_path, monkeypatch):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+    original = lifecycle._git
+
+    def interrupt(repository, *arguments, **kwargs):
+        if repository == target and arguments[:2] == ("merge", "--ff-only"):
+            raise lifecycle.AdmissionError("simulated interruption after publication")
+        return original(repository, *arguments, **kwargs)
+
+    monkeypatch.setattr(lifecycle, "_git", interrupt)
+    with pytest.raises(lifecycle.AdmissionError, match="simulated interruption"):
+        lifecycle.batch_deliver(source, target, base, tip)
+    published = git(target, "ls-remote", "origin", "refs/heads/main").split()[0]
+    assert published != base
+    assert git(target, "rev-parse", "HEAD") == base
+
+    monkeypatch.setattr(lifecycle, "_git", original)
+    result = lifecycle.batch_deliver(source, target, base, tip)
+    assert result["remote"] == published
+    assert git(target, "rev-parse", "HEAD") == published
+
+
+def test_delivery_retries_cleanup_after_target_moved(tmp_path, monkeypatch):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+
+    def interrupted_cleanup(*args):
+        raise lifecycle.AdmissionError("simulated cleanup interruption")
+
+    monkeypatch.setattr(lifecycle, "_cleanup_delivered_worktrees", interrupted_cleanup)
+    with pytest.raises(lifecycle.AdmissionError, match="cleanup interruption"):
+        lifecycle.batch_deliver(source, target, base, tip)
+    published = git(target, "rev-parse", "HEAD")
+    monkeypatch.setattr(lifecycle, "_cleanup_delivered_worktrees", lambda *args: ([], []))
+    result = lifecycle.batch_deliver(source, target, base, tip)
+    assert result["remote"] == published
+
+
+def test_unrelated_remote_change_is_refused_without_local_move(tmp_path, monkeypatch):
+    source, target, remote, base, tip = delivery(tmp_path, monkeypatch)
+    git(source, "push", "origin", f"{tip}:refs/heads/other")
+    git(remote, "update-ref", "refs/heads/main", tip)
+    with pytest.raises(lifecycle.AdmissionError, match="remote delivery branch"):
+        lifecycle.batch_deliver(source, target, base, tip)
+    assert git(target, "rev-parse", "HEAD") == base

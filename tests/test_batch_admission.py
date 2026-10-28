@@ -171,66 +171,6 @@ def test_ancestor_query_has_two_valid_outcomes(
     assert module._is_ancestor(tmp_path, "member", "batch") is (return_code == 0)
 
 
-def test_delivery_finds_the_receipt_bound_to_the_expected_tip(monkeypatch, tmp_path: Path) -> None:
-    module = _load_module()
-    source = tmp_path / "source"
-    target = tmp_path / "target"
-    receipts = tmp_path / "receipts"
-    receipts.mkdir()
-    (receipts / "final-zzz.json").write_text(
-        json.dumps({"source": "older", "valid": True}), encoding="utf-8"
-    )
-    (receipts / "final-aaa.json").write_text(
-        json.dumps({"source": "expected", "base": "base", "valid": True}), encoding="utf-8"
-    )
-
-    monkeypatch.setattr(module, "_require_clean", lambda path: None)
-    monkeypatch.setattr(module, "_receipt_root", lambda path: receipts)
-    monkeypatch.setattr(module, "_branch", lambda path: "main")
-    monkeypatch.setattr(module, "_recorded_base", lambda path, branch=None: "base")
-    monkeypatch.setattr(module, "_attested_base", lambda path, tip: "base")
-    remote_tips = iter(("base", "expected"))
-    monkeypatch.setattr(module, "_remote_branch_tip", lambda path, branch: next(remote_tips))
-    monkeypatch.setattr(
-        module,
-        "_delivery_provenance",
-        lambda repository, base, tip: (
-            [
-                {
-                    "branch": "member",
-                    "original": "member-tip",
-                    "integrated": "merge-tip",
-                    "summary": "deliver behavior",
-                }
-            ],
-            ["changes/example/plans/example.md"],
-        ),
-    )
-    monkeypatch.setattr(
-        module,
-        "_cleanup_delivered_worktrees",
-        lambda target, source, members: ([str(source)], []),
-    )
-
-    target_heads = iter(("base", "expected"))
-
-    def fake_git(repository: Path, *arguments: str, **kwargs: object) -> str:
-        if arguments == ("rev-parse", "HEAD"):
-            return "expected" if repository == source else next(target_heads)
-        if arguments[0] in {"merge", "push"}:
-            return ""
-        raise AssertionError(arguments)
-
-    monkeypatch.setattr(module, "_git", fake_git)
-
-    result = module.batch_deliver(source, target, "base", "expected")
-
-    assert result["status"] == "delivered"
-    assert result["remote"] == "expected"
-    assert result["plans"] == ["changes/example/plans/example.md"]
-    assert result["validation"]["source"] == "expected"
-
-
 def test_manifest_gate_preserves_declared_command_order(tmp_path: Path) -> None:
     module = _load_module()
     manifest = module.load_manifest(Path(__file__).resolve().parents[1] / "signetum.toml")
