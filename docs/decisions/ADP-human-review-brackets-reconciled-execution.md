@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-09-01
 Supersedes: None
-Superseded by: None
+Superseded by: ADP-align-development-tooling-with-perdura.md
 
 ## Context
 

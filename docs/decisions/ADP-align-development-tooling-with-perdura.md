@@ -2,8 +2,8 @@
 
 Status: Accepted
 Review date: 2026-10-28
-Supersedes: ADP-0007-unified-validation-evidence.md, ADP-0001-batch-owned-decision-numbering.md
-Partially supersedes: ADP-0007-unified-validation-evidence.md, ADP-0001-batch-owned-decision-numbering.md
+Supersedes: ADP-0007-unified-validation-evidence.md, ADP-0001-batch-owned-decision-numbering.md, ADP-0005-unify-runtime-configuration.md, ADP-0006-public-lifecycle-consumes-v2-authorities.md, ADP-human-review-brackets-reconciled-execution.md
+Partially supersedes: ADP-0007-unified-validation-evidence.md, ADP-0001-batch-owned-decision-numbering.md, ADP-0005-unify-runtime-configuration.md, ADP-0006-public-lifecycle-consumes-v2-authorities.md, ADP-human-review-brackets-reconciled-execution.md
 Superseded by: None
 
 ## Context
@@ -35,3 +35,10 @@ Exact-tip readiness follows the owner-approved Perdura baseline.
 The numbering clause of ADP-0001 is superseded only for timing: final owns
 numbering, admission and continuation never number, and numbering never grants
 acceptance. The base and frozen-tree guarantees remain in force.
+
+The fixed eight-operation boundary is replaced by the documented necessary
+operations. Preparation and batch gates are executable TOML declarations;
+delivery branch identity is the existing repository-policy YAML responsibility.
+Only those configuration/count clauses of the additional predecessors are
+replaced. Human approval, reconciliation, check-only evidence and explicit
+delivery boundaries remain intact.

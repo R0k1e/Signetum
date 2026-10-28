@@ -15,7 +15,16 @@ from signetum.evidence.receipts import (
 )
 from signetum.findings import Finding, FindingsError, parse_findings
 from signetum.git import GitError, git_output
-from signetum.validation import ToolDeclaration, ValidationGraph, ValidationShard
+from signetum.manifest import RepositoryManifest
+from signetum.profiles import resolve_profiles
+from signetum.validation import (
+    GateDeclaration,
+    GraphContribution,
+    ToolDeclaration,
+    ValidationGraph,
+    ValidationShard,
+    resolve_validation_graph,
+)
 from signetum.validation.execution import (
     ShardExecution,
     ValidationExecutionError,
@@ -197,3 +206,68 @@ __all__ = [
     "run_repository_gate",
     "verify_repository_gate",
 ]
+
+
+def configured_validation(
+    manifest: RepositoryManifest, *, member_shards: tuple[str, ...] | None = None
+):
+    resolved = resolve_profiles(
+        manifest.profiles.enabled, replacements=manifest.profiles.replacements
+    )
+    shards = [
+        ValidationShard(
+            item.name,
+            item.command,
+            item.requires,
+            item.evidence,
+            item.findings_command,
+            item.timeout_seconds,
+        )
+        for item in manifest.validation.shards
+    ]
+    gates = [GateDeclaration(item.name, item.shards) for item in manifest.validation.gates]
+    if member_shards is not None:
+        gates = [item for item in gates if item.name != "member"]
+        gates.append(GateDeclaration("member", member_shards))
+    graph = resolve_validation_graph(
+        (GraphContribution("repository", tuple(shards), tuple(gates)),)
+    )
+    inputs = ValidationInputs(
+        "signetum.toml",
+        tuple(sorted(profile.identity for profile in resolved)),
+        tuple(sorted(manifest.repository.lockfiles)),
+        tuple(
+            ToolDeclaration(item.name, item.identity_command) for item in manifest.validation.tools
+        ),
+    )
+    return graph, inputs
+
+
+def run_diagnostic_gate(
+    repository: Path,
+    graph: ValidationGraph,
+    gate: str,
+    *,
+    executed: set[str] | None = None,
+    advisory_world: bool = False,
+) -> dict[str, object]:
+    """Execute checks without granting readiness or publishing delivery evidence."""
+    proven = executed if executed is not None else set()
+    by_name = {shard.name: shard for shard in graph.shards}
+    names: list[str] = []
+    advisories: list[dict[str, str]] = []
+    adapter = RepositoryValidationAdapter(repository)
+    for name in graph.execution_order(gate):
+        shard = by_name[name]
+        if shard.evidence == "tree" and shard.digest in proven:
+            continue
+        result = adapter.run_shard(shard)
+        names.append(name)
+        if not result.succeeded:
+            if shard.evidence == "world" and advisory_world:
+                advisories.append({"shard": name, "diagnostic": result.diagnostic})
+                continue
+            raise ValidationExecutionError(result.diagnostic or f"check failed: {name}")
+        if shard.evidence == "tree":
+            proven.add(shard.digest)
+    return {"executed": names, "advisories": advisories}

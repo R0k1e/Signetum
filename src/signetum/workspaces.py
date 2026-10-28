@@ -6,12 +6,18 @@ import fcntl
 import json
 import os
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from re import fullmatch
 from typing import Literal
 from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from signetum.git import git_output
+from signetum.operations import AdmissionError, MergeConflict
 
 WORKSPACE_DIRECTORY = "workspaces"
 
@@ -106,14 +112,27 @@ def write_record(root: Path, record: WorkspaceRecord) -> Path:
     """
 
     path = record_path(root, record.branch)
-    if path.exists():
-        existing = read_record(root, record.branch)
-        if existing.base != record.base:
-            raise WorkspaceError(
-                f"workspace {record.branch} is already recorded at base {existing.base}"
-            )
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(record.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    with (path.parent / "records.lock").open("a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if path.exists():
+            existing = read_record(root, record.branch)
+            if existing.base != record.base:
+                raise WorkspaceError(
+                    f"workspace {record.branch} is already recorded at base {existing.base}"
+                )
+            if existing != record:
+                raise WorkspaceError("workspace already has a different recorded identity")
+            return path
+        descriptor, temporary = tempfile.mkstemp(prefix="record-", dir=path.parent)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                stream.write(record.model_dump_json(indent=2) + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
     return path
 
 
@@ -155,3 +174,78 @@ __all__ = [
     "record_path",
     "write_record",
 ]
+
+
+def state_root(repository: Path) -> Path:
+    common = Path(git_output(repository, "rev-parse", "--git-common-dir"))
+    if not common.is_absolute():
+        common = repository / common
+    root = common.resolve() / "signetum"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def recorded_base(repository: Path, branch: str | None = None) -> str:
+    """Return the base this workspace was cut from.
+
+    The record is the only authority. A base is never re-derived from commit
+    prose, and never accepted from a caller who could name a different one.
+    """
+
+    resolved = branch if branch is not None else branch_name(repository)
+    try:
+        return read_record(state_root(repository), resolved).base
+    except WorkspaceError as error:
+        raise AdmissionError(str(error)) from error
+
+
+def require_clean(worktree: Path) -> None:
+    status = git_output(worktree, "status", "--porcelain")
+    if status:
+        raise AdmissionError(f"worktree is not clean: {worktree}")
+
+
+def branch_name(worktree: Path) -> str:
+    branch = git_output(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
+    if not branch:
+        raise AdmissionError(f"member has no branch: {worktree}")
+    return branch
+
+
+def require_no_merge(repository: Path) -> None:
+    merge_head = Path(git_output(repository, "rev-parse", "--git-path", "MERGE_HEAD"))
+    if not merge_head.is_absolute():
+        merge_head = repository / merge_head
+    if merge_head.is_file():
+        raise MergeConflict(
+            "batch has an open merge",
+            expected=f"resolve and stage paths, then batch-continue {repository}",
+        )
+
+
+@contextmanager
+def exclusive_batch(batch: Path) -> Iterator[None]:
+    """Hold the batch for one operator, naming the holder when refusing.
+
+    Two admissions interleaving in one batch worktree leave the loser's merge
+    state as whatever the winner happened to leave behind.
+    """
+
+    root = state_root(batch) / "locks"
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / f"{quote(branch_name(batch), safe='')}.lock"
+    handle = path.open("a+", encoding="utf-8")
+    try:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            handle.seek(0)
+            holder = handle.read().strip() or "another process"
+            raise AdmissionError(f"batch is held by {holder}") from error
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"pid {os.getpid()} since {datetime.now(UTC).isoformat()}\n")
+        handle.flush()
+        yield
+    finally:
+        handle.close()

@@ -32,6 +32,10 @@ repository:
   lifecycle:
     public_operations:
       - workspace-open
+      - workspace-sync
+      - worktree-prepare
+      - cleanup
+      - batch-discard
       - changed
       - ready
       - batch-open
@@ -39,3 +43,6 @@ repository:
       - batch-continue
       - final
       - batch-deliver
+
+delivery:
+  branch: engine

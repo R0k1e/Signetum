@@ -23,4 +23,3 @@ validation:
   final: just final
 delivery:
   branch: main
-  state: .signetum/delivery

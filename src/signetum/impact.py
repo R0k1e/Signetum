@@ -1,10 +1,14 @@
 """Resolve actual repository changes against declared impact rules."""
 
+import hashlib
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from fnmatch import fnmatch
+from pathlib import Path
 
-from signetum.manifest import ImpactRule
+from signetum.evidence.receipts import ValidationSelection
+from signetum.manifest import ImpactRule, RepositoryManifest
 
 
 @dataclass(frozen=True)
@@ -59,3 +63,26 @@ def _ordered_union(groups: Iterable[tuple[str, ...]]) -> tuple[str, ...]:
 
 
 __all__ = ["ImpactSelection", "select_impact"]
+
+
+def select_paths(files: tuple[str, ...], manifest: RepositoryManifest) -> ValidationSelection:
+    impact = select_impact(files, manifest.impact.rules)
+    encoded = json.dumps(files, separators=(",", ":")).encode()
+    modified_tests = tuple(
+        path
+        for path in files
+        if path.startswith("tests/") or "/tests/" in path or Path(path).name.startswith("test_")
+    )
+    reasons = tuple(f"impact rule {name} matched" for name in impact.rules)
+    return ValidationSelection(
+        changed_paths_digest="sha256:" + hashlib.sha256(encoded).hexdigest(),
+        rules=impact.rules,
+        profiles=impact.profiles,
+        gates=impact.gates,
+        shards=impact.shards,
+        modified_tests=modified_tests,
+        external_obligations=(),
+        unexplained=impact.unexplained,
+        requires_final=impact.requires_final,
+        reasons=reasons,
+    )

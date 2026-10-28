@@ -108,3 +108,11 @@ shards = ["engine:sync", "engine:traceability", "engine:build", "engine:precommi
 [[validation.gates]]
 name = "final"
 shards = ["engine:sync", "engine:traceability", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+
+[[validation.gates]]
+name = "prepare"
+shards = ["engine:sync"]
+
+[[validation.gates]]
+name = "batch"
+shards = ["engine:sync", "engine:traceability", "engine:ruff", "engine:format", "engine:bandit"]

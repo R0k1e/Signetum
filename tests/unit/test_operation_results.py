@@ -1,9 +1,11 @@
 """Lifecycle consumers receive one JSON result and an actionable status."""
 
+import argparse
 import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from signetum import lifecycle
 from signetum.operations import InfrastructureError, MergeConflict, OperationFailed
@@ -66,3 +68,16 @@ def test_invalid_arguments_are_a_json_precondition_refusal(capsys):
     result = json.loads(capsys.readouterr().out)
     assert result["operation"] == "batch-deliver"
     assert result["status"] == "invalid"
+
+
+def test_repository_catalog_matches_registered_lifecycle_commands():
+    root = Path(__file__).resolve().parents[2]
+    policy = yaml.safe_load((root / ".agents/repo-dev/repo.yaml").read_text())
+    declared = policy["repository"]["lifecycle"]["public_operations"]
+    parser = lifecycle._parser()
+    registered = next(
+        action.choices
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    assert tuple(registered) == tuple(declared)

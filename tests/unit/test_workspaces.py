@@ -46,12 +46,14 @@ def test_a_batch_records_the_members_it_declares(tmp_path: Path) -> None:
     assert read_record(tmp_path, "plan/example").members == ("/w/one", "/w/two")
 
 
-def test_rewriting_the_same_base_is_permitted(tmp_path: Path) -> None:
+def test_repeating_the_same_identity_is_idempotent(tmp_path: Path) -> None:
     write_record(tmp_path, _record())
 
-    write_record(tmp_path, _record(kind="batch"))
-
-    assert read_record(tmp_path, "plan/example").kind == "batch"
+    original = record_path(tmp_path, "plan/example").read_bytes()
+    write_record(tmp_path, _record())
+    assert record_path(tmp_path, "plan/example").read_bytes() == original
+    with pytest.raises(WorkspaceError, match="different recorded identity"):
+        write_record(tmp_path, _record(kind="batch"))
 
 
 def test_a_recorded_base_cannot_be_replaced(tmp_path: Path) -> None:

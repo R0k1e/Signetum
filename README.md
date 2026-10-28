@@ -60,25 +60,11 @@ Review -> Specification -> Plan -> isolated implementation
        -> explicit delivery -> human acceptance or reopening
 ```
 
-The repository exposes exactly eight non-interactive operations:
-
-```text
-workspace-open <branch> <base>
-changed [--explain]
-ready
-batch-open --member <worktree-path> [--member <worktree-path> ...]
-batch-admit <batch> --member <worktree-path> [--member <worktree-path> ...]
-batch-continue <batch>
-final
-batch-deliver <source> <target> <expected-base> <expected-batch-tip>
-```
-
-`changed` is an optional diagnostic and `batch-continue` is conflict recovery.
-A failed `final` is repaired the ordinary way: fix the member, run `ready`
-again, and `batch-admit` it into the same batch. Re-admitting a member whose
-tip is already in the batch is a documented no-op, so retrying is safe.
-The normal path is workspace, member closure, batch assembly, one frozen final
-gate, and explicit delivery.
+The normal path is workspace creation, member readiness, named batch assembly,
+frozen final validation, and explicit delivery. Supported synchronization,
+preparation and cleanup have the same machine-readable result contract.
+See [Validation and delivery](docs/architecture/validation-and-delivery.md#workspace-operations)
+for the operation catalog and recovery rules.
 
 ## Start here
 

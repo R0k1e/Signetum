@@ -7,8 +7,10 @@ import subprocess
 from pathlib import Path
 from shutil import which
 
+from signetum.operations import AdmissionError
 
-class GitError(ValueError):
+
+class GitError(AdmissionError):
     """Git could not establish or change the requested repository state."""
 
 
@@ -37,9 +39,9 @@ def run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[st
     )
 
 
-def git_output(repository: Path, *arguments: str, check: bool = True) -> str:
+def git_output(repository: Path, *arguments: str, check: bool = True, strip: bool = True) -> str:
     completed = run_git(repository, *arguments)
     if check and completed.returncode:
         diagnostic = completed.stderr.strip() or completed.stdout.strip()
         raise GitError(diagnostic or f"git {' '.join(arguments)} failed")
-    return completed.stdout.strip()
+    return completed.stdout.strip() if strip else completed.stdout

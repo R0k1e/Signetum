@@ -33,6 +33,10 @@ class OperationError(ValueError):
         self.expected = expected
 
 
+class AdmissionError(OperationError):
+    """A lifecycle precondition cannot be established safely."""
+
+
 class InfrastructureError(OperationError):
     """The operation could not obtain a verdict."""
 

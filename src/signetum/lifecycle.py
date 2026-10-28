@@ -3,22 +3,18 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
-import hashlib
 import json
 import os
 import re
+import shlex
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
-from typing import Literal, Never
-from urllib.parse import quote
+from typing import Never
 
 from signetum.change.scope import (
     ChangeError,
@@ -26,6 +22,8 @@ from signetum.change.scope import (
     changes_root,
     delivered_plans,
     delivery_scope,
+    member_contribution_paths,
+    member_scope,
     require_member_changes,
 )
 from signetum.deviations import (
@@ -35,11 +33,12 @@ from signetum.deviations import (
     reconciliation_summary,
 )
 from signetum.evidence.receipts import EvidenceReceipt, ReceiptError, ValidationSelection
-from signetum.git import GitError, git_output
-from signetum.impact import select_impact
+from signetum.git import GitError, git_output, run_git
+from signetum.impact import select_paths
 from signetum.manifest import ManifestError, RepositoryManifest, load_manifest
 from signetum.operations import (
     EXIT_CODES,
+    AdmissionError,
     InfrastructureError,
     MergeConflict,
     OperationError,
@@ -47,14 +46,12 @@ from signetum.operations import (
     OperationResult,
     OperationStatus,
 )
-from signetum.profiles import resolve_profiles
+from signetum.policy import delivery_policy
+from signetum.provenance import attested_base as _attested_base
+from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.validation import (
-    GateDeclaration,
-    GraphContribution,
-    ToolDeclaration,
-    ValidationShard,
+    ValidationGraphError,
     command_digest,
-    resolve_validation_graph,
 )
 from signetum.validation.execution import (
     ValidationExecutionError,
@@ -63,150 +60,46 @@ from signetum.validation.execution import (
     build_evidence_identity,
     execute_gate,
 )
-from signetum.validation.repository import ReceiptStore, RepositoryValidationAdapter
+from signetum.validation.repository import (
+    ReceiptStore,
+    RepositoryValidationAdapter,
+    run_diagnostic_gate,
+)
+from signetum.validation.repository import configured_validation as _runtime_validation
 from signetum.waivers import WaiverError, load_waivers
+from signetum.workspace_operations import (
+    batch_discard,
+    cleanup,
+    fresh_delivery,
+    open_workspace,
+    workspace_open,
+    workspace_sync,
+    worktree_prepare,
+)
+from signetum.workspace_operations import cleanup_delivered as _cleanup_delivered_worktrees
 from signetum.workspaces import (
     WorkspaceError,
-    WorkspaceRecord,
     claim_change,
     read_record,
-    write_record,
 )
-
-
-class AdmissionError(OperationError):
-    """The requested member cannot be admitted safely."""
-
-
-@dataclass(frozen=True)
-class WorkspaceIdentity:
-    """One registered Worktrunk workspace identity."""
-
-    branch: str
-    path: Path
-    head: str
-    dirty: bool
-
-
-def _mise_executable() -> str:
-    executable = which("mise")
-    if executable is None:
-        raise InfrastructureError(
-            "Mise executable is unavailable; install Mise and run `mise install` in the repository"
-        )
-    return executable
-
-
-def _run_tool(
-    repository: Path, command: tuple[str, ...], *, capture_output: bool = True
-) -> subprocess.CompletedProcess[str]:
-    environment = os.environ.copy()
-    for name in tuple(environment):
-        if name.startswith("GIT_") or name in {
-            "PYTHONHOME",
-            "PYTHONPATH",
-            "UV_PROJECT_ENVIRONMENT",
-            "VIRTUAL_ENV",
-        }:
-            environment.pop(name)
-    environment["MISE_TRUSTED_CONFIG_PATHS"] = str(repository.resolve())
-    completed = subprocess.run(  # nosec B603
-        (_mise_executable(), "exec", "--", *command),
-        cwd=repository,
-        check=False,
-        capture_output=capture_output,
-        env=environment,
-        text=True,
-    )
-    if completed.returncode != 0:
-        diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
-        detail = diagnostic or f"Mise could not execute {command[0]}"
-        raise InfrastructureError(f"{detail}; run `mise install` in the repository")
-    return completed
-
-
-def _worktrunk(
-    repository: Path, arguments: tuple[str, ...], *, json_output: bool = False
-) -> object:
-    command = (
-        "wt",
-        "-C",
-        str(repository),
-        "--yes",
-        "--config-set",
-        "list.json-schema=2",
-        *arguments,
-    )
-    completed = _run_tool(repository, command)
-    if not json_output:
-        return completed.stdout
-    try:
-        return json.loads(completed.stdout)
-    except json.JSONDecodeError as error:
-        raise InfrastructureError(f"invalid Worktrunk JSON: {error.msg}") from error
-
-
-def _worktrees(repository: Path) -> tuple[WorkspaceIdentity, ...]:
-    payload = _worktrunk(repository, ("list", "--format=json"), json_output=True)
-    if not isinstance(payload, dict) or payload.get("schema") != 2:
-        raise AdmissionError("invalid Worktrunk JSON: expected schema 2 envelope")
-    items = payload.get("items")
-    if not isinstance(items, list):
-        raise AdmissionError("invalid Worktrunk JSON: items must be a list")
-    result: list[WorkspaceIdentity] = []
-    for item in items:
-        if not isinstance(item, dict) or not isinstance(item.get("worktree"), dict):
-            continue
-        branch = item.get("branch")
-        head = item.get("head")
-        worktree = item["worktree"]
-        changes = worktree.get("changes")
-        if (
-            not isinstance(branch, str)
-            or not isinstance(head, dict)
-            or not isinstance(head.get("sha"), str)
-            or not isinstance(worktree.get("path"), str)
-            or not isinstance(changes, dict)
-        ):
-            raise AdmissionError("invalid Worktrunk JSON: incomplete registered workspace identity")
-        dirty = any(
-            changes.get(name) is True
-            for name in ("staged", "modified", "untracked", "renamed", "deleted", "conflicted")
-        )
-        result.append(
-            WorkspaceIdentity(branch, Path(worktree["path"]).resolve(), head["sha"], dirty)
-        )
-    return tuple(result)
-
-
-def _registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:
-    matches = tuple(workspace for workspace in _worktrees(repository) if workspace.branch == branch)
-    if len(matches) != 1:
-        raise AdmissionError(f"Worktrunk did not report one registered workspace for {branch}")
-    return matches[0]
-
-
-def _state_root(repository: Path) -> Path:
-    common = Path(_git(repository, "rev-parse", "--git-common-dir"))
-    if not common.is_absolute():
-        common = repository / common
-    root = common.resolve() / "signetum"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
-def _recorded_base(repository: Path, branch: str | None = None) -> str:
-    """Return the base this workspace was cut from.
-
-    The record is the only authority. A base is never re-derived from commit
-    prose, and never accepted from a caller who could name a different one.
-    """
-
-    resolved = branch if branch is not None else _branch(repository)
-    try:
-        return read_record(_state_root(repository), resolved).base
-    except WorkspaceError as error:
-        raise AdmissionError(str(error)) from error
+from signetum.workspaces import (
+    branch_name as _branch,
+)
+from signetum.workspaces import (
+    exclusive_batch as _exclusive_batch,
+)
+from signetum.workspaces import (
+    recorded_base as _recorded_base,
+)
+from signetum.workspaces import (
+    require_clean as _require_clean,
+)
+from signetum.workspaces import (
+    require_no_merge as _require_no_merge,
+)
+from signetum.workspaces import (
+    state_root as _state_root,
+)
 
 
 def _receipt_root(repository: Path) -> Path:
@@ -215,65 +108,9 @@ def _receipt_root(repository: Path) -> Path:
     return root
 
 
-def _runtime_validation(
-    manifest: RepositoryManifest, *, member_shards: tuple[str, ...] | None = None
-):
-    resolved = resolve_profiles(
-        manifest.profiles.enabled, replacements=manifest.profiles.replacements
-    )
-    shards = [
-        ValidationShard(
-            item.name,
-            item.command,
-            item.requires,
-            item.evidence,
-            item.findings_command,
-            item.timeout_seconds,
-        )
-        for item in manifest.validation.shards
-    ]
-    gates = [GateDeclaration(item.name, item.shards) for item in manifest.validation.gates]
-    if member_shards is not None:
-        gates = [item for item in gates if item.name != "member"]
-        gates.append(GateDeclaration("member", member_shards))
-    graph = resolve_validation_graph(
-        (GraphContribution("repository", tuple(shards), tuple(gates)),)
-    )
-    inputs = ValidationInputs(
-        "signetum.toml",
-        tuple(sorted(profile.identity for profile in resolved)),
-        tuple(sorted(manifest.repository.lockfiles)),
-        tuple(
-            ToolDeclaration(item.name, item.identity_command) for item in manifest.validation.tools
-        ),
-    )
-    return graph, inputs
-
-
 def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> ValidationSelection:
-    files = tuple(
-        filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
-    )
-    impact = select_impact(files, manifest.impact.rules)
-    encoded = json.dumps(files, separators=(",", ":")).encode()
-    modified_tests = tuple(
-        path
-        for path in files
-        if path.startswith("tests/") or "/tests/" in path or Path(path).name.startswith("test_")
-    )
-    reasons = tuple(f"impact rule {name} matched" for name in impact.rules)
-    return ValidationSelection(
-        changed_paths_digest="sha256:" + hashlib.sha256(encoded).hexdigest(),
-        rules=impact.rules,
-        profiles=impact.profiles,
-        gates=impact.gates,
-        shards=impact.shards,
-        modified_tests=modified_tests,
-        external_obligations=(),
-        unexplained=impact.unexplained,
-        requires_final=impact.requires_final,
-        reasons=reasons,
-    )
+    files = member_contribution_paths(repository, base, _git(repository, "rev-parse", "HEAD"))
+    return select_paths(files, manifest)
 
 
 def _member_shards(
@@ -310,60 +147,11 @@ def _member_shards(
     return tuple(selected), tuple(sorted(deferred))
 
 
-def workspace_open(repository: Path, branch: str, base: str) -> dict[str, object]:
-    root = Path(_git(repository, "rev-parse", "--show-toplevel"))
-    source = _git(root, "rev-parse", base)
-    _worktrunk(
-        root,
-        (
-            "switch",
-            "--create",
-            branch,
-            "--base",
-            base,
-            "--no-hooks",
-            "--no-cd",
-            "--format=json",
-        ),
-        json_output=True,
-    )
-    workspace = _registered_workspace(root, branch)
-    if workspace.head != source:
-        raise AdmissionError("Worktrunk workspace does not match the exact approved base")
-    _record_workspace(root, branch, source, "member")
-    return {
-        "schema_version": 1,
-        "status": "opened",
-        "branch": branch,
-        "base": source,
-        "source": source,
-        "worktree": str(workspace.path),
-    }
-
-
-def _record_workspace(
-    repository: Path,
-    branch: str,
-    base: str,
-    kind: Literal["member", "batch"],
-    members: tuple[str, ...] = (),
-) -> None:
-    try:
-        write_record(
-            _state_root(repository),
-            WorkspaceRecord(schema_version=1, branch=branch, base=base, kind=kind, members=members),
-        )
-    except WorkspaceError as error:
-        raise AdmissionError(str(error)) from error
-
-
 def changed(repository: Path, explain: bool) -> dict[str, object]:
     base = _recorded_base(repository)
     manifest = load_manifest(repository / "signetum.toml")
     selected = _selection(repository, base, manifest)
-    files = tuple(
-        filter(None, _git(repository, "diff", "--name-only", f"{base}...HEAD").splitlines())
-    )
+    files = member_contribution_paths(repository, base, _git(repository, "rev-parse", "HEAD"))
     return {
         "schema_version": 1,
         "status": "changed",
@@ -417,7 +205,7 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
                 source,
                 changes_naming_member(repository, _branch(repository)),
             )
-            for change_id in delivery_scope(repository, manifest, base, source).first_delivered:
+            for change_id in member_scope(repository, manifest, base, source).first_delivered:
                 claim_change(_state_root(repository), change_id, _branch(repository))
         except (ChangeError, DeviationError, WorkspaceError) as error:
             raise AdmissionError(str(error)) from error
@@ -512,19 +300,6 @@ def _git(repository: Path, *arguments: str, check: bool = True) -> str:
         return git_output(repository, *arguments, check=check)
     except GitError as error:
         raise AdmissionError(str(error)) from error
-
-
-def _require_clean(worktree: Path) -> None:
-    status = _git(worktree, "status", "--porcelain")
-    if status:
-        raise AdmissionError(f"worktree is not clean: {worktree}")
-
-
-def _branch(worktree: Path) -> str:
-    branch = _git(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
-    if not branch:
-        raise AdmissionError(f"member has no branch: {worktree}")
-    return branch
 
 
 def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
@@ -629,19 +404,6 @@ def _proposal_paths(repository: Path) -> tuple[str, ...]:
     return tuple(paths)
 
 
-def _attested_base(repository: Path, tip: str) -> str | None:
-    """Read the base a batch's provenance commit attests to.
-
-    This is the durable attestation, not the authority: operations read the
-    workspace record. Delivery compares the two so a record which disagrees
-    with committed history cannot land.
-    """
-
-    history = _git(repository, "log", "--first-parent", "--format=%B%x00", tip)
-    marker = re.search(r"^Signetum-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
-    return marker.group(1) if marker else None
-
-
 def _require_numbering_base(repository: Path, base: str | None, tip: str) -> None:
     if base is None:
         return
@@ -713,9 +475,12 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
     )
     if not proposals:
         return []
+    _, remote_tip = fresh_delivery(batch)
+    remote_names = _git(batch, "ls-tree", "-r", "--name-only", remote_tip).splitlines()
     used = [
         int(match.group(1))
-        for path in (*base_names, *_git(batch, "ls-files").splitlines())
+        for path in (*base_names, *remote_names, *_git(batch, "ls-files").splitlines())
+        if path.startswith(directory + "/")
         if (match := re.search(r"(?:^|/)ADP-(\d{4})-[^/]+\.md$", path))
     ]
     next_number = max(used, default=0) + 1
@@ -758,34 +523,6 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
     return rewrites
 
 
-@contextmanager
-def _exclusive_batch(batch: Path) -> Iterator[None]:
-    """Hold the batch for one operator, naming the holder when refusing.
-
-    Two admissions interleaving in one batch worktree leave the loser's merge
-    state as whatever the winner happened to leave behind.
-    """
-
-    root = _state_root(batch) / "locks"
-    root.mkdir(parents=True, exist_ok=True)
-    path = root / f"{quote(_branch(batch), safe='')}.lock"
-    handle = path.open("a+", encoding="utf-8")
-    try:
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as error:
-            handle.seek(0)
-            holder = handle.read().strip() or "another process"
-            raise AdmissionError(f"batch is held by {holder}") from error
-        handle.seek(0)
-        handle.truncate()
-        handle.write(f"pid {os.getpid()} since {datetime.now(UTC).isoformat()}\n")
-        handle.flush()
-        yield
-    finally:
-        handle.close()
-
-
 def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     """Admit named members into one batch, exclusively."""
 
@@ -797,8 +534,12 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     _require_no_merge(batch)
     _require_clean(batch)
     batch_branch = _branch(batch)
-    if batch_branch in {"main", "master", "product"}:
-        raise AdmissionError(f"refusing batch admission on delivery branch: {batch_branch}")
+    record = read_record(_state_root(batch), batch_branch)
+    if record.kind != "batch" or batch_branch == delivery_policy(batch).branch:
+        raise AdmissionError(f"refusing batch admission outside a batch workspace: {batch_branch}")
+    graph, _ = _runtime_validation(load_manifest(batch / "signetum.toml"))
+    graph.gate("prepare")
+    graph.gate("batch")
 
     admitted: list[dict[str, object]] = []
     unchanged: list[dict[str, str]] = []
@@ -811,6 +552,9 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         member_tip = _git(member, "rev-parse", "HEAD")
         batch_tip = _git(batch, "rev-parse", "HEAD")
         member_manifest = load_manifest(member / "signetum.toml")
+        member_graph, _ = _runtime_validation(member_manifest)
+        member_graph.gate("prepare")
+        member_graph.gate("batch")
         member_base = _recorded_base(member)
         try:
             carried = require_member_changes(
@@ -820,7 +564,7 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
                 member_tip,
                 changes_naming_member(member, member_branch),
             )
-            for change_id in delivery_scope(
+            for change_id in member_scope(
                 member, member_manifest, member_base, member_tip
             ).first_delivered:
                 claim_change(_state_root(member), change_id, member_branch)
@@ -883,9 +627,21 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             }
         )
 
+    try:
+        preparation = worktree_prepare(batch)
+    except InfrastructureError as error:
+        retry = ["batch-admit", str(batch)]
+        for member in members:
+            retry.extend(("--member", str(member)))
+        raise InfrastructureError(str(error), expected=shlex.join(retry)) from error
+    graph, _ = _runtime_validation(load_manifest(batch / "signetum.toml"))
+    executed = {shard.digest for shard in graph.shards if shard.name in preparation["executed"]}
+    static = run_diagnostic_gate(batch, graph, "batch", executed=executed, advisory_world=True)
     return {
         "schema_version": 1,
         "status": "admitted",
+        "preparation": preparation,
+        "static": static,
         "batch": str(batch),
         "batch_branch": batch_branch,
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
@@ -913,6 +669,24 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     staged = _git(batch, "diff", "--cached", "--name-only")
     if not staged:
         raise AdmissionError("batch continuation has no staged resolution")
+    preparation = worktree_prepare(batch, allow_merge=True)
+    before = _git(batch, "rev-parse", "HEAD")
+    staged_tree = _git(batch, "write-tree")
+    other = _git(batch, "rev-parse", "MERGE_HEAD")
+    against_first = set(_git(batch, "diff", "--name-only", before, staged_tree).splitlines())
+    against_second = set(_git(batch, "diff", "--name-only", other, staged_tree).splitlines())
+    repaired = tuple(sorted(against_first & against_second))
+    manifest = load_manifest(batch / "signetum.toml")
+    selected = select_paths(repaired, manifest)
+    shards, _ = _member_shards(manifest, selected)
+    graph, _ = _runtime_validation(manifest, member_shards=shards)
+    executed = {shard.digest for shard in graph.shards if shard.name in preparation["executed"]}
+    repaired_checks = run_diagnostic_gate(batch, graph, "member", executed=executed)
+    static = run_diagnostic_gate(batch, graph, "batch", executed=executed, advisory_world=True)
+    if _git(batch, "rev-parse", "HEAD") != before or _git(batch, "write-tree") != staged_tree:
+        raise ValidationExecutionError("validation changed staged merge identity")
+    if run_git(batch, "diff", "--quiet").returncode:
+        raise ValidationExecutionError("validation changed merge working files")
     git = _git_executable()
     completed = subprocess.run(  # nosec B603
         (git, "-C", str(batch), "commit", "--no-edit"),
@@ -929,6 +703,10 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     return {
         "schema_version": 1,
         "status": "continued",
+        "preparation": preparation,
+        "repaired_paths": list(repaired),
+        "checks": repaired_checks,
+        "static": static,
         "batch": str(batch),
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
         "admission_commit": committed,
@@ -936,30 +714,18 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
 
 
 def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]:
-    _require_clean(repository)
-    stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-    branch = f"batch/{stamp}"
-    approved_base = _git(repository, "rev-parse", "HEAD")
-    opened = workspace_open(repository, branch, "HEAD")
-    batch = Path(str(opened["worktree"]))
-    # A batch is a workspace which declares members, so it carries the same
-    # record a member does and its base is read the same way.
-    _record_workspace(
+    if not members:
+        raise AdmissionError("batch-open requires explicitly named members")
+    _, approved_base = fresh_delivery(repository)
+    branch = f"batch/{approved_base}"
+    opened = open_workspace(
         repository,
         branch,
         approved_base,
-        "batch",
-        tuple(str(member.resolve()) for member in members),
+        kind="batch",
+        members=tuple(str(member.resolve()) for member in members),
     )
-    _git(
-        batch,
-        "commit",
-        "--allow-empty",
-        "-m",
-        "signetum: open provenance batch",
-        "-m",
-        f"Signetum-Batch-Format: 1\nSignetum-Batch-Base: {approved_base}",
-    )
+    batch = Path(str(opened["worktree"]))
     result = admit(batch, members)
     return {**result, "status": "opened", "worktree": str(batch)}
 
@@ -995,6 +761,8 @@ def batch_deliver(
         raise AdmissionError("final receipt does not bind the expected batch tip")
 
     target_branch = _branch(target)
+    if target_branch != delivery_policy(source).branch:
+        raise AdmissionError("target branch is not the repository-declared delivery branch")
     remote_before = _remote_branch_tip(target, target_branch)
     resumed_commit = None
     if remote_before != expected_base:
@@ -1077,115 +845,11 @@ def _git_executable() -> str:
     return executable
 
 
-def _delivery_provenance(
-    repository: Path, expected_base: str, expected_tip: str
-) -> tuple[list[dict[str, str]], list[str]]:
-    merge_commits = tuple(
-        filter(
-            None,
-            _git(
-                repository,
-                "rev-list",
-                "--reverse",
-                "--first-parent",
-                "--merges",
-                f"{expected_base}..{expected_tip}",
-            ).splitlines(),
-        )
-    )
-    members: list[dict[str, str]] = []
-    for merge_commit in merge_commits:
-        parents = _git(repository, "show", "-s", "--format=%P", merge_commit).split()
-        if len(parents) != 2:
-            raise AdmissionError("batch contains a merge without exactly one admitted member")
-        subject = _git(repository, "show", "-s", "--format=%s", merge_commit)
-        prefix = "merge: admit "
-        if not subject.startswith(prefix):
-            raise AdmissionError("batch contains an unrecognized merge authority")
-        original = parents[1]
-        body = _git(repository, "show", "-s", "--format=%B", merge_commit)
-        fields = {
-            key: value
-            for key, value in re.findall(r"^Signetum-([^:]+):\s*(.+)$", body, re.MULTILINE)
-        }
-        if fields.get("Original") != original:
-            raise AdmissionError("admission provenance original does not match merge parent")
-        summary = _git(repository, "show", "-s", "--format=%s", original)
-        member_plans = re.findall(r"^Signetum-Plan:\s*(.+)$", body, re.MULTILINE)
-        members.append(
-            {
-                "branch": subject.removeprefix(prefix),
-                "original": original,
-                "patch_id": fields.get("Patch-ID", ""),
-                "ready_evidence": fields.get("Ready-Evidence", ""),
-                "plan": ",".join(member_plans),
-                "admission_commit": merge_commit,
-                "summary": summary,
-            }
-        )
-    if not members:
-        raise AdmissionError("batch contains no admitted member provenance")
-    manifest = load_manifest(repository / "signetum.toml")
-    scope = delivery_scope(repository, manifest, expected_base, expected_tip)
-    return members, list(delivered_plans(repository, manifest, scope.first_delivered, expected_tip))
-
-
-def _remove_workspace(repository: Path, workspace: WorkspaceIdentity) -> None:
-    _worktrunk(repository, ("remove", str(workspace.path)))
-
-
-def _cleanup_delivered_worktrees(
-    target: Path, source: Path, members: list[dict[str, str]]
-) -> tuple[list[str], list[dict[str, str]]]:
-    worktrees = {workspace.branch: workspace for workspace in _worktrees(target)}
-    removed: list[str] = []
-    retained: list[dict[str, str]] = []
-    latest_members = {member["branch"]: member for member in members}
-    for branch, member in latest_members.items():
-        workspace = worktrees.get(branch)
-        if workspace is None:
-            continue
-        if workspace.dirty:
-            retained.append({"branch": branch, "worktree": str(workspace.path), "reason": "dirty"})
-            continue
-        if workspace.head != member["original"]:
-            retained.append(
-                {"branch": branch, "worktree": str(workspace.path), "reason": "advanced"}
-            )
-            continue
-        _remove_workspace(target, workspace)
-        removed.append(str(workspace.path))
-
-    source_path = source.resolve()
-    source_matches = tuple(
-        workspace for workspace in worktrees.values() if workspace.path == source_path
-    )
-    if len(source_matches) != 1:
-        raise AdmissionError("batch source is not one registered Worktrunk workspace")
-    source_workspace = source_matches[0]
-    if source_workspace.dirty:
-        raise AdmissionError("batch source became dirty before Worktrunk removal")
-    _remove_workspace(target, source_workspace)
-    removed.append(str(source_workspace.path))
-    return removed, retained
-
-
 class OperationParser(argparse.ArgumentParser):
     """Keep invalid lifecycle invocations in the result contract."""
 
     def error(self, message: str) -> Never:
         raise AdmissionError(message, expected="inspect lifecycle --help and correct arguments")
-
-
-def _require_no_merge(repository: Path) -> None:
-    merge_head = Path(_git(repository, "rev-parse", "--git-path", "MERGE_HEAD"))
-    if not merge_head.is_absolute():
-        merge_head = repository / merge_head
-    if merge_head.is_file():
-        raise MergeConflict(
-            "batch has an open merge",
-            expected=f"resolve and stage paths, then batch-continue {repository}",
-        )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -1194,6 +858,18 @@ def _parser() -> argparse.ArgumentParser:
     workspace = commands.add_parser("workspace-open")
     workspace.add_argument("branch")
     workspace.add_argument("base")
+    sync = commands.add_parser("workspace-sync")
+    sync.add_argument("--batch", type=Path)
+    prepare = commands.add_parser("worktree-prepare")
+    prepare.add_argument("worktree", type=Path)
+    clean = commands.add_parser("cleanup")
+    clean.add_argument("--worktree", type=Path)
+    clean.add_argument("--branch")
+    clean.add_argument("--all-delivered", action="store_true")
+    clean.add_argument("--protected-worktree", type=Path, action="append", default=[])
+    clean.add_argument("--discard", action="store_true")
+    discard = commands.add_parser("batch-discard")
+    discard.add_argument("batch", type=Path)
     diagnostic = commands.add_parser("changed")
     diagnostic.add_argument("--explain", action="store_true")
     commands.add_parser("ready")
@@ -1219,8 +895,24 @@ def main(arguments: list[str] | None = None) -> int:
     repository = Path.cwd().resolve()
     try:
         parsed = _parser().parse_args(supplied)
+        result: dict[str, object]
         if parsed.command == "workspace-open":
             result = workspace_open(repository, parsed.branch, parsed.base)
+        elif parsed.command == "workspace-sync":
+            result = workspace_sync(repository, parsed.batch.resolve() if parsed.batch else None)
+        elif parsed.command == "worktree-prepare":
+            result = dict(worktree_prepare(parsed.worktree.resolve()))
+        elif parsed.command == "cleanup":
+            result = cleanup(
+                repository,
+                worktree=parsed.worktree,
+                branch=parsed.branch,
+                all_delivered=parsed.all_delivered,
+                discard=parsed.discard,
+                protected_worktrees=tuple(parsed.protected_worktree),
+            )
+        elif parsed.command == "batch-discard":
+            result = batch_discard(parsed.batch.resolve())
         elif parsed.command == "changed":
             result = changed(repository, parsed.explain)
         elif parsed.command == "ready":
@@ -1243,6 +935,7 @@ def main(arguments: list[str] | None = None) -> int:
     except (
         OperationError,
         ManifestError,
+        ValidationGraphError,
         ValidationExecutionError,
         WorkspaceError,
         GitError,
@@ -1265,8 +958,8 @@ def main(arguments: list[str] | None = None) -> int:
             expected = "correct the repository manifest and retry"
         log = _archive_operation_failure(repository, str(error))
         print(f"{operation}: {error}", file=sys.stderr)
-        result = OperationResult(operation, status, {}, str(error), expected, log)
-        print(json.dumps(result.document(), sort_keys=True))
+        failure = OperationResult(operation, status, {}, str(error), expected, log)
+        print(json.dumps(failure.document(), sort_keys=True))
         return EXIT_CODES[status]
     outcome = result.pop("status", "passed")
     document = OperationResult(

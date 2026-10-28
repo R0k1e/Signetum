@@ -56,9 +56,12 @@ carries the same record and its base is read the same way. The
 attestation, and delivery refuses a batch whose record and trailer disagree; no
 operation recovers a base by searching commit prose.
 
-A member never follows the delivery branch. Batching exists so members work
-from a frozen base and integrate once, so a base which does not move is the
-property that keeps parallel members independent, not a limitation.
+A member's recorded base never changes. workspace-sync optionally merges an
+exact delivery or verified batch snapshot without preparing dependencies.
+Member path selection excludes unchanged inputs imported by supported sync
+merges, so siblings' packages do not become the caller's ownership. Changed
+lockfiles or generated inputs are followed by explicit worktree preparation.
+Readiness remains a judgement of the member's own implementation.
 
 Admission requires successful member-safe evidence bound to the exact member
 commit, tree, recorded base, configuration, graph, profiles, lockfiles and tools.
@@ -115,3 +118,38 @@ Discoveries are written from the package-owning member branch. A resolution is
 written there while the branch is registered; once it has no registered workspace,
 a supported resolution may be written from another worktree. Linked worktrees
 share the same ledger and change ownership registry under Git common state.
+
+## Workspace operations
+
+The repository owns the delivery branch in .agents/repo-dev/repo.yaml. Runtime
+commands remain in signetum.toml. The prepare gate owns dependency preparation;
+the batch gate owns admission's static checks. Preparation creates no readiness
+receipt and leaves the committed source unchanged. Successful preparation is
+reused within the same admission/continuation operation rather than running the
+same command again as a static dependency.
+
+| Operation | Observable contract |
+| --- | --- |
+| workspace-open branch base | Register the exact base before preparation. Retry the same branch/base after preparation failure; refuse a changed base or role. |
+| workspace-sync [--batch path] | Merge a fresh delivery snapshot or an exact same-repository batch snapshot under its lock; never rewrite the member base. |
+| worktree-prepare path | Run the declared prepare gate with its time bounds, without publishing validation evidence. |
+| changed [--explain] | Explain affected checks and whether final is required; it never invokes final. |
+| ready | Close a clean implementation member using its recorded base and exact-tip evidence. |
+| batch-open --member path [...] | Reuse or create a named batch from the fresh configured delivery base and admit only named members. |
+| batch-admit batch --member path [...] | Capture and merge ready tips, then prepare and run the batch gate. Failure retains the merged state for ordinary fixup/re-admission. |
+| batch-continue batch | Prepare the resolved index, check paths whose staged result differs from both parents, run batch static checks, and commit only after success. |
+| final | Freeze under the batch lock, number newly accepted decisions above batch/base/fresh-remote holdings, reconcile, then validate that exact tip. |
+| batch-deliver source target expected-base expected-tip | Publish only the exact validated source, confirm remote identity before moving the target, and apply the shared residue rule. |
+| cleanup selector [--protected-worktree path] [--discard] | Fetch the delivery branch and remove only eligible residue selected by worktree, branch, or --all-delivered. |
+| batch-discard batch | Remove only a clean unpublished and undelivered batch with no open Git operation. |
+
+Cleanup and delivery share one removal predicate: protect delivery/user-selected
+worktrees, keep fresh base-only workspaces, refuse unmerged or advanced tips and
+open Git operations, and ordinarily keep dirty state. Explicit cleanup --discard
+also permits unstaged and untracked state, but never a changed index. Worktrunk
+performs eligible removal in the foreground with hooks disabled; automatic
+member readiness never performs cleanup.
+
+A sync conflict remains ordinary member Git state: resolve and commit it,
+prepare the resulting environment, then run ready. A batch admission conflict
+instead remains open for batch-continue. Neither recovery resets or rebases work.
