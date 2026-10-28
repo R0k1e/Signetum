@@ -24,5 +24,4 @@ The owner approved the preceding executable plan and authorized implementation o
 
 Implement A (delivery/results/admission), B (change/workspace/final), C (validation), then D (template). Extend existing behavior tests before implementation. Inspect source and tests at each boundary; file lists are estimates until traced. Do not reduce scope to match an existing test suite.
 
-Use `uv sync --locked`, focused `uv run pytest --no-cov <affected tests>`, and the declared `uv run pytest tests/unit tests/integration/test_cli_manifest.py`. Build with `uv build` and inspect wheel contents. Member and complete gates follow the repository lifecycle; no batch is opened without explicit instruction. Record discoveries through the deviation API and reconcile before final.
-
+Use `uv sync --locked`, focused `uv run pytest --no-cov <affected tests>`, and the declared `uv run pytest tests/unit tests/integration/test_cli_manifest.py`. Build with `uv build` and inspect wheel contents. Member and complete gates follow the repository lifecycle; no batch is opened without explicit instruction. The named test shard owns gate test execution; static hooks do not run a second full test suite. Record discoveries through the deviation API and reconcile before final.

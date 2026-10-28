@@ -24,4 +24,3 @@ acceptance = [
 [specification.review]
 id = "align-perdura-development-tooling"
 clauses = ["ALIGN-001", "ALIGN-002", "ALIGN-003", "ALIGN-004", "ALIGN-005", "ALIGN-006", "ALIGN-007", "ALIGN-008", "ALIGN-009", "ALIGN-010"]
-

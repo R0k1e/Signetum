@@ -46,6 +46,7 @@ class ValidationShard:
     evidence: str = "tree"
     findings_command: tuple[str, ...] = ()
     timeout_seconds: int = 1800
+    inherit: bool = False
 
     def __post_init__(self) -> None:
         if _NAME.fullmatch(self.name) is None:
@@ -62,6 +63,10 @@ class ValidationShard:
             raise ValidationGraphError(f"findings command must be non-empty: {self.name}")
         if self.timeout_seconds <= 0:
             raise ValidationGraphError(f"shard time bound must be positive: {self.name}")
+        if self.inherit and self.evidence != "tree":
+            raise ValidationGraphError(f"only tree test evidence can be inherited: {self.name}")
+        if not isinstance(self.inherit, bool):
+            raise ValidationGraphError(f"inherit must be a boolean: {self.name}")
 
     @property
     def digest(self) -> str:
@@ -140,6 +145,9 @@ class ValidationConfiguration:
             evidence = raw.get("evidence", "tree")
             if not isinstance(evidence, str):
                 raise ValidationGraphError("shard.evidence must be a string")
+            inherit = raw.get("inherit", False)
+            if not isinstance(inherit, bool):
+                raise ValidationGraphError("shard.inherit must be a boolean")
             shards.append(
                 ValidationShard(
                     name,
@@ -147,6 +155,7 @@ class ValidationConfiguration:
                     _tuple_of_strings(raw.get("requires", ()), "shard.requires"),
                     evidence,
                     _tuple_of_strings(raw.get("findings_command", ()), "shard.findings_command"),
+                    inherit=inherit,
                 )
             )
 

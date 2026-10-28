@@ -225,6 +225,7 @@ def run_repository_gate(
     adapter.require_clean()
     inputs = with_recovery_history(inputs, receipt_root)
     receipt = execute_gate(graph, gate, inputs, adapter)
+    adapter.require_clean()
     return receipt, ReceiptStore(receipt_root).write(gate, receipt)
 
 
@@ -249,7 +250,10 @@ def with_recovery_history(
                 frozenset(
                     f"{item['shard']}::{item['node_id']}"
                     for item in defects
-                    if isinstance(item, dict) and "shard" in item and "node_id" in item
+                    if isinstance(item, dict)
+                    and "shard" in item
+                    and "node_id" in item
+                    and "inherited_from" not in item
                 )
             )
             if len(history) >= inputs.recovery_window - 1:
@@ -298,6 +302,7 @@ def configured_validation(
             item.evidence,
             item.findings_command,
             item.timeout_seconds,
+            item.inherit,
         )
         for item in manifest.validation.shards
     ]
