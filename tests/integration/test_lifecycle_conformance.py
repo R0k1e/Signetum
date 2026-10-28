@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import importlib.util
 import json
 import sys
@@ -24,6 +25,26 @@ def _template_lifecycle() -> ModuleType:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_template_passes_actual_bounded_worker_count_to_its_command(tmp_path, monkeypatch):
+    runtime = _template_lifecycle()
+    resources = importlib.import_module("_signetum_runtime.resources")
+    monkeypatch.setattr(
+        resources, "observe_resources", lambda: resources.ResourceObservation(2, 3000)
+    )
+    script = (
+        "import os; from pathlib import Path; "
+        "Path('workers').write_text(os.environ['SIGNETUM_VALIDATION_WORKERS'])"
+    )
+    result = runtime._ValidationAdapter(tmp_path).run_shard(
+        runtime.ValidationShard(
+            "test:bounded", (sys.executable, "-c", script), workers=8, worker_memory_mb=1000
+        )
+    )
+    assert result.succeeded, result.diagnostic
+    assert (tmp_path / "workers").read_text() == "2"
+    assert result.details["resource_allocation"]["workers"] == 2
 
 
 def _git_for(files: tuple[str, ...]):

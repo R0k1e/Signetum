@@ -64,7 +64,7 @@ checks whose dependencies failed, continues independent checks, covers world
 findings, re-observes inputs and creates the evidence document. The template
 stores that document rather than reconstructing an alternate receipt shape.
 Graph identity includes every declared shard field, including inheritance and
-ratchet policy. Resource allocation, inheritance qualification
+ratchet policy. Inheritance qualification
 and admission consumption still belong to the remaining ALIGN-009 migration.
 
 Command supervision is owned by `signetum.validation.process` in both runtimes.
@@ -89,3 +89,14 @@ its receipt document shape explicitly; nested lifecycle projections do not
 silently become additional observations. The template consumes its declared
 recovery threshold and window, retains recovered failures in evidence, and
 refuses a repeated member recovery through the shared execution engine.
+
+Resource observation and worker allocation are shared standard-library code in
+`signetum.validation.resources`. Native Linux observation uses process affinity
+and `MemAvailable`; Darwin uses CPU capacity and free plus inactive pages from
+a bounded `vm_stat` probe. Other host adapters can provide an explicit normalized
+`ResourceObservation` before the same container-ancestor limits are applied.
+Unavailable or malformed measurements refuse allocation instead of assuming
+capacity. Both repository adapters pass the allocated worker count to the actual
+command and retain the resource allocation in shard evidence. Serial declarations
+remain serial without probing parallel capacity. The old observation-only
+psutil dependency and its tool identity entry are removed.

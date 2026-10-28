@@ -17,8 +17,7 @@ def identity() -> str:
         {
             "python": sys.version,
             "packages": {
-                name: version(name)
-                for name in ("signetum", "pydantic", "pyyaml", "typer", "psutil")
+                name: version(name) for name in ("signetum", "pydantic", "pyyaml", "typer")
             },
             "implementation": "sha256:" + digest.hexdigest(),
         },
