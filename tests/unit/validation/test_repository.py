@@ -26,8 +26,8 @@ from signetum.validation.execution import (
     ValidationInfrastructureError,
     ValidationInputs,
 )
+from signetum.validation.receipt_store import ReceiptStore
 from signetum.validation.repository import (
-    ReceiptStore,
     RepositoryValidationAdapter,
     run_repository_gate,
     verify_repository_gate,

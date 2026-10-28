@@ -64,8 +64,8 @@ checks whose dependencies failed, continues independent checks, covers world
 findings, re-observes inputs and creates the evidence document. The template
 stores that document rather than reconstructing an alternate receipt shape.
 Graph identity includes every declared shard field, including inheritance and
-ratchet policy. Inheritance qualification
-and admission consumption still belong to the remaining ALIGN-009 migration.
+ratchet policy. Ratchet baseline effects and admission consumption still belong
+to the remaining ALIGN-009 migration.
 
 Command supervision is owned by `signetum.validation.process` in both runtimes.
 It starts its own source file with isolated Python and site-packages disabled,
@@ -84,9 +84,9 @@ controllers and workers do not import the engine. Both frontends retain the
 same failed-node-only serial retry and original phase reports. The shared
 `signetum.validation.recovery` boundary interprets command results and validates
 recovery reports, rather than maintaining that parser inside each adapter.
-It also owns the bounded successful observation history. Each frontend names
-its receipt document shape explicitly; nested lifecycle projections do not
-silently become additional observations. The template consumes its declared
+It also owns the bounded successful observation history. Both frontends read
+the same raw receipt shape; lifecycle projections never become additional
+observations. The template consumes its declared
 recovery threshold and window, retains recovered failures in evidence, and
 refuses a repeated member recovery through the shared execution engine.
 
@@ -100,3 +100,14 @@ capacity. Both repository adapters pass the allocated worker count to the actual
 command and retain the resource allocation in shard evidence. Serial declarations
 remain serial without probing parallel capacity. The old observation-only
 psutil dependency and its tool identity entry are removed.
+
+`signetum.validation.receipt_store` owns raw content-addressed receipts in both
+frontends. Each lifecycle projection names the same raw digest rather than
+creating another evidence identity. Shared test inheritance consumes normalized
+impact rules and verifies the nearest first-parent ancestor's committed tree,
+artifacts, graph, base, schema, tools and successful inheritable outcomes. It
+inspects every intervening commit's paths, including modifications later
+reverted. Invalid nearest evidence cannot fall back to an older observation;
+an unlocatable damaged record conservatively disables inheritance. Static
+checks rerun, final never inherits, and inherited recovery remains visible
+without counting as another recovered observation.

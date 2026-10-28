@@ -13,8 +13,7 @@ from signetum.evidence.receipts import (
     verify_gate_evidence,
 )
 from signetum.git import GitError, git_output
-from signetum.impact import select_paths
-from signetum.manifest import RepositoryManifest
+from signetum.impact import ImpactRuleLike, select_paths
 from signetum.validation import ValidationGraph
 from signetum.validation.execution import (
     InheritedEvidence,
@@ -39,7 +38,7 @@ def verify_committed_inputs(repository: Path, receipt: EvidenceReceipt) -> None:
 
 def find_test_inheritance(
     repository: Path,
-    manifest: RepositoryManifest,
+    rules: tuple[ImpactRuleLike, ...],
     graph: ValidationGraph,
     inputs: ValidationInputs,
     adapter: ValidationAdapter,
@@ -74,22 +73,31 @@ def find_test_inheritance(
                 if isinstance(commit, str):
                     by_commit.setdefault(commit, []).append((path, ""))
             except (OSError, ValueError, KeyError, TypeError):
-                continue
+                # Its source is unknown, so an older receipt cannot be proved
+                # to be the nearest observation. Rerun rather than guess.
+                return None
     ancestors = git_output(
         repository, "rev-list", "--first-parent", f"{inputs.base}..{current.commit}"
     ).splitlines()[1:]
     nearest = next((commit for commit in ancestors if commit in by_commit), None)
     if nearest is None:
         return None
+    intervening = ancestors[: ancestors.index(nearest)]
+    # The current tip is excluded from ancestors, but its own change also counts.
+    intervening.insert(0, current.commit)
     paths = tuple(
-        filter(
-            None,
-            git_output(
-                repository, "diff", "--name-only", "-z", nearest, current.commit, strip=False
-            ).split("\0"),
+        sorted(
+            {
+                path
+                for commit in intervening
+                for path in git_output(
+                    repository, "diff", "--name-only", "-z", f"{commit}^", commit, strip=False
+                ).split("\0")
+                if path
+            }
         )
     )
-    selected = select_paths(paths, manifest.impact.rules)
+    selected = select_paths(paths, rules)
     if selected.unexplained or selected.modified_tests:
         return None
     affected = set(selected.shards)

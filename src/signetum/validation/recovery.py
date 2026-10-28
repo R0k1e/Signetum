@@ -48,7 +48,6 @@ def with_recovery_history(
     receipt_root: Path,
     *,
     exclude: Path | None = None,
-    evidence_field: str | None = None,
 ) -> ValidationInputs:
     """Read the bounded recent successful gate history for member recovery checks."""
     history: list[frozenset[str]] = []
@@ -61,11 +60,6 @@ def with_recovery_history(
             continue
         try:
             source = path.read_text(encoding="utf-8")
-            if evidence_field is not None:
-                document = json.loads(source)
-                if not isinstance(document, dict) or evidence_field not in document:
-                    continue
-                source = json.dumps(document[evidence_field])
             previous = EvidenceReceipt.from_json(source)
             defects = previous.extensions.get("recovered_flake_defects", [])
             if not isinstance(defects, list):

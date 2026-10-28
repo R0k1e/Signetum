@@ -1,5 +1,6 @@
 """Generated template runtime binds the installed engine source bytes."""
 
+import ast
 import hashlib
 import importlib
 import json
@@ -58,6 +59,20 @@ def test_interpreter_caches_do_not_enter_rendered_artifacts(tmp_path):
 def test_portable_source_rejects_unbundled_dependencies(source):
     with pytest.raises(ValueError, match="dependency"):
         portable_source("signetum.git", source)
+
+
+def test_flattened_import_order_preserves_implementation_statements():
+    source = (
+        "from signetum.validation import ValidationGraph\n"
+        "from signetum.validation.execution import ValidationInputs\n\n"
+        "def preserved(value):\n    return {'value': value, 'paths': ['a', 'b']}\n"
+    )
+    generated = ast.parse(portable_source("signetum.validation.inheritance", source))
+    assert [node.module for node in generated.body if isinstance(node, ast.ImportFrom)] == [
+        "execution",
+        "validation",
+    ]
+    assert ast.dump(generated.body[-1]) == ast.dump(ast.parse(source).body[-1])
 
 
 @pytest.mark.parametrize("polluted", [False, True])
