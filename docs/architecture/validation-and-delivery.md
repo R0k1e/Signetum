@@ -79,8 +79,8 @@ product tree.
 Before final validation, the Agent reconciles every retained discovery into
 the applicable Specification, accepted clarifying or superseding Decision,
 architecture authority, behavior test, explicit follow-up Change, justified
-rejection, or justified no-authority-change result. `final` remains check-only:
-it refuses an unresolved ledger and places approval plus reconciliation data in
+rejection, or justified no-authority-change result. `final` numbers accepted proposals under the batch lock, then validates the
+frozen resulting tip. It refuses unapproved proposals and an unresolved ledger and places approval plus reconciliation data in
 the exact final receipt. The Agent projects that data as a delivery review
 before explicit delivery. The review is not another tracked authority.
 
@@ -94,3 +94,10 @@ path, or null when the repository log authority is unavailable. Check output
 and diagnostics go to stderr. Missing tools and unavailable identity inputs
 are infrastructure failures; failed checks are validation failures. An open
 merge names batch-continue instead of printing a second result.
+
+Final numbers newly accepted, unnumbered decisions once under the batch lock.
+Accepted historical decisions already present at the base keep their identities.
+Numbering preserves existing supersession edges and never changes approval
+status. A successor uses Partially supersedes for the subset of Supersedes
+edges whose unaffected clauses remain authoritative; complete replacements
+continue to invalidate current authority citations.

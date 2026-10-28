@@ -362,6 +362,21 @@ def changed(repository: Path, explain: bool) -> dict[str, object]:
 
 
 def validate(repository: Path, kind: str) -> dict[str, object]:
+    if kind != "final":
+        return _validate_held(repository, kind)
+    with _exclusive_batch(repository):
+        _require_no_merge(repository)
+        _require_clean(repository)
+        proposals = _proposal_paths(repository)
+        if proposals:
+            raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
+        base = _recorded_base(repository)
+        numbered = _number_proposals(repository, base)
+        result = _validate_held(repository, kind)
+        return {**result, "numbered": numbered}
+
+
+def _validate_held(repository: Path, kind: str) -> dict[str, object]:
     _require_clean(repository)
     source = _git(repository, "rev-parse", "HEAD")
     base = None if kind == "final" else _recorded_base(repository)
@@ -658,23 +673,48 @@ def _record_supersession(batch: Path, formal_path: Path) -> None:
         if not target.is_file():
             raise AdmissionError(f"decision supersedes an absent decision: {reference}")
         content = target.read_text(encoding="utf-8")
-        updated, count = re.subn(
-            r"^Superseded by:.*$",
-            f"Superseded by: {formal_path.name}",
-            content,
-            count=1,
-            flags=re.MULTILINE,
-        )
-        if count == 0:
+        edge = re.search(r"^Superseded by:(.*)$", content, re.MULTILINE)
+        if edge is None:
             raise AdmissionError(f"decision declares no supersession field: {reference}")
+        successors = tuple(
+            value.strip()
+            for value in edge.group(1).split(",")
+            if value.strip() and value.strip().lower() != "none"
+        )
+        successors = tuple(dict.fromkeys((*successors, formal_path.name)))
+        updated = (
+            content[: edge.start()]
+            + "Superseded by: "
+            + ", ".join(successors)
+            + content[edge.end() :]
+        )
         target.write_text(updated, encoding="utf-8")
 
 
 def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
-    proposals = _proposal_paths(batch)
+    manifest = load_manifest(batch / "signetum.toml")
+    directory = manifest.repository.decisions.rstrip("/")
+    base_names = _git(batch, "ls-tree", "-r", "--name-only", base).splitlines()
+    proposals = tuple(
+        path
+        for path in _git(batch, "ls-files", f"{directory}/ADP-*.md").splitlines()
+        if not re.fullmatch(r"ADP-\d{4}-.+\.md", Path(path).name)
+        and re.search(
+            r"^Status:\s*Accepted\s*$",
+            (batch / path).read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        and not (
+            path in base_names
+            and re.search(
+                r"^Status:\s*Accepted\s*$",
+                _git(batch, "show", f"{base}:{path}"),
+                re.MULTILINE,
+            )
+        )
+    )
     if not proposals:
         return []
-    base_names = _git(batch, "ls-tree", "-r", "--name-only", base).splitlines()
     used = [
         int(match.group(1))
         for path in (*base_names, *_git(batch, "ls-files").splitlines())
@@ -703,12 +743,6 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
             rewritten = content.replace(proposal, formal_path.as_posix()).replace(
                 old_name, new_name
             )
-            if candidate == batch / formal_path:
-                # Numbering is what accepts a proposal, so the decision it
-                # renames stops declaring itself one.
-                rewritten = re.sub(
-                    r"^Status:\s*Proposed\s*$", "Status: Accepted", rewritten, flags=re.MULTILINE
-                )
             if rewritten != content:
                 candidate.write_text(rewritten, encoding="utf-8")
         _record_supersession(batch, formal_path)
@@ -762,6 +796,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
 
 
 def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
+    _require_no_merge(batch)
     _require_clean(batch)
     batch_branch = _branch(batch)
     if batch_branch in {"main", "master", "product"}:
@@ -837,7 +872,6 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             }
         )
 
-    decisions = _number_proposals(batch, _recorded_base(batch))
     return {
         "schema_version": 1,
         "status": "admitted",
@@ -846,7 +880,6 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
         "admitted": admitted,
         "unchanged": unchanged,
-        "decisions": decisions,
     }
 
 
@@ -882,14 +915,12 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     batch_base = _recorded_base(batch)
     if batch_base is None:
         raise AdmissionError("continued admission has no approved batch base")
-    decisions = _number_proposals(batch, batch_base)
     return {
         "schema_version": 1,
         "status": "continued",
         "batch": str(batch),
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
         "admission_commit": committed,
-        "decisions": decisions,
     }
 
 
@@ -1133,6 +1164,17 @@ class OperationParser(argparse.ArgumentParser):
 
     def error(self, message: str) -> Never:
         raise AdmissionError(message, expected="inspect lifecycle --help and correct arguments")
+
+
+def _require_no_merge(repository: Path) -> None:
+    merge_head = Path(_git(repository, "rev-parse", "--git-path", "MERGE_HEAD"))
+    if not merge_head.is_absolute():
+        merge_head = repository / merge_head
+    if merge_head.is_file():
+        raise MergeConflict(
+            "batch has an open merge",
+            expected=f"resolve and stage paths, then batch-continue {repository}",
+        )
 
 
 def _parser() -> argparse.ArgumentParser:

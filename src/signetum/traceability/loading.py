@@ -41,13 +41,18 @@ _DECISION_FIELDS = {
     "status": "status",
     "supersedes": "supersedes",
     "superseded by": "superseded_by",
+    "partially supersedes": "partially_supersedes",
 }
 
 
 def load_decision(path: Path, relative: str) -> Decision:
     """Read what one decision file declares about its own standing."""
 
-    fields: dict[str, list[str]] = {"supersedes": [], "superseded_by": []}
+    fields: dict[str, list[str]] = {
+        "supersedes": [],
+        "superseded_by": [],
+        "partially_supersedes": [],
+    }
     status = "proposed"
     for line in path.read_text(encoding="utf-8").splitlines():
         label, separator, value = line.partition(":")
@@ -67,6 +72,7 @@ def load_decision(path: Path, relative: str) -> Decision:
         status=DecisionStatus(status if status in known else "draft"),
         supersedes=tuple(fields["supersedes"]),
         superseded_by=tuple(fields["superseded_by"]),
+        partially_supersedes=tuple(fields["partially_supersedes"]),
     )
 
 

@@ -2,7 +2,8 @@
 
 Status: Accepted
 Review date: 2026-10-28
-Supersedes: ADP-0007-unified-validation-evidence.md
+Supersedes: ADP-0007-unified-validation-evidence.md, ADP-0001-batch-owned-decision-numbering.md
+Partially supersedes: ADP-0007-unified-validation-evidence.md, ADP-0001-batch-owned-decision-numbering.md
 Superseded by: None
 
 ## Context
@@ -30,3 +31,7 @@ Only the admission clauses of ADP-0007 are superseded: tree-only matching,
 commit-independent reuse and admission without member evidence when final is
 required. Other evidence, findings and waiver contracts remain in force.
 Exact-tip readiness follows the owner-approved Perdura baseline.
+
+The numbering clause of ADP-0001 is superseded only for timing: final owns
+numbering, admission and continuation never number, and numbering never grants
+acceptance. The base and frozen-tree guarantees remain in force.
