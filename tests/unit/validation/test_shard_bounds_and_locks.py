@@ -1,6 +1,8 @@
 """A shard cannot run unbounded, and one operator mutates a batch at a time."""
 
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -62,6 +64,24 @@ def test_the_time_bound_is_part_of_the_graph_identity() -> None:
         ).digest
 
     assert graph(60) != graph(120)
+
+
+def test_timeout_terminates_descendants_before_returning(tmp_path):
+    marker = tmp_path / "orphan-finished"
+    child = (
+        "import time; from pathlib import Path; time.sleep(2); "
+        "Path(__import__('sys').argv[1]).touch()"
+    )
+    parent = (
+        "import subprocess, sys; subprocess.run([sys.executable, '-c', sys.argv[1], sys.argv[2]])"
+    )
+    shard = ValidationShard(
+        "test:children", (sys.executable, "-c", parent, child, str(marker)), timeout_seconds=1
+    )
+    result = RepositoryValidationAdapter(tmp_path).run_shard(shard)
+    assert not result.succeeded
+    time.sleep(1.5)
+    assert not marker.exists(), "timed-out validation left a child running"
 
 
 def test_a_batch_admits_one_operator_at_a_time(tmp_path: Path) -> None:

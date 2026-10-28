@@ -70,6 +70,24 @@ matches. World outcomes never substitute for tree evidence. A new tip requires
 fresh readiness even when its tree is unchanged. Selection's requires_final
 flag declares additional batch responsibility and never waives member checks.
 
+The Python test adapter is `python -m signetum.validation.pytest_runner -- <pytest
+arguments>`. Only pytest exit 1 with one through thirty explicitly failed nodes
+permits one retry. The retry preserves repository pytest configuration, selects
+only those nodes and disables xdist workers. A recovered node needs a passed call
+and no failed phase; a skip, missing node or collection error cannot recover it.
+Coverage is appended on retry. The original phase reports and complete failure
+representations remain in the receipt's `extensions.recovered_flake_defects`,
+together with shard, gate and source identity. Diagnostics return those defects
+without publishing readiness evidence.
+
+`validation.recovery_window` (default 20) bounds recent valid gate receipts;
+`validation.recovery_threshold` (default 3) refuses a member whose current
+recovered shard/node reaches that many observations in the window including the
+current run. Final may record recovery for review, but consuming final evidence
+for member admission applies the same refusal. Lifecycle projections do not
+count as additional receipts. Shard timeouts terminate the owned process group,
+including the pytest adapter's child processes, before returning a failure.
+
 Delivery
 requires the remote target to equal the approved base, derives members and Plan
 trailers from the batch's admitted merge commits, constructs an outer merge with the approved base and batch tip as parents without

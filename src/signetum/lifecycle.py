@@ -59,11 +59,13 @@ from signetum.validation.execution import (
     ValidationInputs,
     build_evidence_identity,
     execute_gate,
+    require_recovery_limit,
 )
 from signetum.validation.repository import (
     ReceiptStore,
     RepositoryValidationAdapter,
     run_diagnostic_gate,
+    with_recovery_history,
 )
 from signetum.validation.repository import configured_validation as _runtime_validation
 from signetum.waivers import WaiverError, load_waivers
@@ -170,6 +172,7 @@ def changed(repository: Path, explain: bool) -> dict[str, object]:
         "requires_final": selected.requires_final,
         "explain": explain,
         "executed": checks["executed"],
+        "recovered_flake_defects": checks.get("recovered_flake_defects", []),
         "deferred_world_shards": deferred,
     }
 
@@ -266,6 +269,14 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
         schema_digest=manifest.signetum.evidence_schema_digest,
         waivers=waivers,
     )
+    inputs = with_recovery_history(
+        replace(
+            inputs,
+            recovery_threshold=initial_inputs.recovery_threshold,
+            recovery_window=initial_inputs.recovery_window,
+        ),
+        _receipt_root(repository),
+    )
     adapter = RepositoryValidationAdapter(repository)
     receipt = execute_gate(graph, gate, inputs, adapter)
     receipt_path = ReceiptStore(_receipt_root(repository)).write(gate, receipt)
@@ -356,6 +367,15 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
             if outcome.evidence == "tree" and outcome.status == "passed"
         )
         if required <= proven:
+            if receipt.execution.gates == ("final",):
+                policy_inputs = with_recovery_history(
+                    inputs,
+                    _receipt_root(member),
+                    exclude=path.with_name(path.name.replace("-lifecycle-", "-")),
+                )
+                require_recovery_limit(
+                    receipt.extensions.get("recovered_flake_defects", []), policy_inputs
+                )
             return path.name
     raise AdmissionError(
         "member has no evidence proving its selected validation for the exact tip and inputs"

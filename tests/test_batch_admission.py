@@ -192,31 +192,21 @@ def test_ancestor_query_has_two_valid_outcomes(
     assert module._is_ancestor(tmp_path, "member", "batch") is (return_code == 0)
 
 
-def test_manifest_gate_preserves_declared_command_order(tmp_path: Path) -> None:
+def test_manifest_gate_retains_commands_and_dependency_order(tmp_path: Path) -> None:
     module = _load_module()
     manifest = module.load_manifest(Path(__file__).resolve().parents[1] / "signetum.toml")
     graph, _ = module._runtime_validation(manifest)
     shards = {shard.name: shard.command for shard in graph.shards}
-    commands = [shards[name] for name in graph.gate("member").shards]
-    assert set(commands) == {
-        ("uv", "sync", "--locked", "--all-extras", "--dev"),
-        (
-            "uv",
-            "run",
-            "--no-sync",
-            "signetum",
-            "check",
-            "traceability",
-            "--repository",
-            ".",
-        ),
-        ("uv", "build"),
-        ("uv", "run", "pre-commit", "run", "--all-files"),
-        ("uv", "run", "--no-sync", "ruff", "check", "."),
-        ("uv", "run", "--no-sync", "ruff", "format", "--check", "."),
-        ("uv", "run", "--no-sync", "bandit", "-r", "src"),
-        ("uv", "run", "pytest"),
-    }
+    declared_gate = next(gate for gate in manifest.validation.gates if gate.name == "member")
+    declared_commands = {shard.name: shard.command for shard in manifest.validation.shards}
+    assert set(graph.gate("member").shards) == set(declared_gate.shards)
+    assert shards == declared_commands
+    order = graph.execution_order("member")
+    for shard in graph.shards:
+        if shard.name in order:
+            assert all(
+                order.index(dependency) < order.index(shard.name) for dependency in shard.requires
+            )
 
 
 def test_delivery_provenance_uses_actual_package_plans_and_named_member(tmp_path):
@@ -394,6 +384,30 @@ def test_a_completed_final_gate_satisfies_member_admission(tmp_path: Path) -> No
     admitted = result["admitted"]
     assert isinstance(admitted, list)
     assert admitted[0]["ready_evidence"] == "final-lifecycle-frozen.json"
+
+
+def test_final_evidence_cannot_bypass_repeated_member_recovery_policy(tmp_path: Path) -> None:
+    member, batch, _ = _member_and_batch(tmp_path)
+    path = _evidence_receipt(
+        member,
+        "final-lifecycle-frozen.json",
+        gate="final",
+        tree=_git(member, "rev-parse", "HEAD^{tree}"),
+        commands=(MEMBER_COMMAND,),
+    )
+    payload = json.loads(path.read_text())
+    payload["evidence"]["extensions"] = {
+        "recovered_flake_defects": [{"shard": "repo:check", "node_id": "test_example"}]
+    }
+    path.write_text(json.dumps(payload))
+    for index in (1, 2):
+        prior = json.loads(json.dumps(payload["evidence"]))
+        prior["identity"]["commit"] = str(index) * 40
+        path.with_name(f"member-prior-{index}.json").write_text(json.dumps(prior))
+    before = _git(batch, "rev-parse", "HEAD")
+    with pytest.raises(lifecycle.ValidationExecutionError, match="repeated recovered"):
+        lifecycle.admit(batch, (member,))
+    assert _git(batch, "rev-parse", "HEAD") == before
 
 
 def test_reworded_member_requires_fresh_exact_tip_evidence(tmp_path: Path) -> None:

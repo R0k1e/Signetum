@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
+import signal
 import subprocess  # nosec B404 -- declarative argv, never a shell
 import sys
+import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 from signetum.evidence.receipts import (
@@ -84,15 +89,35 @@ class RepositoryValidationAdapter:
         return identity
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
+        with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
+            report = Path(scratch) / "recovered.json"
+            return self._run_shard(shard, report)
+
+    def _run_shard(self, shard: ValidationShard, report: Path) -> ShardExecution:
         try:
-            completed = subprocess.run(  # nosec B603
+            with subprocess.Popen(  # nosec B603
                 shard.command,
                 cwd=self.repository,
-                check=False,
-                timeout=shard.timeout_seconds,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-            )
+                env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
+                start_new_session=True,
+            ) as process:
+                try:
+                    stdout, stderr = process.communicate(timeout=shard.timeout_seconds)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    stdout, stderr = process.communicate()
+                    raise subprocess.TimeoutExpired(
+                        shard.command, shard.timeout_seconds, output=stdout, stderr=stderr
+                    ) from None
+                completed = subprocess.CompletedProcess(
+                    shard.command, process.returncode, stdout, stderr
+                )
         except subprocess.TimeoutExpired:
             # A shard which never returns is otherwise indistinguishable from a
             # slow one, so the gate would wait forever and report nothing.
@@ -105,7 +130,26 @@ class RepositoryValidationAdapter:
         if completed.stderr:
             print(completed.stderr, file=sys.stderr, end="")
         if completed.returncode == 0:
-            return ShardExecution(True)
+            recovered = ()
+            if report.exists():
+                try:
+                    raw = json.loads(report.read_text(encoding="utf-8"))
+                    if not isinstance(raw, list) or any(
+                        not isinstance(item, dict)
+                        or not isinstance(item.get("node_id"), str)
+                        or not item.get("node_id")
+                        or not isinstance(item.get("first_failure"), list)
+                        or not any(
+                            isinstance(phase, dict) and phase.get("outcome") == "failed"
+                            for phase in item["first_failure"]
+                        )
+                        for item in raw
+                    ):
+                        raise ValueError("invalid recovered-node evidence")
+                    recovered = tuple(raw)
+                except (OSError, ValueError) as error:
+                    raise ValidationExecutionError(f"invalid recovery report: {error}") from error
+            return ShardExecution(True, recovered=recovered)
         diagnostic = completed.stdout + completed.stderr
         return ShardExecution(False, f"{shard.name} exited {completed.returncode}\n{diagnostic}")
 
@@ -179,8 +223,40 @@ def run_repository_gate(
 
     adapter = RepositoryValidationAdapter(repository)
     adapter.require_clean()
+    inputs = with_recovery_history(inputs, receipt_root)
     receipt = execute_gate(graph, gate, inputs, adapter)
     return receipt, ReceiptStore(receipt_root).write(gate, receipt)
+
+
+def with_recovery_history(
+    inputs: ValidationInputs, receipt_root: Path, *, exclude: Path | None = None
+) -> ValidationInputs:
+    """Read the bounded recent successful gate history for member recovery checks."""
+    history: list[frozenset[str]] = []
+    if inputs.recovery_window == 1:
+        return replace(inputs, recovery_history=())
+    for path in sorted(
+        receipt_root.glob("*.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True
+    ):
+        if path == exclude:
+            continue
+        try:
+            previous = EvidenceReceipt.from_json(path.read_text(encoding="utf-8"))
+            defects = previous.extensions.get("recovered_flake_defects", [])
+            if not isinstance(defects, list):
+                continue
+            history.append(
+                frozenset(
+                    f"{item['shard']}::{item['node_id']}"
+                    for item in defects
+                    if isinstance(item, dict) and "shard" in item and "node_id" in item
+                )
+            )
+            if len(history) >= inputs.recovery_window - 1:
+                break
+        except (OSError, ReceiptError):
+            continue
+    return replace(inputs, recovery_history=tuple(history))
 
 
 def verify_repository_gate(
@@ -239,6 +315,8 @@ def configured_validation(
         tuple(
             ToolDeclaration(item.name, item.identity_command) for item in manifest.validation.tools
         ),
+        recovery_threshold=manifest.validation.recovery_threshold,
+        recovery_window=manifest.validation.recovery_window,
     )
     return graph, inputs
 
@@ -256,12 +334,14 @@ def run_diagnostic_gate(
     by_name = {shard.name: shard for shard in graph.shards}
     names: list[str] = []
     advisories: list[dict[str, str]] = []
+    recovered = []
     adapter = RepositoryValidationAdapter(repository)
     for name in graph.execution_order(gate):
         shard = by_name[name]
         if shard.evidence == "tree" and shard.digest in proven:
             continue
         result = adapter.run_shard(shard)
+        recovered.extend({**defect, "shard": name} for defect in result.recovered)
         names.append(name)
         if not result.succeeded:
             if shard.evidence == "world" and advisory_world:
@@ -270,4 +350,4 @@ def run_diagnostic_gate(
             raise ValidationExecutionError(result.diagnostic or f"check failed: {name}")
         if shard.evidence == "tree":
             proven.add(shard.digest)
-    return {"executed": names, "advisories": advisories}
+    return {"executed": names, "advisories": advisories, "recovered_flake_defects": recovered}
