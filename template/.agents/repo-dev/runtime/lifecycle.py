@@ -32,6 +32,7 @@ from _signetum_runtime.execution import (
     execute_gate,
 )
 from _signetum_runtime.findings import Finding, FindingsError, parse_findings
+from _signetum_runtime.git import GitInfrastructureError
 from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.impact import select_paths
 from _signetum_runtime.inheritance import find_test_inheritance
@@ -41,7 +42,8 @@ from _signetum_runtime.manifest import (
     load_manifest,
     manifest_from_mapping,
 )
-from _signetum_runtime.operations import AdmissionError
+from _signetum_runtime.operation_cli import OperationParser, run_operation
+from _signetum_runtime.operations import AdmissionError, InfrastructureError
 from _signetum_runtime.process import run_command
 from _signetum_runtime.profile_catalog import (
     ProfileError,
@@ -89,7 +91,7 @@ class WorkspaceIdentity:
 def _mise_executable() -> str:
     executable = which("mise")
     if executable is None:
-        raise AdmissionError(
+        raise InfrastructureError(
             "Mise executable is unavailable; install Mise and run `mise install` in the repository"
         )
     return executable
@@ -122,14 +124,16 @@ def _run_tool(
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         if required:
-            raise AdmissionError(f"command could not complete: {command[0]}: {error}") from error
+            raise InfrastructureError(
+                f"command could not complete: {command[0]}: {error}"
+            ) from error
         raise
     if not required:
         return completed
     if completed.returncode != 0:
         diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
         detail = diagnostic or f"Mise could not execute {command[0]}"
-        raise AdmissionError(f"{detail}; run `mise install` in the repository")
+        raise InfrastructureError(f"{detail}; run `mise install` in the repository")
     return completed
 
 
@@ -338,7 +342,7 @@ class _ValidationAdapter:
                 timeout_seconds=timeout_seconds,
                 environment=environment,
             )
-        except (OSError, AdmissionError) as error:
+        except (OSError, AdmissionError, InfrastructureError) as error:
             raise ValidationInfrastructureError(str(error)) from error
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
@@ -459,7 +463,7 @@ def _run_gate(
         receipt = execute_gate(graph, kind, inputs, adapter, inherited=inherited)
         _require_clean(repository)
         return receipt
-    except (ValidationGraphError, ValidationExecutionError, ReceiptError) as error:
+    except (ValidationGraphError, ReceiptError) as error:
         raise AdmissionError(str(error)) from error
 
 
@@ -714,7 +718,7 @@ def _admission_evidence(member: Path, tip: str) -> str:
             ratchet_baselines={name: qualified_base for name in ratchets},
             inputs=inputs,
         )
-    except (ValidationGraphError, ValidationExecutionError, ReceiptError) as error:
+    except (ValidationGraphError, ReceiptError) as error:
         raise AdmissionError(str(error)) from error
 
 
@@ -1099,7 +1103,7 @@ def _remote_branch_tip(repository: Path, branch: str) -> str:
 def _git_executable() -> str:
     executable = which("git")
     if executable is None:
-        raise AdmissionError("git executable is unavailable")
+        raise GitInfrastructureError("Git executable is unavailable")
     return executable
 
 
@@ -1195,7 +1199,7 @@ def _cleanup_delivered_worktrees(
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
+    parser = OperationParser()
     commands = parser.add_subparsers(dest="command", required=True)
     workspace = commands.add_parser("workspace-open")
     workspace.add_argument("branch")
@@ -1220,41 +1224,39 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(arguments: list[str] | None = None) -> int:
-    parsed = _parser().parse_args(arguments)
-    try:
-        repository = Path.cwd().resolve()
-        if parsed.command == "workspace-open":
-            result = workspace_open(repository, parsed.branch, parsed.base)
-        elif parsed.command == "changed":
-            result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
-        elif parsed.command == "ready":
-            result = validate(repository, "member")
-        elif parsed.command == "batch-open":
-            result = batch_open(repository, tuple(parsed.member))
-        elif parsed.command == "batch-admit":
-            result = admit(parsed.batch.resolve(), tuple(parsed.member))
-        elif parsed.command == "batch-continue":
-            result = continue_batch(parsed.batch.resolve())
-        elif parsed.command == "final":
-            result = validate(repository, "final")
-        else:
-            result = batch_deliver(
-                parsed.source.resolve(),
-                parsed.target.resolve(),
-                parsed.expected_base,
-                parsed.expected_batch_tip,
-            )
-    except AdmissionError as error:
-        print(
-            json.dumps(
-                {"schema_version": 1, "status": "refused", "reason": str(error)},
-                sort_keys=True,
-            )
+def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
+    parsed = _parser().parse_args(supplied)
+    if parsed.command == "workspace-open":
+        result = workspace_open(repository, parsed.branch, parsed.base)
+    elif parsed.command == "changed":
+        result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
+    elif parsed.command == "ready":
+        result = validate(repository, "member")
+    elif parsed.command == "batch-open":
+        result = batch_open(repository, tuple(parsed.member))
+    elif parsed.command == "batch-admit":
+        result = admit(parsed.batch.resolve(), tuple(parsed.member))
+    elif parsed.command == "batch-continue":
+        result = continue_batch(parsed.batch.resolve())
+    elif parsed.command == "final":
+        result = validate(repository, "final")
+    else:
+        result = batch_deliver(
+            parsed.source.resolve(),
+            parsed.target.resolve(),
+            parsed.expected_base,
+            parsed.expected_batch_tip,
         )
-        return 2
-    print(json.dumps(result, sort_keys=True))
-    return 0
+    return result
+
+
+def main(arguments: list[str] | None = None) -> int:
+    supplied = sys.argv[1:] if arguments is None else arguments
+    operation = supplied[0] if supplied else "lifecycle"
+    repository = Path.cwd().resolve()
+    return run_operation(
+        repository, operation, lambda: _dispatch(repository, supplied), state_root=_state_root
+    )
 
 
 if __name__ == "__main__":

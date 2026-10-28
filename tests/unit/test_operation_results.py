@@ -9,6 +9,7 @@ import yaml
 
 from signetum import lifecycle
 from signetum.operations import InfrastructureError, MergeConflict, OperationFailed
+from signetum.validation.execution import ValidationInfrastructureError
 
 
 @pytest.mark.parametrize(
@@ -19,7 +20,7 @@ from signetum.operations import InfrastructureError, MergeConflict, OperationFai
         (OperationFailed("push rejected"), "failed", 3),
         (InfrastructureError("tool unavailable"), "infrastructure_error", 4),
         (
-            lifecycle.ValidationInfrastructureError("identity unavailable"),
+            ValidationInfrastructureError("identity unavailable"),
             "infrastructure_error",
             4,
         ),

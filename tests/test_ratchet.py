@@ -45,7 +45,7 @@ def runtime(request, monkeypatch):
 
 
 def execution_failure(runtime):
-    return ValidationExecutionError if runtime is lifecycle else runtime.AdmissionError
+    return runtime.ValidationExecutionError
 
 
 def admission(runtime, member, tip):
@@ -126,7 +126,7 @@ def test_member_accepts_only_inherited_findings_and_final_remains_strict(reposit
         with pytest.raises(ValidationExecutionError):
             run_repository_gate(member, graph, "final", inputs, root.parent / "final-receipts")
     else:
-        with pytest.raises(runtime.AdmissionError):
+        with pytest.raises(runtime.ValidationExecutionError):
             runtime._run_gate(member, "final", base=runtime._recorded_base(member))
 
 

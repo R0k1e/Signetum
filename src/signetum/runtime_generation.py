@@ -19,6 +19,7 @@ MODULES = {
     "signetum.profiles.catalog": "profile_catalog.py",
     "signetum.delivery": "delivery.py",
     "signetum.operations": "operations.py",
+    "signetum.operation_cli": "operation_cli.py",
     "signetum.serialization": "serialization.py",
     "signetum.git": "git.py",
     "signetum.workspaces": "workspaces.py",

@@ -10,11 +10,17 @@ from collections.abc import Mapping
 from pathlib import Path
 from shutil import which
 
-from signetum.operations import AdmissionError
+from signetum.operations import AdmissionError, OperationStatus
 
 
 class GitError(AdmissionError):
     """Git could not establish or change the requested repository state."""
+
+
+class GitInfrastructureError(GitError):
+    """Git is unavailable, without changing ordinary Git refusal semantics."""
+
+    status = OperationStatus.INFRASTRUCTURE_ERROR
 
 
 def isolated_git_environment(source: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -39,7 +45,9 @@ def isolated_git_environment(source: Mapping[str, str] | None = None) -> dict[st
 def run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     executable = which("git")
     if executable is None:
-        raise GitError("Git executable is unavailable")
+        raise GitInfrastructureError(
+            "Git executable is unavailable", expected="restore the Git executable and retry"
+        )
     return subprocess.run(  # noqa: S603  # nosec B603 -- resolved Git, explicit argv, no shell
         (executable, "-C", str(repository), *arguments),
         check=False,
