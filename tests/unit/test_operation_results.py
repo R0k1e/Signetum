@@ -50,7 +50,9 @@ def test_cli_failure_has_one_result_and_retained_diagnostic(
 
 
 def test_cli_success_keeps_business_outcome_in_one_envelope(monkeypatch, capsys):
-    monkeypatch.setattr(lifecycle, "changed", lambda *args: {"status": "changed", "files": []})
+    monkeypatch.setattr(
+        lifecycle, "changed", lambda *args, **kwargs: {"status": "changed", "files": []}
+    )
     assert lifecycle.main(["changed"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result == {

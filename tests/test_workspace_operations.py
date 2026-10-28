@@ -166,6 +166,73 @@ def test_changed_executes_selected_checks_without_granting_readiness(repository,
     assert not (state_root(member) / "validation").exists()
 
 
+@pytest.mark.parametrize("path", ["seed.txt", "untracked.txt"])
+def test_changed_refuses_dirty_files_before_running_checks(repository, path):
+    root, _ = repository
+    member = opened(root, "plan/dirty-diagnostic")
+    commit_file(member, "implementation.txt")
+    (member / path).write_text("not selected by committed diff")
+    with pytest.raises(AdmissionError, match="not clean"):
+        lifecycle.changed(member, True)
+
+
+def test_changed_refuses_workspace_without_committed_contribution(repository):
+    root, _ = repository
+    member = opened(root, "plan/no-contribution")
+    with pytest.raises(AdmissionError, match="no committed contribution"):
+        lifecycle.changed(member, True)
+
+
+def test_changed_no_selection_does_not_run_member_required_checks(repository):
+    root, _ = repository
+    manifest = root / "signetum.toml"
+    commit_file(
+        root, "signetum.toml", manifest.read_text().replace('paths = ["**"]', 'paths = ["src/**"]')
+    )
+    member = opened(root, "plan/no-selection")
+    commit_file(member, "unexplained.md")
+    result = lifecycle.changed(member, True)
+    assert result["status"] == "nothing-selected"
+    assert result["executed"] == []
+    assert result["requires_final"] is True
+
+
+def test_changed_selection_only_does_not_execute_the_selected_command(
+    repository, monkeypatch, capsys
+):
+    root, _ = repository
+    manifest = root / "signetum.toml"
+    commit_file(root, "signetum.toml", manifest.read_text().replace('["true"]', '["false"]'))
+    member = opened(root, "plan/selection-only")
+    commit_file(member, "implementation.txt")
+    result = lifecycle.changed(member, True, validate_only=True)
+    assert result["status"] == "selection-only"
+    assert result["executed"] == []
+    assert result["shards"] == ("test:check",)
+    monkeypatch.chdir(member)
+    assert lifecycle.main(["changed", "--validate-only"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["outcome"] == "selection-only"
+    assert document["checks_started"] is False
+
+
+def test_changed_cannot_report_success_after_a_check_mutates_source(repository):
+    root, _ = repository
+    manifest = root / "signetum.toml"
+    command = [
+        sys.executable,
+        "-c",
+        "from pathlib import Path; Path('seed.txt').write_text('changed')",
+    ]
+    commit_file(
+        root, "signetum.toml", manifest.read_text().replace('["true"]', json.dumps(command))
+    )
+    member = opened(root, "plan/mutating-diagnostic")
+    commit_file(member, "implementation.txt")
+    with pytest.raises(ValidationExecutionError, match="diagnostic changed working files"):
+        lifecycle.changed(member, True)
+
+
 def test_failed_preparation_keeps_base_and_same_workspace_can_retry(repository):
     root, state = repository
     base = git_output(root, "rev-parse", "HEAD")
