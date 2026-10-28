@@ -48,6 +48,7 @@ def test_changed_contract_vectors_are_shared(
         (ROOT / "tests" / "fixtures" / "lifecycle-impact-vectors.json").read_text(encoding="utf-8")
     )["cases"]
     for vector in vectors:
+        monkeypatch.setattr(engine_lifecycle, "run_diagnostic_gate", lambda *args: {"executed": []})
         monkeypatch.setattr(
             engine_lifecycle,
             "member_contribution_paths",

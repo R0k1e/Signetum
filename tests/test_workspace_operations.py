@@ -13,6 +13,7 @@ from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict
+from signetum.validation.execution import ValidationExecutionError
 from signetum.workspaces import branch_name, read_record, state_root
 
 
@@ -134,6 +135,35 @@ def commit_file(repository, name, value="work"):
 def publish_member(repository, member):
     git_output(repository, "merge", "--no-ff", branch_name(member), "-m", "deliver fixture")
     git_output(repository, "push", "origin", "main")
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_changed_executes_selected_checks_without_granting_readiness(repository, fails):
+    root, state = repository
+    marker = state / "diagnostic-ran"
+    command = [
+        sys.executable,
+        "-c",
+        "from pathlib import Path; import sys; Path(sys.argv[1]).touch(); "
+        "sys.exit(int(sys.argv[2]))",
+        str(marker),
+        str(int(fails)),
+    ]
+    manifest = root / "signetum.toml"
+    manifest.write_text(manifest.read_text().replace('["true"]', json.dumps(command)))
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "declare observable diagnostic")
+    member = opened(root, "plan/diagnostic")
+    tip = commit_file(member, "implementation.txt")
+    if fails:
+        with pytest.raises(ValidationExecutionError, match="exited 1"):
+            lifecycle.changed(member, True)
+    else:
+        result = lifecycle.changed(member, True)
+        assert result["executed"] == ["test:check"]
+    assert marker.exists()
+    assert git_output(member, "rev-parse", "HEAD") == tip
+    assert not (state_root(member) / "validation").exists()
 
 
 def test_failed_preparation_keeps_base_and_same_workspace_can_retry(repository):
