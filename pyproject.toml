@@ -112,3 +112,6 @@ precision = 2
 [tool.ty.environment]
 python-version = "3.12"
 extra-paths = ["template/.agents/repo-dev/runtime"]
+
+[tool.ty.src]
+exclude = ["template/.agents/repo-dev/runtime/_signetum_runtime/vendor_yaml"]

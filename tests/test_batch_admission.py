@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import subprocess
 import sys
@@ -866,3 +867,15 @@ def test_ready_and_admission_refuse_an_implementation_without_a_change_package(t
     with pytest.raises(lifecycle.AdmissionError, match="approved change package"):
         lifecycle.admit(batch, (member,))
     assert _git(batch, "rev-parse", "HEAD") == before
+
+
+@pytest.fixture(params=["engine", "template"], autouse=True)
+def lifecycle_frontend(request, monkeypatch):
+    """The complete admission/final contract corpus also runs on the generated library."""
+    if request.param == "template":
+        monkeypatch.syspath_prepend(
+            str(Path(__file__).parents[1] / "template/.agents/repo-dev/runtime")
+        )
+        monkeypatch.setitem(
+            globals(), "lifecycle", importlib.import_module("_signetum_runtime.lifecycle")
+        )

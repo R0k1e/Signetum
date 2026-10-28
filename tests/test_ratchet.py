@@ -18,7 +18,7 @@ from signetum.resources.schemas import evidence_schema_digest
 from signetum.synchronization import member_contribution_paths
 from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.diagnostics import traceability_document
-from signetum.validation.execution import ValidationExecutionError, ValidationInfrastructureError
+from signetum.validation.execution import ValidationInfrastructureError
 from signetum.validation.repository import run_repository_gate
 
 OLD = {"file": "module.py", "rule": "old-rule", "message": "inherited problem", "line": 2}
@@ -34,14 +34,7 @@ def runtime(request, monkeypatch):
         return lifecycle
     directory = Path(__file__).parents[1] / "template/.agents/repo-dev/runtime"
     monkeypatch.syspath_prepend(str(directory))
-    spec = importlib.util.spec_from_file_location(
-        "ratchet_template_lifecycle", directory / "lifecycle.py"
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    monkeypatch.setitem(sys.modules, spec.name, module)
-    spec.loader.exec_module(module)
-    return module
+    return importlib.import_module("_signetum_runtime.lifecycle")
 
 
 def execution_failure(runtime):
@@ -49,11 +42,7 @@ def execution_failure(runtime):
 
 
 def admission(runtime, member, tip):
-    if runtime is lifecycle:
-        return runtime._admission_evidence(
-            member, tip, lifecycle.load_manifest(member / "signetum.toml")
-        )
-    return runtime._admission_evidence(member, tip)
+    return runtime._admission_evidence(member, tip, runtime.load_manifest(member / "signetum.toml"))
 
 
 def configured(repository, *, baseline_report=None):
@@ -119,15 +108,14 @@ def test_member_accepts_only_inherited_findings_and_final_remains_strict(reposit
     assert ratchet["new_count"] == 0
     assert ratchet["baseline"] == lifecycle._recorded_base(member)
     assert git_output(root, "worktree", "list", "--porcelain") == before
-    if runtime is lifecycle:
-        graph, inputs = lifecycle._runtime_validation(
-            lifecycle.load_manifest(member / "signetum.toml")
-        )
-        with pytest.raises(ValidationExecutionError):
-            run_repository_gate(member, graph, "final", inputs, root.parent / "final-receipts")
-    else:
-        with pytest.raises(runtime.ValidationExecutionError):
-            runtime._run_gate(member, "final", base=runtime._recorded_base(member))
+    graph, inputs = runtime._runtime_validation(runtime.load_manifest(member / "signetum.toml"))
+    runner = (
+        run_repository_gate
+        if runtime is lifecycle
+        else importlib.import_module("_signetum_runtime.repository").run_repository_gate
+    )
+    with pytest.raises(runtime.ValidationExecutionError):
+        runner(member, graph, "final", inputs, root.parent / "final-receipts")
 
 
 @pytest.mark.parametrize("extra", [OLD, {**OLD, "message": "new problem"}])

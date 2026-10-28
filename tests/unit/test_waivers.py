@@ -199,14 +199,9 @@ from datetime import date
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 module = importlib.import_module(sys.argv[2])
-if sys.argv[2] == 'lifecycle':
-    load = module._load_waivers
-    cover = importlib.import_module('_signetum_runtime.waivers').cover_findings
-    from _signetum_runtime.findings import Finding
-else:
-    load = module.load_waivers
-    cover = module.cover_findings
-    from signetum.findings import Finding
+load = module.load_waivers
+cover = module.cover_findings
+Finding = importlib.import_module(sys.argv[2].rsplit('.', 1)[0] + '.findings').Finding
 try:
     waivers = load(Path(sys.argv[3]))
     outcome = cover('engine:audit', (Finding('GHSA-aaaa-bbbb-cccc', 'demo', 'Demo'),),
@@ -217,14 +212,14 @@ try:
 except ValueError as error:
     result = {'status': 'refused', 'reason': str(error)}
 assert 'pydantic' not in sys.modules
-if sys.argv[2] == 'lifecycle':
+if sys.argv[2].startswith('_signetum_runtime.'):
     assert 'signetum' not in sys.modules
 print(json.dumps(result))
 """
     results = []
     for path, module in (
         (root / "src", "signetum.waivers"),
-        (root / "template/.agents/repo-dev/runtime", "lifecycle"),
+        (root / "template/.agents/repo-dev/runtime", "_signetum_runtime.waivers"),
     ):
         completed = subprocess.run(  # noqa: S603 -- isolated fixed interpreter and fixture argv
             [sys.executable, "-I", "-S", "-c", script, str(path), module, str(tmp_path), day],

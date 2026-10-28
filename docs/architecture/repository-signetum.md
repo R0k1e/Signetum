@@ -28,7 +28,13 @@ Portable runtime modules have one maintained engine source, enumerated by
 `uv run python -m signetum.runtime_generation template`; `--check` checks the
 installed source without writing. Rendering refuses stale, missing or extra
 generated files, omits interpreter caches, and binds public source/output hashes.
-The generated package is standard-library code; adapters own repository effects.
+The generated owned modules use the standard library; adapters own repository effects.
+The delivery-policy reader additionally bundles the exact locked pure-Python
+PyYAML sources and license, preserving full safe YAML semantics without requiring
+a separate installed dependency. Upstream bytes are stored as package data and
+are not maintained as an engine parser fork. Refresh them after a reviewed lock
+update with `uv run python -m signetum.vendor_resources
+src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 
 | Shared authority | Responsibility |
 | --- | --- |
@@ -64,7 +70,10 @@ Both adapters use the same parser and resolver. Evidence names resolved
 dependencies and replacements rather than the unresolved enabled list; catalog
 selection does not implicitly execute commands omitted by the repository.
 
+The generated lifecycle includes the canonical workspace operations, delivery
+policy, batch admission and final decision numbering. Its command-line entry
+point only delegates to that lifecycle. Common real-Git workspace and admission
+cases exercise both the engine and generated library; isolated template and
+installed-distribution cases check the packaged boundary.
 [Tooling alignment](../../changes/align-perdura-development-tooling/specs/tooling.toml)
-still owns the remaining batch/workspace operation integration, declared
-delivery policy and final decision numbering in the template. Shared validation
-and authority modules alone do not complete that change.
+owns the complete requirement and acceptance scope.

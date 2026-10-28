@@ -63,9 +63,12 @@ shards = ["core:dependent", "core:independent"]
 import json,sys
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
-import lifecycle
+from _signetum_runtime import lifecycle
 try:
-    lifecycle._run_gate(Path(sys.argv[2]),'member')
+    from _signetum_runtime.repository import run_repository_gate
+    repository=Path(sys.argv[2])
+    graph,inputs=lifecycle._runtime_validation(lifecycle.load_manifest(repository/'signetum.toml'))
+    run_repository_gate(repository,graph,'member',inputs,lifecycle._receipt_root(repository))
 except lifecycle.ValidationExecutionError as error:
     result={'status':'failed','reason':str(error)}
 else:
@@ -100,9 +103,10 @@ def test_template_shard_deadline_terminates_its_descendants(tmp_path):
 import json,sys
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
-import lifecycle
-shard=lifecycle.ValidationShard('core:hang',tuple(json.loads(sys.argv[3])),timeout_seconds=1)
-result=lifecycle._ValidationAdapter(Path(sys.argv[2])).run_shard(shard)
+from _signetum_runtime import lifecycle
+from _signetum_runtime.validation import ValidationShard
+shard=ValidationShard('core:hang',tuple(json.loads(sys.argv[3])),timeout_seconds=1)
+result=lifecycle.RepositoryValidationAdapter(Path(sys.argv[2])).run_shard(shard)
 assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
 print(json.dumps({'succeeded':result.succeeded,'diagnostic':result.diagnostic}))
 """

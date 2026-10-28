@@ -10,6 +10,15 @@ change-open name:
 workspace-open branch base:
     just _signetum workspace-open {{branch}} {{base}}
 
+workspace-sync *args:
+    just _signetum workspace-sync {{args}}
+
+cleanup *args:
+    just _signetum cleanup {{args}}
+
+batch-discard batch:
+    just _signetum batch-discard {{batch}}
+
 worktree-prepare worktree:
     just _signetum worktree-prepare {{worktree}}
 

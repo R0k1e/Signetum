@@ -8,6 +8,7 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 
+import signetum.validation.resources as resources
 from signetum.evidence.receipts import (
     EvidenceReceipt,
 )
@@ -19,7 +20,6 @@ from signetum.validation import (
     ToolDeclaration,
     ValidationGraph,
     ValidationShard,
-    resources,
 )
 from signetum.validation.configuration import configured_validation as _project_validation
 from signetum.validation.execution import (

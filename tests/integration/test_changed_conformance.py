@@ -1,6 +1,5 @@
 """Observable changed behavior against both native repository frontends."""
 
-import importlib
 import json
 import sys
 from pathlib import Path
@@ -17,14 +16,6 @@ from signetum.workspaces import WorkspaceRecord, state_root, write_record
 def diagnostic(request, repository, monkeypatch, tmp_path):
     root, state = repository
     runtime = lifecycle if request.param == "engine" else _template_lifecycle()
-    if request.param == "template":
-        # The host launcher is an effect; checks and Git below remain native.
-        def tool(repository, command, *, required=True, **options):
-            return importlib.import_module("_signetum_runtime.process").run_command(
-                repository, command, **options
-            )
-
-        monkeypatch.setattr(runtime, "_run_tool", tool)
 
     def open_member(*, code=None, selected=True, world=False):
         manifest = root / "signetum.toml"

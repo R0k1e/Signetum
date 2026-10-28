@@ -130,7 +130,7 @@ shards = ["test:unit", "test:web"]
     runtime = Path(__file__).parents[2] / "template/.agents/repo-dev/runtime"
     script = (
         "import sys,json; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
-        "import lifecycle; "
+        "from _signetum_runtime import lifecycle; "
         "selected=lifecycle.changed(Path(sys.argv[2]),True,validate_only=True); "
         "print(json.dumps(selected['selection'])); "
         "assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules"

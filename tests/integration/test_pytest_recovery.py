@@ -236,18 +236,16 @@ import json,sys
 from datetime import UTC,datetime
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
-import lifecycle
+from _signetum_runtime import lifecycle
 repository=Path(sys.argv[2])
 try:
-    receipt=lifecycle._run_gate(repository,'member')
+    from _signetum_runtime.repository import run_repository_gate
+    graph,inputs=lifecycle._runtime_validation(lifecycle.load_manifest(repository/'signetum.toml'))
+    receipt,_=run_repository_gate(repository,graph,'member',inputs,lifecycle._receipt_root(repository))
 except lifecycle.ValidationExecutionError as error:
     print(json.dumps({'reason':str(error)}))
     raise SystemExit(3)
 assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
-lifecycle._write_receipt(repository,'member',{
-    'kind':'member','validated_at':datetime.now(UTC).isoformat(),
-    'evidence':json.loads(receipt.to_json()),
-})
 print(receipt.to_json(),end='')
 """
 

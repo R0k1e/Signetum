@@ -29,15 +29,13 @@ def repository_adapter(request, monkeypatch):
         return RepositoryValidationAdapter, resources, ("-m", "signetum.validation.pytest_runner")
     runtime = Path(__file__).parents[3] / "template/.agents/repo-dev/runtime"
     monkeypatch.syspath_prepend(str(runtime))
-    spec = importlib.util.spec_from_file_location(
-        "resource_template_lifecycle", runtime / "lifecycle.py"
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    monkeypatch.setitem(sys.modules, spec.name, module)
-    spec.loader.exec_module(module)
+    module = importlib.import_module("_signetum_runtime.repository")
     runner = (str(runtime / "_signetum_runtime/pytest_runner.py"),)
-    return module._ValidationAdapter, module.resources, runner
+    return (
+        module.RepositoryValidationAdapter,
+        importlib.import_module("_signetum_runtime.resources"),
+        runner,
+    )
 
 
 @pytest.mark.parametrize(
