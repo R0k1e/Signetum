@@ -6,6 +6,7 @@ from shutil import which
 from zipfile import ZipFile
 
 from change_fixtures import approve_change
+from test_batch_admission import MANIFEST
 
 from signetum.git import git_output
 from signetum.manifest import load_manifest
@@ -109,9 +110,17 @@ print(json.dumps({'identities':[item.identity for item in resolved],
     git_output(consumer, "init", "-b", "plan/installed")
     git_output(consumer, "config", "user.name", "Artifact test")
     git_output(consumer, "config", "user.email", "artifact@example.invalid")
+    (consumer / "signetum.toml").write_text(MANIFEST)
+    (consumer / "seed.txt").write_text("base")
+    git_output(consumer, "add", ".")
+    git_output(consumer, "commit", "-m", "declare installed consumer")
+    consumer_base = git_output(consumer, "rev-parse", "HEAD")
     approve_change(consumer)
     git_output(consumer, "add", ".")
     git_output(consumer, "commit", "-m", "approve installed consumer change")
+    (consumer / "implementation.txt").write_text("own implementation")
+    git_output(consumer, "add", ".")
+    git_output(consumer, "commit", "-m", "implement installed change")
     authority_probe = """
 import io,json,sys
 from contextlib import redirect_stdout
@@ -140,10 +149,52 @@ for command in commands:
   status=main(['--repository',str(root),*command])
  assert status==0,stream.getvalue()
 assert json.loads(stream.getvalue())['deviation_count']==1
+from _signetum_runtime.configuration import configured_validation
+from _signetum_runtime.profile_catalog import load_catalog
+from _signetum_runtime.manifest import load_manifest
+from _signetum_runtime.git import git_output
+from _signetum_runtime.lifecycle_validation import validate_workspace
+from _signetum_runtime.execution import ShardExecution
+from _signetum_runtime.process import run_command
+from _signetum_runtime.workspaces import WorkspaceRecord,state_root,write_record
+write_record(state_root(root),WorkspaceRecord(1,'plan/installed',sys.argv[3],'member'))
+catalog_root=Path(sys.argv[1])/'_signetum_runtime/profile_resources'
+catalog=load_catalog(lambda name:(catalog_root/name).read_text())
+def configure(manifest,*,member_shards=None):
+ return configured_validation(manifest,catalog=catalog,member_shards=member_shards)
+class NativeAdapter:
+ def __init__(self,repository,*,member_base=None): self.repository=repository
+ def commit_identity(self): return git_output(self.repository,'rev-parse','HEAD')
+ def tree_identity(self): return git_output(self.repository,'rev-parse','HEAD^{tree}')
+ def read_file(self,path): return (self.repository/path).read_bytes()
+ def identify_tool(self,tool): raise AssertionError('unexpected undeclared tool')
+ def report_findings(self,shard): raise AssertionError('unexpected world check')
+ def run_shard(self,shard):
+  completed=run_command(self.repository,shard.command,timeout_seconds=shard.timeout_seconds)
+  return ShardExecution(completed.returncode==0,completed.stdout+completed.stderr)
+def receipt_root(repository):
+ path=state_root(repository)/'validation'
+ path.mkdir(parents=True,exist_ok=True)
+ return path
+result=validate_workspace(root,'member',configure=configure,adapter_factory=NativeAdapter,
+ receipt_root=receipt_root,proposal_paths=lambda repository:(),
+ check_numbering_base=lambda *args:None)
+assert result['status']=='ready'
+assert result['evidence']['identity']['commit']==git_output(root,'rev-parse','HEAD')
+assert Path(result['receipt']).is_file()
 assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
 """
     result = subprocess.run(  # noqa: S603 -- actual installed generation, isolated native consumer
-        [str(python), "-I", "-S", "-c", authority_probe, str(runtime.parent), str(consumer)],
+        [
+            str(python),
+            "-I",
+            "-S",
+            "-c",
+            authority_probe,
+            str(runtime.parent),
+            str(consumer),
+            consumer_base,
+        ],
         capture_output=True,
         text=True,
         check=False,

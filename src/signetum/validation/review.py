@@ -7,13 +7,11 @@ import json
 import re
 from pathlib import Path
 
-from pydantic import JsonValue
-
 from signetum.evidence.receipts import EvidenceReceipt, ReceiptError
 from signetum.git import GitError, git_output
 from signetum.operations import AdmissionError
 from signetum.provenance import members_and_plans
-from signetum.serialization import load_json
+from signetum.serialization import JsonValue, load_json
 from signetum.validation.inheritance import verify_committed_inputs
 
 
