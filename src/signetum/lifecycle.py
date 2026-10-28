@@ -33,7 +33,7 @@ from signetum.deviations import (
     changes_naming_member,
     reconciliation_summary,
 )
-from signetum.evidence.receipts import EvidenceReceipt, ReceiptError, ValidationSelection
+from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
 from signetum.git import GitError, git_output, run_git
 from signetum.impact import select_paths
@@ -54,13 +54,13 @@ from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.validation import (
     ValidationGraphError,
 )
+from signetum.validation.admission import find_member_evidence
 from signetum.validation.execution import (
     ValidationExecutionError,
     ValidationInfrastructureError,
     ValidationInputs,
     build_evidence_identity,
     execute_gate,
-    require_recovery_limit,
 )
 from signetum.validation.inheritance import find_test_inheritance
 from signetum.validation.ratchet import ratchet_baseline
@@ -411,58 +411,19 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
     ratchets = tuple(
         shard.name for shard in graph.shards if shard.name in closure and shard.ratchet_command
     )
-    qualified_base = ratchet_baseline(member, base, tip) if ratchets else None
+    qualified_base = ratchet_baseline(member, base, tip) if ratchets else base
     adapter = RepositoryValidationAdapter(member)
     member_identity = build_evidence_identity(graph, replace(inputs, base=base), adapter)
     final_graph, _ = _runtime_validation(manifest)
-    expected = {
-        "member": member_identity,
-        "final": replace(member_identity, graph=final_graph.digest),
-    }
-    for path in sorted(_receipt_root(member).glob("*-lifecycle-*.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            receipt = EvidenceReceipt.from_json(json.dumps(payload["evidence"]))
-        except (OSError, json.JSONDecodeError, KeyError, TypeError, ReceiptError):
-            continue
-        if not receipt.valid or receipt.schema_digest != manifest.signetum.evidence_schema_digest:
-            continue
-        if len(receipt.execution.gates) != 1:
-            continue
-        identity = expected.get(receipt.execution.gates[0])
-        if identity is None or identity.commit != tip or receipt.identity != identity:
-            continue
-        if receipt.execution.gates == ("member",) and ratchets:
-            details = receipt.extensions.get("shard_details", {})
-            if not isinstance(details, dict):
-                continue
-            qualified = True
-            for name in ratchets:
-                detail = details.get(name)
-                report = detail.get("ratchet") if isinstance(detail, dict) else None
-                if not isinstance(report, dict) or report.get("baseline") != qualified_base:
-                    qualified = False
-                    break
-            if not qualified:
-                continue
-        proven = frozenset(
-            outcome.command_digest
-            for outcome in receipt.execution.shards
-            if outcome.evidence == "tree" and outcome.status == "passed"
-        )
-        if required <= proven:
-            if receipt.execution.gates == ("final",):
-                policy_inputs = with_recovery_history(
-                    inputs,
-                    _receipt_root(member),
-                    exclude=path.with_name(path.name.replace("-lifecycle-", "-")),
-                )
-                require_recovery_limit(
-                    receipt.extensions.get("recovered_flake_defects", []), policy_inputs
-                )
-            return path.name
-    raise AdmissionError(
-        "member has no evidence proving its selected validation for the exact tip and inputs"
+    return find_member_evidence(
+        _receipt_root(member),
+        tip=tip,
+        schema_digest=manifest.signetum.evidence_schema_digest,
+        member_identity=member_identity,
+        final_graph_digest=final_graph.digest,
+        required_digests=required,
+        ratchet_baselines={name: qualified_base for name in ratchets},
+        inputs=inputs,
     )
 
 

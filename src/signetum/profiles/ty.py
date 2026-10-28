@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from signetum.validation.diagnostics import diagnostic_multiset
+from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.execution import ValidationInfrastructureError
 from signetum.validation.process import run_command
 

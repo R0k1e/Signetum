@@ -29,6 +29,10 @@ MODULES = {
     "signetum.validation.resources": "resources.py",
     "signetum.validation.inheritance": "inheritance.py",
     "signetum.validation.receipt_store": "receipt_store.py",
+    "signetum.validation.admission": "admission.py",
+    "signetum.validation.diagnostic_protocol": "diagnostic_protocol.py",
+    "signetum.validation.ratchet": "ratchet.py",
+    "signetum.synchronization": "synchronization.py",
     "signetum.profiles.pip_audit": "pip_audit.py",
 }
 
