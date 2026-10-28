@@ -10,7 +10,7 @@ import re
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tomllib
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, date, datetime
 from fnmatch import fnmatch
 from pathlib import Path
@@ -18,11 +18,10 @@ from shutil import which
 from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _signetum_runtime.findings import FindingsError, parse_findings
+from _signetum_runtime.git import git_output as _git
+from _signetum_runtime.operations import AdmissionError
 from deviations import DeviationError, approval_view, reconciliation_summary
-
-
-class AdmissionError(ValueError):
-    """The requested member cannot be admitted safely."""
 
 
 @dataclass(frozen=True)
@@ -256,22 +255,9 @@ def _parse_findings(document: str) -> list[dict[str, str]]:
     """Read the tool-neutral findings document a world shard must emit."""
 
     try:
-        raw = json.loads(document)
-    except json.JSONDecodeError as error:
-        raise AdmissionError(f"findings document is not JSON: {error.msg}") from error
-    if not isinstance(raw, dict) or raw.get("schema_version") != 1:
-        raise AdmissionError("unsupported findings document")
-    entries = raw.get("findings")
-    if not isinstance(entries, list):
-        raise AdmissionError("findings must be an array")
-    findings: list[dict[str, str]] = []
-    for entry in entries:
-        if not isinstance(entry, dict) or set(entry) != {"id", "locator", "summary"}:
-            raise AdmissionError("each finding declares exactly id, locator, and summary")
-        if not all(isinstance(entry[field], str) and entry[field] for field in entry):
-            raise AdmissionError("finding fields must be non-empty strings")
-        findings.append({key: str(value) for key, value in entry.items()})
-    return findings
+        return [asdict(finding) for finding in parse_findings(document)]
+    except FindingsError as error:
+        raise AdmissionError(str(error)) from error
 
 
 @dataclass(frozen=True)
@@ -741,20 +727,6 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         }
     receipt = _write_receipt(repository, kind, payload)
     return {**payload, "status": "ready" if kind == "member" else "final", "receipt": str(receipt)}
-
-
-def _git(repository: Path, *arguments: str, check: bool = True) -> str:
-    git = _git_executable()
-    completed = subprocess.run(  # nosec B603
-        (git, "-C", str(repository), *arguments),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if check and completed.returncode != 0:
-        diagnostic = completed.stderr.strip() or completed.stdout.strip()
-        raise AdmissionError(diagnostic or f"git {' '.join(arguments)} failed")
-    return completed.stdout.strip()
 
 
 def _require_clean(worktree: Path) -> None:

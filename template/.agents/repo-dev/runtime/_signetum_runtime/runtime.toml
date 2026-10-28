@@ -1,0 +1,16 @@
+# Public content identities generated from installed engine sources.
+schema_version = 1
+engine_version = "3.0.0"
+
+[sources]
+"signetum.findings" = "sha256:c6ccc2a4200bc9547d0904dcbacfaeff8baf2e06fe9624a2efa5d6c49c1e5bb2" # pragma: allowlist secret
+"signetum.git" = "sha256:56da8a5607230338bed3f76d93f1d8a4da997ec5e683da7ff7263717ce3e9cdf" # pragma: allowlist secret
+"signetum.operations" = "sha256:85a6e27ef4af51e8071f142948d78ec3f4f9ebc73f11319583555c2d01f4cf0e" # pragma: allowlist secret
+"signetum.profiles.pip_audit" = "sha256:2fe6549d8f5c0c2cdafaa756884bc83964f95e735505ddadc608dc308db3c853" # pragma: allowlist secret
+
+[files]
+"__init__.py" = "sha256:8a41ae0cf53735b4f18d2eb1eed15afef82f822be2df3caed4cdc0b00c42d941" # pragma: allowlist secret
+"findings.py" = "sha256:99f073958dd28299e25044aab3bced26bfda50b827b566d2bdedfe8af165bfe5" # pragma: allowlist secret
+"git.py" = "sha256:0145ed1c5259850105e5da2a457815b4ec3d94e8e520ee79cbb49990812a8c70" # pragma: allowlist secret
+"operations.py" = "sha256:aa1608a307e8f6890a0449f3fd563c7a1ecc04e38f6e71122864c4cb6c5f76bb" # pragma: allowlist secret
+"pip_audit.py" = "sha256:9741e171990b68fde83839efb853f42455c7c95c2941ae6d9e5a18c9485cb064" # pragma: allowlist secret

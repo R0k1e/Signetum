@@ -40,7 +40,7 @@ def run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[st
     executable = which("git")
     if executable is None:
         raise GitError("Git executable is unavailable")
-    return subprocess.run(  # nosec B603 -- resolved Git, explicit argv, no shell
+    return subprocess.run(  # noqa: S603  # nosec B603 -- resolved Git, explicit argv, no shell
         (executable, "-C", str(repository), *arguments),
         check=False,
         capture_output=True,

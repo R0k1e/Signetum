@@ -82,15 +82,9 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 # Security-boundary rationale: this lifecycle authority invokes the fixed Git
 # executable with tuple arguments after validating repository identities.
 "src/signetum/lifecycle.py" = ["S603"]
-# Security-boundary rationale: shared Git adapter resolves the executable and passes argv.
-"src/signetum/git.py" = ["S603"]
 # Security-boundary rationale: Worktrunk runs through resolved Mise with explicit argv.
 "src/signetum/worktrunk.py" = ["S603"]
 "template/.agents/repo-dev/runtime/lifecycle.py" = ["S603"]
-"template/.agents/repo-dev/runtime/pip_audit_findings.py" = ["S603"]
-# Security-boundary rationale: the profile adapter resolves pip-audit to an
-# absolute host executable and passes a fixed argument tuple without a shell.
-"src/signetum/profiles/pip_audit.py" = ["S603"]
 # Security-boundary rationale: both adapters resolve Git to an absolute host
 # executable and pass validated tuple arguments without a shell.
 "src/signetum/release/__init__.py" = ["S603"]
@@ -117,3 +111,4 @@ precision = 2
 
 [tool.ty.environment]
 python-version = "3.12"
+extra-paths = ["template/.agents/repo-dev/runtime"]

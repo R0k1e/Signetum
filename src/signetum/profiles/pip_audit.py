@@ -69,7 +69,7 @@ def report() -> str:
     executable = which(PIP_AUDIT_COMMAND[0])
     if executable is None:
         raise FindingsError("pip-audit executable is unavailable")
-    completed = subprocess.run(  # nosec B603
+    completed = subprocess.run(  # noqa: S603  # nosec B603
         (executable, *PIP_AUDIT_COMMAND[1:]),
         check=False,
         capture_output=True,

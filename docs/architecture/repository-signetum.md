@@ -21,3 +21,14 @@ concept and workflow guides, the complete-change teaching artifact, and public
 governance files explain current contracts without becoming additional
 execution authorities. Repository validation checks that those required assets
 and their local Markdown references remain present.
+
+
+Portable shared runtime modules are maintained in the engine and enumerated by
+`signetum.runtime_generation`. Generate their template artifacts with
+`uv run python -m signetum.runtime_generation template`; `--check` verifies the
+installed source identity without writing. Rendering refuses missing, stale or
+extra generated files and omits interpreter caches. The generated package and
+its public source/output digest manifest are self-contained standard-library
+artifacts. Boundary adapters call these modules rather than maintaining their
+bodies again. Remaining lifecycle migration is owned by the active
+[tooling alignment specification](../../changes/align-perdura-development-tooling/specs/tooling.toml); generating the initial modules does not complete it.
