@@ -7,7 +7,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 
-from pydantic import JsonValue
+type JsonValue = dict[str, JsonValue] | list[JsonValue] | str | int | float | bool | None
 
 
 class ReceiptError(ValueError):
