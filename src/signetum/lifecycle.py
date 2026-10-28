@@ -116,7 +116,7 @@ def _receipt_root(repository: Path) -> Path:
 
 def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> ValidationSelection:
     files = member_contribution_paths(repository, base, _git(repository, "rev-parse", "HEAD"))
-    return select_paths(files, manifest)
+    return select_paths(files, manifest.impact.rules)
 
 
 def _member_shards(
@@ -159,7 +159,7 @@ def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> 
     source = _git(repository, "rev-parse", "HEAD")
     manifest = load_manifest(repository / "signetum.toml")
     files = member_contribution_paths(repository, base, source)
-    selected = select_paths(files, manifest)
+    selected = select_paths(files, manifest.impact.rules)
     if not files:
         raise AdmissionError("workspace has no committed contribution to validate")
     member_shards, deferred = _member_shards(manifest, selected, member_closure=False)
@@ -794,7 +794,7 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     against_second = set(_git(batch, "diff", "--name-only", other, staged_tree).splitlines())
     repaired = tuple(sorted(against_first & against_second))
     manifest = load_manifest(batch / "signetum.toml")
-    selected = select_paths(repaired, manifest)
+    selected = select_paths(repaired, manifest.impact.rules)
     shards, _ = _member_shards(manifest, selected, member_closure=False)
     graph, _ = _runtime_validation(manifest, member_shards=shards)
     executed = {shard.digest for shard in graph.shards if shard.name in preparation["executed"]}

@@ -3,8 +3,10 @@ schema_version = 1
 engine_version = "3.0.0"
 
 [sources]
+"signetum.evidence.receipts" = "sha256:c34425bf6ec8c923f9db4e26554727f58177ea17e96b603ab1fa48da78339c37" # pragma: allowlist secret
 "signetum.findings" = "sha256:c6ccc2a4200bc9547d0904dcbacfaeff8baf2e06fe9624a2efa5d6c49c1e5bb2" # pragma: allowlist secret
 "signetum.git" = "sha256:56da8a5607230338bed3f76d93f1d8a4da997ec5e683da7ff7263717ce3e9cdf" # pragma: allowlist secret
+"signetum.impact" = "sha256:93a8414a6483db98f39905a650a5959ba0bc4356a46ccc0410d90badf929786c" # pragma: allowlist secret
 "signetum.operations" = "sha256:85a6e27ef4af51e8071f142948d78ec3f4f9ebc73f11319583555c2d01f4cf0e" # pragma: allowlist secret
 "signetum.profiles.pip_audit" = "sha256:2fe6549d8f5c0c2cdafaa756884bc83964f95e735505ddadc608dc308db3c853" # pragma: allowlist secret
 "signetum.waivers" = "sha256:a22506dfe4d295a5abb8762425da68b63ccc5f76ac0033f39cee0e9af5d82332" # pragma: allowlist secret
@@ -14,7 +16,9 @@ engine_version = "3.0.0"
 "__init__.py" = "sha256:8a41ae0cf53735b4f18d2eb1eed15afef82f822be2df3caed4cdc0b00c42d941" # pragma: allowlist secret
 "findings.py" = "sha256:99f073958dd28299e25044aab3bced26bfda50b827b566d2bdedfe8af165bfe5" # pragma: allowlist secret
 "git.py" = "sha256:0145ed1c5259850105e5da2a457815b4ec3d94e8e520ee79cbb49990812a8c70" # pragma: allowlist secret
+"impact.py" = "sha256:b21aa339ff000dc8cf1c62b6456a9e5237e24d5aa8d4d9fe3c5657250e0dea4a" # pragma: allowlist secret
 "operations.py" = "sha256:aa1608a307e8f6890a0449f3fd563c7a1ecc04e38f6e71122864c4cb6c5f76bb" # pragma: allowlist secret
 "pip_audit.py" = "sha256:9741e171990b68fde83839efb853f42455c7c95c2941ae6d9e5a18c9485cb064" # pragma: allowlist secret
+"receipts.py" = "sha256:31a7daf3e048e1c751a98fc598f0206aba3830afc3fc4499622887dee8917bb3" # pragma: allowlist secret
 "waivers.py" = "sha256:d2f9cc48e245c3cf90d60c0f76b56ecf0c19a04dca189c29a73821fe5336cd54" # pragma: allowlist secret
 "workspaces.py" = "sha256:0d0a5a9b22c730cf1cb50c289fc25cdfb5752f16cf660e09e4a21830da182515" # pragma: allowlist secret

@@ -12,7 +12,6 @@ import sys
 import tomllib
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from fnmatch import fnmatch
 from pathlib import Path
 from shutil import which
 from typing import Literal
@@ -20,6 +19,7 @@ from typing import Literal
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _signetum_runtime.findings import Finding, FindingsError, parse_findings
 from _signetum_runtime.git import git_output as _git
+from _signetum_runtime.impact import select_paths
 from _signetum_runtime.operations import AdmissionError
 from _signetum_runtime.waivers import Waiver, WaiverError, load_waivers
 from _signetum_runtime.waivers import cover_findings as _cover_findings
@@ -448,6 +448,32 @@ def _open_workspace(
     }
 
 
+@dataclass(frozen=True)
+class _ImpactRule:
+    """Normalized input for the shared selector; the manifest owns its fields."""
+
+    name: str
+    paths: tuple[str, ...]
+    profiles: tuple[str, ...]
+    gates: tuple[str, ...]
+    shards: tuple[str, ...]
+    requires_final: bool
+
+    @classmethod
+    def from_mapping(cls, rule: dict[str, object]) -> _ImpactRule:
+        name = rule.get("name")
+        if not isinstance(name, str):
+            raise AdmissionError("impact rule name must be a string")
+        return cls(
+            name=name,
+            paths=tuple(_strings(rule.get("paths", []), "impact.paths")),
+            profiles=tuple(_strings(rule.get("profiles", []), "impact.profiles")),
+            gates=tuple(_strings(rule.get("gates", []), "impact.gates")),
+            shards=tuple(_strings(rule.get("shards", []), "impact.shards")),
+            requires_final=rule.get("requires_final") is True,
+        )
+
+
 def changed(repository: Path, explain: bool) -> dict[str, object]:
     base = _recorded_base(repository)
     files = tuple(
@@ -459,55 +485,9 @@ def changed(repository: Path, explain: bool) -> dict[str, object]:
         rules = [_mapping(item, "impact rule") for item in _array(impact["rules"], "impact.rules")]
     except (OSError, KeyError, TypeError, tomllib.TOMLDecodeError) as error:
         raise AdmissionError(f"invalid impact authority: {error}") from error
-    matched: list[dict[str, object]] = []
-    unexplained: list[str] = []
-    for path in files:
-        selected = [
-            rule
-            for rule in rules
-            if any(
-                fnmatch(path, pattern)
-                or (pattern.endswith("/**") and path == pattern.removesuffix("/**"))
-                for pattern in _strings(rule.get("paths", []), "impact.paths")
-            )
-        ]
-        if not selected:
-            unexplained.append(path)
-        for rule in selected:
-            if rule not in matched:
-                matched.append(rule)
-
-    def union(field: str) -> list[str]:
-        values: list[str] = []
-        for rule in matched:
-            raw_values = rule.get(field, [])
-            if not isinstance(raw_values, list):
-                raise AdmissionError(f"impact rule {field} must be an array")
-            for value in raw_values:
-                if not isinstance(value, str):
-                    raise AdmissionError(f"impact rule {field} values must be strings")
-                if value not in values:
-                    values.append(value)
-        return values
-
-    selection = {
-        "changed_paths_digest": "sha256:"
-        + hashlib.sha256(json.dumps(files, separators=(",", ":")).encode()).hexdigest(),
-        "rules": [rule["name"] for rule in matched],
-        "profiles": union("profiles"),
-        "gates": union("gates"),
-        "shards": union("shards"),
-        "modified_tests": [
-            path
-            for path in files
-            if path.startswith("tests/") or "/tests/" in path or Path(path).name.startswith("test_")
-        ],
-        "external_obligations": [],
-        "unexplained": unexplained,
-        "requires_final": bool(unexplained)
-        or any(rule.get("requires_final") is True for rule in matched),
-        "reasons": [f"impact rule {rule['name']} matched" for rule in matched],
-    }
+    normalized = tuple(_ImpactRule.from_mapping(rule) for rule in rules)
+    # This frontend's internal boundary consumes the serialized evidence shape.
+    selection = json.loads(json.dumps(asdict(select_paths(files, normalized))))
     return {
         "schema_version": 1,
         "status": "changed",

@@ -6,9 +6,31 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
+from typing import Protocol
 
 from signetum.evidence.receipts import ValidationSelection
-from signetum.manifest import ImpactRule, RepositoryManifest
+
+
+class ImpactRuleLike(Protocol):
+    """Normalized rule inputs supplied by a repository configuration adapter."""
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def paths(self) -> tuple[str, ...]: ...
+
+    @property
+    def profiles(self) -> tuple[str, ...]: ...
+
+    @property
+    def gates(self) -> tuple[str, ...]: ...
+
+    @property
+    def shards(self) -> tuple[str, ...]: ...
+
+    @property
+    def requires_final(self) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -22,10 +44,10 @@ class ImpactSelection:
     requires_final: bool
 
 
-def select_impact(files: tuple[str, ...], rules: tuple[ImpactRule, ...]) -> ImpactSelection:
+def select_impact(files: tuple[str, ...], rules: tuple[ImpactRuleLike, ...]) -> ImpactSelection:
     """Return a deterministic union of every rule matching the actual diff."""
 
-    matched: list[ImpactRule] = []
+    matched: list[ImpactRuleLike] = []
     unexplained: list[str] = []
     for changed_path in files:
         path_rules = tuple(
@@ -62,11 +84,8 @@ def _ordered_union(groups: Iterable[tuple[str, ...]]) -> tuple[str, ...]:
     return tuple(values)
 
 
-__all__ = ["ImpactSelection", "select_impact"]
-
-
-def select_paths(files: tuple[str, ...], manifest: RepositoryManifest) -> ValidationSelection:
-    impact = select_impact(files, manifest.impact.rules)
+def select_paths(files: tuple[str, ...], rules: tuple[ImpactRuleLike, ...]) -> ValidationSelection:
+    impact = select_impact(files, rules)
     encoded = json.dumps(files, separators=(",", ":")).encode()
     modified_tests = tuple(
         path
@@ -86,3 +105,6 @@ def select_paths(files: tuple[str, ...], manifest: RepositoryManifest) -> Valida
         requires_final=impact.requires_final,
         reasons=reasons,
     )
+
+
+__all__ = ["ImpactRuleLike", "ImpactSelection", "select_impact", "select_paths"]

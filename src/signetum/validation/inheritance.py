@@ -89,7 +89,7 @@ def find_test_inheritance(
             ).split("\0"),
         )
     )
-    selected = select_paths(paths, manifest)
+    selected = select_paths(paths, manifest.impact.rules)
     if selected.unexplained or selected.modified_tests:
         return None
     affected = set(selected.shards)

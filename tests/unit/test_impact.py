@@ -1,4 +1,14 @@
-from signetum.impact import select_impact
+import json
+import subprocess
+import sys
+from dataclasses import asdict
+from pathlib import Path
+from shutil import which
+from urllib.parse import quote
+
+import pytest
+
+from signetum.impact import select_impact, select_paths
 from signetum.manifest import ImpactRule
 
 
@@ -37,3 +47,94 @@ def test_multiple_language_rules_compose_as_one_deterministic_selection() -> Non
 
 def test_empty_diff_does_not_invent_validation() -> None:
     assert select_impact((), ()).requires_final is False
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        (),
+        ("backend/a.py",),
+        ("frontend/tests/view.ts",),
+        ("backend/a.py", "frontend/test_view.ts", "README.md"),
+        ("backend",),
+    ],
+)
+def test_independent_template_selects_the_same_checks_as_the_engine(tmp_path, files):
+    executable = which("git")
+    assert executable is not None
+
+    def git(*args):
+        result = subprocess.run(  # noqa: S603 -- fixed Git and fixture arguments
+            [executable, "-C", str(tmp_path), *args], check=True, capture_output=True, text=True
+        )
+        return result.stdout.strip()
+
+    git("init", "-b", "plan/example")
+    git("config", "user.name", "Fixture")
+    git("config", "user.email", "fixture@example.invalid")
+    (tmp_path / "signetum.toml").write_text("""schema_version = 2
+[[impact.rules]]
+name = "python.source"
+paths = ["backend/**"]
+profiles = ["python-default@1"]
+shards = ["unit"]
+[[impact.rules]]
+name = "frontend.source"
+paths = ["frontend/**"]
+profiles = ["typescript-default@1"]
+shards = ["unit", "web"]
+requires_final = true
+""")
+    git("add", ".")
+    git("commit", "-m", "base")
+    base = git("rev-parse", "HEAD")
+    record = tmp_path / f".git/signetum/workspaces/{quote('plan/example', safe='')}.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "branch": "plan/example",
+                "base": base,
+                "kind": "member",
+                "members": [],
+            }
+        )
+    )
+    for name in files:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("fixture\n")
+    git("add", ".")
+    git("commit", "--allow-empty", "-m", "implementation")
+    runtime = Path(__file__).parents[2] / "template/.agents/repo-dev/runtime"
+    script = (
+        "import sys,json; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
+        "import lifecycle; "
+        "print(json.dumps(lifecycle.changed(Path(sys.argv[2]),True)['selection'])); "
+        "assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules"
+    )
+    completed = subprocess.run(  # noqa: S603 -- fixed isolated interpreter and fixture argv
+        [sys.executable, "-I", "-S", "-c", script, str(runtime), str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    rules = (
+        ImpactRule(
+            name="python.source",
+            paths=("backend/**",),
+            profiles=("python-default@1",),
+            shards=("unit",),
+        ),
+        ImpactRule(
+            name="frontend.source",
+            paths=("frontend/**",),
+            profiles=("typescript-default@1",),
+            shards=("unit", "web"),
+            requires_final=True,
+        ),
+    )
+    expected = json.loads(json.dumps(asdict(select_paths(tuple(sorted(files)), rules))))
+    assert json.loads(completed.stdout) == expected

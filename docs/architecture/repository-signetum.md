@@ -46,3 +46,12 @@ The template only translates authority errors into its operation boundary;
 it does not maintain a second parser or coverage algorithm. Waiver documents
 normalize TOML arrays and ISO dates once and reject unknown fields, unsupported
 versions, empty approval or reason, duplicate findings and invalid expiry.
+
+Impact selection consumes normalized read-only rule inputs rather than the
+distribution's manifest parser. `signetum.impact` owns matching, ordered unions,
+test-path detection, explanation and changed-path identity for both frontends.
+Each configuration adapter supplies normalized fields; the template does not
+maintain its own selection algorithm. The evidence values and verifier in
+`signetum.evidence.receipts` are also portable standard-library artifacts, with
+unchanged serialized identities. Their availability does not complete the
+remaining template gate and admission migration owned by ALIGN-009.

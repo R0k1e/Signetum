@@ -1,6 +1,9 @@
+import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import replace
 from hashlib import sha256
+from pathlib import Path
 
 import pytest
 
@@ -61,6 +64,40 @@ def _gate(identity: EvidenceIdentity, gate: str, shards: tuple[str, ...]) -> Evi
         {},
         True,
     )
+
+
+@pytest.mark.parametrize("mismatched", [False, True])
+def test_generated_evidence_verifier_runs_without_engine_or_site_packages(mismatched) -> None:
+    runtime = Path(__file__).parents[3] / "template/.agents/repo-dev/runtime"
+    receipt = _gate(_identity(), "member", ("core:static",))
+    script = """
+import sys
+from dataclasses import replace
+sys.path.insert(0, sys.argv[1])
+from _signetum_runtime.receipts import EvidenceReceipt, ReceiptError, verify_gate_evidence
+receipt = EvidenceReceipt.from_json(sys.stdin.read())
+expected = receipt.identity
+if sys.argv[2] == 'True':
+    expected = replace(expected, commit='1' * 40)
+try:
+    verify_gate_evidence(receipt, expected_identity=expected, gate='member')
+except ReceiptError:
+    assert sys.argv[2] == 'True'
+    print('refused')
+else:
+    assert sys.argv[2] == 'False'
+    print(receipt.to_json(), end='')
+assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
+"""
+    completed = subprocess.run(  # noqa: S603 -- fixed isolated interpreter and fixture argv
+        [sys.executable, "-I", "-S", "-c", script, str(runtime), str(mismatched)],
+        input=receipt.to_json(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout == ("refused\n" if mismatched else receipt.to_json())
 
 
 @pytest.mark.parametrize(
