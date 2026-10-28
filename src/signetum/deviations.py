@@ -5,16 +5,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess  # nosec B404 -- fixed Git invocation, never a shell
 import sys
 import tomllib
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
-from shutil import which
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+
+from signetum.change.scope import changes_root
+from signetum.git import GitError, git_output
+from signetum.manifest import load_manifest
+from signetum.workspaces import WorkspaceError, claim_change
 
 Identifier = Annotated[str, Field(min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")]
 
@@ -81,25 +84,11 @@ class DeviationState(FrozenModel):
 
 def git_common_dir(repository: Path) -> Path:
     """Resolve the one common Git directory shared by linked worktrees."""
-    git = which("git")
-    if git is None:
-        raise DeviationError("Git executable is unavailable")
-    completed = subprocess.run(  # nosec B603  # noqa: S603
-        (
-            git,
-            "-C",
-            str(repository.resolve()),
-            "rev-parse",
-            "--path-format=absolute",
-            "--git-common-dir",
-        ),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode != 0:
-        raise DeviationError(completed.stderr.strip() or "Git common directory is unavailable")
-    common = Path(completed.stdout.strip())
+    try:
+        output = git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    except GitError as error:
+        raise DeviationError(str(error)) from error
+    common = Path(output)
     if not common.is_absolute():
         raise DeviationError("Git returned a non-absolute common directory")
     return common.resolve()
@@ -113,6 +102,16 @@ def ledger_path(repository: Path, change_id: str) -> Path:
 
 def append_event(repository: Path, event: DeviationEvent) -> Path:
     """Validate and append exactly one complete event with O_APPEND semantics."""
+    if isinstance(event, Discovered):
+        require_change_workspace(repository, event.change_id, event.member)
+        try:
+            claim_change(git_common_dir(repository) / "signetum", event.change_id, event.member)
+        except WorkspaceError as error:
+            raise DeviationError(str(error)) from error
+    else:
+        registered = git_output(repository, "worktree", "list", "--porcelain").splitlines()
+        if f"branch refs/heads/{event.member}" in registered:
+            require_change_workspace(repository, event.change_id, event.member)
     target = ledger_path(repository, event.change_id)
     target.parent.mkdir(parents=True, exist_ok=True)
     encoded = EVENT_ADAPTER.dump_json(event) + b"\n"
@@ -127,6 +126,32 @@ def append_event(repository: Path, event: DeviationEvent) -> Path:
     finally:
         os.close(descriptor)
     return target
+
+
+def require_change_workspace(repository: Path, change_id: str, member: str) -> None:
+    _validate_identity(change_id)
+    try:
+        branch = git_output(repository, "symbolic-ref", "--quiet", "--short", "HEAD")
+    except GitError as error:
+        raise DeviationError(str(error)) from error
+    if branch != member:
+        raise DeviationError(f"member {member} is not the branch checked out here: {branch}")
+    manifest_path = repository / "signetum.toml"
+    root = changes_root(load_manifest(manifest_path)) if manifest_path.exists() else "changes"
+    if not (repository / root / change_id).is_dir():
+        raise DeviationError(f"change package {root}/{change_id} is absent from member {member}")
+
+
+def changes_naming_member(repository: Path, member: str) -> tuple[str, ...]:
+    root = git_common_dir(repository) / "signetum" / "changes"
+    named: list[str] = []
+    for ledger in sorted(root.rglob("deviations.jsonl")):
+        if json.dumps(member) not in ledger.read_text(encoding="utf-8"):
+            continue
+        change_id = ledger.parent.relative_to(root).as_posix()
+        if any(state.discovered.member == member for state in read_states(repository, change_id)):
+            named.append(change_id)
+    return tuple(named)
 
 
 def read_states(repository: Path, change_id: str) -> tuple[DeviationState, ...]:
@@ -216,9 +241,10 @@ def reconciliation_summary(repository: Path, change_ids: tuple[str, ...]) -> dic
     }
 
 
-def approval_view(repository: Path, change_id: str) -> dict[str, object]:
+def approval_view(repository: Path, change_id: str, *, root: str = "changes") -> dict[str, object]:
     """Project the tracked Review and Specification into a concise approval payload."""
-    change = repository.resolve() / "changes" / change_id
+    _validate_identity(change_id)
+    change = repository.resolve() / root / change_id
     try:
         review = tomllib.loads((change / "review.toml").read_text(encoding="utf-8"))["review"]
     except (OSError, KeyError, tomllib.TOMLDecodeError) as error:
@@ -316,6 +342,8 @@ def _validate_resolution(repository: Path, state: DeviationState) -> None:
 
 
 def _validate_identity(value: str) -> None:
+    if "/" in value or "\\" in value or value in {".", ".."}:
+        raise DeviationError(f"invalid change identity: {value}")
     try:
         TypeAdapter(Identifier).validate_python(value, strict=True)
     except ValidationError as error:

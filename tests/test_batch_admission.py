@@ -202,43 +202,21 @@ def test_manifest_gate_preserves_declared_command_order(tmp_path: Path) -> None:
     }
 
 
-def test_delivery_provenance_reads_named_member_and_plan_trailer(
-    monkeypatch, tmp_path: Path
-) -> None:
-    module = _load_module()
-    responses = {
-        ("rev-list", "--reverse", "--first-parent", "--merges", "base..tip"): "merge-1",
-        ("show", "-s", "--format=%P", "merge-1"): "base member-tip",
-        ("show", "-s", "--format=%s", "merge-1"): "merge: admit impl/member",
-        ("show", "-s", "--format=%s", "member-tip"): "feat: deliver member",
-        ("show", "-s", "--format=%B", "merge-1"): (
-            "merge: admit impl/member\n\n"
-            "Signetum-Original: member-tip\n"
-            "Signetum-Patch-ID: stable-patch\n"
-            "Signetum-Ready-Evidence: member-ready.json\n"
-            "Signetum-Plan: changes/example/plans/member.md\n"
-        ),
-    }
-    monkeypatch.setattr(
-        module,
-        "_git",
-        lambda repository, *arguments, **kwargs: responses[arguments],
-    )
-
-    members, plans = module._delivery_provenance(tmp_path, "base", "tip")
-
-    assert members == [
-        {
-            "branch": "impl/member",
-            "original": "member-tip",
-            "patch_id": "stable-patch",
-            "ready_evidence": "member-ready.json",
-            "plan": "changes/example/plans/member.md",
-            "admission_commit": "merge-1",
-            "summary": "feat: deliver member",
-        }
-    ]
-    assert plans == ["changes/example/plans/member.md"]
+def test_delivery_provenance_uses_actual_package_plans_and_named_member(tmp_path):
+    member, batch, base = _member_and_batch(tmp_path)
+    _approve_change(member)
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "approve package")
+    (member / "implemented.txt").write_text("behavior")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement\n\nDelivers: invented/plan.md")
+    lifecycle.validate(member, "member")
+    lifecycle.admit(batch, (member,))
+    members, plans = lifecycle._delivery_provenance(batch, base, _git(batch, "rev-parse", "HEAD"))
+    assert plans == ["changes/example/plans/behavior.md"]
+    assert members[0]["branch"] == "impl/member"
+    assert members[0]["original"] == _git(member, "rev-parse", "HEAD")
+    assert members[0]["plan"] == plans[0]
 
 
 def test_admission_records_member_and_final_numbers_only_accepted_decisions(
@@ -294,7 +272,7 @@ def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     admitted = admitted_members[0]
     assert admitted["original"] == member_tip
     assert admitted["ready_evidence"] == "member-lifecycle-ready.json"
-    assert admitted["plan"] == [plan]
+    assert admitted["plan"] == []
     final = lifecycle.validate(batch, "final")
     formal = batch / "docs/decisions/ADP-0002-zebra.md"
     assert formal.is_file()
@@ -510,7 +488,7 @@ def test_a_tree_hosting_no_change_admits_a_member_without_a_plan(tmp_path: Path)
     assert admitted[0]["plan"] == []
 
 
-def test_a_tree_hosting_a_change_still_requires_a_plan(tmp_path: Path) -> None:
+def test_an_incomplete_change_is_refused_even_without_a_trailer(tmp_path: Path) -> None:
     repository = _repository(tmp_path / "repository")
     base = _git(repository, "rev-parse", "HEAD")
     member = tmp_path / "member"
@@ -525,15 +503,8 @@ def test_a_tree_hosting_a_change_still_requires_a_plan(tmp_path: Path) -> None:
     _git(member, "add", ".")
     _git(member, "commit", "-m", "record a change package without naming it")
 
-    with pytest.raises(lifecycle.AdmissionError, match="no Delivers Plan trailer"):
+    with pytest.raises(lifecycle.AdmissionError, match="package is unavailable or invalid"):
         lifecycle.admit(batch, (member,))
-
-
-def test_a_named_plan_outside_a_change_is_still_refused(tmp_path: Path) -> None:
-    assert lifecycle._change_ids_from_plans(("changes/one/plans/a.md",)) == ("one",)
-
-    with pytest.raises(lifecycle.AdmissionError, match="outside one active Change"):
-        lifecycle._change_ids_from_plans(("unified-repository-configuration",))
 
 
 def test_both_gates_run_the_declared_traceability_authority() -> None:
@@ -612,3 +583,200 @@ def test_numbering_preserves_other_supersession_edges(tmp_path):
     new.write_text("# New\nSupersedes: old.md\n")
     lifecycle._record_supersession(tmp_path, Path("decisions/new.md"))
     assert old.read_text() == "# Old\nSuperseded by: earlier.md, new.md\n"
+
+
+def _approve_change(repository: Path, change_id: str = "example") -> None:
+    root = repository / "changes" / change_id
+    (root / "specs").mkdir(parents=True, exist_ok=True)
+    (root / "plans").mkdir(parents=True, exist_ok=True)
+    (root / "review.toml").write_text(f"""[review]
+schema_version = 1
+id = "{change_id}"
+status = "approved"
+[review.source]
+kind = "human_direction"
+summary = "Approve a fixture behavior."
+[[review.clauses]]
+id = "REQ-001"
+statement = "The member implements the approved behavior."
+disposition = "covered"
+specification = "{change_id}/behavior"
+""")
+    (root / "specs/behavior.toml").write_text(f"""[specification]
+schema_version = 1
+id = "{change_id}/behavior"
+version = 1
+status = "approved"
+implementation_authorized = true
+plan = "changes/{change_id}/plans/behavior.md"
+acceptance = ["The declared member check passes."]
+[specification.review]
+id = "{change_id}"
+clauses = ["REQ-001"]
+""")
+    (root / "plans/behavior.md").write_text(f"""# Implement behavior
+Status: approved
+Specification: changes/{change_id}/specs/behavior.toml
+Base: fixture
+| Obligation | Clauses | Outcome |
+| --- | --- | --- |
+| IMPLEMENT | REQ-001 | Implement behavior and run its declared check. |
+""")
+
+
+def test_actual_change_paths_supply_review_and_plans_without_a_trailer(tmp_path):
+    member, batch, _ = _member_and_batch(tmp_path)
+    _approve_change(member)
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "approve change")
+    (member / "implemented.txt").write_text("approved behavior")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement without a trailer")
+    lifecycle.validate(member, "member")
+    result = lifecycle.admit(batch, (member,))
+    admitted = result["admitted"]
+    assert isinstance(admitted, list)
+    assert admitted[0]["plan"] == ["changes/example/plans/behavior.md"]
+    final = lifecycle.validate(batch, "final")
+    review = final["delivery_review"]
+    assert isinstance(review, dict)
+    assert review["approvals"][0]["change_id"] == "example"
+    assert review["previously_delivered"] == []
+
+
+def test_member_with_only_an_approved_package_is_plan_stage(tmp_path):
+    member, _, _ = _member_and_batch(tmp_path)
+    _approve_change(member)
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "approve the package only")
+    with pytest.raises(lifecycle.AdmissionError, match="plan stage"):
+        lifecycle.validate(member, "member")
+
+
+def test_member_refuses_an_unapproved_change_before_executing_checks(tmp_path):
+    member, _, _ = _member_and_batch(tmp_path)
+    _approve_change(member)
+    spec = member / "changes/example/specs/behavior.toml"
+    spec.write_text(spec.read_text().replace('status = "approved"', 'status = "draft"'))
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "draft a package")
+    (member / "implemented.txt").write_text("unauthorized")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "attempt implementation")
+    with pytest.raises(lifecycle.AdmissionError, match="implementation-authorized"):
+        lifecycle.validate(member, "member")
+    assert list(lifecycle._receipt_root(member).glob("member-*.json")) == []
+
+
+def test_final_refuses_rewriting_previously_delivered_requirements(tmp_path):
+    repository = _repository(tmp_path / "repository")
+    _approve_change(repository, "old")
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-m", "delivered old package")
+    base = _git(repository, "rev-parse", "HEAD")
+    batch = tmp_path / "batch"
+    _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(batch, "batch/test", base, "batch")
+    spec = batch / "changes/old/specs/behavior.toml"
+    spec.write_text(spec.read_text().replace("declared member check passes", "scope is reduced"))
+    _git(batch, "commit", "-am", "rewrite delivered promise")
+    with pytest.raises(lifecycle.AdmissionError, match="delivered commitments"):
+        lifecycle.validate(batch, "final")
+
+
+def test_final_lists_previous_plan_edits_without_reopening_old_approval(tmp_path):
+    repository = _repository(tmp_path / "repository")
+    _approve_change(repository, "old")
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-m", "delivered old package")
+    base = _git(repository, "rev-parse", "HEAD")
+    batch = tmp_path / "batch"
+    _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(batch, "batch/test", base, "batch")
+    plan = batch / "changes/old/plans/behavior.md"
+    plan.write_text(plan.read_text() + "\nHistorical execution clarification.\n")
+    _git(batch, "commit", "-am", "clarify historical execution")
+    final = lifecycle.validate(batch, "final")
+    review = final["delivery_review"]
+    assert isinstance(review, dict)
+    assert review["approvals"] == []
+    assert review["previously_delivered"] == [
+        {
+            "change_id": "old",
+            "paths": ["changes/old/plans/behavior.md"],
+        }
+    ]
+
+
+def test_an_approved_change_cannot_continue_in_a_second_member_workspace(tmp_path):
+    member, _, base = _member_and_batch(tmp_path)
+    _approve_change(member)
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "approve package")
+    (member / "implemented.txt").write_text("behavior")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement")
+    lifecycle.validate(member, "member")
+    other = tmp_path / "second"
+    _git(member, "worktree", "add", "-b", "impl/second", str(other), "HEAD")
+    _record(other, "impl/second", base)
+    with pytest.raises(lifecycle.AdmissionError, match="already belongs to member impl/member"):
+        lifecycle.validate(other, "member")
+
+
+def test_ready_requires_accepted_decisions_before_implementation(tmp_path):
+    member, _, _ = _member_and_batch(tmp_path)
+    _approve_change(member)
+    spec = member / "changes/example/specs/behavior.toml"
+    spec.write_text(
+        spec.read_text().replace("plan = ", 'decisions = ["docs/decisions/ADP-new.md"]\nplan = ')
+    )
+    decision = member / "docs/decisions/ADP-new.md"
+    decision.parent.mkdir(parents=True, exist_ok=True)
+    decision.write_text("# New\nStatus: Proposed\n")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "draft required decision")
+    (member / "implemented.txt").write_text("unauthorized")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "attempt implementation")
+    with pytest.raises(lifecycle.AdmissionError, match="requires an accepted decision"):
+        lifecycle.validate(member, "member")
+
+
+def test_change_scope_uses_the_declared_package_root(tmp_path):
+    member, batch, _ = _member_and_batch(tmp_path)
+    _approve_change(member)
+    (member / "changes").rename(member / "work")
+    manifest = member / "signetum.toml"
+    manifest.write_text(manifest.read_text().replace('"changes/', '"work/'))
+    spec = member / "work/example/specs/behavior.toml"
+    spec.write_text(spec.read_text().replace('"changes/', '"work/'))
+    plan = member / "work/example/plans/behavior.md"
+    plan.write_text(plan.read_text().replace("changes/", "work/"))
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "approve package under declared root")
+    (member / "implemented.txt").write_text("behavior")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement")
+    lifecycle.validate(member, "member")
+    admitted = lifecycle.admit(batch, (member,))["admitted"]
+    assert isinstance(admitted, list)
+    assert admitted[0]["plan"] == ["work/example/plans/behavior.md"]
+    result = lifecycle.validate(batch, "final")["delivery_review"]
+    assert isinstance(result, dict)
+    assert result["approvals"][0]["change_id"] == "example"
+
+
+def test_final_cannot_number_or_validate_a_member_workspace(tmp_path):
+    member, _, _ = _member_and_batch(tmp_path)
+    with pytest.raises(lifecycle.AdmissionError, match="requires a registered batch"):
+        lifecycle.validate(member, "final")
+
+
+def test_ready_cannot_close_an_integration_batch_as_a_member(tmp_path):
+    _, batch, _ = _member_and_batch(tmp_path)
+    (batch / "fixup.txt").write_text("batch change")
+    _git(batch, "add", ".")
+    _git(batch, "commit", "-m", "integration change")
+    with pytest.raises(lifecycle.AdmissionError, match="requires a registered member"):
+        lifecycle.validate(batch, "member")

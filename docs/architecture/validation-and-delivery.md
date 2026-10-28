@@ -33,9 +33,18 @@ separately from `passed` together with the covering waiver and finding
 identities, so a delivery states which known unrepaired findings it carries and
 under whose authority.
 
-Active Plans remain on isolated member branches. Explicit batch assembly brings
-the Plan and implementation together, frozen validation observes that exact
-batch, and explicit delivery retains both as durable provenance.
+A change package owns one isolated implementation branch from proposal through
+approval and implementation. The shared Git state binds its owner at the first
+discovery or readiness check and refuses a second implementation branch. A
+member is ready only with approved behavior and required decisions plus its own
+implementation commit after approval. A package-only member remains plan stage.
+Readiness and final validation require member and batch workspace roles respectively.
+
+Actual committed paths identify each batch's first-delivered changes and their
+Plans; a trailer cannot omit or invent delivery scope. Final reviews first-delivered
+packages and lists historical Plan edits separately. Delivered Review and
+Specification edits are refused except for exact decision-numbering substitutions.
+A later intent requires its own change rather than rewriting accepted history.
 
 A workspace owns its base. `workspace-open` records the resolved base under the
 machine-local state root at `signetum/workspaces/<branch>.json`, and it is
@@ -101,3 +110,8 @@ Numbering preserves existing supersession edges and never changes approval
 status. A successor uses Partially supersedes for the subset of Supersedes
 edges whose unaffected clauses remain authoritative; complete replacements
 continue to invalidate current authority citations.
+
+Discoveries are written from the package-owning member branch. A resolution is
+written there while the branch is registered; once it has no registered workspace,
+a supported resolution may be written from another worktree. Linked worktrees
+share the same ledger and change ownership registry under Git common state.

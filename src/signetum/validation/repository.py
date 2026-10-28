@@ -6,7 +6,6 @@ import hashlib
 import subprocess  # nosec B404 -- declarative argv, never a shell
 import sys
 from pathlib import Path
-from shutil import which
 
 from signetum.evidence.receipts import (
     EvidenceIdentity,
@@ -15,6 +14,7 @@ from signetum.evidence.receipts import (
     verify_gate_evidence,
 )
 from signetum.findings import Finding, FindingsError, parse_findings
+from signetum.git import GitError, git_output
 from signetum.validation import ToolDeclaration, ValidationGraph, ValidationShard
 from signetum.validation.execution import (
     ShardExecution,
@@ -33,19 +33,10 @@ class RepositoryValidationAdapter:
         self.repository = repository.resolve()
 
     def _git(self, *arguments: str) -> str:
-        executable = which("git")
-        if executable is None:
-            raise ValidationInfrastructureError("git executable is unavailable")
-        completed = subprocess.run(  # nosec B603
-            (executable, "-C", str(self.repository), *arguments),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if completed.returncode:
-            diagnostic = completed.stderr.strip() or completed.stdout.strip()
-            raise ValidationInfrastructureError(diagnostic or "git identity query failed")
-        return completed.stdout.strip()
+        try:
+            return git_output(self.repository, *arguments)
+        except GitError as error:
+            raise ValidationInfrastructureError(str(error)) from error
 
     def require_clean(self) -> None:
         if status := self._git("status", "--porcelain"):

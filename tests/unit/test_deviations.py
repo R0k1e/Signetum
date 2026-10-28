@@ -39,12 +39,13 @@ def _git(repository: Path, *arguments: str) -> str:
 def repository(tmp_path: Path) -> Path:
     root = tmp_path / "repository"
     root.mkdir()
-    _git(root, "init")
+    _git(root, "init", "-b", "impl/example")
     _git(root, "config", "user.email", "test@example.com")
     _git(root, "config", "user.name", "Test")
     (root / "README.md").write_text("test\n", encoding="utf-8")
     _git(root, "add", "README.md")
     _git(root, "commit", "-m", "initial")
+    (root / "changes/example").mkdir(parents=True)
     return root
 
 
@@ -64,7 +65,7 @@ def _discovered(identifier: str = "DEV-001") -> Discovered:
 
 def test_linked_worktree_resolves_the_same_ledger(repository: Path, tmp_path: Path) -> None:
     member = tmp_path / "member"
-    _git(repository, "worktree", "add", "-b", "impl/example", str(member))
+    _git(repository, "worktree", "add", "-b", "impl/linked", str(member))
 
     assert ledger_path(repository, "example") == ledger_path(member, "example")
 
@@ -237,3 +238,35 @@ def test_support_cli_refuses_unknown_resolution(
 
     assert result == 2
     assert "deviation is absent" in json.loads(capsys.readouterr().out)["reason"]
+
+
+def test_discovery_must_be_written_by_the_package_branch(repository):
+    wrong = _discovered().model_copy(update={"member": "impl/elsewhere"})
+    with pytest.raises(DeviationError, match="not the branch checked out"):
+        append_event(repository, wrong)
+    assert read_states(repository, "example") == ()
+
+
+def test_discovery_requires_the_change_package_in_the_member(repository):
+    missing = _discovered().model_copy(update={"change_id": "missing"})
+    with pytest.raises(DeviationError, match="package changes/missing is absent"):
+        append_event(repository, missing)
+    assert read_states(repository, "missing") == ()
+
+
+def test_a_linked_member_cannot_resolve_another_active_members_discovery(repository, tmp_path):
+    append_event(repository, _discovered())
+    other = tmp_path / "other"
+    _git(repository, "worktree", "add", "-b", "impl/other", str(other))
+    resolution = Resolved(
+        id="DEV-001",
+        change_id="example",
+        member="impl/example",
+        at=datetime.now(UTC),
+        resolution=ResolutionKind.NO_AUTHORITY_CHANGE,
+        reason="Investigated",
+        implemented=False,
+    )
+    with pytest.raises(DeviationError, match="not the branch checked out"):
+        append_event(other, resolution)
+    assert read_states(repository, "example")[0].resolution is None
