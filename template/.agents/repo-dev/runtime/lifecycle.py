@@ -11,16 +11,18 @@ import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tomllib
 from dataclasses import asdict, dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from shutil import which
 from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _signetum_runtime.findings import FindingsError, parse_findings
+from _signetum_runtime.findings import Finding, FindingsError, parse_findings
 from _signetum_runtime.git import git_output as _git
 from _signetum_runtime.operations import AdmissionError
+from _signetum_runtime.waivers import Waiver, WaiverError, load_waivers
+from _signetum_runtime.waivers import cover_findings as _cover_findings
 from _signetum_runtime.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
@@ -238,34 +240,13 @@ def _command_digest(command: tuple[str, ...]) -> str:
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
-def _parse_findings(document: str) -> list[dict[str, str]]:
+def _parse_findings(document: str) -> tuple[Finding, ...]:
     """Read the tool-neutral findings document a world shard must emit."""
 
     try:
-        return [asdict(finding) for finding in parse_findings(document)]
+        return parse_findings(document)
     except FindingsError as error:
         raise AdmissionError(str(error)) from error
-
-
-@dataclass(frozen=True)
-class _Waiver:
-    """One tracked, approved, expiring exception for named world findings."""
-
-    id: str
-    shard: str
-    findings: tuple[str, ...]
-    expires: date
-
-
-@dataclass(frozen=True)
-class _Coverage:
-    """Why a failing world shard was or was not covered."""
-
-    covered: bool
-    waivers: tuple[str, ...]
-    findings: tuple[str, ...]
-    uncovered: tuple[str, ...]
-    expired: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -278,80 +259,11 @@ class _Shard:
     findings_command: tuple[str, ...]
 
 
-def _load_waivers(repository: Path) -> tuple[_Waiver, ...]:
-    """Read every tracked, human-approved world finding waiver."""
-
-    waivers: list[_Waiver] = []
-    identities: set[str] = set()
-    for path in sorted(repository.glob("changes/*/waivers/*.toml")):
-        relative = path.relative_to(repository).as_posix()
-        try:
-            document = tomllib.loads(path.read_text(encoding="utf-8"))
-        except (OSError, tomllib.TOMLDecodeError) as error:
-            raise AdmissionError(f"{relative}: {error}") from error
-        if set(document) != {"waiver"}:
-            raise AdmissionError(f"{relative}: file must declare exactly one [waiver] table")
-        waiver = _mapping(document["waiver"], "waiver")
-        missing = {"schema_version", "id", "shard", "findings", "reason", "approved_by", "expires"}
-        missing -= set(waiver)
-        if missing:
-            raise AdmissionError(f"{relative}: waiver is missing {', '.join(sorted(missing))}")
-        if waiver["schema_version"] != 1:
-            raise AdmissionError(f"{relative}: unsupported waiver schema")
-        expires = waiver["expires"]
-        if isinstance(expires, str):
-            try:
-                expires = date.fromisoformat(expires)
-            except ValueError as error:
-                raise AdmissionError(f"{relative}: waiver expiry must be a date") from error
-        if not isinstance(expires, date):
-            raise AdmissionError(f"{relative}: waiver expiry must be a date")
-        identity = str(waiver["id"])
-        if identity in identities:
-            raise AdmissionError(f"duplicate waiver identities: {identity}")
-        identities.add(identity)
-        waivers.append(
-            _Waiver(
-                identity,
-                str(waiver["shard"]),
-                tuple(_strings(waiver["findings"], "waiver.findings")),
-                expires,
-            )
-        )
-    return tuple(waivers)
-
-
-def _cover_findings(
-    shard: str,
-    findings: list[dict[str, str]],
-    waivers: tuple[_Waiver, ...],
-    today: date,
-) -> _Coverage:
-    """Decide whether live authority covers every reported finding."""
-
-    applicable = [item for item in waivers if item.shard == shard]
-    reported = tuple(sorted({finding["id"] for finding in findings}))
-    used: set[str] = set()
-    uncovered: list[str] = []
-    expired: set[str] = set()
-    for identifier in reported:
-        covering = sorted(
-            item.id for item in applicable if identifier in item.findings and item.expires >= today
-        )
-        if covering:
-            used.update(covering)
-            continue
-        uncovered.append(identifier)
-        expired.update(
-            item.id for item in applicable if identifier in item.findings and item.expires < today
-        )
-    return _Coverage(
-        covered=bool(reported) and not uncovered,
-        waivers=tuple(sorted(used)),
-        findings=reported,
-        uncovered=tuple(uncovered),
-        expired=tuple(sorted(expired)),
-    )
+def _load_waivers(repository: Path) -> tuple[Waiver, ...]:
+    try:
+        return load_waivers(repository)
+    except WaiverError as error:
+        raise AdmissionError(str(error)) from error
 
 
 def _member_shards(
@@ -481,14 +393,9 @@ def _run_gate(
         except AdmissionError as error:
             failures.append(f"{name}: {error}")
             continue
-        coverage = _cover_findings(name, findings, waivers, today)
+        coverage = _cover_findings(name, findings, waivers, today=today)
         if not coverage.covered:
-            detail = [f"world shard {name} reported unwaived findings"]
-            if coverage.uncovered:
-                detail.append("uncovered: " + ", ".join(coverage.uncovered))
-            if coverage.expired:
-                detail.append("expired waivers: " + ", ".join(coverage.expired))
-            failures.append("; ".join(detail))
+            failures.append(coverage.diagnostic(name))
             continue
         outcome["status"] = "waived"
         outcome["waivers"] = list(coverage.waivers)

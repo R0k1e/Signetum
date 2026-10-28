@@ -7,6 +7,7 @@ engine_version = "3.0.0"
 "signetum.git" = "sha256:56da8a5607230338bed3f76d93f1d8a4da997ec5e683da7ff7263717ce3e9cdf" # pragma: allowlist secret
 "signetum.operations" = "sha256:85a6e27ef4af51e8071f142948d78ec3f4f9ebc73f11319583555c2d01f4cf0e" # pragma: allowlist secret
 "signetum.profiles.pip_audit" = "sha256:2fe6549d8f5c0c2cdafaa756884bc83964f95e735505ddadc608dc308db3c853" # pragma: allowlist secret
+"signetum.waivers" = "sha256:a22506dfe4d295a5abb8762425da68b63ccc5f76ac0033f39cee0e9af5d82332" # pragma: allowlist secret
 "signetum.workspaces" = "sha256:af372ad1ac06bb8e61a7d980e9ad26c6fd5443f51fd103d67654bb0fd33cd689" # pragma: allowlist secret
 
 [files]
@@ -15,4 +16,5 @@ engine_version = "3.0.0"
 "git.py" = "sha256:0145ed1c5259850105e5da2a457815b4ec3d94e8e520ee79cbb49990812a8c70" # pragma: allowlist secret
 "operations.py" = "sha256:aa1608a307e8f6890a0449f3fd563c7a1ecc04e38f6e71122864c4cb6c5f76bb" # pragma: allowlist secret
 "pip_audit.py" = "sha256:9741e171990b68fde83839efb853f42455c7c95c2941ae6d9e5a18c9485cb064" # pragma: allowlist secret
+"waivers.py" = "sha256:d2f9cc48e245c3cf90d60c0f76b56ecf0c19a04dca189c29a73821fe5336cd54" # pragma: allowlist secret
 "workspaces.py" = "sha256:0d0a5a9b22c730cf1cb50c289fc25cdfb5752f16cf660e09e4a21830da182515" # pragma: allowlist secret

@@ -39,3 +39,10 @@ JSON input is normalized once by `parse_record`; both installed and generated ru
 the same atomic writer and immutable identity checks. A record must match its
 branch path and bind a 40- or 64-character commit identity. Batch creation writes
 its role and initial member list once rather than upgrading a member record.
+
+Waiver parsing, immutable approval values, expiry and finding coverage are
+owned by `signetum.waivers` and generated into the same portable runtime.
+The template only translates authority errors into its operation boundary;
+it does not maintain a second parser or coverage algorithm. Waiver documents
+normalize TOML arrays and ISO dates once and reject unknown fields, unsupported
+versions, empty approval or reason, duplicate findings and invalid expiry.
