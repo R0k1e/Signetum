@@ -33,3 +33,9 @@ nothing and installs nothing. Merge its application declaration deliberately;
 preserve existing core, preparation, batch and final-only checks and declared
 inputs. Profile selection alone never activates omitted commands. The host
 protocol interpreter does not impose Python project metadata on the application.
+
+Historical working sets are read and organized by the agent, using ordinary
+source references and reviewed decision proposals. Do not configure a document
+parser or infer approval from a table. Structured test selection is optional:
+without an explicit provider, diagnostics and readiness run all declared member
+checks without impact narrowing or inherited test skips. Final remains complete.

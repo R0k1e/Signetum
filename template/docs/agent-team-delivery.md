@@ -5,7 +5,8 @@ brief refers to its approved record, requirement IDs, owned paths and existing
 validation commands. It selects work without narrowing the approved outcome.
 Preserve the delivery worktree and unrelated state.
 
-Members use targeted checks and `ready`. Only named ready tips enter a batch;
+Members run full member checks by default; an optional repository selection
+provider enables targeted checks. Only named ready tips enter a batch;
 final validates its exact frozen source. Significant findings and accepted
 clause edits belong in source journals through `just protocol`, not a second
 handwritten report. `current`, `history` and `status-all` provide the working

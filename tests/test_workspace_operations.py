@@ -233,7 +233,7 @@ def test_changed_refuses_workspace_without_committed_contribution(repository):
         lifecycle.changed(member, True)
 
 
-def test_changed_no_selection_does_not_run_member_required_checks(repository):
+def test_changed_without_provider_runs_full_checks_for_unexplained_paths(repository):
     root, _ = repository
     manifest = root / "signetum.toml"
     commit_file(
@@ -242,8 +242,8 @@ def test_changed_no_selection_does_not_run_member_required_checks(repository):
     member = opened(root, "plan/no-selection")
     commit_file(member, "unexplained.md")
     result = lifecycle.changed(member, True)
-    assert result["status"] == "nothing-selected"
-    assert result["executed"] == []
+    assert result["status"] == "changed"
+    assert result["executed"] == ["test:check"]
     assert result["requires_final"] is True
 
 

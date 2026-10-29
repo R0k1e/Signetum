@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-10-29
 Supersedes: None
-Superseded by: None
+Superseded by: ADP-optional-selection-and-agent-history.md
 
 ## Context
 

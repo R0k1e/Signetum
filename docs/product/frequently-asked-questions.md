@@ -50,7 +50,8 @@ declaration that all historical decisions have been adopted.
 
 ## How does it reduce test cost without reducing quality?
 
-Members use targeted or changed validation for feedback. Ready evidence binds
+Members run the full declared member gate by default; an optional repository
+selection provider enables targeted checks. Ready evidence binds
 to each exact member commit. Explicitly named members are combined, then the
 complete gate runs once on the frozen batch that will be delivered.
 

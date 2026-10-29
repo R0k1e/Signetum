@@ -383,29 +383,9 @@ contract_digest = "{digest}"
     assert existing.read_text() == "existing:\n    echo existing task\n"
 
 
-def test_installed_runtime_exercises_selection_and_historical_working_set_sources(
-    repository, tmp_path
-):
+def test_installed_runtime_exercises_optional_selection_and_full_default(repository, tmp_path):
     root, _ = repository
     declare_provider(root)
-    constraints = root / "docs/architecture/constraints.md"
-    constraints.parent.mkdir(parents=True, exist_ok=True)
-    constraints.write_text(
-        "# Validation\n| do_not | because |\n| --- | --- |\n"
-        "| Clear a failure by retry | Retry is diagnostic. Reopen when approved. |\n"
-    )
-    manifest = root / "signetum.toml"
-    manifest.write_text(
-        manifest.read_text()
-        + """
-[[migration.sources]]
-id="constraints"
-path="docs/architecture/constraints.md"
-format="markdown-constraints@1"
-"""
-    )
-    git_output(root, "add", ".")
-    git_output(root, "commit", "-m", "bind installed adoption boundaries")
     wheels = tuple(Path("dist").glob("signetum-*.whl"))
     assert len(wheels) == 1
     uv = which("uv")
@@ -426,15 +406,17 @@ sys.path.insert(0,sys.argv[1])
 from _signetum_runtime.git import git_output
 from _signetum_runtime.manifest import load_manifest
 from _signetum_runtime.repository_selection import select_repository
-from _signetum_runtime.migration import inventory
 root=Path(sys.argv[2]); source=git_output(root,"rev-parse","HEAD")
 selected=select_repository(root,load_manifest(root/"signetum.toml"),("source.py",),base=source,source=source)
 shard=next(s for s in selected.manifest.validation.shards if s.name=="test:check")
 assert shard.command[-1]=="tests/test_a.py"
-legacy=inventory(root)
-assert legacy.schema_version==2
-assert legacy.working_sets[0].status=="declared_working_set"
-assert legacy.working_sets[0].rows[0].because=="Retry is diagnostic. Reopen when approved."
+manifest=load_manifest(root/"signetum.toml")
+from dataclasses import replace
+full=select_repository(root,replace(manifest,impact=replace(manifest.impact,provider=None)),
+                       ("docs/readme.md",),base=source,source=source)
+assert full.selection.gates==("member",)
+assert next(s for s in full.manifest.validation.shards if s.name=="test:check").command[-1]=="tests"
+assert not (Path(sys.argv[1])/"_signetum_runtime/working_sets.py").exists()
 assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
 print("installed adoption boundaries verified")
 """

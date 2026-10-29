@@ -27,7 +27,6 @@ from signetum.decision_clauses import ClauseRevision, Text
 from signetum.decision_history import TopicRevision
 from signetum.development_log import ObjectId
 from signetum.git import git_output, run_git
-from signetum.manifest import parse_manifest
 from signetum.serialization import Constraints, contract_mapping, dataclass_from_mapping, load_json
 from signetum.source_authority import (
     authority_roots,
@@ -35,7 +34,6 @@ from signetum.source_authority import (
     committed_blob_identity,
     require_ancestor,
     require_committed_bindings,
-    source_path,
 )
 from signetum.traceability.boundary import RepositoryInventory, TraceabilityManifest
 from signetum.traceability.loading import (
@@ -45,14 +43,13 @@ from signetum.traceability.loading import (
     parse_specification,
 )
 from signetum.traceability.validator import TraceabilityValidator, decision_corpus_issues
-from signetum.working_sets import WorkingSetSource, parse_working_set
 
 
 @dataclass(frozen=True, kw_only=True)
 class SourceDocument(FrozenContract):
     path: Text
     blob: ObjectId
-    kind: Literal["review", "specification", "plan", "decision", "working_set"]
+    kind: Literal["review", "specification", "plan", "decision"]
     status: Text
 
 
@@ -98,7 +95,7 @@ class LegacyRequirement(FrozenContract):
 
 @dataclass(frozen=True, kw_only=True)
 class MigrationInventory(FrozenContract):
-    schema_version: Literal[1, 2] = 1
+    schema_version: Literal[1] = 1
     commit: ObjectId
     digest: Digest
     manifest_blob: ObjectId | None
@@ -111,7 +108,6 @@ class MigrationInventory(FrozenContract):
     decisions: tuple[LegacyDecision, ...]
     requirements: tuple[LegacyRequirement, ...]
     issues: tuple[MigrationIssue, ...]
-    working_sets: tuple[WorkingSetSource, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -155,7 +151,6 @@ class MigrationPreview(FrozenContract):
     requires_review: tuple[Text, ...]
     unmapped: tuple[Text, ...]
     issues: tuple[MigrationIssue, ...]
-    unmapped_rows: tuple[SourceSpan, ...] = ()
 
 
 def _kind(path: str, root: str, decisions: str) -> str | None:
@@ -268,8 +263,6 @@ def inventory(repository: Path, commit: str = "HEAD") -> MigrationInventory:
         raise ValueError("migration inventory requires HEAD or an exact commit identity")
     source = git_output(repository, "rev-parse", "--verify", f"{commit}^{{commit}}")
     root, decision_root = authority_roots(repository, commit=source)
-    if commit == "HEAD":
-        require_committed_bindings(repository, source)
     manifest_blob = committed_blob_identity(repository, source, "signetum.toml")
     tree = git_output(
         repository, "ls-tree", "-r", "-z", source, "--", root, decision_root, strip=False
@@ -346,43 +339,6 @@ def inventory(repository: Path, commit: str = "HEAD") -> MigrationInventory:
                 },
             )
         )
-    working_sets = []
-    binding = committed_blob(repository, source, "signetum.toml")
-    declared = parse_manifest(binding[1]).migration.sources if binding else ()
-    for declaration in declared:
-        if any(item.path == declaration.path for item in documents):
-            raise ValueError("working-set source conflicts with an inventoried legacy authority")
-        blob = committed_blob(repository, source, declaration.path)
-        if blob is None:
-            raise ValueError("declared working-set source is not a committed regular file")
-        if (
-            commit == "HEAD"
-            and source_path(repository, declaration.path).read_bytes() != blob[1].encode()
-        ):
-            raise ValueError("working-set source has uncommitted changes")
-        working = parse_working_set(
-            identity=declaration.id, path=declaration.path, blob=blob[0], text=blob[1]
-        )
-        working_sets.append(working)
-        documents.append(
-            SourceDocument(
-                path=declaration.path, blob=blob[0], kind="working_set", status=working.status
-            )
-        )
-        issues.extend(
-            MigrationIssue(
-                path=declaration.path, code=issue.code, reason=f"line {issue.line}: {issue.reason}"
-            )
-            for issue in working.issues
-        )
-        issues.append(
-            MigrationIssue(
-                path=declaration.path,
-                code="explicit_clause_mapping",
-                reason="Review exact rows, original context and reopen conditions; "
-                "discovery is not acceptance.",
-            )
-        )
     paths = git_output(repository, "ls-tree", "-r", "--name-only", "-z", source)
     source_inventory = RepositoryInventory(
         paths=frozenset(item for item in paths.split("\0") if item)
@@ -442,8 +398,6 @@ def inventory(repository: Path, commit: str = "HEAD") -> MigrationInventory:
         ).hexdigest()
     )
     return MigrationInventory(
-        schema_version=2 if declared else 1,
-        working_sets=tuple(working_sets),
         commit=source,
         digest=digest,
         manifest_blob=manifest_blob,
@@ -480,7 +434,6 @@ def preview(repository: Path, proposal: MigrationProposal) -> MigrationPreview:
         "--",
         current.change_root,
         current.decision_root,
-        *(item.path for item in current.working_sets),
     )
     if dirty.returncode != 0:
         raise ValueError("uncommitted authority changes cannot be included in a migration preview")
@@ -489,12 +442,9 @@ def preview(repository: Path, proposal: MigrationProposal) -> MigrationPreview:
     if len(set(identities)) != len(identities) or len(topics) != len(proposal.topics):
         raise ValueError("migration clause and topic identities must be unique")
     source_decisions = {item.path: item.value for item in original.decisions}
-    working_sources = {item.path: item for item in original.working_sets}
-    source_paths = set(source_decisions) | set(working_sources)
     by_name = {item.name: item for item in source_decisions.values()}
     counts = Counter(item.name for item in source_decisions.values())
     mapped, selected = [], set()
-    selected_rows: set[tuple[str, int, int]] = set()
     for item in proposal.clauses:
         if item.clause.topic not in topics:
             raise ValueError("migration clause has no explicit topic context")
@@ -502,43 +452,15 @@ def preview(repository: Path, proposal: MigrationProposal) -> MigrationPreview:
         for span in item.sources:
             require_relative_path(span.path)
             decision = source_decisions.get(span.path)
-            working = working_sources.get(span.path)
-            if decision is None and working is None:
-                raise ValueError(
-                    "mapping source is not an inventoried legacy decision or working set"
-                )
-            if working is not None:
-                row = next(
-                    (
-                        row
-                        for row in working.rows
-                        if (row.start_line, row.end_line) == (span.start_line, span.end_line)
-                    ),
-                    None,
-                )
-                if row is None:
-                    raise ValueError(
-                        "working-set mapping must name one complete explicit source row"
-                    )
-                selected_rows.add((span.path, span.start_line, span.end_line))
-                if (item.clause.statement, item.clause.rationale) != (row.do_not, row.because):
-                    raise ValueError(
-                        "working-set mapping must preserve its prohibition, "
-                        "basis and reopen condition"
-                    )
-            if decision is not None and any(
-                counts[item.rsplit("/", 1)[-1]] > 1 for item in decision.superseded_by
-            ):
+            if decision is None:
+                raise ValueError("mapping source is not an inventoried legacy decision")
+            if any(counts[item.rsplit("/", 1)[-1]] > 1 for item in decision.superseded_by):
                 raise ValueError(
                     "supersession identity is ambiguous; do not choose a source by order"
                 )
-            if (
-                decision is not None
-                and item.clause.status == "active"
-                and (
-                    decision.status != DecisionStatus.ACCEPTED
-                    or complete_decision_replacements(decision, by_name)
-                )
+            if item.clause.status == "active" and (
+                decision.status != DecisionStatus.ACCEPTED
+                or complete_decision_replacements(decision, by_name)
             ):
                 raise ValueError(
                     "historical or unaccepted authority cannot silently become an active rule"
@@ -567,14 +489,8 @@ def preview(repository: Path, proposal: MigrationProposal) -> MigrationPreview:
         inventory_digest=original.digest,
         topics=proposal.topics,
         clauses=tuple(mapped),
-        unmapped_rows=tuple(
-            SourceSpan(path=working.path, start_line=row.start_line, end_line=row.end_line)
-            for working in original.working_sets
-            for row in working.rows
-            if (working.path, row.start_line, row.end_line) not in selected_rows
-        ),
-        requires_review=tuple(sorted(source_paths)),
-        unmapped=tuple(sorted(source_paths - selected)),
+        requires_review=tuple(sorted(source_decisions)),
+        unmapped=tuple(sorted(set(source_decisions) - selected)),
         issues=tuple(item for item in original.issues if item.path in selected),
     )
 
@@ -602,14 +518,9 @@ def main(arguments: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    encoded = contract_mapping(result)
-    if isinstance(result, MigrationInventory) and result.schema_version == 1:
-        encoded.pop("working_sets", None)
-    if isinstance(result, MigrationPreview) and not result.unmapped_rows:
-        encoded.pop("unmapped_rows", None)
     print(
         json.dumps(
-            {"schema_version": 1, "status": "preview", "result": encoded},
+            {"schema_version": 1, "status": "preview", "result": contract_mapping(result)},
             ensure_ascii=False,
             sort_keys=True,
         )

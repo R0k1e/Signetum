@@ -14,7 +14,6 @@
 - [Quickstart](../QUICKSTART.md)
 - [Adopt existing repository runners](guides/existing-runners.md)
 - [Preserve structured test selection](guides/structured-selection.md)
-- [Inventory historical decision working sets](guides/historical-working-sets.md)
 - [Development lifecycle concepts](concepts/development-lifecycle.md)
 - [Complete change example](../examples/complete-change/README.md)
 

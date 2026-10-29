@@ -278,15 +278,6 @@ def test_adoption_declarations_match_the_shipped_manifest_schema(repository, sel
     root, _ = repository
     declare_provider(root)
     manifest = root / "signetum.toml"
-    manifest.write_text(
-        manifest.read_text()
-        + """
-[[migration.sources]]
-id="constraints"
-path="docs/architecture/constraints.md"
-format="markdown-constraints@1"
-"""
-    )
     raw = tomllib.loads(manifest.read_text())
     model = importlib.import_module(selection_runtime.__package__ + ".manifest").load_manifest(
         manifest
@@ -415,3 +406,60 @@ def test_whole_shard_provider_needs_no_file_refinement_binding_for_changed_tests
     assert ready["evidence"]["execution"]["shards"][0]["command_digest"] == command_digest(full)
     assert runtime.batch_open(root, (member,))["admitted"]
     assert git_output(root, "rev-parse", "main") == base
+
+
+def test_without_provider_executes_full_member_checks_despite_no_check_impact_rules(
+    repository, selection_runtime
+):
+    runtime, root, member, base = _selected_member(repository, selection_runtime, mode="docs-aware")
+    manifest = member / "signetum.toml"
+    text = manifest.read_text().split("[impact.provider]")[0]
+    text = text.replace('shards = ["test:check"]', "shards = []", 1)
+    manifest.write_text(text)
+    git_output(member, "commit", "-am", "use full default validation")
+    changed = runtime.changed(member, True)
+    assert changed["executed"] == ["test:check"]
+    assert changed["shards"] == ("test:check",)
+    first = runtime.validate(member, "member")
+    note = member / "docs/note.md"
+    note.parent.mkdir(exist_ok=True)
+    note.write_text("A documentation-only fixup still executes the full default.\n")
+    git_output(member, "add", ".")
+    git_output(member, "commit", "-m", "clarify full default")
+    second = runtime.validate(member, "member")
+    assert second["source"] != first["source"]
+    assert "inherited_test_evidence_from" not in second["evidence"]["extensions"]
+    batch = Path(runtime.batch_open(root, (member,))["batch"])
+    assert runtime.validate(batch, "final")["status"] == "final"
+    assert git_output(root, "rev-parse", "main") == base
+    # A defect in the test previously omitted by the producer must fail the default.
+    test = member / "tests/test_b.py"
+    test.write_text(test.read_text().replace("doubled(2), 4", "doubled(2), 99"))
+    git_output(member, "commit", "-am", "expose full default coverage")
+    with pytest.raises(runtime.ValidationExecutionError, match="test:check"):
+        runtime.changed(member, False)
+    with pytest.raises(runtime.ValidationExecutionError, match="test:check"):
+        runtime.validate(member, "member")
+    with pytest.raises(runtime.AdmissionError):
+        runtime._admission_evidence(
+            member,
+            git_output(member, "rev-parse", "HEAD"),
+            runtime.load_manifest(member / "signetum.toml"),
+        )
+
+
+def test_working_set_migration_configuration_is_no_longer_supported(repository, selection_runtime):
+    root, _ = repository
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text()
+        + """
+[[migration.sources]]
+id="constraints"
+path="docs/architecture/constraints.md"
+format="markdown-constraints@1"
+"""
+    )
+    loader = importlib.import_module(selection_runtime.__package__ + ".manifest").load_manifest
+    with pytest.raises(ValueError):
+        loader(manifest)

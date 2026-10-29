@@ -3,7 +3,10 @@
 An existing repository can retain its fine test selection without embedding its
 old gate, retry loop or receipt writer. The optional `signetum.selection@1`
 boundary supplies a plan to Signetum's existing execution and evidence owners.
-Without a provider declaration, the existing impact-rule behavior is unchanged.
+Without a provider declaration, `changed` and `ready` run the full declared
+member-safe gate and required checks. Impact rules cannot narrow this default,
+and tests are not skipped using ancestor evidence. Final always runs its complete
+declared gate, including final-only checks.
 
 ```toml
 [impact.provider]
@@ -88,5 +91,5 @@ For first adoption use the repository's existing authority. Compare old and new
 selection on fixed source cases, including new files, dependency changes,
 modified tests, dynamic imports and unknown paths. Resolve discrepancies before
 switching the default entrypoint. Keep product builds, preparation and policy
-checks in repository tasks; use [historical working-set inventory](historical-working-sets.md)
-for their decision constraints.
+checks in repository tasks. Have the agent read historical working sets and
+prepare ordinary decision proposals with original sources and rationale for review.

@@ -77,10 +77,25 @@ def select_repository(
     source: str,
 ) -> SelectionResolution:
     """Resolve an opt-in producer once against exact committed contribution inputs."""
-    baseline = select_paths(files, manifest.impact.rules)
     provider = manifest.impact.provider
     if provider is None:
-        return SelectionResolution(manifest, baseline)
+        # Full execution is the default; impact rules only participate after opt-in.
+        selection = replace(
+            select_paths(files, ()),
+            gates=("member",),
+            shards=tuple(
+                dict.fromkeys(
+                    (
+                        *next(g.shards for g in manifest.validation.gates if g.name == "member"),
+                        *manifest.validation.member_required,
+                    )
+                )
+            ),
+            unexplained=(),
+            requires_final=True,
+            reasons=("no selection provider: run full declared member checks",),
+        )
+        return SelectionResolution(manifest, selection)
     try:
         return _select(repository, manifest, files, base=base, source=source)
     except (SelectionError, InfrastructureError):

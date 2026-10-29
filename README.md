@@ -37,7 +37,7 @@ lifecycle runtime and does not install the Signetum package.
 | --- | --- |
 | Recorded requirements do not disappear silently | One approved change record binds stable requirements, acceptance and exhaustive execution steps. |
 | Agents inspect before changing | Architecture and repository policy route discovery to named authorities and require an inspectable routing manifest. |
-| Development feedback stays fast | Members run targeted or changed validation; complete validation runs once on the frozen batch. |
+| Validation is explicit | Members run all declared member checks by default; an optional repository provider enables selection. Final validates the complete frozen batch. |
 | Agent Teams work safely in parallel | Each member uses an isolated plan-owned worktree and cannot mutate the delivery worktree. |
 | Every delivery is explainable | The delivery result names the requirements, Plans, member commits, validated batch tip, and delivery commit. |
 | Tests protect product behavior | Unit tests cover pure contracts; integration tests traverse real public boundaries; implementation-detail assertions are rejected by policy. |

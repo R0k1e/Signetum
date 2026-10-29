@@ -3,8 +3,9 @@
 Use the registered member workspace, immutable base and repository environment.
 Find and extend the existing implementation owner. Reproduce changed behavior
 through its public boundary and validate the approved contract with the existing
-runner. Repository bindings select checks; this skill does not select an
-application language or replace its test system.
+runner. Without a selection provider, run the full declared member gate. An
+explicit provider may select checks; this skill does not select an application
+language or replace its test system.
 
 Use `record` for a finding that changes implementation, authority, scope or the
 delivery explanation. Use `resolve`, `retract`, `reconcile` or `retire` for its
