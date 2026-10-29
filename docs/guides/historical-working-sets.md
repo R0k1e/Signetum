@@ -10,11 +10,12 @@ path = "docs/architecture/constraints.md"
 format = "markdown-constraints@1"
 ```
 
-This format reads Markdown tables with the exact headers `do_not` and `because`.
+This format reads top-level Markdown tables with the exact headers `do_not` and `because`.
 It preserves the cell text, including any reopen condition in `because`, the
 nearest heading, original line range, introductory context and Git blob. It does
-not infer a missing decision identifier or approval. Fenced examples are not
-rules. Incomplete rows and unrecognized tables remain review issues.
+not infer a missing decision identifier or approval. Fenced and indented examples are not
+rules. A closing fence must match its opening marker and meet its length.
+Incomplete rows and unsupported constraint columns remain explicit review issues.
 
 Run the repository's `protocol migration inventory` utility. Without declarations,
 the existing version-one inventory remains unchanged. Opted-in sources produce a
