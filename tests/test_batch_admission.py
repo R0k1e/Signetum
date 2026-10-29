@@ -288,9 +288,14 @@ def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     assert admitted["ready_evidence"] == "member-lifecycle-ready.json"
     assert admitted["plan"] == ["changes/example/plans/behavior.md"]
     final = lifecycle.validate(batch, "final")
-    overview = workflow_status(batch, development_snapshot(batch), source=final["source"])
-    assert overview["workspace"]["kind"] == "batch"
-    assert any("final" in receipt["gates"] for receipt in overview["receipts"])
+    source = final["source"]
+    assert isinstance(source, str)
+    overview = workflow_status(batch, development_snapshot(batch), source=source)
+    workspace = overview["workspace"]
+    receipts = overview["receipts"]
+    assert isinstance(workspace, dict) and workspace["kind"] == "batch"
+    assert isinstance(receipts, list)
+    assert any(isinstance(receipt, dict) and "final" in receipt["gates"] for receipt in receipts)
     formal = batch / "docs/decisions/ADP-0002-zebra.md"
     assert formal.is_file()
     assert (batch / "docs/decisions/ADP-historical.md").read_text() == legacy.read_text()

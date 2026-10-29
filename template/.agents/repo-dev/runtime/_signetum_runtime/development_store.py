@@ -617,6 +617,7 @@ def _semantic_request(
             raise ValueError("cannot infer one approved change; name --change explicitly")
         change = candidates[0]
     record, _ = _authority(repository, change, commit)
+    sources = _read_sources(repository)
     if not options.id or not options.reason:
         raise ValueError("semantic writes require --id and --reason")
     identity = options.id if options.id.startswith(change + "/") else change + "/" + options.id
@@ -697,10 +698,36 @@ def _semantic_request(
             )
         ):
             raise ValueError("accepted-decision application does not accept observation inputs")
-        body["decisions"] = [contract_mapping(item) for item in record.contract.decisions]
+        observed = sources
+        previous = next(
+            (entry.transaction for entry in observed.entries if entry.transaction.id == identity),
+            None,
+        )
+        if previous is not None:
+            selected = previous.decisions
+        else:
+            applied = {
+                decision.id: decision
+                for entry in observed.entries
+                for decision in entry.transaction.decisions
+            }
+            selected = tuple(
+                decision for decision in record.contract.decisions if decision.id not in applied
+            )
+            if any(
+                decision.id in applied and applied[decision.id] != decision
+                for decision in record.contract.decisions
+            ):
+                raise ValueError("an accepted decision identity has changed content")
+            if not selected:
+                raise ValueError(
+                    "No unapplied approved decisions; inspect current "
+                    "or retry the original transaction ID."
+                )
+        body["decisions"] = [contract_mapping(item) for item in selected]
+
     else:
         raise ValueError("this operation needs its structured request")
-    sources = _read_sources(repository)
     return parse_request(body), options.expected_history or sources.history_digest
 
 

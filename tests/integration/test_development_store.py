@@ -293,6 +293,39 @@ def test_exact_approved_decision_updates_the_generated_current_set(repository, s
     assert state.entries[0].approval.blob
     assert not (repository / "docs/decisions").exists()
     assert store.snapshot(repository) == state
+    refinement = json.loads(json.dumps(proposal))
+    refinement["id"] = "alpha/refinement"
+    refinement["authority"] = "changes/alpha/change.toml#decisions/alpha/refinement"
+    refinement["parents"] = [proposal["id"]]
+    refinement["topics"] = []
+    edit = refinement["clauses"][0]
+    edit["id"] = "alpha/refinement-clauses"
+    edit["authority"] = refinement["authority"]
+    edit["action"] = "amend"
+    edit["expected"][0]["version"] = 1
+    edit["updates"][0]["version"] = 2
+    edit["updates"][0]["statement"] = "A diagnostic retry preserves the original failure."
+    _approve(
+        repository,
+        path.read_text().replace(
+            "decisions=" + _inline([proposal]), "decisions=" + _inline([proposal, refinement])
+        ),
+    )
+    arguments = (
+        "reconcile",
+        "--id",
+        "accept-refinement",
+        "--reason",
+        "Apply only new exact proposals.",
+        "--accept-decisions",
+    )
+    for _ in range(2):
+        applied = _cli(repository, store, *arguments)
+        assert applied.returncode == 0, applied.stdout + applied.stderr
+        assert json.loads(applied.stdout)["decision_transactions"] == [refinement["id"]]
+    revised = store.snapshot(repository)
+    assert len(revised.entries) == 2
+    assert revised.working_set.clauses[0].revision.version == 2
 
 
 def test_unapproved_decision_bytes_cannot_enter_the_current_set(repository, store):

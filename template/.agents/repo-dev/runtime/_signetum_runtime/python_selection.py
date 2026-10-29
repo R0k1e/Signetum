@@ -2,7 +2,6 @@
 """Optional Python import reach; repository families and paths remain explicit inputs."""
 
 import ast
-import fnmatch
 import json
 import sys
 from collections import defaultdict, deque
@@ -12,6 +11,8 @@ from typing import Literal
 
 from .contract_values import FrozenContract
 from .git import git_output, read_blob_contents, regular_tree_files
+from .impact import select_paths
+from .manifest import parse_manifest
 from .operation_cli import OperationParser, utility_failure
 from .selection_contracts import (
     PathCoverage,
@@ -22,12 +23,7 @@ from .selection_contracts import (
 )
 from .selection_request import SelectionRequest
 from .serialization import contract_mapping, dataclass_from_mapping, load_json
-
-
-@dataclass(frozen=True, kw_only=True)
-class SelectionFamily(FrozenContract):
-    paths: tuple[str, ...]
-    shards: tuple[str, ...]
+from .source_authority import committed_blob
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -42,7 +38,6 @@ class PythonSelection(FrozenContract):
     source_roots: tuple[str, ...]
     unit_roots: tuple[str, ...]
     unit_shard: str
-    families: tuple[SelectionFamily, ...] = ()
     # Explicit modules are edges for loaders that import computed module names.
     dynamic_loaders: tuple[DynamicLoader, ...] = ()
 
@@ -205,17 +200,24 @@ def select_python(
     selected, fallback = dependent_units(
         {p: blobs[i] for p, i in python.items()}, request.files, config
     )
+    manifest_blob = committed_blob(repository, request.source, "signetum.toml")
+    if manifest_blob is None:
+        raise ValueError("selection requires a committed repository manifest")
+    manifest = parse_manifest(manifest_blob[1])
     coverage = []
     for path in request.files:
-        shards = []
-        for family in config.families:
-            if any(fnmatch.fnmatchcase(path, pattern) for pattern in family.paths):
-                shards.extend(family.shards)
+        impact = select_paths((path,), manifest.impact.rules)
+        shards = list(impact.shards)
+        for gate in impact.gates:
+            shards.extend(request.graph.execution_order(gate))
         governed = _under(path, (*config.source_roots, *config.unit_roots))
         if governed:
             shards.append(config.unit_shard)
-        # Data inputs and unknown paths cannot be inferred from import reach.
-        unexplained = not shards or (governed and not path.endswith(".py"))
+        # A non-Python input cannot narrow the same unit shard merely because a
+        # broad rule names it. Existing impact rules remain the sole family map.
+        unexplained = (governed and not path.endswith(".py")) or (
+            not governed and (bool(impact.unexplained) or config.unit_shard in shards)
+        )
         coverage.append(
             PathCoverage(
                 path=path,
