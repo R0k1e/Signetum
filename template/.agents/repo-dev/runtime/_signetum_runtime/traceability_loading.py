@@ -4,7 +4,7 @@
 import re
 import tomllib
 from dataclasses import fields
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .change_models import (
     Decision,
@@ -90,7 +90,10 @@ def load_decision(path: Path, relative: str) -> Decision:
 
 
 def load_plan(path: Path, change_id: str) -> Plan:
-    text = path.read_text(encoding="utf-8")
+    return parse_plan(path.read_text(encoding="utf-8"), change_id, PurePosixPath(path))
+
+
+def parse_plan(text: str, change_id: str, path: PurePosixPath) -> Plan:
     fields: dict[str, str] = {}
     obligations: list[dict[str, object]] = []
     in_obligations = False

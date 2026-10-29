@@ -13,6 +13,7 @@ from signetum.change.models import (
     Review,
     Specification,
     SpecificationStatus,
+    complete_decision_replacements,
 )
 from signetum.contract_values import FrozenContract
 from signetum.traceability.boundary import (
@@ -261,12 +262,8 @@ class TraceabilityValidator:
                         )
                     )
                 elif obtained.superseded_by:
-                    complete_replacements = tuple(
-                        reference
-                        for reference in obtained.superseded_by
-                        if (successor := decisions_by_name.get(reference.rsplit("/", 1)[-1]))
-                        is None
-                        or obtained.name not in successor.partially_supersedes
+                    complete_replacements = complete_decision_replacements(
+                        obtained, decisions_by_name
                     )
                     if not complete_replacements:
                         continue

@@ -31,7 +31,7 @@ def test_native_observation_finds_only_owned_detached_processes(observer):
     processes = []
 
     def spawn(token):
-        process = subprocess.Popen(  # noqa: S603 -- controlled fixture, no shell
+        process = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(30)"],
             env=dict(
                 os.environ,
@@ -159,7 +159,7 @@ def test_native_scratch_ownership_excludes_similarly_named_foreign_directory(obs
     processes = []
 
     def spawn(cwd, environment):
-        process = subprocess.Popen(  # noqa: S603 -- controlled fixture, no shell
+        process = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(30)"],
             cwd=cwd,
             env=environment,
