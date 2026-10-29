@@ -7,7 +7,7 @@ kind = "human_direction"
 summary = "Align the approved Perdura workflow optimizations and execute the concrete test-consolidation plan."
 
 [change.contract]
-version = 1
+version = 2
 approved_base = "bc67552612049b66e4383edd44a6f3a2003b630b"
 
 [[change.contract.requirements]]
@@ -67,6 +67,15 @@ outcome = "Verify generated and installed behavior and close a clean ready membe
 acceptance = [
     "Required checks, build and installed-artifact acceptance pass; all retained observations reconcile.",
     "Do not modify Perdura or delivery worktrees, assemble a real integration batch, deliver or publish.",
+]
+
+[[change.contract.requirements]]
+id = "EFF-008"
+outcome = "Record the owner-directed product foundations and reflect them in positioning and adoption guidance."
+acceptance = [
+    "Development usefulness, self-development through the shipped protocol, and verified Perdura lessons are independent current decision clauses.",
+    "README and product guidance explain the origin, self-use and intended large-scale agent collaboration positioning without claiming completed Perdura adoption or unmeasured scale outcomes.",
+    "Standard Skill packaging, literal argument forwarding, installation and first-use remain exercised through existing public acceptance; no service, automatic adoption or publication is introduced.",
 ]
 
 [[change.contract.decisions]]
@@ -130,9 +139,81 @@ scope = [
 statement = "Observe actual phase and preparation cost, reuse only successful immutable preparation, and keep one locked static authority without permanent test-count or timing budgets."
 rationale = "Measured resource ownership and reduced work are more reliable than guessed worker widths or additional maintenance ledgers."
 
+[[change.contract.decisions]]
+id = "align-validation-efficiency/product-foundations"
+change_id = "align-validation-efficiency"
+authority = "docs/decisions/ADP-product-foundations-come-from-development.md"
+reason = "The owner explicitly established development usefulness, dogfooding and Perdura experience as the product foundations, with convenient distribution and evidence-led large-agent-team positioning."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "product-foundations"
+version = 1
+summary = "Development utility, self-use, originating application experience and easy distribution."
+boundaries = [
+    "Keep repository-specific policy outside the generic protocol.",
+    "Marketing claims retain their actual evidence boundary.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "align-validation-efficiency/product-foundation-clauses"
+change_id = "align-validation-efficiency"
+action = "add"
+expected = [
+    { id = "PRODUCT-PURPOSE-001", version = 0 },
+    { id = "PRODUCT-SELFUSE-001", version = 0 },
+    { id = "PRODUCT-EXPERIENCE-001", version = 0 },
+    { id = "PRODUCT-DISTRIBUTION-001", version = 0 },
+]
+reason = "Preserve the owner direction as individually amendable product principles."
+authority = "docs/decisions/ADP-product-foundations-come-from-development.md"
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-PURPOSE-001"
+version = 1
+topic = "product-foundations"
+scope = [
+    "Product direction and adoption",
+]
+statement = "Signetum exists to help development: workflow and review burden, including maintaining the protocol itself, count as product costs."
+rationale = "A protocol that creates more coordination than it removes fails its purpose."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-SELFUSE-001"
+version = 1
+topic = "product-foundations"
+scope = [
+    "Product direction and adoption",
+]
+statement = "Signetum develops itself through the shipped protocol and implementation owners; self-use friction is evidence for product repair rather than a reason for a private bypass."
+rationale = "Dogfooding exposes installation, command, evidence and maintenance problems that module-only tests can miss."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-EXPERIENCE-001"
+version = 1
+topic = "product-foundations"
+scope = [
+    "Product direction and adoption",
+]
+statement = "Perdura is an originating application and continuing source of verified development lessons. Absorb and generalize demonstrated problems and useful mechanisms while preserving repository-specific policy boundaries."
+rationale = "Actual development failures supply better product requirements than speculative process machinery."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-DISTRIBUTION-001"
+version = 1
+topic = "product-foundations"
+scope = [
+    "Product direction and adoption",
+]
+statement = "Keep installation, distribution and use simple through one standard Skill and repository-owned instructions and commands. Position for reliable development with large agent teams using concrete cases and accurately bounded evidence."
+rationale = "Users need a usable entrypoint and credible outcomes, not unsupported scale or reliability claims."
+
 [change.contract.autonomy]
 allowed = [
     "Consolidate tests, refine safe fixture ownership, implement the approved execution and process changes, synchronize generated code, measure cost and run readiness.",
+    "Document the owner-directed product foundations and evidence-led positioning without publishing or inventing adoption or scale results.",
 ]
 requires_confirmation = [
     "Change product support or failure policy; add persistent infrastructure; modify Perdura; integrate, deliver or publish.",
@@ -191,8 +272,15 @@ requirements = [
 ]
 action = "Build, regenerate, validate relevant boundaries, reconcile discoveries and run ordinary ready; stop before real integration or delivery."
 
+[[change.execution.steps]]
+id = "STEP-8"
+requirements = [
+    "EFF-008",
+]
+action = "Add the independently accepted product-foundation decision and current clauses; update README, why-signetum, first-use and adoption guidance using existing installation and launcher acceptance. Do not modify the public site or publish."
+
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-10-29
-source = "The owner agreed to the immediately preceding migration and test-consolidation plan and instructed implementation."
-contract_digest = "sha256:741b3e50e2d7676c212be9ef9b27d9df5f5f3784637f516ed7ab2faa4f720016"
+source = "The owner approved the preceding workflow and test-consolidation plan, then explicitly established development usefulness, dogfooding, Perdura experience and convenient installation/distribution/use as the product foundations and marketing basis."
+contract_digest = "sha256:0bb703ea28360a147456c751819a33c3ee68b601b3a8ac6ef34e85997764a1e2"
