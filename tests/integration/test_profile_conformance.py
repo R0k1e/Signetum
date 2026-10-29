@@ -33,6 +33,14 @@ def configuration(selected, replacements):
     "selected,replacements,expected",
     [
         ([], {}, ()),
+        (["python-existing@1"], {}, ("python-existing@1", "shared-core@1")),
+        (["node-existing@1"], {}, ("node-existing@1", "shared-core@1")),
+        (["rust-existing@1"], {}, ("rust-existing@1", "shared-core@1")),
+        (
+            ["python-existing@1", "node-existing@1", "rust-existing@1"],
+            {},
+            ("node-existing@1", "python-existing@1", "rust-existing@1", "shared-core@1"),
+        ),
         (["python-default@1"], {}, ("python-default@1", "shared-core@1")),
         (["git-worktrunk@1"], {}, ("git-worktrunk@1", "shared-core@1")),
         (

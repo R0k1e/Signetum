@@ -24,3 +24,12 @@ current decision projection before work and original rationale only on demand.
 No remote ledger, cross-machine service, automatic update, account system or
 additional application test runner is needed. Later extensions use the same
 source and explicit repository adoption boundary.
+
+For an existing application runner, `runner --request <disposable-request-path>`
+emits an unapproved binding proposal. Its request names `language` (`python`,
+`node` or `rust`), the exact `command` argv, `tools` with names and
+`identity_command` argv, and an optional positive `timeout_seconds`. It executes
+nothing and installs nothing. Merge its application declaration deliberately;
+preserve existing core, preparation, batch and final-only checks and declared
+inputs. Profile selection alone never activates omitted commands. The host
+protocol interpreter does not impose Python project metadata on the application.

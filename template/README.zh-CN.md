@@ -29,12 +29,16 @@ Signetum 把需求记录为稳定 Clause，对照计划影响与真实 Git diff�
 
 ```toml
 [profiles]
-enabled = ["python-default@1", "typescript-local@1"]
+enabled = ["node-existing@1"]
 ```
 
 模板默认启用 `python-default@1`，其中包含 uv、Ruff、ty、单元测试、集成测试、依赖
 审计和凭据检查。你可以替换它，也可以增加 TypeScript、Rust 或仓库自有 Profile，
 而不需要修改八个生命周期操作。
+
+Use `just protocol runner --request <request-path>` for an unapproved existing-runner
+proposal. Preserve repository contract and setup checks when merging it; profile
+selection alone does not activate commands.
 
 ## 机器保证什么
 
