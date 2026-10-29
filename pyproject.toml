@@ -70,6 +70,8 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+# Security-boundary rationale: owned-process fixtures use fixed Python argv without a shell.
+"tests/unit/validation/test_process_observation.py" = ["S101", "S603"]
 "tests/integration/test_clone_ready_template.py" = ["S101", "S603", "S607"]
 # Security-boundary rationale: real delivery tests execute resolved Git with fixed argv.
 "tests/integration/test_delivery_recovery.py" = ["S101", "S603"]

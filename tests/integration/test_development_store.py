@@ -1228,3 +1228,51 @@ def test_installed_wheel_runs_the_journal_outside_the_source_checkout(repository
         assert result.returncode == 0, result.stderr
         assert json.loads(result.stdout)["status"] == "passed"
     assert source.snapshot(repository).observations[0].observation == transaction.observations[0]
+
+
+def test_uncommitted_repository_binding_cannot_redirect_journal_authority(repository, store):
+    archive = repository / "archive/alpha/change.toml"
+    archive.parent.mkdir(parents=True)
+    archive.write_bytes((repository / "changes/alpha/change.toml").read_bytes())
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", "retain a non-authoritative archived record")
+    state = store.snapshot(repository)
+    transaction = request(repository, store)
+    source = (Path(__file__).parents[2] / "signetum.toml").read_text()
+    source = source.replace("changes/*/specs/*.toml", "archive/*/specs/*.toml").replace(
+        "changes/*/plans/*.md", "archive/*/plans/*.md"
+    )
+    (repository / "signetum.toml").write_text(source)
+    with pytest.raises(ValueError, match="committed"):
+        store.append_transaction(repository, transaction, expected_history=state.history_digest)
+    assert not (archive.parent / "events.jsonl").exists()
+    assert not (repository / "changes/alpha/events.jsonl").exists()
+
+
+def test_partially_superseded_legacy_authority_keeps_its_unaffected_clauses(repository, store):
+    proposal = _decision()
+    relative = "docs/decisions/AD-1.md"
+    proposal["authority"] = relative
+    proposal["clauses"][0]["authority"] = relative
+    directory = repository / "docs/decisions"
+    directory.mkdir(parents=True)
+    (directory / "AD-1.md").write_text(
+        "# Original rules\nStatus: Accepted\nSuperseded by: AD-2.md\n"
+    )
+    (directory / "AD-2.md").write_text(
+        "# Partial change\nStatus: Accepted\nSupersedes: AD-1.md\nPartially supersedes: AD-1.md\n"
+    )
+    path = repository / "changes/alpha/change.toml"
+    _approve(
+        repository,
+        path.read_text().replace(
+            "[change.contract]\n", "[change.contract]\ndecisions=" + _inline([proposal]) + "\n"
+        ),
+    )
+    transaction = request(
+        repository, store, "alpha/partial", operation="reconcile", decisions=[proposal]
+    )
+    result = store.append_transaction(
+        repository, transaction, expected_history=store.snapshot(repository).history_digest
+    )
+    assert result.working_set.clauses[0].revision.id == "VAL-001"

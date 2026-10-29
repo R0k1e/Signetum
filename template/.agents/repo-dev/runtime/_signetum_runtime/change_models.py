@@ -1,6 +1,7 @@
 # Generated from signetum.change.models; edit the engine source and regenerate.
 """Versioned, immutable models for requirement closure."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
@@ -67,6 +68,18 @@ class Decision(FrozenContract):
 class ReviewSource(FrozenContract):
     kind: Identifier
     summary: Annotated[str, Constraints(min_length=1)]
+
+
+def complete_decision_replacements(
+    decision: Decision, decisions_by_name: Mapping[str, Decision]
+) -> tuple[str, ...]:
+    """Partial successors preserve the unaffected authority of the old decision."""
+    return tuple(
+        reference
+        for reference in decision.superseded_by
+        if (successor := decisions_by_name.get(reference.rsplit("/", 1)[-1])) is None
+        or decision.name not in successor.partially_supersedes
+    )
 
 
 class ClauseDisposition(StrEnum):

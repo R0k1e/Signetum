@@ -6,7 +6,6 @@ import fcntl
 import hashlib
 import json
 import os
-import re
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -14,9 +13,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from .change_models import DecisionStatus, require_relative_path
+from .change_models import require_relative_path
 from .change_record import ChangeRecord, contract_digest, parse_change_record
-from .change_scope import changes_root
 from .development_log import (
     ApprovalProof,
     DevelopmentEntry,
@@ -29,9 +27,16 @@ from .development_log import (
     withdrawn_resolution_ids,
 )
 from .git import git_output, run_git
-from .manifest import load_manifest
 from .serialization import contract_mapping, dataclass_from_mapping, load_json
-from .traceability_loading import parse_decision
+from .source_authority import (
+    authority_roots,
+    committed_blob,
+    committed_blob_identity,
+    require_accepted_decision,
+    require_ancestor,
+    require_committed_bindings,
+    source_path,
+)
 from .workspaces import claim_change, read_record
 
 
@@ -49,62 +54,12 @@ def parse_request(value: object) -> DevelopmentTransaction:
     return transaction
 
 
-def _layout(repository: Path) -> tuple[str, str]:
-    path = repository / "signetum.toml"
-    if not path.exists():
-        return "changes", "docs/decisions"
-    manifest = load_manifest(path)
-    return changes_root(manifest), manifest.repository.decisions
-
-
-def _path(repository: Path, relative: str) -> Path:
-    parts = require_relative_path(relative).parts
-    result = repository.resolve()
-    for part in parts:
-        result /= part
-        if result.is_symlink():
-            raise ValueError(f"journal authority cannot traverse a symlink: {relative}")
-    if not result.resolve().is_relative_to(repository.resolve()):
-        raise ValueError("journal path escapes the repository")
-    return result
-
-
-def _blob_identity(repository: Path, commit: str, relative: str) -> str | None:
-    require_relative_path(relative)
-    entries = git_output(repository, "ls-tree", "-z", commit, "--", relative, strip=False)
-    if not entries:
-        return None
-    if entries.count("\0") != 1:
-        raise ValueError("authority does not name one regular committed file")
-    header, separator, name = entries.rstrip("\0").partition("\t")
-    mode, kind, identity = header.split()
-    if not separator or name != relative or kind != "blob" or mode not in {"100644", "100755"}:
-        raise ValueError("authority is not a regular committed file")
-    return identity
-
-
-def _blob(repository: Path, commit: str, relative: str) -> tuple[str, str] | None:
-    identity = _blob_identity(repository, commit, relative)
-    if identity is None:
-        return None
-    return identity, git_output(repository, "cat-file", "blob", identity, strip=False)
-
-
-def _ancestor(repository: Path, older: str, newer: str) -> None:
-    if re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", older) is None:
-        raise ValueError("journal authority requires an exact approved commit identity")
-    result = run_git(repository, "merge-base", "--is-ancestor", older, newer)
-    if result.returncode:
-        raise ValueError("journal approval is outside the accepted commit ancestry")
-
-
 def _authority(
     repository: Path, change_id: str, commit: str, *, approved: bool = True
 ) -> tuple[ChangeRecord, ApprovalProof]:
-    root, _ = _layout(repository)
+    root, _ = authority_roots(repository, commit=commit)
     relative = f"{root}/{change_id}/change.toml"
-    _path(repository, relative)
-    blob = _blob(repository, commit, relative)
+    blob = committed_blob(repository, commit, relative)
     if blob is None:
         raise ValueError(f"committed change authority is absent: {relative}")
     record = parse_change_record(blob[1])
@@ -112,7 +67,7 @@ def _authority(
         raise ValueError("journal requires an active owning change record")
     if approved and record.approval is None:
         raise ValueError("journal requires committed human-confirmed approval")
-    _ancestor(repository, record.contract.approved_base, commit)
+    require_ancestor(repository, record.contract.approved_base, commit)
     return record, ApprovalProof(commit=commit, path=relative, blob=blob[0])
 
 
@@ -134,23 +89,15 @@ def _validate_payload(
     for retirement in transaction.retirements:
         if retirements.get(retirement.id) != retirement:
             raise ValueError("evidence retirement differs from its exact approved proposal")
-    _, decision_root = _layout(repository)
+    _, decision_root = authority_roots(repository, commit=commit)
     for decision in transaction.decisions:
         if approved.get(decision.id) != decision:
             raise ValueError("decision transaction differs from its exact approved proposal")
-        change_root, _ = _layout(repository)
+        change_root, _ = authority_roots(repository, commit=commit)
         acceptance = f"{change_root}/{record.id}/change.toml#decisions/{decision.id}"
         if decision.authority == acceptance:
             continue
-        path = require_relative_path(decision.authority)
-        if not path.is_relative_to(PurePosixPath(decision_root)):
-            raise ValueError("decision acceptance must be a standalone declared authority")
-        blob = _blob(repository, commit, decision.authority)
-        if blob is None:
-            raise ValueError("standalone decision approval is not committed")
-        authority = parse_decision(blob[1], decision.authority)
-        if authority.status != DecisionStatus.ACCEPTED or authority.superseded_by:
-            raise ValueError("standalone decision authority is not currently accepted")
+        require_accepted_decision(repository, commit, decision.authority, decision_root)
 
 
 def _read_journal(
@@ -159,8 +106,8 @@ def _read_journal(
     head: str,
     authorities: dict[tuple[str, str], tuple[ChangeRecord, ApprovalProof]],
 ) -> tuple[bytes, tuple[DevelopmentEntry, ...]]:
-    path = _path(repository, relative)
-    committed = _blob(repository, head, relative)
+    path = source_path(repository, relative)
+    committed = committed_blob(repository, head, relative)
     if not path.is_file():
         raise ValueError(f"development journal is missing: {relative}")
     data = path.read_bytes()
@@ -180,7 +127,7 @@ def _read_journal(
             or entry.transaction.change_id != change_id
         ):
             raise ValueError("development journal chain or owning change is invalid")
-        _ancestor(repository, entry.approval.commit, head)
+        require_ancestor(repository, entry.approval.commit, head)
         key = change_id, entry.approval.commit
         if key not in authorities:
             authorities[key] = _authority(repository, *key)
@@ -194,8 +141,8 @@ def _read_journal(
 
 
 def _journals(repository: Path, head: str) -> tuple[str, ...]:
-    root, _ = _layout(repository)
-    _path(repository, root)
+    root, _ = authority_roots(repository, commit=head)
+    source_path(repository, root)
     committed = git_output(repository, "ls-tree", "-r", "--name-only", "-z", head, "--", root)
     names = {
         name
@@ -288,7 +235,7 @@ def _resolution_targets(
             continue
         for evidence in resolution.evidence:
             require_relative_path(evidence)
-            if not historical and not _path(repository, evidence).is_file():
+            if not historical and not source_path(repository, evidence).is_file():
                 raise ValueError(f"acceptance evidence target is absent: {evidence}")
         if resolution.status == "deferred":
             change_id, separator, requirement = (resolution.followup or "").partition("#")
@@ -320,10 +267,10 @@ def _resolution_targets(
         if not historical and retirement.resolution_id in withdrawn:
             raise ValueError("a withdrawn resolution cannot have evidence retired")
         for target in retirement.targets:
-            _path(repository, target)
+            source_path(repository, target)
             if (
-                _blob_identity(repository, record.contract.approved_base, target) is None
-                or _blob_identity(repository, commit, target) is not None
+                committed_blob_identity(repository, record.contract.approved_base, target) is None
+                or committed_blob_identity(repository, commit, target) is not None
             ):
                 raise ValueError(
                     "retirement requires committed evidence deletion since the approved base"
@@ -362,10 +309,11 @@ def append_transaction(
         if expected_history != current.history_digest:
             raise ValueError("development history changed; review the current working set again")
         commit = git_output(repository, "rev-parse", "HEAD")
+        require_committed_bindings(repository, commit)
         record, proof = _authority(repository, transaction.change_id, commit)
         if record.contract.approved_base != workspace.base:
             raise ValueError("approved change base differs from the registered workspace base")
-        working = parse_change_record(_path(repository, proof.path).read_text())
+        working = parse_change_record(source_path(repository, proof.path).read_text())
         if (
             working.id != record.id
             or working.contract != record.contract
@@ -376,7 +324,7 @@ def append_transaction(
             raise ValueError("uncommitted authority changes cannot authorize source history")
         _validate_payload(repository, transaction, record, commit)
         _resolution_targets(repository, transaction, current.entries, record, commit)
-        target = _path(repository, str(PurePosixPath(proof.path).with_name("events.jsonl")))
+        target = source_path(repository, str(PurePosixPath(proof.path).with_name("events.jsonl")))
         ignored = run_git(
             repository,
             "check-ignore",

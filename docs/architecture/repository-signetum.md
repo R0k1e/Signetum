@@ -41,7 +41,7 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `manifest`, `validation.configuration` | One strict TOML boundary, configuration defaults, member selection and declared-input projection; canonical validation value types. |
 | `profiles.catalog`, `serialization` | Owned profile syntax, maintained catalog parsing and dependency/authority composition; portable typed JSON values. |
 | `delivery` | Remote-first publication and exact interrupted-publication recovery after adapter-owned qualification. |
-| `operations`, `git`, `workspaces` | Operation values, isolated Git context and immutable workspace/change records. |
+| `operations`, `git`, `source_authority`, `workspaces` | Operation values, isolated Git context, committed source proofs and immutable workspace/change records. |
 | `worktrunk` | Supervised Mise execution, repository environment projection and registered workspace inventory parsing. |
 | `preparation` | Configured preparation execution with clean or staged-state guards and unchanged source identity. |
 | `operation_cli` | Shared argument refusals, result categories and retained operation diagnostics. |
@@ -125,3 +125,20 @@ the explicit legacy and lifecycle migration in
 is integrated. The new command reports `authority_coverage = journal_only`;
 its working set does not silently absorb or replace historical Markdown
 decisions. Candidate preview input is never treated as an accepted journal.
+
+`migration inventory` captures committed Review, Specification, Plan and
+decision sources by exact Git blob identity. It uses the same parsers and
+relationship validator as ordinary traceability. Single-clause specifications
+and unique exact-text matches expose structural acceptance mappings; other
+relations and unassigned acceptance entries remain explicit review issues.
+Legacy bases are retained rather than guessed from the current branch, and an
+old document that the current parser cannot interpret remains a named source
+with a diagnostic. Inventory never repairs or rewrites accepted history.
+
+`migration preview` requires an inventory identity, explicit source line spans,
+stable clause IDs and topic context. It displays original excerpts beside the
+proposed clauses. Changed authorities or uncommitted source edits refuse the
+preview, while independent code-only commits preserve unchanged source bindings.
+Partial supersession uses the same predicate as traceability and never revives
+a fully replaced rule. Every preview remains unapproved; selecting a few lines
+does not declare a legacy decision completely migrated or grant write authority.
