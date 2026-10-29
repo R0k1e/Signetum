@@ -14,6 +14,13 @@ def _node_id(value: str) -> str:
     return value[:marker] if marker > max(value.rfind("]"), value.rfind("::")) else value
 
 
+def pytest_configure(config):
+    # Respect both CLI and repository-configured basetemp. Workers receive the
+    # controller's explicit per-worker path and must not replace it.
+    if config.option.basetemp is None and (scratch := os.environ.get("SIGNETUM_PYTEST_SCRATCH")):
+        config.option.basetemp = scratch
+
+
 def pytest_collection_modifyitems(items):
     if nodes := os.environ.get("SIGNETUM_RETRY_NODES"):
         selected = set(json.loads(nodes))

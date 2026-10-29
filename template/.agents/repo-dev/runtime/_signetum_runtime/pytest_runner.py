@@ -9,6 +9,7 @@ import os
 import subprocess  # nosec B404 -- fixed Python executable, argv, no shell
 import sys
 import tempfile
+from contextlib import nullcontext
 from pathlib import Path
 
 
@@ -16,6 +17,10 @@ def _run(
     arguments: list[str], report: Path, *, nodes: list[str] | None = None
 ) -> tuple[int, list[dict[str, str]]]:
     environment = dict(os.environ, SIGNETUM_PYTEST_REPORT=str(report))
+    if os.environ.get("SIGNETUM_JOB_SCRATCH"):
+        environment["SIGNETUM_PYTEST_SCRATCH"] = str(report.parent / f"temporary-{report.stem}")
+    else:
+        environment.pop("SIGNETUM_PYTEST_SCRATCH", None)
     # Pytest controllers and xdist workers load the same packaged plugin without
     # importing the engine. Only this temporary directory joins their search path.
     plugins = report.parent / "plugins"
@@ -71,7 +76,15 @@ def main(arguments: list[str] | None = None) -> int:
     supplied = sys.argv[1:] if arguments is None else arguments
     if supplied[:1] == ["--"]:
         supplied = supplied[1:]
-    with tempfile.TemporaryDirectory(prefix="signetum-pytest-") as scratch:
+    # An enclosing command owns the final cleanup. Removing these paths here
+    # would discard the cwd ownership channel before its process inventory.
+    parent = os.environ.get("SIGNETUM_JOB_SCRATCH")
+    context = (
+        nullcontext(tempfile.mkdtemp(prefix="signetum-pytest-", dir=parent))
+        if parent
+        else tempfile.TemporaryDirectory(prefix="signetum-pytest-")
+    )
+    with context as scratch:
         root = Path(scratch)
         status, reports = _run(supplied, root / "first.json")
         if status != 1:

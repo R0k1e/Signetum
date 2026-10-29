@@ -178,11 +178,24 @@ procfs and macOS uses public native process interfaces without application
 packages. Timeout, cancellation and the parent-held lease also clean owned
 detached descendants before returning or terminating the supervisor.
 
-The current observer recognizes verified session membership and inherited owner
-tokens. Detached children that deliberately clear their environment still need
-the registered scratch-root ownership channel required by
-[RELIABLE-008](../../changes/reliable-agentic-protocol/specs/protocol.toml);
-this implementation checkpoint does not close that requirement.
+Each command also registers a private, mode-0700 scratch directory and passes
+its path as `SIGNETUM_JOB_SCRATCH`. The registry binds the owner token, device,
+inode, canonical path and user; a replaced or shared directory cannot authorize
+cleanup. A same-user process whose native cwd is below that exact root remains
+identifiable after clearing its environment and detaching from the session.
+Similar path prefixes and unrelated directories never qualify. Nested command
+roots are below their verified enclosing job root, so caller death does not
+lose this ownership channel. Settled jobs remove their scratch; unverifiable
+residue is retained and reported rather than deleted by pathname alone.
+
+The pytest adapter places its default temporary directories below the command
+root and leaves them available until process settlement. The report plugin
+sets basetemp only when pytest has no CLI or repository-configured value;
+xdist worker paths and diagnostic attempts remain separate. Explicit project
+settings retain precedence. Other language adapters use the same job path
+without changing TMPDIR or application runners. Process cleanup uses positive
+ownership evidence, rather than inferring ownership from command names or
+shared temporary directories; it is not an operating-system isolation boundary.
 
 Each nested check adapter owns an independent process group and deadline. A
 supervisor watches a parent-held pipe and terminates its group if its caller

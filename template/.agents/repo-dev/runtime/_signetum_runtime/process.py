@@ -27,7 +27,12 @@ def _observer() -> ModuleType:
 
 
 def _settle(owner: str, session: int) -> int:
-    result = _observer().settle_owned_processes(owner, session)
+    observer = _observer()
+    encoded = os.environ.get(observer.SCRATCH_ENV)
+    scratch = observer.decode_scratch_root(encoded, owner) if encoded is not None else None
+    result = observer.settle_owned_processes(owner, session, scratch)
+    if scratch is not None and not result.remaining and not result.unavailable:
+        observer.remove_scratch_root(scratch)
     if result.leaked or result.remaining or result.unavailable:
         print(
             f"owned process leak: observed={result.leaked}, "
@@ -49,10 +54,19 @@ def run_command(
     observer = _observer()
     owner = uuid.uuid4().hex
     child_environment = isolated_git_environment(environment)
-    child_environment[observer.OWNER_ENV] = json.dumps(
-        [*observer.owner_tokens(child_environment.get(observer.OWNER_ENV, "[]")), owner]
+    enclosing = observer.owner_tokens(child_environment.get(observer.OWNER_ENV, "[]"))
+    encoded_parent = child_environment.get(observer.SCRATCH_ENV)
+    parent = (
+        observer.decode_scratch_root(encoded_parent, enclosing[-1]).path
+        if enclosing and encoded_parent is not None
+        else None
     )
+    scratch = observer.create_scratch_root(owner, parent=parent)
+    child_environment[observer.OWNER_ENV] = json.dumps([*enclosing, owner])
+    child_environment[observer.SCRATCH_ENV] = observer.encode_scratch_root(scratch)
+    child_environment[observer.JOB_SCRATCH_ENV] = str(scratch.path)
     lease_read, lease_write = os.pipe()
+    session = None
     try:
         invocation = [
             sys.executable,
@@ -73,6 +87,7 @@ def run_command(
             start_new_session=True,
             pass_fds=(lease_read,),
         ) as process:
+            session = process.pid
             os.close(lease_read)
             lease_read = -1
             try:
@@ -82,7 +97,9 @@ def run_command(
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-                observer.settle_owned_processes(owner, process.pid)
+                settled = observer.settle_owned_processes(owner, process.pid, scratch)
+                if not settled.remaining and not settled.unavailable:
+                    observer.remove_scratch_root(scratch)
                 stdout, stderr = process.communicate(timeout=3)
                 if isinstance(error, subprocess.TimeoutExpired):
                     raise subprocess.TimeoutExpired(
@@ -96,6 +113,19 @@ def run_command(
         if lease_read >= 0:
             os.close(lease_read)
         os.close(lease_write)
+        # Normal supervisors remove their scratch after settlement. If launch
+        # failed or the supervisor was killed, retain any unverified residue.
+        if scratch.path.exists():
+            try:
+                scan = (
+                    observer.observe_owned_processes(owner, session, scratch)
+                    if session is not None
+                    else None
+                )
+                if scan is None or (not scan.owned and not scan.unavailable):
+                    observer.remove_scratch_root(scratch)
+            except OSError as error:
+                print(f"process scratch retained: {scratch.path}: {error}", file=sys.stderr)
 
 
 def _watch_owner(lease: int, owner: str) -> None:
