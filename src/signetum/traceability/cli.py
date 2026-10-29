@@ -7,7 +7,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import TextIO
 
-from signetum.change.scope import changes_root
+from signetum.change.paths import changes_root
 from signetum.manifest import load_manifest
 from signetum.serialization import contract_mapping
 from signetum.status.models import EvidenceSnapshot

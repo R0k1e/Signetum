@@ -20,7 +20,7 @@ from typing import Annotated, Literal, TypedDict
 
 from .change_authority import validate_specification_authority
 from .change_models import DecisionStatus, Identifier
-from .change_scope import changes_root
+from .change_paths import changes_root
 from .contract_values import FrozenContract
 from .git import GitError, git_output, run_git
 from .manifest import ManifestError, load_manifest

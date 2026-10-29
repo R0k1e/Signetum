@@ -9,7 +9,7 @@ from signetum.change.models import (
     complete_decision_replacements,
     require_relative_path,
 )
-from signetum.change.scope import changes_root
+from signetum.change.paths import changes_root
 from signetum.git import git_output, run_git
 from signetum.manifest import load_manifest, parse_manifest
 from signetum.traceability.loading import parse_decision

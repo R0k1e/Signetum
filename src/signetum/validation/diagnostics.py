@@ -7,7 +7,7 @@ import io
 import json
 from pathlib import Path
 
-from signetum.change.scope import changes_root
+from signetum.change.paths import changes_root
 from signetum.manifest import load_manifest
 from signetum.status.models import EvidenceSnapshot
 from signetum.traceability.boundary import TraceabilityManifest

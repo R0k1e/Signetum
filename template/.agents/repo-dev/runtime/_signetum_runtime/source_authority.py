@@ -10,7 +10,7 @@ from .change_models import (
     complete_decision_replacements,
     require_relative_path,
 )
-from .change_scope import changes_root
+from .change_paths import changes_root
 from .git import git_output, run_git
 from .manifest import load_manifest, parse_manifest
 from .traceability_loading import parse_decision

@@ -1,5 +1,6 @@
 """Lifecycle readiness and admission consume the same approved change owner."""
 
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ from change_fixtures import approve_change
 from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle
+from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
@@ -146,3 +148,138 @@ def test_admission_uses_committed_package_plans_and_ignores_forged_trailer(autho
     message = git_output(batch, "show", "-s", "--format=%B", tip)
     assert "Signetum-Plan: changes/example/plans/behavior.md" in message
     assert "Signetum-Plan: changes/forged/" not in message
+
+
+def consolidated_approval(
+    member, base, *, approved=True, outcome="Implement the confirmed behavior."
+):
+    text = f'''[change]
+schema_version = 1
+id = "example"
+[change.source]
+kind = "human_direction"
+summary = "Implement the confirmed outcome."
+[change.contract]
+version = 1
+approved_base = "{base}"
+[[change.contract.requirements]]
+id = "REQ-1"
+outcome = "{outcome}"
+acceptance = ["The declared member check passes."]
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = ["REQ-1"]
+action = "Implement and validate the outcome."
+'''
+    if approved:
+        digest = contract_digest(parse_change_record(text).contract)
+        text += f'''[change.approval]
+actor = "Owner"
+recorded_at = 2026-10-29
+source = "Owner confirmed the fixture outcome."
+contract_digest = "{digest}"
+'''
+    path = member / "changes/example/change.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path
+
+
+@pytest.mark.parametrize("stage", ["approved", "draft", "plan-only", "wrong-base", "dual"])
+def test_ready_uses_one_consolidated_record_without_legacy_files(authority, stage):
+    runtime, root, marker, scratch = authority
+    base = git_output(root, "rev-parse", "HEAD")
+    member = scratch / "consolidated-member"
+    branch = "plan/consolidated"
+    git_output(root, "worktree", "add", "-b", branch, str(member), base)
+    write_record(state_root(root), WorkspaceRecord(1, branch, base, "member"))
+    consolidated_approval(
+        member, "0" * 40 if stage == "wrong-base" else base, approved=stage != "draft"
+    )
+    if stage == "dual":
+        approve_change(member)
+    commit(member, "approve consolidated behavior")
+    if stage != "plan-only":
+        implementation(member)
+    if stage == "approved":
+        assert runtime.validate(member, "member")["status"] == "ready"
+        assert marker.exists()
+        assert not (member / "changes/example/review.toml").exists()
+    else:
+        with pytest.raises(runtime.AdmissionError):
+            runtime.validate(member, "member")
+        assert not marker.exists()
+
+
+@pytest.mark.parametrize("fresh_implementation", [False, True])
+def test_revised_contract_needs_its_own_post_approval_implementation(
+    authority, fresh_implementation
+):
+    runtime, root, marker, scratch = authority
+    base = git_output(root, "rev-parse", "HEAD")
+    member = scratch / "reapproved-member"
+    branch = "plan/reapproved"
+    git_output(root, "worktree", "add", "-b", branch, str(member), base)
+    write_record(state_root(root), WorkspaceRecord(1, branch, base, "member"))
+    consolidated_approval(member, base)
+    commit(member, "approve original outcome")
+    implementation(member)
+    consolidated_approval(member, base, outcome="Implement the revised outcome.")
+    (member / "implementation.txt").write_text("code committed with revised approval")
+    commit(member, "approve revised outcome with premature implementation")
+    if fresh_implementation:
+        (member / "implementation.txt").write_text("implementation after revised approval")
+        commit(member, "implement revised outcome")
+        assert runtime.validate(member, "member")["status"] == "ready"
+        assert marker.exists()
+    else:
+        with pytest.raises(runtime.AdmissionError, match="plan stage"):
+            runtime.validate(member, "member")
+        assert not marker.exists()
+
+
+@pytest.mark.parametrize("edit", ["execution", "contract", "delete"])
+def test_delivered_consolidated_contract_is_protected_but_execution_can_refine(authority, edit):
+    runtime, root, _, _ = authority
+    module = importlib.import_module(
+        "signetum.change.scope" if runtime is lifecycle else "_signetum_runtime.change_scope"
+    )
+    original_base = git_output(root, "rev-parse", "HEAD")
+    path = consolidated_approval(root, original_base)
+    commit(root, "deliver fixture approval")
+    delivered = git_output(root, "rev-parse", "HEAD")
+    manifest = runtime.load_manifest(root / "signetum.toml")
+    assert module.delivered_plans(root, manifest, ("example",), delivered) == (
+        "changes/example/change.toml",
+    )
+    if edit == "execution":
+        path.write_text(
+            path.read_text().replace(
+                "Implement and validate the outcome.",
+                "Use the existing runner to validate the outcome.",
+            )
+        )
+    elif edit == "delete":
+        path.unlink()
+    else:
+        consolidated_approval(root, original_base, outcome="A different approved outcome.")
+    commit(root, "refine fixture record")
+    tip = git_output(root, "rev-parse", "HEAD")
+    scope = module.delivery_scope(root, manifest, delivered, tip)
+    result = module.changed_commitments(root, manifest, delivered, tip, scope)
+    assert result == (() if edit == "execution" else ("changes/example/change.toml",))
+
+
+def test_delivery_scope_refuses_a_symlink_record_as_a_structured_error(authority):
+    runtime, root, _, _ = authority
+    module = importlib.import_module(
+        "signetum.change.scope" if runtime is lifecycle else "_signetum_runtime.change_scope"
+    )
+    base = git_output(root, "rev-parse", "HEAD")
+    path = consolidated_approval(root, base)
+    path.rename(path.with_name("original.toml"))
+    path.symlink_to("original.toml")
+    commit(root, "declare a symlink instead of authority")
+    manifest = runtime.load_manifest(root / "signetum.toml")
+    with pytest.raises(module.ChangeError, match="regular committed file"):
+        module.delivered_plans(root, manifest, ("example",), git_output(root, "rev-parse", "HEAD"))

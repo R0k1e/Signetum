@@ -8,7 +8,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import TextIO
 
-from .change_scope import changes_root
+from .change_paths import changes_root
 from .manifest import load_manifest
 from .serialization import contract_mapping
 from .status_models import EvidenceSnapshot

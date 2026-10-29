@@ -13,10 +13,13 @@ from .change_models import (
     Specification,
     SpecificationStatus,
 )
+from .change_paths import changes_root
+from .change_record import ChangeRecord, contract_digest, parse_change_record
 from .decision_identity import numbered_targets
 from .git import GitError, git_output, run_git
-from .manifest import ManifestError, RepositoryManifest
+from .manifest import RepositoryManifest
 from .operations import OperationError
+from .source_authority import committed_blob
 from .synchronization import member_contribution_paths
 from .traceability_loading import parse_decision, parse_review, parse_specification
 
@@ -37,19 +40,6 @@ class DeliveryScope:
     previously_delivered: tuple[PreviousChange, ...]
 
 
-def changes_root(manifest: RepositoryManifest) -> str:
-    """Resolve the package root from the declared per-change specification glob."""
-
-    parts = PurePosixPath(manifest.repository.specifications).parts
-    try:
-        position = parts.index("*")
-    except ValueError as error:
-        raise ManifestError("specification authority must declare per-change packages") from error
-    if position == 0:
-        raise ManifestError("specification authority has no repository-owned change root")
-    return PurePosixPath(*parts[:position]).as_posix()
-
-
 def delivery_scope(
     repository: Path,
     manifest: RepositoryManifest,
@@ -67,7 +57,6 @@ def delivery_scope(
             "--name-only",
             "-z",
             "--no-renames",
-            "--diff-filter=d",
             base,
             tip,
             "--",
@@ -105,14 +94,28 @@ def delivered_plans(
     repository: Path, manifest: RepositoryManifest, change_ids: tuple[str, ...], tip: str
 ) -> tuple[str, ...]:
     root = changes_root(manifest)
-    return tuple(
-        path
-        for change_id in change_ids
-        for path in git_output(
-            repository, "ls-tree", "-r", "--name-only", tip, "--", f"{root}/{change_id}/plans"
-        ).splitlines()
-        if path.endswith(".md")
-    )
+    result: list[str] = []
+    for change_id in change_ids:
+        if git_output(
+            repository, "ls-tree", "--name-only", tip, "--", f"{root}/{change_id}/change.toml"
+        ):
+            read_package(repository, manifest, change_id, tip)
+            result.append(f"{root}/{change_id}/change.toml")
+        else:
+            result.extend(
+                path
+                for path in git_output(
+                    repository,
+                    "ls-tree",
+                    "-r",
+                    "--name-only",
+                    tip,
+                    "--",
+                    f"{root}/{change_id}/plans",
+                ).splitlines()
+                if path.endswith(".md")
+            )
+    return tuple(result)
 
 
 def changed_commitments(
@@ -125,7 +128,7 @@ def changed_commitments(
         path
         for previous in scope.previously_delivered
         for path in previous.paths
-        if PurePosixPath(path).parts[depth] in {"review.toml", "specs"}
+        if PurePosixPath(path).parts[depth] in {"review.toml", "specs", "change.toml"}
     )
     if not paths:
         return ()
@@ -139,6 +142,21 @@ def changed_commitments(
     for path in paths:
         before = run_git(repository, "show", f"{base}:{path}")
         after = run_git(repository, "show", f"{tip}:{path}")
+        if path.endswith("/change.toml") and not before.returncode and not after.returncode:
+            try:
+                old_record = parse_change_record(before.stdout)
+                new_record = parse_change_record(after.stdout)
+            except ValueError as error:
+                raise ChangeError(f"invalid delivered change record: {path}: {error}") from error
+            if (
+                old_record.id != new_record.id
+                or old_record.source != new_record.source
+                or old_record.contract != new_record.contract
+                or old_record.approval != new_record.approval
+                or git_output(repository, "diff", "--summary", base, tip, "--", path)
+            ):
+                changed.append(path)
+            continue
         normalized = before.stdout
         for old, new in rewrites:
             normalized = normalized.replace(old, new)
@@ -173,11 +191,39 @@ class ChangePackage:
             raise ChangeError(f"change {self.review.id} is not implementation-authorized")
 
 
+@dataclass(frozen=True)
+class ConsolidatedPackage:
+    record: ChangeRecord
+
+    def require_approval(self) -> None:
+        if self.record.status != "active" or self.record.approval is None:
+            raise ChangeError(f"change {self.record.id} is not implementation-authorized")
+
+
 def read_package(
     repository: Path, manifest: RepositoryManifest, change_id: str, revision: str
-) -> ChangePackage:
+) -> ChangePackage | ConsolidatedPackage:
     root = f"{changes_root(manifest)}/{change_id}"
     try:
+        source = committed_blob(repository, revision, f"{root}/change.toml")
+        if source is not None:
+            legacy = git_output(
+                repository,
+                "ls-tree",
+                "-r",
+                "--name-only",
+                revision,
+                "--",
+                f"{root}/review.toml",
+                f"{root}/specs",
+                f"{root}/plans",
+            )
+            if legacy:
+                raise ValueError("change has competing consolidated and legacy authorities")
+            record = parse_change_record(source[1])
+            if record.id != change_id:
+                raise ValueError("consolidated record declares another change identity")
+            return ConsolidatedPackage(record)
         review = parse_review(git_output(repository, "show", f"{revision}:{root}/review.toml"))
         specifications = tuple(
             (path, parse_specification(git_output(repository, "show", f"{revision}:{path}")))
@@ -231,8 +277,16 @@ def require_member_changes(
             )
         )
     )
+    required_contracts: dict[str, str] = {}
     for change_id in carried:
-        read_package(repository, manifest, change_id, tip).require_approval()
+        package = read_package(repository, manifest, change_id, tip)
+        package.require_approval()
+        if isinstance(package, ConsolidatedPackage):
+            if package.record.contract.approved_base != base:
+                raise ChangeError(
+                    "consolidated approval does not match the registered workspace base"
+                )
+            required_contracts[change_id] = contract_digest(package.record.contract)
     commits = tuple(
         git_output(
             repository, "rev-list", "--reverse", "--first-parent", "--no-merges", f"{base}..{tip}"
@@ -254,8 +308,15 @@ def require_member_changes(
                 return carried
         try:
             for change_id in carried:
-                read_package(repository, manifest, change_id, commit).require_approval()
+                package = read_package(repository, manifest, change_id, commit)
+                package.require_approval()
+                if change_id in required_contracts and (
+                    not isinstance(package, ConsolidatedPackage)
+                    or contract_digest(package.record.contract) != required_contracts[change_id]
+                ):
+                    raise ChangeError("earlier approval does not bind the current contract")
         except ChangeError:
+            approved = False
             continue
         approved = True
     raise ChangeError("member is plan stage: no own implementation commit follows approval")
