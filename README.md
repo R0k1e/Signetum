@@ -50,7 +50,9 @@ that natural language was interpreted perfectly or that software is defect-free.
 The Core is language-neutral. A repository can compose multiple language
 profiles without changing the lifecycle; the public Template enables a
 batteries-included Python default with uv, Ruff, ty, behavioral tests, and
-security checks.
+security checks. Optional [existing-runner bindings](docs/guides/existing-runners.md)
+retain Python, Node and Rust repository commands without changing their test
+frameworks or application metadata.
 
 ## The lifecycle
 

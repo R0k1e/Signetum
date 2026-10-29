@@ -27,19 +27,21 @@ validates one frozen batch, and binds delivery to exact Git identities.
 
 ## Language profiles
 
-The lifecycle does not know what language your product uses. Profiles
-contribute namespaced tools, impact rules, gates, and test shards. A repository
-may enable one profile or compose several:
+The lifecycle does not parse application languages. Profiles identify reviewed
+capabilities, while repository declarations select actual commands. Optional
+existing-runner adapters preserve the current runner; for example:
 
 ```toml
 [profiles]
-enabled = ["python-default@1", "typescript-local@1"]
+enabled = ["node-existing@1"]
 ```
 
 The Template enables `python-default@1`, including uv, Ruff, ty, unit and
 integration test boundaries, dependency auditing, and secret detection. You
-can replace it or add TypeScript, Rust, or repository-local profiles without
-changing the lifecycle operations.
+can adopt `python-existing@1`, `node-existing@1` or `rust-existing@1` with
+`just protocol runner --request <request-path>`. Its proposal does not run or
+install anything. Merge it with existing contract, setup and batch checks;
+changing the profile list alone does not change the declared runner.
 
 ## What is enforced
 

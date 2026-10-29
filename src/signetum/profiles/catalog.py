@@ -10,6 +10,9 @@ from signetum.serialization import JsonValue, dataclass_from_mapping
 PROFILE_RESOURCE_NAMES = (
     "shared-core-v1.toml",
     "python-default-v1.toml",
+    "python-existing-v1.toml",
+    "node-existing-v1.toml",
+    "rust-existing-v1.toml",
     "git-worktrunk-v1.toml",
 )
 

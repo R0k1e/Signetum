@@ -32,3 +32,13 @@ under `changes/<change-id>/waivers/` naming the shard, the exact findings, the
 reason, the approver, and a mandatory `expires` date. The gate then records the
 shard as `waived` rather than `passed`, and an expired waiver fails the gate
 instead of passing quietly.
+
+## Existing language runners
+
+Optional `python-existing@1`, `node-existing@1` and `rust-existing@1` bindings
+preserve an existing test command and its declared tool identities. Generate a
+proposal with `just protocol runner --request <request-path>`, then merge it
+through an approved local adoption change. Preserve core contract, preparation,
+batch and final-only checks. The generator never installs dependencies, edits
+application metadata or runs the proposed command. Python remains the protocol
+host, independently of the application's language and project files.

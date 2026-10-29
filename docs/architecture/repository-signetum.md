@@ -190,3 +190,20 @@ confirmation. Consolidated records refuse legacy-ledger mutations, preserving
 one journal write channel. Agent instructions
 use these commands, preserve relevant legacy authorities during `journal_only`
 coverage, and require significant journals rather than duplicate reports.
+
+The optional `profiles.existing_runner` adapter accepts typed, explicit Python,
+Node or Rust runner requests. It uses the existing validation value types and
+preserves argv, tool identities and deadlines. Its maintained profile identities
+own only their opt-in runner capability; `shared-core@1` remains the dependency.
+It neither detects languages from paths nor installs or executes an application.
+`protocol runner` emits an unapproved configuration fragment and omits retired
+retry tuning. Repository adoption retains its existing core and preparation
+checks and selects any additional tools or inputs explicitly.
+
+Native host acceptance traverses ordinary failure, fresh readiness, named
+admission and final for all three languages in engine and generated frontends.
+Those external host-tool scenarios are marked world and never enter engine
+member inheritance; pure adapter and isolated CLI contracts remain tree tests.
+The application package metadata remains unchanged, and Node/Rust scenarios
+contain no Python project or lockfile. The protocol's host interpreter is
+separate from the application runner.
