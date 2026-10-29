@@ -33,7 +33,10 @@ shard's target roots and command-tail index through the existing provider bindin
 Do not put integration import reach into this algorithm. Existing manifest
 `impact.rules` remain the single family map; do not create another mapping in
 selection configuration. Unknown inputs, uncertain dynamic reach or parsing fall back safely.
-Modified test/support files cannot disappear. No provider still means full member
+Custom loaders and reflective or relative dynamic loading need explicit module
+edges or conservative fallback. Static import reach is not a proof of asserted
+behavior; compare real repository cases before adoption. Modified test/support
+files cannot disappear. No provider still means full member
 checks, and final always executes original complete commands.
 
 ## Pytest scheduling

@@ -86,13 +86,29 @@ def dependent_units(
     edges: dict[str, set[str]] = defaultdict(set)
     unknown = []
     loaders = {item.module: item.imports for item in config.dynamic_loaders}
+    owners: dict[str, set[str]] = defaultdict(set)
+    for name, paths in modules.items():
+        for path in paths:
+            owners[path].add(name)
     for path, blob in sources.items():
         try:
             tree = ast.parse(blob, filename=path)
         except (SyntaxError, ValueError):
             return tests, ("unparsed Python source: " + path,)
         names = set()
-        for node in ast.walk(tree):
+        declared = [target for owner in owners[path] for target in loaders.get(owner, ())]
+        nodes = tuple(ast.walk(tree))
+        direct_calls = {id(node.func) for node in nodes if isinstance(node, ast.Call)}
+        reflective_modules = {"importlib", "builtins", "__builtins__"}
+        for item in nodes:
+            if isinstance(item, ast.Import):
+                reflective_modules.update(
+                    alias.asname or alias.name
+                    for alias in item.names
+                    if alias.name in {"importlib", "builtins"}
+                )
+        dynamic_names = {"import_module", "__import__", "exec", "eval", "spec_from_file_location"}
+        for node in nodes:
             if isinstance(node, ast.Import):
                 names.update(a.name for a in node.names)
             elif isinstance(node, ast.ImportFrom):
@@ -123,10 +139,6 @@ def dependent_units(
                     "spec_from_file_location",
                 }
                 if dynamic:
-                    owner_names = {name for name, paths in modules.items() if path in paths}
-                    declared = [
-                        target for owner in owner_names for target in loaders.get(owner, ())
-                    ]
                     if declared:
                         names.update(declared)
                     elif (
@@ -134,12 +146,37 @@ def dependent_units(
                         and isinstance(node.args[0], ast.Constant)
                         and isinstance(node.args[0].value, str)
                         and name in {"import_module", "__import__"}
+                        and not node.args[0].value.startswith(".")
+                        and (name != "__import__" or (len(node.args) == 1 and not node.keywords))
                     ):
                         names.add(node.args[0].value)
                     else:
                         unknown.append("dynamic reach: " + path)
         # An alias for a loader can evade call-name discovery; fail closed.
-        for node in ast.walk(tree):
+        for node in nodes:
+            indirect = (
+                (isinstance(node, ast.Attribute) and node.attr in dynamic_names)
+                or (isinstance(node, ast.Name) and node.id in dynamic_names)
+            ) and id(node) not in direct_calls
+            reflective = (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr"
+                and len(node.args) > 1
+                and (
+                    (isinstance(node.args[1], ast.Constant) and node.args[1].value in dynamic_names)
+                    or (
+                        not isinstance(node.args[1], ast.Constant)
+                        and isinstance(node.args[0], ast.Name)
+                        and node.args[0].id in reflective_modules
+                    )
+                )
+            )
+            if indirect or reflective:
+                if declared:
+                    names.update(declared)
+                else:
+                    unknown.append("indirect dynamic loader: " + path)
             if (
                 isinstance(node, ast.ImportFrom)
                 and node.module in {"importlib", "builtins"}

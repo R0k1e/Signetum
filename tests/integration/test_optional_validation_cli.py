@@ -17,8 +17,12 @@ from signetum.ci_partitions import (
     create_plan,
     run_partition,
 )
+from signetum.evidence.receipts import ArtifactIdentity
 from signetum.git import git_output
+from signetum.manifest import load_manifest
+from signetum.selection_request import SelectionInput, SelectionRequest
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
+from signetum.validation.repository import configured_validation
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 ROOT = Path(__file__).parents[2]
@@ -120,6 +124,44 @@ argument_index=5
     _commit(root, "implement behavior")
     changed = lifecycle.changed(root, True)
     assert changed["checks_started"] is False
+    graph, inputs = configured_validation(load_manifest(manifest))
+    source = git_output(root, "rev-parse", "HEAD")
+    wire = SelectionRequest(
+        protocol="signetum.selection@1",
+        source=source,
+        tree=git_output(root, "rev-parse", "HEAD^{tree}"),
+        base=base,
+        files=("app/feature.py", "changes/example/change.toml"),
+        graph=graph,
+        profiles=inputs.profiles,
+        tools=(),
+        inputs=(
+            SelectionInput(
+                artifact=ArtifactIdentity.from_bytes("python-selection.json", config.read_bytes()),
+                blob=git_output(root, "rev-parse", "HEAD:python-selection.json"),
+            ),
+        ),
+    )
+    produced = subprocess.run(  # noqa: S603 -- same wire contract through the engine, no judged-tree imports
+        [
+            sys.executable,
+            "-m",
+            "signetum.cli",
+            "protocol",
+            "select-python",
+            "--config",
+            str(config),
+        ],
+        input=json.dumps(contract_mapping(wire)),
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert produced.returncode == 0, produced.stdout + produced.stderr
+    assert json.loads(produced.stdout)["targets"][0]["tests"] == [
+        {"path": "tests/unit/test_feature.py", "argument": "tests/unit/test_feature.py"}
+    ]
     ready = lifecycle.validate(root, "member")
     assert ready["status"] == "ready"
     outcome = _cli(root, "status", portable=True)
