@@ -1,0 +1,29 @@
+[specification]
+schema_version = 1
+id = "reliable-agentic-protocol/protocol"
+version = 1
+status = "approved"
+implementation_authorized = true
+approved_at = "2026-10-29"
+human_confirmed = "Owner set the active goal: implement according to the preceding six-part migration proposal."
+plan = "changes/reliable-agentic-protocol/plans/protocol.md"
+decisions = ["docs/decisions/ADP-reliable-agentic-protocol.md"]
+acceptance = [
+  "A first validation failure remains failed even if its diagnostic retry passes; fresh normal validation after a fix may pass. Original and retry evidence remain available, and infrastructure failures retain their category.",
+  "Each change has one structured development record for intent, approved behavior, acceptance and necessary execution planning, with append-only significant development events rather than duplicate handwritten reports.",
+  "Decisions have stable clause identities, versions, scopes and source events; amendments, retractions, splits and merges name exact affected clauses and expected prior versions while retaining unaffected clauses.",
+  "A topic-organized current decision working set exposes context, effective choices, boundaries, relationships and provenance as a verified projection of accepted history, maintained through one update path.",
+  "Local log tools support recording, resolving, retracting, atomic reconciliation, retiring stranded authority references and repository-wide status without erasing history or allowing independent manual edits of projections.",
+  "Migration inventories historical records and produces reviewable clause mappings; ambiguous granularity is explicit and historical accepted records remain read-only rather than being guessed or bulk rewritten.",
+  "Significant events needed by source review are captured before committing and validating the source. Validation and delivery do not mutate that frozen source to append their own success. Ordinary output remains in local receipts and logs.",
+  "Every supported command job is checked for owned leftover processes on success, failure, timeout and cancellation; bounded cleanup reports ownership and turns a leaked successful job into failure without touching unrelated jobs.",
+  "Protocol and execution are independent of application language. Minimal repository bindings and optional Python, Node and Rust adapters use existing repository runners and preserve their authorities.",
+  "The product is one standard skill plus local commands and conditional instructions; no cross-machine synchronization, remote ledger, service platform, account system or automatic adoption is introduced.",
+  "Agent entrypoints and skill references explicitly route through the current decision working set, create one change record, retrieve rationale on demand and generate approval and delivery views without duplicate summaries.",
+  "Product material presents a reliable agentic development and delivery protocol with a minimal example, three reproducible failure demonstrations, a practice article and an existing-repository adoption example; claims distinguish measured mechanisms from unmeasured impact.",
+  "Behavioral acceptance covers four change types, partial decision amendments, concurrency and bad references, command process ownership, installed skill operations and Python, Node and Rust repositories, including negative and recovery cases.",
+]
+
+[specification.review]
+id = "reliable-agentic-protocol"
+clauses = ["RELIABLE-001", "RELIABLE-002", "RELIABLE-003", "RELIABLE-004", "RELIABLE-005", "RELIABLE-006", "RELIABLE-007", "RELIABLE-008", "RELIABLE-009", "RELIABLE-010", "RELIABLE-011", "RELIABLE-012", "RELIABLE-013"]

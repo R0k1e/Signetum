@@ -4,7 +4,7 @@ Status: Accepted
 Review date: 2026-10-28
 Supersedes: ADP-0007-unified-validation-evidence.md, ADP-0001-batch-owned-decision-numbering.md, ADP-0005-unify-runtime-configuration.md, ADP-0006-public-lifecycle-consumes-v2-authorities.md, ADP-human-review-brackets-reconciled-execution.md
 Partially supersedes: ADP-0007-unified-validation-evidence.md, ADP-0001-batch-owned-decision-numbering.md, ADP-0005-unify-runtime-configuration.md, ADP-0006-public-lifecycle-consumes-v2-authorities.md, ADP-human-review-brackets-reconciled-execution.md
-Superseded by: None
+Superseded by: ADP-reliable-agentic-protocol.md
 
 ## Context
 
