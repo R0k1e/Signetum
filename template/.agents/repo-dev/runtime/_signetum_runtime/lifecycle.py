@@ -20,6 +20,7 @@ from .change_scope import (
 )
 from .configuration import member_shards as _member_shards
 from .delivery import publish_batch
+from .development_store import DevelopmentReviewError
 from .deviations import (
     DeviationError,
 )
@@ -628,7 +629,7 @@ def batch_deliver(
             expected_tip,
             _receipt_root(source),
         )
-    except DeviationError as error:
+    except (DeviationError, DevelopmentReviewError) as error:
         raise AdmissionError(f"delivery review inputs changed: {error}") from error
     if not isinstance(review, dict) or review.get("inputs") != current_inputs:
         raise AdmissionError("delivery review inputs changed or are absent; rerun final")

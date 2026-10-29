@@ -13,7 +13,7 @@ from typing import Literal
 
 import pytest
 from change_fixtures import approve_change as _approve_change
-from change_fixtures import commit_approval
+from change_fixtures import commit_approval, consolidated_approval
 from pydantic import JsonValue
 
 import signetum.lifecycle as lifecycle
@@ -879,3 +879,91 @@ def lifecycle_frontend(request, monkeypatch):
         monkeypatch.setitem(
             globals(), "lifecycle", importlib.import_module("_signetum_runtime.lifecycle")
         )
+
+
+@pytest.mark.parametrize("resolved", [False, True])
+def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_path, resolved):
+    member, batch, base = _member_and_batch(tmp_path)
+    path = consolidated_approval(member, base)
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "approve consolidated member")
+    prefix = "signetum" if lifecycle.__name__ == "signetum.lifecycle" else "_signetum_runtime"
+    store = importlib.import_module(prefix + ".development_store")
+    records = importlib.import_module(prefix + ".change_record")
+    record = records.parse_change_record(path.read_text())
+    request = {
+        "id": "example/observe",
+        "change_id": "example",
+        "operation": "record",
+        "approval_digest": records.contract_digest(record.contract),
+        "reason": "Retain a significant implementation finding.",
+        "observations": [
+            {
+                "id": "example/finding",
+                "requirements": ["REQ-1"],
+                "summary": "The existing runner covers the behavior.",
+                "reason": "Keep the implementation basis available.",
+            }
+        ],
+    }
+    state = store.append_transaction(
+        member, store.parse_request(request), expected_history=store.snapshot(member).history_digest
+    )
+    if resolved:
+        store.append_transaction(
+            member,
+            store.parse_request(
+                {
+                    **request,
+                    "id": "example/answer",
+                    "operation": "resolve",
+                    "observations": [],
+                    "resolutions": [
+                        {
+                            "id": "example/resolution",
+                            "target": "example/finding",
+                            "status": "resolved",
+                            "reason": "The source demonstrates the outcome.",
+                            "evidence": ["src/feature.txt"],
+                        }
+                    ],
+                }
+            ),
+            expected_history=state.history_digest,
+        )
+    (member / "implemented.txt").write_text("implementation after approval")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement and retain significant events")
+    lifecycle.validate(member, "member")
+    lifecycle.admit(batch, (member,))
+    tip = _git(batch, "rev-parse", "HEAD")
+    journal = batch / "changes/example/events.jsonl"
+    before = journal.read_bytes()
+    if resolved:
+        later = {
+            **request,
+            "id": "example/later",
+            "observations": [{**request["observations"][0], "id": "example/unadmitted"}],
+        }
+        store.append_transaction(
+            member,
+            store.parse_request(later),
+            expected_history=store.snapshot(member).history_digest,
+        )
+        _git(member, "add", ".")
+        _git(member, "commit", "-m", "retain a discovery beyond the admitted tip")
+    if not resolved:
+        with pytest.raises(lifecycle.AdmissionError, match="unresolved source observations"):
+            lifecycle.validate(batch, "final")
+    else:
+        result = lifecycle.validate(batch, "final")
+        receipt = result["receipt"]
+        assert isinstance(receipt, str)
+        review = json.loads(Path(receipt).read_text())["delivery_review"]
+        assert review["inputs"]["source_journals"]["journals"]["changes/example/events.jsonl"]
+        assert review["source_reconciliation"]["observation_count"] == 1
+        assert (
+            review["source_reconciliation"]["changes"][0]["observations"][0]["status"] == "resolved"
+        )
+    assert journal.read_bytes() == before
+    assert _git(batch, "rev-parse", "HEAD") == tip

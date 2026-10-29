@@ -11,6 +11,8 @@ from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
 from signetum.change.scope import changed_commitments, delivery_scope
 from signetum.decision_identity import numbered_targets
+from signetum.development_store import DevelopmentReviewError
+from signetum.development_store import reconciliation_summary as source_reconciliation_summary
 from signetum.deviations import DeviationError, approval_view, reconciliation_summary
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.execution_review import execution_review_inputs
@@ -97,12 +99,15 @@ def validate_workspace(
                 target_moves=target_moves,
                 member_tips=review_inputs["member_tips"],
             )
+            source_reconciliation = source_reconciliation_summary(
+                repository, tuple(review_inputs["source_journals"]["changes"]), commit=source
+            )
             approvals = [
                 approval_view(repository, change_id, root=changes_root(manifest))
                 for change_id in change_ids
             ]
-        except DeviationError as error:
-            raise AdmissionError(f"deviation reconciliation failed: {error}") from error
+        except (DeviationError, DevelopmentReviewError) as error:
+            raise AdmissionError(f"execution reconciliation failed: {error}") from error
     else:
         reconciliation = None
         approvals = None
@@ -163,7 +168,7 @@ def validate_workspace(
                 raise AdmissionError(
                     "delivery review inputs changed during validation; rerun final"
                 )
-        except DeviationError as error:
+        except (DeviationError, DevelopmentReviewError) as error:
             raise AdmissionError(
                 f"delivery review inputs changed during validation: {error}"
             ) from error
@@ -184,6 +189,7 @@ def validate_workspace(
             + recovery_projection(receipt, receipt_path, member=None),
             "approvals": approvals,
             "reconciliation": reconciliation,
+            "source_reconciliation": source_reconciliation,
             "previously_delivered": [
                 {"change_id": item.change_id, "paths": list(item.paths)}
                 for item in scope.previously_delivered

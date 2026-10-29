@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import TypedDict
 
 from .change_models import require_relative_path
 from .change_record import ChangeRecord, contract_digest, parse_change_record
@@ -199,6 +200,148 @@ def _judge(repository: Path, sources: _SourceHistory) -> DevelopmentSnapshot:
 def snapshot(repository: Path) -> DevelopmentSnapshot:
     """Judge standing answers after withdrawals; reading never writes source."""
     return _judge(repository, _read_sources(repository))
+
+
+class DevelopmentReviewError(ValueError):
+    """Frozen source review cannot establish its retained execution evidence."""
+
+
+class SourceReviewInputs(TypedDict):
+    commit: str
+    history_digest: str
+    journals: dict[str, str]
+    changes: list[str]
+    decision_transactions: list[str]
+
+
+def _review_sources(
+    repository: Path, change_ids: tuple[str, ...], commit: str
+) -> tuple[SourceReviewInputs, DevelopmentSnapshot]:
+    try:
+        sources = _read_sources(repository)
+        if sources.head != commit:
+            raise ValueError("source review commit differs from the current frozen source")
+        require_committed_bindings(repository, commit)
+        journals: dict[str, str] = {}
+        identities = []
+        for relative in _journals(repository, commit):
+            blob = committed_blob(repository, commit, relative)
+            if blob is None or source_path(repository, relative).read_bytes() != blob[1].encode():
+                raise ValueError("source review requires committed development journals")
+            journals[relative] = blob[0]
+            identities.append((relative, _digest(blob[1].encode())))
+        if _digest(_json(identities)) != sources.history_digest:
+            raise ValueError("source journals changed during review")
+        result = _judge(repository, sources)
+        recorded = {
+            decision.id: decision
+            for entry in result.entries
+            for decision in entry.transaction.decisions
+        }
+        root, _ = authority_roots(repository, commit=commit)
+        selected = []
+        for change_id in sorted(set(change_ids)):
+            blob = committed_blob(repository, commit, f"{root}/{change_id}/change.toml")
+            if blob is None:
+                continue
+            record = parse_change_record(blob[1])
+            if record.id != change_id:
+                raise ValueError("source review change identity is inconsistent")
+            for decision in record.contract.decisions:
+                if recorded.get(decision.id) != decision:
+                    raise ValueError(
+                        f"approved decision is absent from source history: {decision.id}"
+                    )
+            selected.append(change_id)
+        decisions = sorted(
+            decision.id
+            for entry in result.entries
+            if entry.transaction.change_id in selected
+            for decision in entry.transaction.decisions
+        )
+        return {
+            "commit": commit,
+            "history_digest": sources.history_digest,
+            "journals": journals,
+            "changes": selected,
+            "decision_transactions": decisions,
+        }, result
+    except (OSError, ValueError) as error:
+        raise DevelopmentReviewError(str(error)) from error
+
+
+def review_inputs(
+    repository: Path, change_ids: tuple[str, ...], *, commit: str
+) -> SourceReviewInputs:
+    """Bind exact committed journals and their accepted decision dependencies."""
+    return _review_sources(repository, change_ids, commit)[0]
+
+
+def reconciliation_summary(
+    repository: Path, change_ids: tuple[str, ...], *, commit: str
+) -> dict[str, object]:
+    """Project selected standing discoveries; validation never appends an event."""
+    inputs, result = _review_sources(repository, change_ids, commit)
+    affected = {
+        action.target
+        for entry in result.entries
+        if entry.transaction.change_id in inputs["changes"]
+        for action in (
+            *entry.transaction.resolutions,
+            *entry.transaction.retractions,
+            *entry.transaction.retirements,
+        )
+    }
+    states = tuple(
+        item
+        for item in result.observations
+        if item.change_id in inputs["changes"] or item.observation.id in affected
+    )
+    pending = [item.observation.id for item in states if item.status == "pending"]
+    if pending:
+        raise DevelopmentReviewError("unresolved source observations: " + ", ".join(pending))
+    try:
+        for state in states:
+            for evidence in state.effective_evidence:
+                if committed_blob_identity(repository, commit, evidence) is None:
+                    raise ValueError(
+                        f"standing resolution evidence is absent from reviewed source: {evidence}"
+                    )
+            if state.resolution is not None and state.resolution.status == "deferred":
+                change, _, requirement = (state.resolution.followup or "").partition("#")
+                following, _ = _authority(repository, change, commit, approved=False)
+                if requirement not in {item.id for item in following.contract.requirements}:
+                    raise ValueError("standing deferral has no active follow-up requirement")
+    except (OSError, ValueError) as error:
+        raise DevelopmentReviewError(str(error)) from error
+    return {
+        "schema_version": 1,
+        "observation_count": len(states),
+        "decision_transactions": inputs["decision_transactions"],
+        "changes": [
+            {
+                "change_id": change,
+                "observations": [
+                    {
+                        "id": item.observation.id,
+                        "requirements": list(item.observation.requirements),
+                        "summary": item.observation.summary,
+                        "status": item.status,
+                        "reason": item.resolution.reason if item.resolution else None,
+                        "evidence": list(item.effective_evidence),
+                        "source_event": item.source_event,
+                        "approval": contract_mapping(item.approval),
+                        "resolution_event": item.resolution_event,
+                        "retractions": [contract_mapping(value) for value in item.retractions],
+                        "retirements": [contract_mapping(value) for value in item.retirements],
+                    }
+                    for item in states
+                    if item.change_id == change
+                ],
+            }
+            for change in sorted(set(inputs["changes"]) | {item.change_id for item in states})
+        ],
+    }
 
 
 @contextmanager

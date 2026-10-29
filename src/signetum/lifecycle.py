@@ -17,6 +17,7 @@ from signetum.change.scope import (
     delivered_plans,
 )
 from signetum.delivery import publish_batch
+from signetum.development_store import DevelopmentReviewError
 from signetum.deviations import (
     DeviationError,
 )
@@ -627,7 +628,7 @@ def batch_deliver(
             expected_tip,
             _receipt_root(source),
         )
-    except DeviationError as error:
+    except (DeviationError, DevelopmentReviewError) as error:
         raise AdmissionError(f"delivery review inputs changed: {error}") from error
     if not isinstance(review, dict) or review.get("inputs") != current_inputs:
         raise AdmissionError("delivery review inputs changed or are absent; rerun final")

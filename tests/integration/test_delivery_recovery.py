@@ -211,3 +211,23 @@ def test_matching_parents_with_different_tree_cannot_resume_delivery(tmp_path, m
         lifecycle.batch_deliver(source, target, base, tip)
     assert git(target, "rev-parse", "HEAD") == base
     assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == other
+
+
+@pytest.mark.parametrize("delivery_frontend", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("damage", ["missing", "altered"])
+def test_delivery_refuses_missing_or_altered_source_journal_bindings_before_publication(
+    tmp_path, monkeypatch, damage
+):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+    receipt = lifecycle._receipt_root(source) / "final-test.json"
+    document = json.loads(receipt.read_text())
+    bindings = document["delivery_review"]["inputs"]
+    if damage == "missing":
+        del bindings["source_journals"]
+    else:
+        bindings["source_journals"]["history_digest"] = "sha256:" + "0" * 64
+    receipt.write_text(json.dumps(document))
+    with pytest.raises(lifecycle.AdmissionError, match="review inputs changed"):
+        lifecycle.batch_deliver(source, target, base, tip)
+    assert git(target, "rev-parse", "HEAD") == base
+    assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
