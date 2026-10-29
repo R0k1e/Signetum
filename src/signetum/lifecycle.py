@@ -37,9 +37,11 @@ from signetum.operations import (
 from signetum.policy import delivery_policy
 from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
+from signetum.repository_selection import select_repository
 from signetum.synchronization import member_contribution_paths
 from signetum.validation.admission import find_member_evidence
 from signetum.validation.configuration import member_shards as _member_shards
+from signetum.validation.configuration import with_deferred_world
 from signetum.validation.execution import (
     ValidationExecutionError,
     build_evidence_identity,
@@ -89,7 +91,9 @@ def _receipt_root(repository: Path) -> Path:
 
 def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> ValidationSelection:
     files = member_contribution_paths(repository, base, _git(repository, "rev-parse", "HEAD"))
-    return select_paths(files, manifest.impact.rules)
+    return select_repository(
+        repository, manifest, files, base=base, source=_git(repository, "rev-parse", "HEAD")
+    ).selection
 
 
 def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> dict[str, object]:
@@ -98,10 +102,13 @@ def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> 
     source = _git(repository, "rev-parse", "HEAD")
     manifest = load_manifest(repository / "signetum.toml")
     files = member_contribution_paths(repository, base, source)
-    selected = select_paths(files, manifest.impact.rules)
+    resolved = select_repository(repository, manifest, files, base=base, source=source)
+    manifest, selected = resolved.manifest, resolved.selection
     if not files:
         raise AdmissionError("workspace has no committed contribution to validate")
     member_shards, deferred = _member_shards(manifest, selected, member_closure=False)
+    if manifest.impact.provider is not None:
+        selected = with_deferred_world(selected, deferred)
     graph, inputs = _runtime_validation(manifest, member_shards=member_shards)
     checks = (
         {"executed": []}
@@ -195,8 +202,13 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
     base = _recorded_base(member)
     if not _is_ancestor(member, base, tip):
         raise AdmissionError("member does not descend from its recorded base")
-    selection = _selection(member, base, manifest)
-    required_names, _ = _member_shards(manifest, selection)
+    declared_manifest = manifest
+    resolved = select_repository(
+        member, manifest, member_contribution_paths(member, base, tip), base=base, source=tip
+    )
+    manifest, selection = resolved.manifest, resolved.selection
+    required_names, deferred = _member_shards(manifest, selection)
+    selection = with_deferred_world(selection, deferred)
     graph, inputs = _runtime_validation(manifest, member_shards=required_names)
     closure = set(graph.execution_order("member"))
     required = frozenset(shard.digest for shard in graph.shards if shard.name in closure)
@@ -206,7 +218,10 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
     qualified_base = ratchet_baseline(member, base, tip) if ratchets else base
     adapter = RepositoryValidationAdapter(member)
     member_identity = build_evidence_identity(graph, replace(inputs, base=base), adapter)
-    final_graph, _ = _runtime_validation(manifest)
+    final_graph, _ = _runtime_validation(declared_manifest)
+    final_required = frozenset(
+        shard.digest for shard in final_graph.shards if shard.name in closure
+    )
     return find_member_evidence(
         _receipt_root(member),
         tip=tip,
@@ -216,6 +231,8 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
         required_digests=required,
         ratchet_baselines={name: qualified_base for name in ratchets},
         inputs=inputs,
+        expected_selection=selection if manifest.impact.provider is not None else None,
+        final_required_digests=final_required,
     )
 
 
@@ -537,6 +554,13 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     repaired = tuple(sorted(against_first & against_second))
     manifest = load_manifest(batch / "signetum.toml")
     selected = select_paths(repaired, manifest.impact.rules)
+    if manifest.impact.provider is not None and repaired:
+        selected = replace(
+            selected,
+            unexplained=repaired,
+            requires_final=True,
+            reasons=(*selected.reasons, "open merge: run full declared member checks"),
+        )
     shards, _ = _member_shards(manifest, selected, member_closure=False)
     graph, _ = _runtime_validation(manifest, member_shards=shards)
     executed = {shard.digest for shard in graph.shards if shard.name in preparation["executed"]}

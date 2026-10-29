@@ -76,3 +76,13 @@ metadata and locks, and Node/Rust cases create no Python project metadata.
 These native host-tool cases are final-only world tests, not reusable member
 credentials for the engine. Pure binding and portable CLI contracts stay in
 the member suite. Local tests do not imply publication or cross-machine support.
+
+## Repositories with existing fine selection and decision constraints
+
+Use the [structured selection boundary](structured-selection.md) when retaining
+repository-owned test dependence or contract-family selection. The optional
+existing-runner adapter alone does not reproduce those algorithms. Keep one
+execution, retry and receipt owner rather than nesting an old complete gate.
+For historical constraint tables outside a decision log, use explicitly declared
+[working-set sources](historical-working-sets.md); inventory and mapping previews
+never confer approval or rewrite accepted history.

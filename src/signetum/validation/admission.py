@@ -5,7 +5,12 @@ from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 
-from signetum.evidence.receipts import EvidenceIdentity, EvidenceReceipt, ReceiptError
+from signetum.evidence.receipts import (
+    EvidenceIdentity,
+    EvidenceReceipt,
+    ReceiptError,
+    ValidationSelection,
+)
 from signetum.operations import AdmissionError
 from signetum.serialization import ValueDecodeError, load_json
 from signetum.validation.execution import ValidationInputs, require_original_success
@@ -21,6 +26,8 @@ def find_member_evidence(
     required_digests: frozenset[str],
     ratchet_baselines: Mapping[str, str],
     inputs: ValidationInputs,
+    expected_selection: ValidationSelection | None = None,
+    final_required_digests: frozenset[str] | None = None,
 ) -> str:
     """Require exact identity, complete tree checks and current qualification."""
     expected = {
@@ -50,6 +57,12 @@ def find_member_evidence(
         identity = expected.get(receipt.execution.gates[0])
         if identity is None or identity.commit != tip or receipt.identity != identity:
             continue
+        if (
+            receipt.execution.gates == ("member",)
+            and expected_selection is not None
+            and receipt.selection != expected_selection
+        ):
+            continue
         if receipt.execution.gates == ("member",) and ratchet_baselines:
             details = receipt.extensions.get("shard_details", {})
             if not isinstance(details, dict):
@@ -68,7 +81,12 @@ def find_member_evidence(
             for outcome in receipt.execution.shards
             if outcome.evidence == "tree" and outcome.status == "passed"
         )
-        if required_digests <= proven:
+        needed = (
+            final_required_digests
+            if receipt.execution.gates == ("final",) and final_required_digests is not None
+            else required_digests
+        )
+        if needed <= proven:
             require_original_success(receipt.extensions.get("recovered_flake_defects", []))
             return path.name
     raise AdmissionError(

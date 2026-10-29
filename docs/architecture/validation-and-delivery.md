@@ -343,3 +343,19 @@ event to its source. Final rechecks source-journal bindings before writing its
 receipt, and delivery rechecks them before publication. Missing or altered
 bindings require fresh final validation. The historical local-ledger checks
 remain separate while legacy source adoption is still being migrated.
+
+## Repository-owned selection providers
+
+An explicitly declared provider supplies strict source-bound selection through
+one owner shared by diagnostics, readiness and admission. The configured runner,
+resource allocation, process supervisor and receipt authority remain unchanged.
+Inputs and tool identities are rechecked, target arguments bind exact committed
+test files, modified test files run whole, and unexplained coverage retains
+conservative full-member checks. Existing impact and mandatory checks remain.
+
+Provider code, rules and tools participate in identity. Admission recomputes the
+exact selection; inheritance also verifies its explanation of intervening paths.
+Final uses the original complete graph and commands. Open merge diagnostics use
+full declared member checks because the index is not a frozen provider source.
+Existing repositories retain their ordinary impact selection without opt-in.
+See [structured selection](../guides/structured-selection.md) for the protocol.

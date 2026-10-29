@@ -50,7 +50,7 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and the locked append-only ledger. |
 | `change.member`, `lifecycle_validation`, `provenance`, `execution_review`, `validation.review` | Member qualification, actual package Plans, exact validation and final review/receipt bindings through repository effect adapters. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
-| `impact`, `validation` | Rule selection, dependency graphs and policy-bound graph identity. |
+| `impact`, `repository_selection`, `selection_contracts`, `selection_request`, `validation` | Explicit source-bound selection, dependency graphs and policy-bound execution identity. |
 | `evidence.receipts`, `validation.receipt_store`, `validation.admission`, `validation.inheritance` | Exact evidence values/storage, complete member qualification and conservative ancestor reuse. |
 | `validation.execution`, `process`, `resources`, `recovery`, `pytest_runner`, `pytest_report` | Execution, supervised commands, native resource budgets and retained failed-node recovery. |
 | `validation.diagnostic_protocol`, `validation.ratchet`, `synchronization` | Diagnostic multisets and snapshot measurements against verified synchronization sources. |
@@ -125,6 +125,13 @@ the explicit legacy and lifecycle migration in
 is integrated. The new command reports `authority_coverage = journal_only`;
 its working set does not silently absorb or replace historical Markdown
 decisions. Candidate preview input is never treated as an accepted journal.
+
+Optional committed `migration.sources` declarations extend inventory to existing
+constraint working sets. `working_sets` owns the strict Markdown row reader;
+these sources retain a distinct declared status, original context, source blobs,
+row locations and unresolved issues. Preview preserves the exact prohibition,
+basis and reopen condition and reports remaining unmapped rows. Discovery grants
+no acceptance. See [historical working sets](../guides/historical-working-sets.md).
 
 `migration inventory` captures committed Review, Specification, Plan and
 decision sources by exact Git blob identity. It uses the same parsers and

@@ -8,6 +8,7 @@ from tomllib import loads
 from typing import Literal
 
 from .profile_catalog import validate_selection
+from .selection_contracts import SelectionProvider
 from .serialization import dataclass_from_mapping
 from .validation import GateDeclaration as ValidationGate
 from .validation import ToolDeclaration as ValidationTool
@@ -92,6 +93,7 @@ class ImpactRule:
 @dataclass(frozen=True, kw_only=True)
 class ImpactConfiguration:
     rules: tuple[ImpactRule, ...] = ()
+    provider: SelectionProvider | None = None
 
     def __post_init__(self) -> None:
         if len(self.rules) != len({rule.name for rule in self.rules}):
