@@ -1,0 +1,144 @@
+[change]
+schema_version = 1
+id = "simplify-adoption-boundaries"
+
+[change.source]
+kind = "human_direction"
+summary = "Delete dedicated historical working-set adaptation; make structured selection optional and run the full gate without it."
+
+[change.contract]
+version = 1
+approved_base = "a4bd7afa0a2d9814b89897813241cc88128f88cb"
+
+[[change.contract.requirements]]
+id = "SIMPLIFY-001"
+outcome = "Remove dedicated historical working-set adaptation from the engine, generated runtime, schema and active guidance."
+acceptance = [
+    "No migration.sources, Markdown constraint parser, working-set inventory schema or row-equality mapping remains.",
+    "Generic legacy decision inventory, explicit source-span previews, approval checks and historical journals remain intact; agents organize other documents directly.",
+]
+
+[[change.contract.requirements]]
+id = "SIMPLIFY-002"
+outcome = "Make structured selection optional with full declared member validation by default."
+acceptance = [
+    "Without a provider, changed and ready execute all declared member checks and required checks, even for paths matched by narrow or no-check impact rules.",
+    "Default full validation never inherits skipped tests using impact rules; admission requires full evidence.",
+    "An explicit provider retains selective execution and conservative fallback; final and open-merge recovery retain complete checks.",
+]
+
+[[change.contract.requirements]]
+id = "SIMPLIFY-003"
+outcome = "Ship matching engine, portable and installed behavior and stop at a clean ready member."
+acceptance = [
+    "Behavioral tests exercise default full execution, failure in a formerly unselected test, evidence eligibility and explicit-provider execution.",
+    "Generated runtime, package build and required readiness checks pass; Perdura and delivery worktrees remain unchanged.",
+]
+
+[[change.contract.decisions]]
+id = "simplify-adoption-boundaries/boundaries"
+change_id = "simplify-adoption-boundaries"
+authority = "docs/decisions/ADP-optional-selection-and-agent-history.md"
+reason = "The owner explicitly requested deletion of historical working-set specialization and full validation without an optional selector."
+
+[[change.contract.decisions.topics]]
+expected_version = 1
+
+[change.contract.decisions.topics.revision]
+id = "repository-adoption"
+version = 2
+summary = "Optional repository selection; agent-organized history with ordinary source provenance."
+boundaries = [
+    "One execution and evidence owner.",
+    "Historical source text does not grant approval.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "simplify-adoption-boundaries/amend-boundaries"
+change_id = "simplify-adoption-boundaries"
+action = "amend"
+expected = [
+    { id = "ADOPTION-SEL-001", version = 1 },
+    { id = "ADOPTION-HIST-001", version = 1 },
+]
+reason = "Replace only the two affected adoption clauses under the owner's explicit direction."
+authority = "docs/decisions/ADP-optional-selection-and-agent-history.md"
+
+[[change.contract.decisions.clauses.updates]]
+id = "ADOPTION-SEL-001"
+version = 2
+topic = "repository-adoption"
+scope = [
+    "Repository validation and evidence",
+]
+statement = "Structured repository selection is optional. Without a provider, diagnostics and readiness execute the complete declared member-safe gate without impact narrowing or test inheritance; final always executes its complete declared gate."
+rationale = "Full validation is the simple default; repositories opt in only when deterministic selection is worth maintaining."
+
+[[change.contract.decisions.clauses.updates]]
+id = "ADOPTION-HIST-001"
+version = 2
+topic = "repository-adoption"
+scope = [
+    "Historical authority inventory and migration preview",
+]
+statement = "Agents organize historical working sets into reviewable decision proposals using ordinary source references and approval. Signetum has no working-set Markdown parser, row mappings or migration source declarations."
+rationale = "Semantic organization belongs to the agent and reviewer; format-specific parsing adds maintenance without establishing semantic correctness."
+
+[[change.contract.retirements]]
+id = "simplify-adoption-boundaries/retire-1"
+target = "perdura-adoption-boundaries/working-set-source-format"
+resolution_id = "perdura-adoption-boundaries/working-set-source-verified"
+targets = [
+    "src/signetum/working_sets.py",
+    "docs/guides/historical-working-sets.md",
+]
+reason = "The owner explicitly removed the specialized historical-working-set feature; preserve its original resolution and retire only deleted evidence."
+
+[[change.contract.retirements]]
+id = "simplify-adoption-boundaries/retire-2"
+target = "perdura-adoption-boundaries/markdown-rule-boundary"
+resolution_id = "perdura-adoption-boundaries/markdown-rule-verified"
+targets = [
+    "src/signetum/working_sets.py",
+    "docs/guides/historical-working-sets.md",
+]
+reason = "The owner explicitly removed the specialized historical-working-set feature; preserve its original resolution and retire only deleted evidence."
+
+[change.contract.autonomy]
+allowed = [
+    "Implement the two explicitly requested changes, synchronize documentation and generated code, verify artifacts and run readiness.",
+]
+requires_confirmation = [
+    "Modify Perdura, integrate a real batch, deliver or publish.",
+]
+
+[[change.contract.excluded]]
+statement = "Perdura changes, real batch integration, delivery and publication."
+reason = "This request revises the Signetum-side boundaries only."
+
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = [
+    "SIMPLIFY-001",
+]
+action = "Implement the approved boundary and verify public behavior."
+
+[[change.execution.steps]]
+id = "STEP-2"
+requirements = [
+    "SIMPLIFY-002",
+]
+action = "Implement the approved boundary and verify public behavior."
+
+[[change.execution.steps]]
+id = "STEP-3"
+requirements = [
+    "SIMPLIFY-003",
+]
+action = "Implement the approved boundary and verify public behavior."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-29
+source = "The owner explicitly instructed: 1. 历史工作集我觉得删除专门适配 2. 结构化接口是可选，没选就全量"
+contract_digest = "sha256:71d0a03cf70130017a6f4c82ba3e9cefe2f47349dd648ecb519160ff1b825a35"
