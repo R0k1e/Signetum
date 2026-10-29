@@ -18,3 +18,8 @@ Read phase durations and actual allocation before changing worker ceilings,
 fixture scopes or scheduling. Compare on the same host and corpus. Measurements
 are diagnostic evidence, not permanent node-count or time budgets. Keep reports
 in ordinary logs and significant conclusions in the existing change journal.
+
+Use changed only to explain the plan; do not precede ready with a duplicate suite.
+New tests state their distinct risk and use the cheapest effective boundary.
+Optional selection, scheduling and CI splitting keep source-bound configuration
+and do not alter first-failure or final-completeness requirements.

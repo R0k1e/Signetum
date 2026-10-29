@@ -5,10 +5,8 @@ This boundary checks record structure and the recorded approval binding. It
 does not grant approval, validate external decision standing or publish evidence.
 """
 
-import argparse
 import hashlib
 import json
-import sys
 import tomllib
 from dataclasses import dataclass, field
 from datetime import date
@@ -19,6 +17,7 @@ from .change_models import ClauseId, Identifier, ReviewSource
 from .contract_values import FrozenContract
 from .decision_clauses import Text, Version
 from .decision_history import DecisionTransaction
+from .operation_cli import OperationParser, utility_failure
 from .serialization import Constraints, contract_mapping, dataclass_from_mapping
 from .source_authority import source_path
 
@@ -228,21 +227,17 @@ def approval_view(record: ChangeRecord) -> dict[str, object]:
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = OperationParser(description=__doc__)
     parser.add_argument("record", type=Path)
     parser.add_argument("--review", action="store_true")
-    parsed = parser.parse_args(arguments)
     try:
+        parsed = parser.parse_args(arguments)
         record = parse_change_record(parsed.record.read_text(encoding="utf-8"))
         result = (
             review_view(record, require_approval=False) if parsed.review else approval_view(record)
         )
     except (OSError, ValueError, TypeError) as error:
-        print(
-            json.dumps({"schema_version": 1, "status": "invalid", "reason": str(error)}),
-            file=sys.stderr,
-        )
-        return 2
+        return utility_failure("view", error)
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0
 

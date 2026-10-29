@@ -85,7 +85,7 @@ The record and decision-history preview commands never grant approval.
 at `changes/<change-id>/events.jsonl` retains significant observations,
 dispositions and exact accepted decision transactions. The current topic-aware
 working set is derived on read, so there is no second handwritten summary or
-cross-file partial update. `current` returns that working set; `status-all`
+cross-file partial update. `current` returns that working set; `status`
 returns observation dispositions; `history` retrieves a change or event's
 original rationale and approval provenance on demand.
 

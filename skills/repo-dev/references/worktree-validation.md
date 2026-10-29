@@ -7,12 +7,23 @@ runner. Without a selection provider, run the full declared member gate. An
 explicit provider may select checks; this skill does not select an application
 language or replace its test system.
 
+Choose the cheapest layer that can expose each distinct risk. Pure rules and
+input combinations belong in unit/property tests; integration traverses necessary
+public boundaries. Use installed artifacts or a complete lifecycle only when that
+boundary is at risk. State the risk briefly in the existing execution plan, not
+in another test inventory. A documentation rewrite alone needs link/static checks,
+not a new behavior suite.
+
 Before adding tests, classify existing affected evidence as retain, extend,
 merge, replace, delete or new. Keep necessary real traversals for distinct public
 contracts and put pure matrices in core tests. Generated/installed execution
 checks their own boundaries; it does not mechanically repeat every shared case.
 Do not pin teaching prose or private call order. Keep mutable test resources
 independent and reuse only successful immutable preparation.
+
+Use `status` for the current workspace, findings, recorded evidence and next step.
+`changed --explain` displays the check plan without executing it; it is optional,
+not a required prelude to ready. Status does not requalify tools or grant readiness.
 
 For explicit development feedback, use the repository's configured diagnostic
 utility: `test --shard <declared-shard> -- <native-test-arguments>`. It appends
@@ -60,3 +71,7 @@ jobs and refuses successful commands that leave owned children behind.
 
 Preserve unrelated files and processes. Stop at a clean ready unless integration
 or delivery is authorized. Validation never appends its own success to source.
+
+For explicitly requested fine selection, weighted pytest scheduling or CI splitting,
+read [optional validation optimization](validation-optimization.md). Keep these
+opt-in; do not expand every repository adoption to include them.

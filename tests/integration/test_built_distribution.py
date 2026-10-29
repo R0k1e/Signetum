@@ -72,6 +72,13 @@ def test_installed_wheel_generates_the_same_portable_runtime(tmp_path, installed
 import json,sys
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
+from _signetum_runtime.test_scheduling import partition_units
+from _signetum_runtime.python_selection import PythonSelection,dependent_units
+from _signetum_runtime.ci_partitions import combine
+assert partition_units(('a','b'),2,{}) == (('a',),('b',))
+cfg=PythonSelection(schema_version=1,source_roots=('app',),unit_roots=('tests',),unit_shard='unit')
+selected,_=dependent_units({'app/x.py':b'value=1','tests/test_x.py':b'import x'},('app/x.py',),cfg)
+assert selected == ('tests/test_x.py',)
 from _signetum_runtime.profile_catalog import load_catalog,resolve_profiles
 from _signetum_runtime.manifest import load_manifest
 from _signetum_runtime.configuration import configured_validation
@@ -337,7 +344,7 @@ contract_digest = "{digest}"
         assert result.returncode == 0, result.stdout + result.stderr
         history = json.loads(result.stdout)["history_digest"]
     status = subprocess.run(  # noqa: S603 -- standing answer is observed through the installed utility
-        [shell, str(launcher), "status-all"],
+        [shell, str(launcher), "status"],
         cwd=consumer,
         capture_output=True,
         text=True,

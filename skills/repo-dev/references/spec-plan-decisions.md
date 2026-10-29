@@ -26,3 +26,12 @@ A preview, draft mapping or tool success cannot accept a decision.
 Existing accepted behavior and accepted history remain authoritative. Use a new
 change for a later outcome. Preserve historical Markdown decisions until an
 explicit, reviewed migration replaces their authority.
+
+Keep the minimum record needed to reconstruct a consequential choice: the problem,
+material alternatives, evidence for the selected option, and when to reconsider it.
+Only include alternatives that affected the decision. Ordinary implementation
+choices need no standalone decision. Reference the original basis rather than
+copying it into architecture, plans and reports. Current clauses state the rule;
+history preserves its formation. Do not save chat transcripts or every attempt,
+and do not replace rationale with a conclusion alone. No fixed word budget or
+mandatory template for every small choice is needed.

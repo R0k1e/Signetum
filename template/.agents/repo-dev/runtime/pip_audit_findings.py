@@ -1,6 +1,8 @@
 """Run the generated Python audit adapter without installing the engine."""
 
 import sys
+
+sys.dont_write_bytecode = True
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))

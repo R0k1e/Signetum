@@ -17,7 +17,7 @@ from signetum.evidence.receipts import (
 )
 from signetum.findings import Finding, FindingsError, parse_findings
 from signetum.git import GitError, git_output
-from signetum.manifest import RepositoryManifest
+from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.profiles import builtin_catalog
 from signetum.validation import (
     ToolDeclaration,
@@ -92,6 +92,20 @@ class RepositoryValidationAdapter:
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
         started = time.perf_counter()
+        if weight_path := os.environ.get("SIGNETUM_SCHEDULE_FILE"):
+            try:
+                relative = Path(weight_path).resolve().relative_to(self.repository).as_posix()
+            except ValueError as error:
+                raise ValidationInfrastructureError(
+                    "weight file must be repository-owned"
+                ) from error
+            if (
+                relative
+                not in load_manifest(self.repository / "signetum.toml").repository.lockfiles
+            ):
+                raise ValidationInfrastructureError(
+                    "weight file must be a declared validation input"
+                )
         allocation = (
             resources.allocate_workers(
                 shard.workers, shard.worker_memory_mb, resources.observe_resources()

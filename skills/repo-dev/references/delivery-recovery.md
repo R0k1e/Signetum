@@ -6,7 +6,7 @@ Use separate local maintenance utilities only within their authorization.
 Approval to implement or passing validation does not authorize publication.
 
 Named ready members enter a batch through admission. Before final, reconcile
-retained findings with `status-all` and the journal tools. Final checks the
+retained findings with `status` and the journal tools. Final checks the
 frozen source and generates the delivery review; do not write a duplicate review
 file. Show the approved outcomes, standing answers, accepted decision changes,
 evidence and unfinished work before explicit delivery. Source journals and

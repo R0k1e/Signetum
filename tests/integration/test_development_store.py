@@ -771,7 +771,7 @@ def test_real_cli_mutation_and_lazy_read_views_need_no_engine_installation(
     assert historical[0]["blob"] == git_output(
         repository, "rev-parse", "HEAD:docs/decisions/ADP-existing.md"
     )
-    listing = _cli(repository, store, "status-all", isolated=isolated)
+    listing = _cli(repository, store, "status", isolated=isolated)
     assert listing.returncode == 0, listing.stderr
     assert "entries" not in json.loads(listing.stdout)
     history = _cli(
@@ -792,14 +792,14 @@ def test_real_cli_mutation_and_lazy_read_views_need_no_engine_installation(
         ["history"],
         ["history", "--event", "alpha/missing"],
         ["current", "--expected-history", "invalid"],
-        ["status-all", "--change", "alpha"],
+        ["status", "--change", "alpha"],
     ],
 )
 def test_invalid_cli_requests_are_structured_and_never_write_source(repository, store, arguments):
     result = _cli(repository, store, *arguments)
     assert result.returncode == 2
-    assert result.stdout == ""
-    assert json.loads(result.stderr)["status"] == "invalid"
+    assert len(result.stdout.splitlines()) == 1
+    assert json.loads(result.stdout)["status"] == "invalid"
     assert not (repository / "changes/alpha/events.jsonl").exists()
 
 
@@ -894,7 +894,7 @@ def test_cli_does_not_apply_a_request_under_a_different_operation_or_history_fil
         arguments.extend(["--change", "alpha"])
     result = _cli(repository, store, *arguments)
     assert result.returncode == 2
-    assert json.loads(result.stderr)["status"] == "invalid"
+    assert json.loads(result.stdout)["status"] == "invalid"
     assert not (repository / "changes/alpha/events.jsonl").exists()
 
 
@@ -1201,9 +1201,9 @@ def test_a_semantically_invalid_old_answer_can_be_repaired_append_only(repositor
     retained = path.read_bytes()
     with pytest.raises(ValueError, match="acceptance evidence"):
         store.snapshot(repository)
-    status = _cli(repository, store, "status-all")
+    status = _cli(repository, store, "status")
     assert status.returncode == 2
-    failure = json.loads(status.stderr)
+    failure = json.loads(status.stdout)
     assert failure["history_digest"]
     history = _cli(repository, store, "history", "--event", "alpha/answer")
     assert history.returncode == 0, history.stderr
@@ -1230,7 +1230,7 @@ def test_installed_wheel_runs_the_journal_outside_the_source_checkout(
     path.write_text(json.dumps(contract_mapping(transaction)))
     for arguments in (
         ["record", "--request", str(path), "--expected-history", state.history_digest],
-        ["status-all"],
+        ["status"],
         ["history", "--event", transaction.observations[0].id],
     ):
         result = subprocess.run(  # noqa: S603 -- installed public entrypoint and fixture-owned argv

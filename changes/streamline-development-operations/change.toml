@@ -188,7 +188,7 @@ id = "STEP-8"
 requirements = [
     "FLOW-008",
 ]
-action = "Reuse affected integration assets and core matrices; installed optional utilities work outside the source checkout; reconcile discoveries. Do not modify Perdura, integrate or publish. RAM volumes and background deletion are excluded."
+action = "Retain existing source, Git, journal, receipt, recovery and complete-final tests. Replace changed execution assertions with no-execution proofs and extend existing protocol/store/installed traversals for status and common errors. Add core tests in test_optimization_contracts.py for new reach, grouping and aggregation boundaries, one generated-provider/partition traversal in test_optional_validation_cli.py, and one weighted runner traversal; extend existing recovery and installed isolation evidence without repeating frontend matrices. Build, regenerate, reconcile and stop at clean ready."
 
 [change.approval]
 actor = "Repository owner"

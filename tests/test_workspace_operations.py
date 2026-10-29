@@ -13,7 +13,6 @@ from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
-from signetum.validation.execution import ValidationExecutionError
 from signetum.workspaces import branch_name, read_record, state_root
 
 
@@ -188,7 +187,9 @@ def publish_member(repository, member):
 
 
 @pytest.mark.parametrize("fails", [False, True])
-def test_changed_executes_selected_checks_without_granting_readiness(repository, fails):
+def test_changed_explains_selected_checks_without_executing_or_granting_readiness(
+    repository, fails
+):
     root, state = repository
     marker = state / "diagnostic-ran"
     command = [
@@ -205,13 +206,10 @@ def test_changed_executes_selected_checks_without_granting_readiness(repository,
     git_output(root, "commit", "-m", "declare observable diagnostic")
     member = opened(root, "plan/diagnostic")
     tip = commit_file(member, "implementation.txt")
-    if fails:
-        with pytest.raises(ValidationExecutionError, match="exited 1"):
-            lifecycle.changed(member, True)
-    else:
-        result = lifecycle.changed(member, True)
-        assert result["executed"] == ["test:check"]
-    assert marker.exists()
+    result = lifecycle.changed(member, True)
+    assert result["status"] == "selection-only"
+    assert result["executed"] == []
+    assert not marker.exists()
     assert git_output(member, "rev-parse", "HEAD") == tip
     assert not (state_root(member) / "validation").exists()
 
@@ -233,7 +231,7 @@ def test_changed_refuses_workspace_without_committed_contribution(repository):
         lifecycle.changed(member, True)
 
 
-def test_changed_without_provider_runs_full_checks_for_unexplained_paths(repository):
+def test_changed_without_provider_plans_full_checks_for_unexplained_paths(repository):
     root, _ = repository
     manifest = root / "signetum.toml"
     commit_file(
@@ -242,8 +240,8 @@ def test_changed_without_provider_runs_full_checks_for_unexplained_paths(reposit
     member = opened(root, "plan/no-selection")
     commit_file(member, "unexplained.md")
     result = lifecycle.changed(member, True)
-    assert result["status"] == "changed"
-    assert result["executed"] == ["test:check"]
+    assert result["status"] == "selection-only"
+    assert result["executed"] == []
     assert result["requires_final"] is True
 
 
@@ -255,32 +253,15 @@ def test_changed_selection_only_does_not_execute_the_selected_command(
     commit_file(root, "signetum.toml", manifest.read_text().replace('["true"]', '["false"]'))
     member = opened(root, "plan/selection-only")
     commit_file(member, "implementation.txt")
-    result = lifecycle.changed(member, True, validate_only=True)
+    result = lifecycle.changed(member, True)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert result["shards"] == ("test:check",)
     monkeypatch.chdir(member)
-    assert lifecycle.main(["changed", "--validate-only"]) == 0
+    assert lifecycle.main(["changed", "--explain"]) == 0
     document = json.loads(capsys.readouterr().out)
     assert document["outcome"] == "selection-only"
     assert document["checks_started"] is False
-
-
-def test_changed_cannot_report_success_after_a_check_mutates_source(repository):
-    root, _ = repository
-    manifest = root / "signetum.toml"
-    command = [
-        sys.executable,
-        "-c",
-        "from pathlib import Path; Path('seed.txt').write_text('changed')",
-    ]
-    commit_file(
-        root, "signetum.toml", manifest.read_text().replace('["true"]', json.dumps(command))
-    )
-    member = opened(root, "plan/mutating-diagnostic")
-    commit_file(member, "implementation.txt")
-    with pytest.raises(ValidationExecutionError, match="diagnostic changed working files"):
-        lifecycle.changed(member, True)
 
 
 def test_failed_preparation_keeps_base_and_same_workspace_can_retry(repository):

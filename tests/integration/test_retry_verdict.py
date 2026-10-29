@@ -53,3 +53,9 @@ def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path, frontend):
         ),
     )
     assert fixed.returncode == 0, fixed.stdout + fixed.stderr
+    measured = [json.loads(line) for line in fixed.stderr.splitlines() if line.startswith("{")]
+    cost = next(item for item in measured if item.get("event") == "validation.pytest")
+    assert cost["exit_code"] == 0 and cost["workers"] == 0
+    assert cost["collection_seconds"] >= 0 and cost["execution_seconds"] >= 0
+    assert cost["phase_seconds"]["call"] >= 0
+    assert any(item.get("event") == "validation.pytest.cleanup" for item in measured)

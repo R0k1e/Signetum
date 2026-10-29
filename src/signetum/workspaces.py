@@ -285,3 +285,19 @@ def exclusive_batch(batch: Path) -> Iterator[None]:
         yield
     finally:
         handle.close()
+
+
+def read_change_owner(root: Path, change_id: str) -> ChangeOwner | None:
+    """Read the same immutable claim used by the writer; absence grants no claim."""
+    if not change_id or fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", change_id) is None:
+        raise WorkspaceError("change owner identity is invalid")
+    target = root / "changes" / change_id / "owner.json"
+    if not target.exists():
+        return None
+    try:
+        owner = _parse_owner(json.loads(target.read_text()))
+    except (ValueError, OSError) as error:
+        raise WorkspaceError(f"change owner is unreadable: {change_id}") from error
+    if owner.change_id != change_id:
+        raise WorkspaceError("change owner identity differs from its path")
+    return owner

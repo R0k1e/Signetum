@@ -19,6 +19,8 @@ Start with [First use](../QUICKSTART.md): install, review adoption and complete 
 - [Development lifecycle concepts](concepts/development-lifecycle.md)
 - [Complete change example](../examples/complete-change/README.md)
 
+- [Optional validation optimization](../skills/repo-dev/references/validation-optimization.md)
+
 ## Operate
 
 - [Agent Team batch delivery](workflows/agent-team-delivery.md)

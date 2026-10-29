@@ -102,7 +102,7 @@ def test_lifecycle_reports_profile_failure_as_one_operation(
     capsys.readouterr()
     if missing_catalog:
         monkeypatch.setattr(profiles, "files", lambda _: tmp_path / "unavailable-catalog")
-    assert lifecycle.main(["changed", "--validate-only"]) == (4 if missing_catalog else 2)
+    assert lifecycle.main(["changed", "--explain"]) == (4 if missing_catalog else 2)
     output = capsys.readouterr()
     payload = json.loads(output.out)
     assert payload["status"] == ("infrastructure_error" if missing_catalog else "invalid")

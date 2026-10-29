@@ -8,6 +8,7 @@ import signal
 import subprocess  # nosec B404
 import sys
 import threading
+import time
 import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -27,12 +28,26 @@ def _observer() -> ModuleType:
 
 
 def _settle(owner: str, session: int) -> int:
+    started = time.perf_counter()
     observer = _observer()
     encoded = os.environ.get(observer.SCRATCH_ENV)
     scratch = observer.decode_scratch_root(encoded, owner) if encoded is not None else None
     result = observer.settle_owned_processes(owner, session, scratch)
     if scratch is not None and not result.remaining and not result.unavailable:
         observer.remove_scratch_root(scratch)
+    print(
+        json.dumps(
+            {
+                "event": "validation.process.cleanup",
+                "elapsed_seconds": time.perf_counter() - started,
+                "leaked": len(result.leaked),
+                "remaining": len(result.remaining),
+                "unavailable": len(result.unavailable),
+            }
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
     if result.leaked or result.remaining or result.unavailable:
         print(
             f"owned process leak: observed={result.leaked}, "

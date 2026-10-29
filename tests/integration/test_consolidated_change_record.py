@@ -76,8 +76,8 @@ contract_digest = "{digest}"
     path.write_text(record_source.replace('outcome = "', 'outcome = "Different ', 1) + approval)
     result = read_record(path, frontend)
     assert result.returncode == 2
-    assert not result.stdout
-    assert "does not bind" in json.loads(result.stderr)["reason"]
+    assert len(result.stdout.splitlines()) == 1
+    assert "does not bind" in json.loads(result.stdout)["cause"]
 
 
 @pytest.mark.parametrize("frontend", ["engine", "template"])
@@ -87,7 +87,7 @@ def test_an_unapproved_change_cannot_claim_completion(tmp_path, record_source, f
     path.write_text(source)
     result = read_record(path, frontend)
     assert result.returncode == 2
-    assert json.loads(result.stderr)["status"] == "invalid"
+    assert json.loads(result.stdout)["status"] == "invalid"
     assert path.read_text() == source
 
 

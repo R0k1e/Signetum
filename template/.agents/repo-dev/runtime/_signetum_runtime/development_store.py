@@ -32,6 +32,7 @@ from .development_log import (
     withdrawn_resolution_ids,
 )
 from .git import git_output, run_git
+from .operation_cli import OperationParser, utility_failure
 from .serialization import contract_mapping, dataclass_from_mapping, load_json
 from .source_authority import (
     authority_roots,
@@ -43,6 +44,7 @@ from .source_authority import (
     source_path,
 )
 from .traceability_loading import parse_decision
+from .workflow_status import workflow_status
 from .workspaces import claim_change, read_record, state_root
 
 
@@ -703,7 +705,7 @@ def _semantic_request(
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = OperationParser(description=__doc__)
     parser.add_argument(
         "operation",
         choices=[
@@ -712,7 +714,7 @@ def main(arguments: list[str] | None = None) -> int:
             "retract",
             "reconcile",
             "retire",
-            "status-all",
+            "status",
             "current",
             "history",
         ],
@@ -734,10 +736,10 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument("--followup")
     parser.add_argument("--resolution")
     parser.add_argument("--accept-decisions", action="store_true")
-    options = parser.parse_args(arguments)
     sources = None
     try:
-        if options.operation in {"status-all", "current", "history"}:
+        options = parser.parse_args(arguments)
+        if options.operation in {"status", "current", "history"}:
             if (
                 any(
                     (
@@ -812,7 +814,7 @@ def main(arguments: list[str] | None = None) -> int:
             if transaction.operation != options.operation:
                 raise ValueError("request operation differs from the selected command")
             result = append_transaction(options.repository, transaction, expected_history=expected)
-        if options.operation in {"current", "status-all"} and (
+        if options.operation in {"current", "status"} and (
             options.change is not None or options.event is not None
         ):
             raise ValueError("history filters require the history command")
@@ -834,8 +836,16 @@ def main(arguments: list[str] | None = None) -> int:
                 "Current clauses do not replace historical sources without an accepted migration; "
                 "consult relevant sources, not the whole log."
             )
-        elif options.operation == "status-all":
-            payload["observations"] = [contract_mapping(item) for item in result.observations]
+        elif options.operation == "status":
+            payload.update(
+                workflow_status(
+                    options.repository,
+                    result,
+                    source=sources.head
+                    if sources is not None
+                    else git_output(options.repository, "rev-parse", "HEAD"),
+                )
+            )
         else:
             affected = {item.id for item in transaction.observations}
             affected.update(item.target for item in transaction.resolutions)
@@ -849,11 +859,8 @@ def main(arguments: list[str] | None = None) -> int:
                 if item.observation.id in affected
             ]
     except (OSError, ValueError, TypeError) as error:
-        failure = {"schema_version": 1, "status": "invalid", "reason": str(error)}
-        if sources is not None:
-            failure["history_digest"] = sources.history_digest
-        print(json.dumps(failure), file=sys.stderr)
-        return 2
+        extra = {"history_digest": sources.history_digest} if sources is not None else {}
+        return utility_failure((arguments or sys.argv[1:] or ["journal"])[0], error, **extra)
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     return 0
 
