@@ -337,5 +337,5 @@ def test_cli_requires_explicit_mapping_input_only_for_preview(
         arguments.extend(["--proposal", str(repository / "unused.json")])
     assert migration.main(arguments) == 2
     result = capsys.readouterr()
-    assert result.out == ""
-    assert json.loads(result.err)["status"] == "invalid"
+    assert json.loads(result.out)["status"] == "invalid"
+    assert result.err

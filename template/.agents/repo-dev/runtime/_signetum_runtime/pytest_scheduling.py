@@ -17,7 +17,7 @@ def shared_file_groups(files: dict[str, bytes]) -> tuple[tuple[str, ...], ...]:
         try:
             tree = ast.parse(source, filename=path)
         except SyntaxError as error:
-            raise ValueError("unparseable pytest partition source: " + path) from error
+            raise ValueError("unparsable pytest partition source: " + path) from error
         constants = {
             target.id: node.value.value
             for node in tree.body

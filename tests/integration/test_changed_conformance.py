@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from change_fixtures import commit_approval
 from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle
@@ -17,7 +18,7 @@ def diagnostic(request, repository, monkeypatch, tmp_path):
     root, state = repository
     runtime = lifecycle if request.param == "engine" else _template_lifecycle()
 
-    def open_member(*, code=None, selected=True, world=False):
+    def open_member(*, code=None, selected=True, world=False, approved=False):
         manifest = root / "signetum.toml"
         text = manifest.read_text()
         if code is not None:
@@ -38,6 +39,8 @@ def diagnostic(request, repository, monkeypatch, tmp_path):
         branch = "plan/native-diagnostic"
         git_output(root, "worktree", "add", "-b", branch, str(member), base)
         write_record(state_root(root), WorkspaceRecord(1, branch, base, "member"))
+        if approved:
+            commit_approval(member)
         return member
 
     return runtime, open_member, state
@@ -50,38 +53,19 @@ def commit_contribution(member):
     return git_output(member, "rev-parse", "HEAD")
 
 
-@pytest.mark.parametrize("fails", [False, True])
-def test_changed_executes_selected_command_without_readiness(diagnostic, fails):
-    runtime, open_member, state = diagnostic
-    marker = state / "executed"
-    code = (
-        "from pathlib import Path; import sys; "
-        f"Path({str(marker)!r}).touch(); sys.exit({int(fails)})"
-    )
-    member = open_member(code=code)
-    tip = commit_contribution(member)
-    if fails:
-        with pytest.raises(runtime.ValidationExecutionError, match="exited 1"):
-            runtime.changed(member, True)
-    else:
-        result = runtime.changed(member, True)
-        assert result["executed"] == ["test:check"]
-        assert result["checks_started"] is True
-    assert marker.exists()
-    assert git_output(member, "rev-parse", "HEAD") == tip
-    assert not (state_root(member) / "validation").exists()
-
-
-def test_changed_selection_only_is_explicit_and_does_not_execute(diagnostic):
+def test_changed_plans_without_executing_or_granting_readiness(diagnostic):
     runtime, open_member, state = diagnostic
     marker = state / "must-not-execute"
-    member = open_member(code=f"from pathlib import Path; Path({str(marker)!r}).touch()")
-    commit_contribution(member)
-    result = runtime.changed(member, True, validate_only=True)
+    member = open_member(
+        code=f"from pathlib import Path; Path({str(marker)!r}).touch(); raise SystemExit(7)"
+    )
+    tip = commit_contribution(member)
+    result = runtime.changed(member, True)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert result["checks_started"] is False
     assert not marker.exists()
+    assert git_output(member, "rev-parse", "HEAD") == tip
     assert not (state_root(member) / "validation").exists()
 
 
@@ -97,29 +81,29 @@ def test_changed_requires_a_clean_committed_contribution(diagnostic, dirty):
     assert not (state_root(member) / "validation").exists()
 
 
-def test_changed_without_provider_runs_required_checks_for_unmatched_paths(diagnostic):
+def test_ready_without_provider_runs_required_checks_for_unmatched_paths(diagnostic):
     runtime, open_member, _ = diagnostic
-    member = open_member(code="raise SystemExit(7)", selected=False)
+    member = open_member(code="raise SystemExit(7)", selected=False, approved=True)
     commit_contribution(member)
     with pytest.raises(runtime.ValidationExecutionError, match="exited 7"):
-        runtime.changed(member, True)
+        runtime.validate(member, "member")
 
 
-def test_changed_without_provider_runs_member_checks_despite_world_impact_rule(diagnostic):
+def test_ready_without_provider_runs_member_checks_despite_world_impact_rule(diagnostic):
     runtime, open_member, _ = diagnostic
-    member = open_member(code="raise SystemExit(7)", world=True)
+    member = open_member(code="raise SystemExit(7)", world=True, approved=True)
     commit_contribution(member)
     with pytest.raises(runtime.ValidationExecutionError, match="exited 7"):
-        runtime.changed(member, True)
+        runtime.validate(member, "member")
 
 
-def test_changed_refuses_success_after_a_check_mutates_working_files(diagnostic):
+def test_changed_does_not_run_a_working_file_mutator(diagnostic):
     runtime, open_member, _ = diagnostic
     member = open_member(code="from pathlib import Path; Path('seed.txt').write_text('changed')")
     commit_contribution(member)
-    with pytest.raises(runtime.ValidationExecutionError, match="diagnostic changed working files"):
-        runtime.changed(member, True)
-    assert (member / "seed.txt").read_text() == "changed"
+    result = runtime.changed(member, True)
+    assert result["checks_started"] is False
+    assert (member / "seed.txt").read_text() != "changed"
     assert not (state_root(member) / "validation").exists()
 
 
@@ -128,7 +112,9 @@ def test_native_cli_observes_real_failure_without_granting_readiness(
     diagnostic, failure, monkeypatch, capsys
 ):
     runtime, open_member, _ = diagnostic
-    member = open_member(code="print('native check diagnostic'); raise SystemExit(9)")
+    member = open_member(
+        code="print('native check diagnostic'); raise SystemExit(9)", approved=True
+    )
     manifest = member / "signetum.toml"
     if failure == "tool":
         manifest.write_text(
@@ -140,7 +126,7 @@ def test_native_cli_observes_real_failure_without_granting_readiness(
     commit_contribution(member)
     monkeypatch.chdir(member)
     code = {"check": 3, "tool": 4, "configuration": 2}[failure]
-    assert runtime.main(["changed"]) == code
+    assert runtime.main(["ready"]) == code
     captured = capsys.readouterr()
     assert len(captured.out.splitlines()) == 1
     result = json.loads(captured.out)
@@ -149,7 +135,7 @@ def test_native_cli_observes_real_failure_without_granting_readiness(
         == {"check": "failed", "tool": "infrastructure_error", "configuration": "invalid"}[failure]
     )
     assert result["exit_code"] == code
-    assert result["operation"] == "changed"
+    assert result["operation"] == "ready"
     assert result["expected"]
     assert Path(result["log"]).is_file()
     if failure == "check":
