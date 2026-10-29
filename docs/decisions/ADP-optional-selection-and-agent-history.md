@@ -4,7 +4,7 @@ Status: Accepted
 Review date: 2026-10-29
 Supersedes: ADP-external-selection-and-working-set-sources.md
 Partially supersedes: ADP-external-selection-and-working-set-sources.md
-Superseded by: None
+Superseded by: ADP-development-feedback-is-bounded-and-derived.md
 
 ## Context
 

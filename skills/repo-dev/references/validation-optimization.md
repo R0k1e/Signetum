@@ -22,7 +22,6 @@ The consumer configuration is:
   "source_roots": ["src"],
   "unit_roots": ["tests/unit"],
   "unit_shard": "repo:unit",
-  "families": [{"paths": ["src/api/*"], "shards": ["repo:api-integration"]}],
   "dynamic_loaders": []
 }
 ```
@@ -31,8 +30,9 @@ A dynamic-loader entry is `{"module":"owner.module","imports":["loaded.module"]}
 names in the configured import namespaces. Declare configuration and implementation
 files as provider inputs and bind the interpreter identity. Configure the unit
 shard's target roots and command-tail index through the existing provider binding.
-Do not put integration import reach into this algorithm; declared families own
-integration. Unknown inputs, uncertain dynamic reach or parsing fall back safely.
+Do not put integration import reach into this algorithm. Existing manifest
+`impact.rules` remain the single family map; do not create another mapping in
+selection configuration. Unknown inputs, uncertain dynamic reach or parsing fall back safely.
 Modified test/support files cannot disappear. No provider still means full member
 checks, and final always executes original complete commands.
 

@@ -11,6 +11,7 @@ from signetum.ci_partitions import PartitionPlan, PartitionResult, combine, crea
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceIdentity
 from signetum.git import git_output
 from signetum.pytest_scheduling import derive_weights, shared_file_groups
+from signetum.pytest_scheduling import main as schedule_main
 from signetum.python_selection import DynamicLoader, PythonSelection, dependent_units
 from signetum.test_scheduling import ordered_units, partition_units
 
@@ -358,3 +359,21 @@ def test_duration_hints_reuse_logs_and_preserve_group_or_file_identity():
         derive_weights(log, minimum_seconds=-1)
     with pytest.raises(ValueError):
         shared_file_groups({"bad.py": b"broken("})
+
+
+def test_schedule_utility_derives_without_overwriting_or_fabricating_observations(tmp_path, capsys):
+    log = tmp_path / "run.log"
+    output = tmp_path / "weights.json"
+    log.write_text("1.00s call tests/a.py::test_a\n")
+    assert schedule_main(["--log", str(log), "--output", str(output), "--by-file"]) == 0
+    assert json.loads(output.read_text()) == {"tests/a.py": 1.0}
+    assert len(capsys.readouterr().out.splitlines()) == 1
+    assert schedule_main(["--log", str(log), "--output", str(output)]) == 4
+    assert json.loads(capsys.readouterr().out)["status"] == "infrastructure_error"
+    log.write_text("no duration data")
+    missing = tmp_path / "missing.json"
+    assert schedule_main(["--log", str(log), "--output", str(missing)]) == 2
+    assert not missing.exists()
+    capsys.readouterr()
+    assert schedule_main([]) == 2
+    assert json.loads(capsys.readouterr().out)["expected"]

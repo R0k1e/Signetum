@@ -81,7 +81,6 @@ def test_generated_python_provider_selects_real_import_dependents_and_ready_uses
                 "source_roots": ["app"],
                 "unit_roots": ["tests/unit"],
                 "unit_shard": "test:check",
-                "families": [{"paths": ["changes/**"], "shards": ["test:check"]}],
             }
         )
     )
@@ -91,6 +90,8 @@ def test_generated_python_provider_selects_real_import_dependents_and_ready_uses
         'name = "test:check"\ncommand = ["true"]',
         'name = "test:check"\ncommand = ' + json.dumps(command),
     )
+    text = text.replace('paths = ["**"]', 'paths = ["app/**", "tests/unit/**"]')
+    text += '\n[[impact.rules]]\nname="records"\npaths=["changes/**"]\nshards=[]\n'
     text += (
         """
 [impact.provider]
