@@ -9,6 +9,7 @@ import typer
 
 from signetum.findings import FindingsError
 from signetum.lifecycle import main as lifecycle_main
+from signetum.maintenance import main as maintenance_main
 from signetum.manifest import ManifestError, load_manifest
 from signetum.product_surface import validate_product_surface
 from signetum.profiles import ProfileError, resolve_profiles
@@ -57,6 +58,15 @@ def site_build(
 def lifecycle(ctx: typer.Context) -> None:
     """Run one of the eight explicit repository lifecycle operations."""
     raise typer.Exit(code=lifecycle_main(list(ctx.args)))
+
+
+@app.command(
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+)
+def maintenance(ctx: typer.Context) -> None:
+    """Run explicit local workspace maintenance outside the lifecycle."""
+    raise typer.Exit(code=maintenance_main(list(ctx.args)))
 
 
 @template_app.command("check")

@@ -116,7 +116,7 @@ def open_workspace(
             for member in members:
                 retry.extend(("--member", member))
         elif kind == "batch":
-            retry = ["worktree-prepare", str(workspace.path)]
+            retry = ["maintenance", "worktree-prepare", str(workspace.path)]
         else:
             retry = ["workspace-open", branch, source]
         raise InfrastructureError(str(error), expected=shlex.join(retry)) from error
@@ -157,7 +157,7 @@ def _merge_source(repository: Path, source: str, label: str) -> dict[str, object
         except MergeConflict as error:
             raise MergeConflict(
                 completed.stderr.strip() or completed.stdout.strip(),
-                expected="resolve and commit this member merge, then worktree-prepare and ready",
+                expected="commit the resolved merge, then maintenance worktree-prepare and ready",
             ) from error
         raise OperationFailed(completed.stderr.strip() or completed.stdout.strip())
     return {
@@ -172,7 +172,7 @@ def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, obj
     if run_git(repository, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0:
         raise MergeConflict(
             "member has an open merge",
-            expected="resolve and commit this member merge, then worktree-prepare and ready",
+            expected="commit the resolved merge, then maintenance worktree-prepare and ready",
         )
     if _has_git_operation(repository):
         raise AdmissionError("cannot synchronize during another Git operation")

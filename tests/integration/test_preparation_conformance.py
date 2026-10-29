@@ -7,7 +7,7 @@ import sys
 import pytest
 from test_lifecycle_conformance import _template_lifecycle
 
-from signetum import lifecycle, workspace_operations
+from signetum import maintenance, workspace_operations
 from signetum.git import git_output
 from signetum.workspaces import state_root
 
@@ -131,7 +131,11 @@ def test_public_preparation_uses_explicit_worktree_and_one_result(
     preparation, monkeypatch, capsys, tmp_path
 ):
     runtime, root, state = preparation
-    frontend = lifecycle if runtime is workspace_operations else runtime
+    frontend = (
+        maintenance
+        if runtime is workspace_operations
+        else importlib.import_module("_signetum_runtime.maintenance")
+    )
     monkeypatch.chdir(tmp_path)
     assert frontend.main(["worktree-prepare", str(root)]) == 0
     output = capsys.readouterr()
