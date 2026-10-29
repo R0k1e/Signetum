@@ -20,3 +20,7 @@ stable as the product evolves.
 
 Search all production and test implementations before changing an authority.
 Extend one owner and remove superseded implementations and compatibility paths.
+
+Reconcile affected responsibilities and usage instructions in the same change as
+behavior, command or prerequisite updates. Preserve rationale in decision history;
+current architecture describes the implemented system.

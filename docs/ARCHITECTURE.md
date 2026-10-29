@@ -20,5 +20,10 @@ Responsibility documents:
 - [Validation and delivery](architecture/validation-and-delivery.md) defines
   check-only evidence and explicit delivery responsibilities.
 
+Current responsibilities must match shipped code and commands. Update affected
+authorities in the same change when a boundary, behavior or prerequisite changes;
+leave unchanged pages alone. Historical decisions retain rationale rather than
+serving as current usage instructions.
+
 Approved architecture decisions live in `docs/decisions/`. Active work is
 governed by stable change packages under `changes/`.

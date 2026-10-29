@@ -42,3 +42,10 @@ Preserve consequential reasoning with material alternatives, evidence and reopen
 conditions. Refer to original rationale rather than copy it across documents.
 Routine implementation, command output and repeated summaries do not enter a new
 report or decision file. Status is derived; it never becomes another authority.
+
+When changing a contract, owner, command or prerequisite, trace the affected
+architecture and user/Skill instructions during planning and reconcile them in
+the same change before ready. Keep current pages factual and reasons in history;
+record a justified no-update result when the current authority still holds. Link
+checks verify structure, not factual currency. Do not add another maintenance
+report or tests that pin teaching prose.

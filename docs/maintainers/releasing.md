@@ -1,69 +1,62 @@
 # Maintainer release guide
 
-Releasing is separate from development delivery. A ready member, integrated
-batch, passed final gate, or commit on `main` does not by itself authorize a
-version tag, package publication, or GitHub Release.
+## Source and artifacts
 
-## Preconditions
+`engine` owns the Signetum package, bundled `repo-dev` Skill, schemas and source
+Template. `main` is the rendered clone-ready Template, with its own
+`template_version`; it is never the source of an engine package release.
+A GitHub tag `v<engine-version>` identifies one delivered engine commit. Package,
+Skill and schema identities may have different versions; release metadata records
+their actual identities and the full Skill payload digest. Do not retag historical
+RepoSeal releases or rename their published files.
 
-Before requesting publication:
+Skill installers can use `skills/repo-dev` at that exact tag or commit. The wheel
+includes the same folder. No separate Skill release pipeline or installer is
+needed. Use the canonical repository `R0k1e/Signetum` for source, releases and
+Pages; the old repository URL redirects.
 
-1. Confirm the release change was delivered through the repository's exact
-   batch-delivery authority and that remote `main` equals the delivered commit.
-2. Confirm the version in `pyproject.toml`, package `__version__`, packaged
-   skill metadata, schemas, and `CHANGELOG.md` describe one compatible release.
-3. Move the release section from `Unreleased` to its actual release date as a
-   governed change and deliver it before tagging.
-4. Confirm ordinary CI passes for the exact delivered commit.
-5. Confirm the PyPI project has GitHub Actions trusted publishing configured for
-   this repository and release workflow. Missing authentication must fail; the
-   workflow must never report a skipped publication as success.
-6. Confirm the GitHub repository description, topics, homepage, Template flag,
-   license, and social preview describe the current product.
+## Prepare and verify
 
-Recommended repository description:
+Deliver the release change through the normal reviewed engine batch. Confirm the
+chosen source is present in remote `engine`, ordinary CI passed for that exact
+source, and versions and `CHANGELOG.md` describe the intended release. Record the
+release date through a normal change before tagging. Check PyPI trusted publishing
+and GitHub repository metadata. Neither a ready member nor preflight authorizes
+publication.
 
-```text
-Signetum seals every change with traceable requirements, repository-aware Agents, isolated parallel work, behavior tests, and explainable delivery.
+From a clean checkout of the exact delivered source, with the locked environment:
+
+```sh
+git fetch --no-tags origin refs/heads/engine:refs/remotes/origin/engine
+uv sync --locked --all-extras --dev
+uv run signetum release preflight --source "$(git rev-parse HEAD)"
 ```
 
-Recommended repository name:
+Preflight checks clean exact HEAD, membership in delivered engine history and
+actual component versions. It reads no machine-local validation receipt and does
+not claim that CI, final validation or human approval passed. The normal delivery
+protocol owns final validation; hosted release validation runs independently on
+the same source. An unavailable engine ref is a refusal, not a fallback to main.
 
-```text
-Signetum
-```
+## Publish only when explicitly authorized
 
-Recommended topics:
+A maintainer instruction must name the exact source and semantic version. Create
+an annotated `v<version>` tag for that source and push only that tag. The workflow
+checks out `${{ github.sha }}`, fetches engine, and invokes the same preflight with
+`--tag <version-tag>` to verify tag/version/source agreement before building.
+It runs the declared release checks, publishes the exact wheel and sdist through
+PyPI trusted publishing, and creates a GitHub Release with those artifacts, the source/component
+metadata and checksums. Authentication or validation failure must fail publication.
 
-```text
-ai-agents, agentic-development, developer-tools, github-template,
-requirements-traceability, git-worktree, continuous-integration, python
-```
+Do not reuse another commit's build, move an existing tag, or upload substitute
+artifacts. Engine delivery, Template rendering, Pages deployment and package
+publication are distinct actions; authorizing one does not authorize the others.
 
-## Publication
+## Verify the published path
 
-Publication requires an explicit maintainer instruction naming the exact
-delivered source and semantic version. Create an annotated `v<version>` tag only
-for that source and push that exact tag. The tag-triggered workflow checks out
-`${{ github.sha }}`, prepares the locked environment, builds the wheel and
-source distribution, reruns the release validation graph, writes checksums,
-publishes through PyPI trusted publishing, and creates the GitHub Release with
-the same artifacts.
-
-Do not manually upload a different local build, reuse an artifact from another
-commit, move an existing version tag, or publish from a dirty worktree.
-
-## Confirmation
-
-After the workflow completes:
-
-- verify the GitHub Release tag and target commit;
-- download the wheel, source distribution, and `SHA256SUMS` and verify them;
-- verify the package index reports the same version and artifact digests;
-- create a clean repository from the Template and complete the documented
-  Quickstart through validation;
-- record any failure as a new governed Review rather than rewriting the
-  released tag or artifacts.
-
-The Template repositories created before this release remain independent and
-receive no automatic update.
+Download the release wheel, sdist and `SHA256SUMS`; verify hashes, source and
+package-index identity. Install the Skill from the exact public release source
+in a clean agent environment, install that engine once for an existing repository,
+and complete the Quickstart through a small real change and ready. Separately
+render the intended Template revision to main through reviewed delivery and check
+its new-repository Quickstart. Existing consumers adopt updates explicitly.

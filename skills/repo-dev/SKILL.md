@@ -23,7 +23,10 @@ Honor declared schema, profile and skill identities. A mismatch requires an
 explicit adoption change; installing this folder does not change existing pins.
 Use the repository's declared lifecycle commands for workspace and delivery
 operations. Read [adoption](references/adoption.md) only when setting up or
-migrating a repository.
+migrating a repository. Installing the Skill supplies instructions only: an
+existing repository also needs one reviewed engine for adoption, then a local
+host runtime and its declared workspace tools. Check these prerequisites before
+attempting commands; the adoption reference explains the two stages.
 
 Use `status` to see workspace state, retained findings, source-bound receipts and
 the next action. It executes no checks and does not grant readiness. Before
@@ -40,6 +43,9 @@ For changes introducing concurrency, background work or lazy initialization, rea
 [stability](references/stability.md).
 
 During implementation, read [work and validation](references/worktree-validation.md).
+Trace affected architecture, commands and usage instructions when a behavior,
+owner or prerequisite changes. Update those current authorities in the same
+change; history is the reason, not a substitute for current instructions.
 Keep significant findings and accepted decision edits in the source journal
 through its tools. Do not maintain a second handwritten decision summary,
 execution report, review document or command-by-command log.

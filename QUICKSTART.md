@@ -7,8 +7,12 @@ Your application's language, package manager and test framework stay the same.
 
 ## Install the Skill
 
-Install the `skills/repo-dev` folder from the Signetum engine revision you want
-to use with your agent's standard skill installer. Ask:
+Ask your coding agent's standard skill installer to install `skills/repo-dev`
+from [Signetum](https://github.com/R0k1e/Signetum/tree/engine/skills/repo-dev).
+For reproducible use, choose an exact reviewed release tag or commit, not a moving
+branch. The installed skill is named `repo-dev` (displayed as Signetum).
+Installation adds instructions and a launcher; it does not install an engine or
+modify a project. Then ask:
 
 > Use repo-dev to inspect this repository. Show what is needed for adoption;
 > do not change the project yet.
@@ -18,7 +22,11 @@ its local runtime. Install a reviewed wheel with
 `uv tool install /path/to/signetum-<version>-py3-none-any.whl`, or install an exact
 reviewed source revision with
 `uv tool install 'git+https://github.com/R0k1e/Signetum.git@<reviewed-commit>'`.
-Replace the placeholders with the artifact or exact commit you reviewed.
+The agent can resolve the available artifact or source commit and prepare the
+literal command; you review that source. Use a commit actually present in the
+public repository, not an unpublished development worktree. Do not select an old
+RepoSeal artifact merely because it is the newest existing release. Until a
+Signetum release is available, use an exact reviewed Signetum source commit.
 The resulting `signetum adopt` command prepares local files; normal development
 then uses those repository-owned files, without an installed engine dependency.
 
@@ -26,6 +34,13 @@ For a new repository, use GitHub's **Use this template**, clone it and fill in i
 actual product and architecture facts. Inspect `mise.toml`, run `mise trust
 mise.toml`, `mise install` and `uv sync --locked`. The Template already carries
 its runtime and commands; it does not need the existing-repository installer.
+
+Before running workspace operations, the agent checks Git, the host interpreter,
+and the repository-declared Mise and Worktrunk setup. If any is absent, it reports
+the missing prerequisite and setup step before trying the operation. Installing
+this Skill grants no permission to trust or replace tool configuration. After
+adoption, normal commands use the local runtime; the engine install is needed
+again only when preparing an explicitly reviewed update.
 
 ## Review adoption once
 
