@@ -46,3 +46,8 @@ version and avoid repeating the same static check inside another gate. Batch
 admission and conflict continuation run preparation and batch static checks;
 complete final validation judges the assembled result. Keep current how-pages
 self-contained and historical reasons in the existing decision/change history.
+
+Treat installation and first use as part of acceptance. Exercise the installed
+launcher and literal native arguments, not only internal modules. Prefer a
+verified development problem and the consumer's existing tools over additional
+workflow machinery; maintenance and review burden are part of the cost.

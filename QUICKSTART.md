@@ -9,7 +9,10 @@ Use GitHub's **Use this template** action, clone the new repository, and replace
 the example product facts with your own. The new repository does not retain a
 dependency or synchronization relationship with Signetum.
 
+Inspect `mise.toml`, then prepare the declared toolchain:
+
 ```bash
+mise trust mise.toml
 mise install
 uv sync --locked
 ```
@@ -27,7 +30,8 @@ BASE=$(git rev-parse origin/main)
 just workspace-open impl/health-endpoint "$BASE"
 ```
 
-Continue inside the worktree returned by that operation. Follow architecture
+Continue inside the worktree returned by that operation. Trust its reviewed
+`mise.toml` at that new path before using `just`. Follow architecture
 and selected policies, report routing, and read `just protocol current`. While
 coverage is `journal_only`, also inspect relevant declared historical decisions.
 Original rationale is available through `just protocol history` on demand.

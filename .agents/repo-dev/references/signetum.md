@@ -24,3 +24,9 @@ matrices. Generated and installed runtimes keep representative independent
 execution, including their adapter-specific failures. Do not pin teaching prose,
 private call order or historical filenames. Static checks own declared static
 constraints; ordinary documentation edits do not require new tests.
+
+Develop Signetum through the shipped protocol and implementation owners. Exercise
+the actual CLI and installed Skill where usability is affected. Treat self-use
+friction and verified Perdura lessons as inputs to generic product repairs;
+keep application-specific policy outside the core. Include protocol maintenance,
+installation and review burden when judging an improvement.
