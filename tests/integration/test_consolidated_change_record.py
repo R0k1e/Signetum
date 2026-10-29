@@ -173,3 +173,14 @@ contract_digest = "{digest}"
     assert result.returncode == 2
     assert not result.stdout
     assert "does not bind" in json.loads(result.stderr)["reason"]
+
+
+@pytest.mark.parametrize("frontend", ["engine", "template"])
+def test_an_unapproved_change_cannot_claim_completion(tmp_path, record_source, frontend):
+    path = tmp_path / "change.toml"
+    source = record_source.replace("[change]\n", '[change]\nstatus = "complete"\n', 1)
+    path.write_text(source)
+    result = read_record(path, frontend)
+    assert result.returncode == 2
+    assert json.loads(result.stderr)["status"] == "invalid"
+    assert path.read_text() == source
