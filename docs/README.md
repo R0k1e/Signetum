@@ -1,5 +1,7 @@
 # Documentation
 
+Start with [First use](../QUICKSTART.md): install, review adoption and complete one change.
+
 ## Evaluate
 
 - [Why Signetum](product/why-signetum.md)

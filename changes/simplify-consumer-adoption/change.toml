@@ -171,7 +171,7 @@ id = "STEP-6"
 requirements = [
     "USE-006",
 ]
-action = "Exercise existing Python and non-Python application commands without changing metadata; reuse existing public tests and classify additions; reconcile significant discoveries and complete clean ready without downstream modifications, delivery or publication."
+action = "Retain existing Git, authorization, atomic journal, source identity, process and full-final cases. Extend tests/integration/test_protocol_cli.py for semantic writes and inspection, test_development_store.py for historical discovery, test_built_distribution.py for installed adoption, and existing test_language_runners.py for adoption before native traversal. Add tests/unit/test_adoption.py only for the new pure review/apply safety matrix. No prose pins or duplicated frontend matrices. Build, validate installed/generated boundaries, reconcile observations and stop at clean ready."
 
 [change.approval]
 actor = "Repository owner"

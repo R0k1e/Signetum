@@ -14,12 +14,6 @@ one standard Skill plus repository-owned local commands. It connects approved
 requirements, current decisions, implementation evidence and explicit delivery.
 A clone-ready GitHub Template is available for new repositories.
 
-The product is built around development usefulness, self-use and real experience
-from Perdura. Signetum uses its own protocol to develop itself and turns verified
-lessons into reusable tools and instructions. Protocol maintenance is part of the
-cost it must reduce. It is designed for reliable work with large teams of coding
-Agents; claims about scale and outcomes must stay within demonstrated evidence.
-
 Use it when coding Agents need to preserve decisions across sessions, the owner
 needs a compact review of a change, or several members need an explicit shared
 delivery boundary.
@@ -80,10 +74,6 @@ Installation does not adopt a workflow, download a runtime or change a project.
 Existing repositories bind their local runtime and runners through an explicit
 reviewed adoption change. The skill points back here for maintained extensions.
 
-Installation, first use and literal command forwarding are product acceptance
-boundaries. Keep the existing application's environment and test runner; adopt
-only the local bindings needed for its reviewed workflow.
-
 The Signetum engine and the rendered Template use independent semantic
 versions. The package version identifies an engine release; `template_version`
 identifies the clone-ready repository revision and does not mirror the package
@@ -91,26 +81,26 @@ number.
 
 ## Start here
 
-1. Try the [minimal example and failure demonstrations](docs/product/failure-demonstrations.md).
-2. For an existing repository, follow the [explicit adoption guide](docs/guides/existing-runners.md).
-   For a new repository, use GitHub's **Use this template** action and the
-   [Quickstart](QUICKSTART.md).
-3. Read [Development lifecycle](docs/concepts/development-lifecycle.md) for the
-   boundary between the change contract, source history, evidence and acceptance.
-4. Use [Agent Team delivery](docs/workflows/agent-team-delivery.md) for parallel
-   members and batch delivery.
-5. Read [Customizing the Template](docs/guides/customizing-the-template.md)
-   before changing repository authorities.
+Install the [`repo-dev` Skill](https://github.com/R0k1e/Signetum/tree/engine/skills/repo-dev)
+with your coding agent's skill installer, then follow the [first-use guide](QUICKSTART.md).
+Ask the agent:
 
-See the [documentation map](docs/README.md), [why Signetum exists](docs/product/why-signetum.md),
-and [frequently asked questions](docs/product/frequently-asked-questions.md)
-for evaluation and comparison. If you already use a specification tool, read
-[Signetum and specification tools](docs/product/signetum-and-specification-tools.md).
-Copied v0.1 repositories can use the explicit
-[v0.2 adoption guide](docs/guides/upgrading-v0.1-to-v0.2.md).
+> Use repo-dev to inspect this repository and prepare a Signetum adoption preview.
+> Keep our existing tools and show me the changes before applying them.
 
-A complete, non-authoritative teaching artifact is available under
-[`examples/complete-change`](examples/complete-change/README.md).
+After adoption, describe development tasks normally. The agent prepares the
+change record and evidence; you review the intended behavior, consequential
+choices and delivery result. You do not need to edit journal formats or assemble
+protocol requests.
+
+For a new repository, GitHub's **Use this template** action supplies the local
+runtime. Existing repositories use the same [reviewed adoption path](docs/guides/existing-runners.md).
+The [failure demonstrations](docs/product/failure-demonstrations.md) show what
+happens when requirements, checks or source identities do not match.
+
+See the [documentation map](docs/README.md) for operation, customization and
+maintainer references. [Working with a change](docs/product/protocol-in-practice.md)
+explains what the owner reviews and what the agent records.
 
 ## Validate the Template
 

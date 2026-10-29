@@ -5,13 +5,21 @@ repository owns its runtime and bindings. Install this `repo-dev` folder with
 the coding agent's standard skill installer; installation does not modify a
 project or adopt new policies.
 
-When adoption is requested, inspect the existing architecture, language runners,
-workspace policy and delivery authority. Prepare a reviewable local change that
-binds the protocol to those existing tools. The standard layout is `SKILL.md`,
-conditional `references/` and `scripts/`; the maintained source is
-[Signetum](https://github.com/R0k1e/Signetum/tree/engine/skills/repo-dev).
-The engine exports its local utilities through `just protocol`; a rendered
-repository runs the same generated local implementation locally.
+When adoption is requested, read the maintained first-use and adoption guides.
+Use `adopt inspect` through this Skill launcher to inspect without mutation.
+It requires an installed reviewed engine, not an adopted repository. Prepare a
+request with the existing runner, tools, inputs and merged policy; `adopt preview`
+exports the local runtime and returns exact file changes and a plan digest.
+Show that preview and resolve missing prerequisites. Apply the approved plan
+only when authorized. A changed source, target or runtime requires a fresh
+preview; do not force it. Application Justfile and metadata remain owned by the
+consumer. No adoption step executes project commands or creates approval.
+
+After adoption the launcher uses `.agents/repo-dev/run protocol`; existing
+`just protocol` consumers keep their binding. Use the repository's local
+lifecycle launcher for workspaces and delivery. The maintained engine source is
+[Signetum](https://github.com/R0k1e/Signetum/tree/engine); first use is documented
+[here](https://github.com/R0k1e/Signetum/blob/engine/QUICKSTART.md).
 
 For existing history, run `migration inventory`, then `migration preview` with
 explicit source spans, stable clause IDs and topic context. Preserve ambiguous

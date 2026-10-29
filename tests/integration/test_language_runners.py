@@ -11,6 +11,7 @@ from change_fixtures import consolidated_approval
 from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle
+from signetum.adoption import AdoptionRequest, apply, plan_digest, preview
 from signetum.git import git_output
 from signetum.manifest import load_manifest
 from signetum.profiles.existing_runner import ExistingRunnerRequest, existing_runner_validation
@@ -168,6 +169,16 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     command, tools, source, good, metadata = native_application(root, language)
     tools = (*tools, ToolDeclaration("protocol-python", (sys.executable, "--version")))
     binding = configure_existing_runner(root, language, command, tools, metadata)
+    architecture = root / "docs/ARCHITECTURE.md"
+    architecture.parent.mkdir(exist_ok=True)
+    architecture.write_text("# Existing application architecture\n")
+    request = AdoptionRequest(
+        manifest=(root / "signetum.toml").read_text(),
+        policy=(root / ".agents/repo-dev/repo.yaml").read_text(),
+        interpreter=(sys.executable, "-I", "-S"),
+    )
+    plan = preview(root, request)
+    assert apply(root, plan, plan_digest(plan))["status"] == "applied"
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "declare the existing application runner")
     git_output(root, "push", "origin", "main")

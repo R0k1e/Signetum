@@ -10,8 +10,9 @@ repository-owned system, so delivery does not depend on chat history or one
 Agent remembering what happened.
 
 It prevents requirements disappearing, Agents asking users to rediscover the
-repository, parallel work overwriting delivery branches, every member running
-the full suite, and green commits that cannot explain what they delivered.
+repository, parallel work overwriting delivery branches, and green commits that cannot
+explain what they delivered. Member checks are complete by default; an optional
+repository selection provider can reduce repeated work.
 
 ## The workflow
 
@@ -61,11 +62,16 @@ still owns its architecture, behavioral contracts, and test sufficiency.
 ## Start
 
 1. Create a repository with GitHub's **Use this template** action.
-2. Run `mise install`.
+2. Inspect `mise.toml`, then run `mise trust mise.toml`, `mise install` and `uv sync --locked`.
 3. Replace the product facts in `docs/ARCHITECTURE.md`.
-4. Open isolated work with `just workspace-open <branch> <base>`.
-5. Inside that workspace, run `just change-open <kebab-name>`, fill the single
-   record and show `just protocol view <record-path>` for actual confirmation.
+4. Ask your coding agent to use the repository protocol for one small change,
+   show the intended behavior and acceptance before implementation, and stop at ready.
+5. Review the generated proposal and the final evidence. The agent authors the
+   record and journal; you do not assemble protocol requests or repeat summaries.
+
+The [Signetum first-use guide](https://github.com/R0k1e/Signetum/blob/engine/QUICKSTART.md)
+explains Skill installation. This copied repository already has its local runtime;
+keep its existing commands. Explicit delivery remains a separate decision.
 
 See [`docs/development-lifecycle.md`](docs/development-lifecycle.md),
 [`docs/agent-team-delivery.md`](docs/agent-team-delivery.md), and

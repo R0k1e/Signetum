@@ -123,7 +123,9 @@ rather than repeating the entire current set or source history.
 Existing traceability and the common-Git deviation API remain available for
 historical and in-flight packages until explicitly migrated. The new command reports `authority_coverage = journal_only`;
 its working set does not silently absorb or replace historical Markdown
-decisions. Candidate preview input is never treated as an accepted journal.
+decisions. `current` also discovers committed accepted decision sources, their
+blob identities and declared supersession standing, so one entrypoint exposes
+both clause history and retained authority without interpreting prose. Candidate preview input is never treated as an accepted journal.
 
 Agents organize historical working sets using the repository's ordinary change
 and decision process, preserving original sources and rationale for review.
@@ -213,3 +215,15 @@ member inheritance; pure adapter and isolated CLI contracts remain tree tests.
 The application package metadata remains unchanged, and Node/Rust scenarios
 contain no Python project or lockfile. The protocol's host interpreter is
 separate from the application runner.
+
+The engine adoption utility inspects without running application commands,
+previews a portable payload from installed engine resources, and applies only
+an exact approved plan against unchanged source and targets. A common-Git lock
+serializes adoption; ordinary write failure rolls back that invocation. Abrupt
+interruption may leave partial files and requires inspection and a new preview.
+The payload owns a separate local launcher, runtime and workflow reference.
+It never rewrites the application Justfile or package metadata. Policy bindings
+are explicitly merged in the request; the tool does not infer their meaning.
+Semantic journal arguments infer only workspace/change identities and delegate
+to the existing append owner. Advanced atomic requests retain explicit identity
+inputs; neither path grants approval.

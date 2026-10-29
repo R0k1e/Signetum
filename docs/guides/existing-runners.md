@@ -6,11 +6,51 @@ propose bindings for commands the repository already owns. They do not install
 dependencies, introduce a test framework or rewrite application metadata.
 Other languages can bind commands directly through the same validation schema.
 
-For first adoption, use the repository's existing approval and delivery process.
-Stage the reviewed local runtime and required entry wrappers from the same engine
-revision, then merge policy and command bindings instead of replacing existing
-instructions. Do not copy the Python application starter into a Node/Rust repo.
-The new protocol becomes authoritative only after that adoption is accepted.
+## Inspect, preview and apply
+
+Ask the agent to prepare adoption using the repository's existing approval
+process. Install a reviewed engine once as described in the [first-use guide](../../QUICKSTART.md).
+The agent runs:
+
+```bash
+signetum adopt inspect --repository .
+signetum adopt preview --repository . --request /tmp/adoption-request.json --output /tmp/adoption-plan.json
+signetum adopt apply --repository . --plan /tmp/adoption-plan.json --expected-plan <approved-plan-digest>
+```
+
+`inspect` reads repository facts and executes no project command. The agent
+prepares the disposable request; users review the preview, not protocol fields.
+The request contains `manifest` (the complete reviewed `signetum.toml` text),
+`policy` (the merged repository policy YAML text), and optional `interpreter`
+(literal host Python argv, default `["python3"]`). Merge existing authorities
+rather than replacing their settings. Name actual tools, lockfiles, preparation,
+member, batch-static and final checks. Keep outside-world checks final-only.
+The declared architecture file must already exist. Inspect the environment and
+Mise/Worktrunk availability before promising workspace operation success.
+
+The preview retains the source commit, before/after file contents and exact
+runtime payload from the installed engine. It shows binding diffs and the file
+inventory; review existing runtime replacements as an explicit local upgrade.
+Only `apply` writes files. It requires that preview's exact digest, refuses
+changed source, target files or symlink paths, and supports unchanged retries.
+An ordinary application error rolls back files written by that invocation;
+an interrupted process may leave partial files, so inspect before a fresh preview.
+
+The payload supplies `.agents/repo-dev/run`, protocol runtime and workflow
+instructions, then adds one pointer to `AGENTS.md`. Existing Justfile and
+application metadata are untouched. Local commands are:
+
+```bash
+sh .agents/repo-dev/run protocol current
+sh .agents/repo-dev/run workspace-open <branch> <exact-base>
+sh .agents/repo-dev/run ready
+```
+
+The installed Skill discovers this launcher automatically. Template and already
+adopted repositories can retain their existing `just protocol` binding. There
+is one runtime and one execution owner; no project commands run during preview
+or application, and neither creates approval or readiness. Commit the accepted
+adoption through the repository's existing process before using the new workflow.
 
 ## Generate a binding proposal
 

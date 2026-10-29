@@ -7,6 +7,7 @@ from typing import Annotated
 
 import typer
 
+from signetum.adoption import main as adoption_main
 from signetum.findings import FindingsError
 from signetum.lifecycle import main as lifecycle_main
 from signetum.maintenance import main as maintenance_main
@@ -84,6 +85,12 @@ def maintenance(ctx: typer.Context) -> None:
 def protocol(ctx: typer.Context) -> None:
     """Run local change authoring and development-journal utilities."""
     raise typer.Exit(code=protocol_main(list(ctx.args)))
+
+
+@app.command(context_settings=_PASSTHROUGH_CONTEXT, add_help_option=False)
+def adopt(ctx: typer.Context) -> None:
+    """Inspect, preview or explicitly apply local repository adoption."""
+    raise typer.Exit(code=adoption_main(list(ctx.args)))
 
 
 @template_app.command("check")

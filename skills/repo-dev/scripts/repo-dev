@@ -1,6 +1,17 @@
 #!/bin/sh
 # Repository-owned commands remain the execution authority.
 set -eu
+if [ "${1:-}" = adopt ]; then
+    shift
+    if ! command -v signetum >/dev/null 2>&1; then
+        echo "Adoption needs a reviewed Signetum engine; see the maintained first-use guide." >&2
+        exit 127
+    fi
+    exec signetum adopt "$@"
+fi
+if [ -f .agents/repo-dev/run ]; then
+    exec sh .agents/repo-dev/run protocol "$@"
+fi
 if ! command -v just >/dev/null 2>&1; then
     echo "Repository command authority unavailable: install the repository-declared just tool." >&2
     exit 127

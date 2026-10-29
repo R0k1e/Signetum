@@ -751,15 +751,26 @@ def test_real_cli_mutation_and_lazy_read_views_need_no_engine_installation(
     assert json.loads(result.stdout)["observations"][0]["status"] == "pending"
     original = (repository / "changes/alpha/events.jsonl").read_bytes()
     status = git_output(repository, "status", "--porcelain")
+    legacy = repository / "docs/decisions/ADP-existing.md"
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text("# Existing rule\nStatus: Accepted\nSupersedes: None\nSuperseded by: None\n")
+    git_output(repository, "add", str(legacy.relative_to(repository)))
+    git_output(repository, "commit", "-m", "retain existing decision")
     current = _cli(repository, store, "current", isolated=isolated)
     assert current.returncode == 0, current.stderr
-    assert set(json.loads(current.stdout)) == {
+    assert {
         "schema_version",
         "status",
         "history_digest",
         "working_set",
         "authority_coverage",
-    }
+    } <= json.loads(current.stdout).keys()
+    historical = json.loads(current.stdout)["historical_authorities"]
+    assert historical[0]["path"] == "docs/decisions/ADP-existing.md"
+    assert historical[0]["standing"] == "retained"
+    assert historical[0]["blob"] == git_output(
+        repository, "rev-parse", "HEAD:docs/decisions/ADP-existing.md"
+    )
     listing = _cli(repository, store, "status-all", isolated=isolated)
     assert listing.returncode == 0, listing.stderr
     assert "entries" not in json.loads(listing.stdout)
