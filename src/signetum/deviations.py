@@ -19,7 +19,7 @@ from typing import Annotated, Literal, TypedDict
 
 from signetum.change.authority import validate_specification_authority
 from signetum.change.models import DecisionStatus, Identifier
-from signetum.change.scope import changes_root
+from signetum.change.paths import changes_root
 from signetum.contract_values import FrozenContract
 from signetum.git import GitError, git_output, run_git
 from signetum.manifest import ManifestError, load_manifest

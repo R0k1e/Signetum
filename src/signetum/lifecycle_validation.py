@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Protocol
 
 from signetum.change.member import qualify_member
-from signetum.change.scope import changed_commitments, changes_root, delivery_scope
+from signetum.change.paths import changes_root
+from signetum.change.scope import changed_commitments, delivery_scope
 from signetum.decision_identity import numbered_targets
 from signetum.deviations import DeviationError, approval_view, reconciliation_summary
 from signetum.evidence.receipts import EvidenceReceipt

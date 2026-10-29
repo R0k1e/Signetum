@@ -46,7 +46,7 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `preparation` | Configured preparation execution with clean or staged-state guards and unchanged source identity. |
 | `operation_cli` | Shared argument refusals, result categories and retained operation diagnostics. |
 | `change_record`, `decision_clauses`, `decision_history`, `development_log`, `development_store` | Consolidated approval, targeted clause edits, significant source journals and their deterministic current decision projection. |
-| `contract_values`, `change.models`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
+| `contract_values`, `change.models`, `change.paths`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
 | `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and the locked append-only ledger. |
 | `change.member`, `lifecycle_validation`, `provenance`, `execution_review`, `validation.review` | Member qualification, actual package Plans, exact validation and final review/receipt bindings through repository effect adapters. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
@@ -142,3 +142,17 @@ preview, while independent code-only commits preserve unchanged source bindings.
 Partial supersession uses the same predicate as traceability and never revives
 a fully replaced rule. Every preview remains unapproved; selecting a few lines
 does not declare a legacy decision completely migrated or grant write authority.
+
+Member qualification reads a committed consolidated `change.toml` as its sole
+change authority when present. Competing Review, Specification or Plan files
+refuse qualification rather than supplying fallback approval. The record must
+be active, approved, identify the owning change and bind the registered workspace
+base. An implementation commit must follow approval of the exact current
+contract; an earlier approved contract cannot qualify a revised outcome.
+
+For consolidated changes, delivery scope names `change.toml` as the actual
+execution-plan owner. Delivered intent, contract and approval remain protected,
+while execution-step refinements can preserve the same behavior approval.
+Legacy package readers remain available for the historical and in-flight
+packages pending the remaining traceability and review migration; qualification
+of a consolidated member does not imply that this wider migration is complete.

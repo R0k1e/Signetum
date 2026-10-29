@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Protocol
 
 from .change_member import qualify_member
-from .change_scope import changed_commitments, changes_root, delivery_scope
+from .change_paths import changes_root
+from .change_scope import changed_commitments, delivery_scope
 from .configuration import member_shards as select_member_shards
 from .decision_identity import numbered_targets
 from .deviations import DeviationError, approval_view, reconciliation_summary
