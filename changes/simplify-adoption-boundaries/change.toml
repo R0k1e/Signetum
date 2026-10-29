@@ -40,6 +40,9 @@ id = "simplify-adoption-boundaries/boundaries"
 change_id = "simplify-adoption-boundaries"
 authority = "docs/decisions/ADP-optional-selection-and-agent-history.md"
 reason = "The owner explicitly requested deletion of historical working-set specialization and full validation without an optional selector."
+parents = [
+    "perdura-adoption-boundaries/boundaries",
+]
 
 [[change.contract.decisions.topics]]
 expected_version = 1
@@ -141,4 +144,4 @@ action = "Implement the approved boundary and verify public behavior."
 actor = "Repository owner"
 recorded_at = 2026-10-29
 source = "The owner explicitly instructed: 1. 历史工作集我觉得删除专门适配 2. 结构化接口是可选，没选就全量"
-contract_digest = "sha256:71d0a03cf70130017a6f4c82ba3e9cefe2f47349dd648ecb519160ff1b825a35"
+contract_digest = "sha256:7f91403898f9c461d0959512b784c415bb3305fac9c82ccbdee2c78a89b9491d"
