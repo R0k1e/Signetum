@@ -6,6 +6,7 @@ from pathlib import Path
 from shutil import which
 from zipfile import ZipFile
 
+import yaml
 from change_fixtures import approve_change
 from test_batch_admission import MANIFEST
 from test_repository_selection import declare_provider
@@ -474,3 +475,98 @@ print("installed adoption boundaries verified")
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "installed adoption boundaries verified"
     assert not git_output(root, "status", "--porcelain")
+
+
+def test_installed_engine_previews_adopts_and_routes_skill_without_replacing_application(
+    local_repository, tmp_path, installed_python
+):
+    consumer, _ = local_repository
+    architecture = consumer / "docs/ARCHITECTURE.md"
+    architecture.parent.mkdir()
+    architecture.write_text("# Existing application\n")
+    (consumer / "Justfile").write_text("test:\n    existing-application-command\n")
+    metadata = consumer / "package.json"
+    metadata.write_text('{"name":"existing-app"}\n')
+    git_output(consumer, "add", ".")
+    git_output(consumer, "commit", "-m", "existing application authorities")
+    originals = {p.name: p.read_bytes() for p in (metadata, consumer / "Justfile")}
+    request = tmp_path / "adoption request.json"
+    request.write_text(
+        json.dumps(
+            {
+                "manifest": (consumer / "signetum.toml").read_text(),
+                "policy": (consumer / ".agents/repo-dev/repo.yaml").read_text(),
+                "interpreter": [sys.executable, "-I", "-S"],
+            }
+        )
+    )
+    plan = tmp_path / "reviewed plan.json"
+    # The immutable installed payload has no dependencies. Supply only the host's
+    # declared dependency directory; do not process editable .pth files or add source.
+    invoke = [
+        str(installed_python),
+        "-B",
+        "-I",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.append(sys.argv.pop(1)); "
+        "import signetum; assert Path(signetum.__file__).is_relative_to(Path(sys.prefix)); "
+        "from signetum.adoption import main; raise SystemExit(main())",
+        str(Path(yaml.__file__).parent.parent),
+    ]
+    result = subprocess.run(  # noqa: S603 -- installed engine, disposable consumer and literal request
+        [
+            *invoke,
+            "preview",
+            "--repository",
+            str(consumer),
+            "--request",
+            str(request),
+            "--output",
+            str(plan),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    proposal = json.loads(result.stdout)
+    assert proposal["status"] == "proposal"
+    assert not (consumer / ".agents/repo-dev/run").exists()
+    result = subprocess.run(  # noqa: S603 -- apply the exact preview in the disposable consumer
+        [
+            *invoke,
+            "apply",
+            "--repository",
+            str(consumer),
+            "--plan",
+            str(plan),
+            "--expected-plan",
+            proposal["plan_digest"],
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    for name, original in originals.items():
+        assert (consumer / name).read_bytes() == original
+    launcher = tmp_path / "installed skill launcher"
+    with ZipFile(next(Path("dist").glob("signetum-*.whl"))) as wheel:
+        launcher.write_bytes(wheel.read("signetum/resources/skills/repo-dev/scripts/repo-dev"))
+    shell = which("sh")
+    assert shell is not None
+    result = subprocess.run(  # noqa: S603 -- installed launcher discovers the actual adopted local runtime
+        [shell, str(launcher), "current"],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout)["working_set"]["clauses"] == []
+    # The existing application metadata stays untouched; adoption did not create
+    # Python application metadata or readiness evidence for this non-Python consumer.
+    assert not (consumer / "pyproject.toml").exists()
+    assert not list((state_root(consumer) / "validation").glob("*.json"))

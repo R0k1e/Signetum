@@ -8,8 +8,7 @@ Signetum 是语言无关的仓库开发基座，默认提供开箱即用的 Pyth
 Agent 周围的开发流程变成仓库自己的系统，使交付不再依赖聊天记录，也不依赖某个
 Agent 记得之前发生过什么。
 
-它防止需求静默丢失、Agent 让用户重新解释仓库、并行工作覆盖交付分支、每个成员
-重复跑整套测试，以及最后只有绿色提交却说不清交付内容。
+它防止需求静默丢失、Agent 让用户重新解释仓库、并行工作覆盖交付分支、最后只有绿色提交却说不清交付内容。
 
 ## 开发流程
 
@@ -57,7 +56,7 @@ Signetum 保证需求账目和执行边界。产品架构、行为契约以及�
 ## 开始使用
 
 1. 使用 GitHub 的 **Use this template** 创建仓库。
-2. 运行 `mise install`。
+2. `mise trust mise.toml` → `mise install` → `uv sync --locked`。
 3. 在 `docs/ARCHITECTURE.md` 中填写产品的真实架构。
 4. Open isolated work with `just workspace-open <branch> <base>`.
 5. Inside it, run `just change-open <id>`, fill the single record and present

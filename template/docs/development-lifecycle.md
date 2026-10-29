@@ -10,7 +10,11 @@ owner's actual confirmation and exact contract digest before implementation.
 Keep significant findings and accepted clause edits in `events.jsonl` through
 `just protocol` journal commands. Original rationale is available through
 `history`; the current decision view is derived rather than maintained twice.
-`status-all` shows findings and their standing answers. Preserve historical
+`status-all` shows findings and their standing answers. Ordinary operations use
+semantic fields, for example `just protocol record --id finding --requirement
+REQ-001 --summary "What was found" --reason "Why it matters"`. The tool binds
+the approved change and history; use `--change` only if the workspace is ambiguous.
+`current` also lists committed historical decision sources and their standing. Preserve historical
 accepted documents until an explicit reviewed migration replaces their authority.
 
 Run the existing repository checks during implementation. A failed diagnostic

@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from change_fixtures import consolidated_approval
 
 from signetum.change_record import parse_change_record
 from signetum.git import git_output
@@ -189,3 +190,101 @@ def test_diagnostic_refuses_unsupported_execution_before_launch(local_repository
     assert diagnostic_main(["--repository", str(root), "--shard", shard]) == 2
     assert not list((state_root(root) / "validation").glob("*.json"))
     assert not (state / "attempts").exists()
+
+
+def test_adoption_inspection_never_mutates_an_unadopted_repository(local_repository):
+    root, _ = local_repository
+    before = git_output(root, "status", "--porcelain")
+    result = subprocess.run(  # noqa: S603 -- read-only public entrypoint
+        [sys.executable, "-m", "signetum.cli", "adopt", "inspect", "--repository", str(root)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout)["operation"] == "adopt-inspect"
+    assert git_output(root, "status", "--porcelain") == before
+
+
+@pytest.mark.parametrize("frontend", ["engine", "template"])
+def test_semantic_journal_binds_current_change_and_retains_retry_identity(
+    local_repository, frontend
+):
+    root, _ = local_repository
+    base = git_output(root, "rev-parse", "HEAD")
+    git_output(root, "switch", "-c", "plan/semantic")
+    write_record(state_root(root), WorkspaceRecord(1, "plan/semantic", base, "member"))
+    consolidated_approval(root, base)
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "approve semantic record")
+    prefix = (
+        [sys.executable, "-m", "signetum.cli", "protocol"]
+        if frontend == "engine"
+        else [
+            sys.executable,
+            "-I",
+            "-S",
+            str(ROOT / "template/.agents/repo-dev/runtime/protocol.py"),
+        ]
+    )
+    arguments = [
+        "record",
+        "--repository",
+        str(root),
+        "--id",
+        "found",
+        "--requirement",
+        "REQ-1",
+        "--summary",
+        "The public entrypoint needs a repair.",
+        "--reason",
+        "Observed through the real command.",
+    ]
+    for _ in range(2):
+        result = subprocess.run([*prefix, *arguments], capture_output=True, text=True, check=False)  # noqa: S603 -- public CLI in private repository
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert json.loads(result.stdout)["applied_transaction"] == "example/found"
+    journal = root / "changes/example/events.jsonl"
+    assert len(journal.read_text().splitlines()) == 1
+    before = journal.read_bytes()
+    result = subprocess.run(  # noqa: S603 -- an invalid foreign requirement cannot mutate history
+        [*prefix, *[a if a != "REQ-1" else "FOREIGN" for a in arguments]],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert journal.read_bytes() == before
+
+    for command in (
+        [
+            "resolve",
+            "--id",
+            "repair",
+            "--target",
+            "example/found/observation",
+            "--reason",
+            "Existing tracked evidence supplies the outcome.",
+            "--evidence",
+            "seed.txt",
+        ],
+        [
+            "retract",
+            "--id",
+            "reopen",
+            "--target",
+            "example/found/observation",
+            "--resolution",
+            "example/repair/resolution",
+            "--reason",
+            "Inspect the cause once more.",
+        ],
+    ):
+        result = subprocess.run(  # noqa: S603 -- semantic writes use the same guarded owner
+            [*prefix, *command, "--repository", str(root)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+    assert len(journal.read_text().splitlines()) == 3

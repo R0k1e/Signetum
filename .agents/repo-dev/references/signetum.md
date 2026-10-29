@@ -30,3 +30,10 @@ the actual CLI and installed Skill where usability is affected. Treat self-use
 friction and verified Perdura lessons as inputs to generic product repairs;
 keep application-specific policy outside the core. Include protocol maintenance,
 installation and review burden when judging an improvement.
+
+The three product foundations guide maintainers; user entrypoints explain tasks
+and outcomes. Perdura is both an experience source and an intended consumer.
+Validate downstream use through the normal adoption path, retaining its product
+policy and selector. Do not claim downstream adoption from engine tests alone.
+For changes introducing concurrent, lazy or background paths, load
+`skills/repo-dev/references/stability.md` and use its conditional evidence rules.

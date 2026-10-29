@@ -28,44 +28,29 @@ new change or unresolved concern requires another run.
 
 Use `record` for a finding that changes implementation, authority, scope or the
 delivery explanation. Use `resolve`, `retract`, `reconcile` or `retire` for its
-standing answer and accepted decision changes. Each mutation takes a structured
-`--request` and the `--expected-history` returned by `current` or `status-all`.
-Requests bind the expected approval digest. On a stale identity, inspect the
-current state and reassess the request; never force a replacement or edit JSONL.
-A refused write has not entered history. Commit changed authority bindings
-before retrying and verify the applied transaction returned by the owner.
-Ordinary command output stays in local logs, not a handwritten work report.
+standing answer and accepted decision changes. Ordinary writes take semantic
+arguments; the tool binds the current approved change and history identity:
 
-A minimal `record` request has this shape; replace the identities and digest
-with the current approved values. Keep request files disposable; the tool owns
-the durable journal.
-
-```json
-{
-  "id": "change-id/observation-1",
-  "change_id": "change-id",
-  "approval_digest": "sha256:<approved-contract-digest>",
-  "operation": "record",
-  "reason": "Why this finding matters to the approved outcome.",
-  "observations": [{
-    "id": "change-id/finding-1",
-    "requirements": ["REQ-001"],
-    "summary": "The significant finding.",
-    "reason": "Its supporting basis.",
-    "evidence": ["path/to/existing-evidence"]
-  }]
-}
+```text
+record --id finding --requirement REQ-001 --summary "What was found" --reason "Why it matters"
+resolve --id fix --target <observation-id> --reason "What resolves it" --evidence <source-path>
+reconcile --id accepted-decisions --reason "Apply the approved proposals" --accept-decisions
 ```
 
-For `resolve`, use a fresh transaction ID, no new observations, and
-`resolutions` entries with `id`, exact observation `target`, `status`, `reason`
-and `evidence`. Status is `resolved`, `rejected` or `deferred`; a deferral also
-names `followup` as `change-id#REQ-ID` and requires the exact approved transfer.
-A `retract` entry names `id`, `target`, `resolution_id` and `reason`.
-`reconcile` combines changes atomically; its `decisions` must exactly match the
-accepted contract proposals. `retirements` likewise match the contract's exact
-approved evidence-retirement proposals. Each operation uses a fresh namespaced
-ID and the same approved digest; inspect `--help` for command arguments.
+Use the returned observation ID as the exact resolution target. `--id` is a
+stable retry identity: the same content is idempotent; changed content needs a
+new identity. Add `--change` when more than one approved change matches the
+workspace base. `--expected-history` can explicitly bind a previously reviewed
+view; a stale write refuses. A deferred resolution uses `--disposition deferred`
+and `--followup change-id#REQ-ID`, with the exact approved requirement transfer.
+`retract` takes the target and exact prior `--resolution` ID.
+
+The advanced structured `--request` plus `--expected-history` path remains for
+atomic combinations and exact evidence retirement. Do not mix it with semantic
+fields. Both paths use the same locked writer and committed approval. On refusal,
+no write occurred: inspect the reason, commit changed authority bindings if
+needed, and verify the returned applied transaction after retry. Never force a
+replacement or edit JSONL. Ordinary command output stays in local logs.
 
 Commit significant source events before validation freezes the source. Run the
 repository's targeted checks during work and its member gate for ready. A first
