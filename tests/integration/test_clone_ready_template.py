@@ -228,10 +228,9 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate:
     )
     assert ready.returncode == 0, ready.stdout + ready.stderr
     diagnostic_payload = json.loads(diagnostic.stdout)
-    assert diagnostic_payload["outcome"] == "changed"
-    graph, _ = configured_validation(load_manifest(rendered / "signetum.toml"))
-    assert set(diagnostic_payload["executed"]) == set(graph.execution_order("member"))
-    assert diagnostic_payload["checks_started"] is True
+    assert diagnostic_payload["outcome"] == "selection-only"
+    assert diagnostic_payload["executed"] == []
+    assert diagnostic_payload["checks_started"] is False
     assert diagnostic_payload["requires_final"] is True
     ready_payload = json.loads(ready.stdout.splitlines()[-1])
     assert ready_payload["status"] == "passed"
