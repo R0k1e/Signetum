@@ -37,3 +37,7 @@ protocol *args:
 
 change-open name:
     just protocol change-open "$@"
+
+# Explicit development feedback; no workspace registration or readiness receipt.
+test *args:
+    just -- protocol test --shard engine:pytest -- --no-cov "$@"

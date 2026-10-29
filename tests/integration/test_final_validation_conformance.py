@@ -12,9 +12,9 @@ from signetum.deviations import DeviationClass, Discovered, append_event
 from signetum.git import git_output
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture
 def final_runtime(request):
-    return lifecycle if request.param == "engine" else _template_lifecycle()
+    return lifecycle if getattr(request, "param", "engine") == "engine" else _template_lifecycle()
 
 
 def assembled(repository, *, historical=False, rewrite=False, pending=False):
@@ -56,6 +56,7 @@ def assembled(repository, *, historical=False, rewrite=False, pending=False):
     return member, batch, admitted
 
 
+@pytest.mark.parametrize("final_runtime", ["engine", "template"], indirect=True)
 def test_final_reviews_first_delivered_change_and_lists_historical_plan_edit(
     repository, final_runtime
 ):
@@ -83,6 +84,7 @@ def test_final_refuses_an_unresolved_admitted_discovery(repository, final_runtim
     assert not list(final_runtime._receipt_root(batch).glob("final-*.json"))
 
 
+@pytest.mark.parametrize("final_runtime", ["engine", "template"], indirect=True)
 def test_final_cannot_publish_if_admitted_receipt_changes_during_checks(
     repository, final_runtime, monkeypatch
 ):

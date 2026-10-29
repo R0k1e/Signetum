@@ -19,6 +19,7 @@ MODULES = {
     "signetum.profiles.existing_runner": "existing_runner.py",
     "signetum.change_open": "change_open.py",
     "signetum.protocol_cli": "protocol_cli.py",
+    "signetum.test_diagnostic": "test_diagnostic.py",
     "signetum.traceability.records": "traceability_records.py",
     "signetum.change.paths": "change_paths.py",
     "signetum.maintenance": "maintenance.py",

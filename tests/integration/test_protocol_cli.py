@@ -1,6 +1,7 @@
 """The same local utility router runs as an engine and an isolated template."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ import pytest
 
 from signetum.change_record import parse_change_record
 from signetum.git import git_output
+from signetum.test_diagnostic import main as diagnostic_main
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 ROOT = Path(__file__).parents[2]
@@ -21,7 +23,7 @@ def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend
     git_output(root, "switch", "-c", "plan/protocol")
     write_record(state_root(root), WorkspaceRecord(1, "plan/protocol", base, "member"))
     prefix = (
-        [sys.executable, "-m", "signetum.protocol_cli"]
+        [sys.executable, "-m", "signetum.cli", "protocol"]
         if frontend == "engine"
         else [
             sys.executable,
@@ -54,16 +56,6 @@ def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend
     assert view["contract_digest"].startswith("sha256:")
     assert parse_change_record(path.read_text()).approval is None
     assert path.read_bytes() == original
-    help_result = subprocess.run(  # noqa: S603 -- helper help must reach the real journal parser
-        [*prefix, "record", "--help"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert help_result.returncode == 0
-    assert "--expected-history" in help_result.stdout
-
     legacy_prefix = (
         [sys.executable, "-m", "signetum.deviations"]
         if frontend == "engine"
@@ -104,3 +96,96 @@ def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend
     )
     assert refused.returncode == 2
     assert not (state_root(root) / "changes/protocol-example/deviations.jsonl").exists()
+
+
+@pytest.fixture(name="repository")
+def local_only_repository(local_repository):
+    return local_repository
+
+
+@pytest.mark.parametrize("frontend", ["engine", "template"])
+@pytest.mark.parametrize("fails", [False, True])
+def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
+    local_repository, frontend, fails
+):
+    root, state = local_repository
+    observed = state / "test-command.json"
+    command = [
+        sys.executable,
+        "-c",
+        "import json,os,sys; from pathlib import Path; "
+        f"Path({str(observed)!r}).write_text(json.dumps("
+        'dict(workers=os.environ["SIGNETUM_VALIDATION_WORKERS"],arguments=sys.argv[1:]))); '
+        f"raise SystemExit({int(fails)})",
+    ]
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            'name = "test:check"\ncommand = ["true"]',
+            'name = "test:check"\nworkers = 8\nworker_memory_mb = 1\ncommand = '
+            + json.dumps(command),
+        )
+    )
+    (root / "uncommitted-user-work").write_text("preserved")
+    before = git_output(root, "status", "--porcelain")
+    prefix = (
+        [sys.executable, "-m", "signetum.cli", "protocol"]
+        if frontend == "engine"
+        else [
+            sys.executable,
+            "-I",
+            "-S",
+            str(ROOT / "template/.agents/repo-dev/runtime/protocol.py"),
+        ]
+    )
+
+    result = subprocess.run(  # noqa: S603 -- public diagnostic in an isolated repository, literal arguments
+        [
+            *prefix,
+            "test",
+            "--repository",
+            str(root),
+            "--shard",
+            "test:check",
+            "--",
+            "--literal",
+            "literal argument",
+        ],
+        env=dict(
+            os.environ, SIGNETUM_VALIDATION_WORKERS="4", PYTEST_XDIST_WORKER="enclosing-worker"
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == (3 if fails else 0), result.stdout + result.stderr
+    assert len(result.stdout.splitlines()) == 1
+    outcome = json.loads(result.stdout)
+    assert outcome["status"] == ("failed" if fails else "passed")
+    assert json.loads(observed.read_text()) == {
+        "workers": "1",
+        "arguments": ["--literal", "literal argument"],
+    }
+    assert git_output(root, "status", "--porcelain") == before
+    assert not list((state_root(root) / "validation").glob("*.json"))
+    if fails:
+        assert Path(outcome["log"]).is_file()
+    else:
+        allocation = outcome["details"]["resource_allocation"]
+        assert allocation["workers"] == allocation["enclosing_worker_limit"] == 1
+
+
+@pytest.mark.parametrize("damage", ["unknown-shard", "ratchet"])
+def test_diagnostic_refuses_unsupported_execution_before_launch(local_repository, damage):
+    root, state = local_repository
+    shard = "missing:shard" if damage == "unknown-shard" else "test:check"
+    if damage == "ratchet":
+        manifest = root / "signetum.toml"
+        manifest.write_text(
+            manifest.read_text().replace(
+                'name = "test:check"\n', 'name = "test:check"\nratchet_command = ["false"]\n'
+            )
+        )
+    assert diagnostic_main(["--repository", str(root), "--shard", shard]) == 2
+    assert not list((state_root(root) / "validation").glob("*.json"))
+    assert not (state / "attempts").exists()

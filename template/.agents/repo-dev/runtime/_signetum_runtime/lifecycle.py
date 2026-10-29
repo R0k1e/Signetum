@@ -33,7 +33,6 @@ from .execution import (
 )
 from .execution_review import execution_review_inputs
 from .git import GitError, GitInfrastructureError, git_output, run_git
-from .impact import select_paths
 from .lifecycle_validation import validate_workspace
 from .manifest import RepositoryManifest, load_manifest
 from .operation_cli import OperationParser, run_operation
@@ -554,18 +553,8 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     against_second = set(_git(batch, "diff", "--name-only", other, staged_tree).splitlines())
     repaired = tuple(sorted(against_first & against_second))
     manifest = load_manifest(batch / "signetum.toml")
-    selected = select_paths(repaired, manifest.impact.rules)
-    if manifest.impact.provider is not None and repaired:
-        selected = replace(
-            selected,
-            unexplained=repaired,
-            requires_final=True,
-            reasons=(*selected.reasons, "open merge: run full declared member checks"),
-        )
-    shards, _ = _member_shards(manifest, selected, member_closure=False)
-    graph, _ = _runtime_validation(manifest, member_shards=shards)
+    graph, _ = _runtime_validation(manifest)
     executed = {shard.digest for shard in graph.shards if shard.name in preparation["executed"]}
-    repaired_checks = run_diagnostic_gate(batch, graph, "member", executed=executed)
     static = run_diagnostic_gate(batch, graph, "batch", executed=executed, advisory_world=True)
     if _git(batch, "rev-parse", "HEAD") != before or _git(batch, "write-tree") != staged_tree:
         raise ValidationExecutionError("validation changed staged merge identity")
@@ -589,7 +578,6 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
         "status": "continued",
         "preparation": preparation,
         "repaired_paths": list(repaired),
-        "checks": repaired_checks,
         "static": static,
         "batch": str(batch),
         "batch_commit": _git(batch, "rev-parse", "HEAD"),

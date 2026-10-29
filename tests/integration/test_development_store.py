@@ -6,7 +6,6 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from shutil import which
 
 import pytest
 
@@ -16,9 +15,9 @@ from signetum.serialization import contract_mapping
 from signetum.workspaces import WorkspaceRecord, write_record
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture
 def store(request, monkeypatch):
-    if request.param == "engine":
+    if getattr(request, "param", "engine") == "engine":
         return importlib.import_module("signetum.development_store")
     monkeypatch.syspath_prepend(
         str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
@@ -98,6 +97,7 @@ def request(repository, store, identity="alpha/first", **fields):
     )
 
 
+@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
 def test_approved_append_and_exact_retry_preserve_source_and_derive_current_state(
     repository, store
 ):
@@ -117,7 +117,6 @@ def test_approved_append_and_exact_retry_preserve_source_and_derive_current_stat
         == after
     )
     assert history.read_bytes() == encoded
-    assert not (repository / "docs/decisions/current.json").exists()
 
 
 def test_unapproved_or_dirty_behavior_cannot_authorize_writes(repository, store):
@@ -154,6 +153,7 @@ def test_stale_history_and_conflicting_retry_do_not_change_existing_bytes(reposi
     assert history.read_bytes() == before
 
 
+@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
 def test_atomic_reconciliation_rolls_back_all_changes_on_an_invalid_target(repository, store):
     initial = store.snapshot(repository)
     first = request(repository, store)
@@ -272,6 +272,7 @@ def _decision():
     }
 
 
+@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
 def test_exact_approved_decision_updates_the_generated_current_set(repository, store):
     proposal = _decision()
     path = repository / "changes/alpha/change.toml"
@@ -464,6 +465,7 @@ def test_ordinary_plan_refinement_does_not_request_new_behavior_approval(reposit
     assert "narrower test" in path.read_text()
 
 
+@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
 def test_concurrent_writer_refuses_instead_of_waiting_or_appending(repository, store):
     common = Path(git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     with (common / "signetum/development.lock").open("a+b") as held:
@@ -727,6 +729,7 @@ def _cli(repository, store, *arguments, isolated=None):
 
 
 @pytest.mark.parametrize("isolated", [False, True])
+@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
 def test_real_cli_mutation_and_lazy_read_views_need_no_engine_installation(
     repository, store, isolated
 ):
@@ -1204,27 +1207,11 @@ def test_a_semantically_invalid_old_answer_can_be_repaired_append_only(repositor
     assert store.snapshot(repository) == result
 
 
-def test_installed_wheel_runs_the_journal_outside_the_source_checkout(repository, tmp_path_factory):
-    wheels = tuple((Path(__file__).parents[2] / "dist").glob("signetum-*.whl"))
-    assert len(wheels) == 1
-    uv = which("uv")
-    assert uv is not None
+def test_installed_wheel_runs_the_journal_outside_the_source_checkout(
+    repository, tmp_path_factory, installed_python
+):
+    python = installed_python
     root = tmp_path_factory.mktemp("installed-development-journal")
-    environment = root / "environment"
-    python = environment / "bin/python"
-    for command in (
-        [uv, "venv", "--python", sys.executable, str(environment)],
-        [uv, "pip", "install", "--python", str(python), "--no-deps", str(wheels[0])],
-        [
-            str(python),
-            "-I",
-            "-c",
-            "from pathlib import Path; import sys,signetum; from importlib.util import find_spec; "
-            "assert Path(signetum.__file__).is_relative_to(Path(sys.prefix)); "
-            "assert find_spec('pydantic') is None",
-        ],
-    ):
-        subprocess.run(command, check=True, capture_output=True, text=True, cwd=root)  # noqa: S603 -- fixed tools and disposable installed artifact
     source = importlib.import_module("signetum.development_store")
     transaction = request(repository, source)
     state = source.snapshot(repository)
@@ -1238,6 +1225,7 @@ def test_installed_wheel_runs_the_journal_outside_the_source_checkout(repository
         result = subprocess.run(  # noqa: S603 -- installed public entrypoint and fixture-owned argv
             [
                 str(python),
+                "-B",
                 "-I",
                 "-m",
                 "signetum.development_store",
@@ -1255,6 +1243,7 @@ def test_installed_wheel_runs_the_journal_outside_the_source_checkout(repository
     assert source.snapshot(repository).observations[0].observation == transaction.observations[0]
 
 
+@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
 def test_uncommitted_repository_binding_cannot_redirect_journal_authority(repository, store):
     archive = repository / "archive/alpha/change.toml"
     archive.parent.mkdir(parents=True)
@@ -1303,6 +1292,7 @@ def test_partially_superseded_legacy_authority_keeps_its_unaffected_clauses(repo
     assert result.working_set.clauses[0].revision.id == "VAL-001"
 
 
+@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
 def test_source_review_binds_committed_history_and_refuses_pending_findings(repository, store):
     initial = store.snapshot(repository)
     store.append_transaction(

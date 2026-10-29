@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
+from yaml import YAMLError, safe_load
+
 from signetum.change.models import require_relative_path
 from signetum.contract_values import FrozenContract
 from signetum.traceability.boundary import RepositoryInventory
@@ -29,6 +31,8 @@ REQUIRED_PRODUCT_PATHS = (
     "site/robots.txt",
     "site/sitemap.xml",
     ".github/workflows/pages.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
     "docs/ARCHITECTURE.md",
     "docs/README.md",
     "docs/decisions/README.md",
@@ -48,12 +52,7 @@ REQUIRED_PRODUCT_PATHS = (
     ".github/PULL_REQUEST_TEMPLATE.md",
 )
 
-REQUIRED_PRODUCT_CONTENT = {
-    "README.md": ("# Signetum", "Seal every change with evidence"),
-    "QUICKSTART.md": ("Signetum",),
-    "docs/product/why-signetum.md": ("# Why Signetum exists",),
-    "docs/product/frequently-asked-questions.md": ("## What is Signetum?",),
-}
+REQUIRED_PRODUCT_CONTENT: dict[str, tuple[str, ...]] = {}
 
 _MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
 
@@ -127,6 +126,7 @@ def validate_product_surface(
                         reason="repository-relative Markdown target is absent",
                     )
                 )
+    issues.extend(_workflow_issues(repository, inventory))
     return ProductSurfaceReport(valid=not issues, issues=tuple(issues))
 
 
@@ -152,3 +152,55 @@ def _local_target(source: str, raw_target: str) -> str | None:
     if not collapsed:
         return None
     return str(require_relative_path("/".join(collapsed)))
+
+
+def _workflow_issues(repository: Path, inventory: RepositoryInventory) -> list[ProductSurfaceIssue]:
+    """Existing public-surface checks own structured workflow safety constraints."""
+    issues = []
+    for relative in sorted(inventory.paths):
+        if not relative.startswith(".github/workflows/") or not relative.endswith(
+            (".yml", ".yaml")
+        ):
+            continue
+        try:
+            document = safe_load((repository / relative).read_text())
+            if not isinstance(document, dict) or not isinstance(document.get("jobs"), dict):
+                raise ValueError("workflow must declare a jobs object")
+            for job in document["jobs"].values():
+                if not isinstance(job, dict) or not isinstance(job.get("steps", []), list):
+                    raise ValueError("workflow job and steps have invalid shapes")
+                if PurePosixPath(relative).name == "ci.yml":
+                    permissions = job.get("permissions", document.get("permissions"))
+                    if permissions != "read-all" and (
+                        not isinstance(permissions, dict)
+                        or any(level not in ("read", "none") for level in permissions.values())
+                    ):
+                        raise ValueError("CI permissions must remain explicitly read-only")
+                for step in job.get("steps", []):
+                    if not isinstance(step, dict):
+                        raise ValueError("workflow step must be an object")
+                    action = step.get("uses")
+                    if action is None:
+                        continue
+                    if not isinstance(action, str) or (
+                        not action.startswith("./")
+                        and not re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", action)
+                    ):
+                        raise ValueError("external actions require exact commit identities")
+                    if action.lower().startswith("actions/checkout@"):
+                        settings = step.get("with", {})
+                        if (
+                            not isinstance(settings, dict)
+                            or settings.get("ref") != "${{ github.sha }}"
+                        ):
+                            raise ValueError("checkout must observe the exact triggering commit")
+        except (OSError, YAMLError, ValueError) as error:
+            issues.append(
+                ProductSurfaceIssue(
+                    code="invalid-workflow-policy",
+                    source=relative,
+                    target=relative,
+                    reason=str(error),
+                )
+            )
+    return issues

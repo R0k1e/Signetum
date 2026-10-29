@@ -96,7 +96,7 @@ requires = ["engine:sync"]
 
 [[validation.shards]]
 name = "engine:precommit"
-command = ["uv", "run", "pre-commit", "run", "--all-files"]
+command = ["env", "SKIP=ruff,ruff-format", "uv", "run", "--no-sync", "pre-commit", "run", "--all-files"]
 requires = ["engine:sync", "engine:ty"]
 
 [[validation.shards]]

@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+import yaml
+
 from signetum.product_surface import validate_product_surface
 from signetum.traceability.boundary import RepositoryInventory
 
@@ -39,15 +42,15 @@ def test_missing_required_asset_reports_the_exact_path(tmp_path: Path) -> None:
     assert report.issues[0].target == "QUICKSTART.md"
 
 
-def test_required_public_identity_reports_stale_brand_content(tmp_path: Path) -> None:
+def test_explicit_content_policy_reports_its_unmet_declared_requirements(tmp_path: Path) -> None:
     readme = tmp_path / "README.md"
-    readme.write_text("# Development Foundation\n", encoding="utf-8")
+    readme.write_text("Unrelated fixture content\n", encoding="utf-8")
 
     report = validate_product_surface(
         tmp_path,
         _inventory("README.md"),
         required_paths=("README.md",),
-        required_content={"README.md": ("# Signetum", "Seal every change with evidence")},
+        required_content={"README.md": ("required-token-a", "required-token-b")},
     )
 
     assert report.valid is False
@@ -56,8 +59,8 @@ def test_required_public_identity_reports_stale_brand_content(tmp_path: Path) ->
         "missing-required-content",
     ]
     assert {issue.target for issue in report.issues} == {
-        "# Signetum",
-        "Seal every change with evidence",
+        "required-token-a",
+        "required-token-b",
     }
 
 
@@ -129,3 +132,36 @@ def test_link_that_escapes_repository_is_not_treated_as_a_local_asset(tmp_path: 
     )
 
     assert report.valid is True
+
+
+@pytest.mark.parametrize("damage", [None, "permission", "permission-shape", "checkout", "action"])
+def test_structured_workflow_policy_checks_safety_without_pinning_commands(tmp_path, damage):
+    action = "actions/checkout@" + "a" * 40
+    workflow = {
+        "permissions": {"contents": "read"},
+        "jobs": {
+            "test": {
+                "steps": [
+                    {"uses": action, "with": {"ref": "${{ github.sha }}"}},
+                    {"run": "an-arbitrary-valid-diagnostic-entrypoint"},
+                ]
+            }
+        },
+    }
+    if damage == "permission":
+        workflow["permissions"] = {"contents": "write"}
+    elif damage == "permission-shape":
+        workflow["permissions"] = {"contents": ["read"]}
+    elif damage == "checkout":
+        workflow["jobs"]["test"]["steps"][0]["with"]["ref"] = "main"
+    elif damage == "action":
+        workflow["jobs"]["test"]["steps"][0]["uses"] = "actions/checkout@main"
+    path = tmp_path / ".github/workflows/ci.yml"
+    path.parent.mkdir(parents=True)
+    path.write_text(yaml.safe_dump(workflow))
+    result = validate_product_surface(
+        tmp_path, _inventory(".github/workflows/ci.yml"), required_paths=(), required_content={}
+    )
+    assert result.valid is (damage is None)
+    if damage:
+        assert result.issues[0].code == "invalid-workflow-policy"

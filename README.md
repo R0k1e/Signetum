@@ -108,8 +108,9 @@ A complete, non-authoritative teaching artifact is available under
 uv sync --locked
 uv run signetum check product-surface --repository .
 uv run signetum check traceability --repository .
-uv run pytest
 uv build
+uv run signetum protocol test --shard engine:pytest
+uv run signetum protocol test --shard engine:world-tests
 ```
 
 The `signetum` CLI emits one JSON result and exits nonzero for invalid

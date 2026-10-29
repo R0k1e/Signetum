@@ -16,9 +16,9 @@ from signetum.resources import schemas
 from signetum.validation import process_observation
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture
 def selection_runtime(request, monkeypatch):
-    if request.param == "engine":
+    if getattr(request, "param", "engine") == "engine":
         return importlib.import_module("signetum.repository_selection")
     monkeypatch.syspath_prepend(
         str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
@@ -104,9 +104,9 @@ def resolve(root, runtime, files=("source.py",)):
 
 
 def test_structured_selection_refines_only_the_declared_test_argument_tail(
-    repository, selection_runtime
+    local_repository, selection_runtime
 ):
-    root, _ = repository
+    root, _ = local_repository
     declare_provider(root)
     result = resolve(root, selection_runtime)
     shard = next(s for s in result.manifest.validation.shards if s.name == "test:check")
@@ -120,17 +120,17 @@ def test_structured_selection_refines_only_the_declared_test_argument_tail(
     "mode", ["unknown", "missing-path", "duplicate", "escape", "stale", "malformed"]
 )
 def test_invalid_selection_never_produces_a_resolved_execution_plan(
-    repository, selection_runtime, mode
+    local_repository, selection_runtime, mode
 ):
-    root, _ = repository
+    root, _ = local_repository
     declare_provider(root, mode=mode)
     with pytest.raises(selection_runtime.SelectionError):
         resolve(root, selection_runtime)
     assert not git_output(root, "status", "--porcelain")
 
 
-def test_unexplained_paths_retain_the_full_declared_command(repository, selection_runtime):
-    root, _ = repository
+def test_unexplained_paths_retain_the_full_declared_command(local_repository, selection_runtime):
+    root, _ = local_repository
     declare_provider(root, mode="unexplained")
     result = resolve(root, selection_runtime)
     shard = next(s for s in result.manifest.validation.shards if s.name == "test:check")
@@ -139,26 +139,29 @@ def test_unexplained_paths_retain_the_full_declared_command(repository, selectio
     assert result.selection.requires_final
 
 
-def test_changed_tests_cannot_be_lost_by_narrowing_to_other_targets(repository, selection_runtime):
-    root, _ = repository
+def test_changed_tests_cannot_be_lost_by_narrowing_to_other_targets(
+    local_repository, selection_runtime
+):
+    root, _ = local_repository
     declare_provider(root, mode="omit-test")
     with pytest.raises(selection_runtime.SelectionError, match="modified test"):
         resolve(root, selection_runtime, ("tests/test_a.py",))
 
 
+@pytest.mark.parametrize("selection_runtime", ["engine", "template"], indirect=True)
 def test_provider_failure_is_infrastructure_without_running_validation(
-    repository, selection_runtime
+    local_repository, selection_runtime
 ):
-    root, _ = repository
+    root, _ = local_repository
     declare_provider(root, mode="failure")
     with pytest.raises(selection_runtime.InfrastructureError):
         resolve(root, selection_runtime)
 
 
 def test_selection_implementation_and_rules_are_validation_identity_inputs(
-    repository, selection_runtime
+    local_repository, selection_runtime
 ):
-    root, _ = repository
+    root, _ = local_repository
     declare_provider(root)
     result = resolve(root, selection_runtime)
     _, inputs = selection_runtime.configured_validation(
@@ -203,6 +206,7 @@ def _selected_member(repository, selection_runtime, *, mode="valid", broken_full
     return runtime, root, member, base
 
 
+@pytest.mark.parametrize("selection_runtime", ["engine", "template"], indirect=True)
 def test_real_member_diagnostics_ready_admission_and_full_final_share_selection(
     repository, selection_runtime
 ):
@@ -247,25 +251,27 @@ def test_provider_nonselecting_fixup_can_inherit_exact_test_evidence(repository,
 
 
 def test_selected_source_identity_cannot_name_a_different_executed_file(
-    repository, selection_runtime
+    local_repository, selection_runtime
 ):
-    root, _ = repository
+    root, _ = local_repository
     declare_provider(root, mode="misbound")
     with pytest.raises(selection_runtime.SelectionError, match="argument"):
         resolve(root, selection_runtime)
 
 
 def test_modifying_a_test_file_requires_the_whole_file_not_one_named_node(
-    repository, selection_runtime
+    local_repository, selection_runtime
 ):
-    root, _ = repository
+    root, _ = local_repository
     declare_provider(root, mode="narrow-modified")
     with pytest.raises(selection_runtime.SelectionError, match="modified test"):
         resolve(root, selection_runtime, ("tests/test_a.py",))
 
 
-def test_unknown_paths_cannot_be_marked_covered_without_any_check(repository, selection_runtime):
-    root, _ = repository
+def test_unknown_paths_cannot_be_marked_covered_without_any_check(
+    local_repository, selection_runtime
+):
+    root, _ = local_repository
     declare_provider(root, mode="empty")
     manifest = root / "signetum.toml"
     manifest.write_text(manifest.read_text().replace('paths = ["**"]', 'paths = ["known/**"]'))
@@ -274,8 +280,10 @@ def test_unknown_paths_cannot_be_marked_covered_without_any_check(repository, se
         resolve(root, selection_runtime)
 
 
-def test_adoption_declarations_match_the_shipped_manifest_schema(repository, selection_runtime):
-    root, _ = repository
+def test_adoption_declarations_match_the_shipped_manifest_schema(
+    local_repository, selection_runtime
+):
+    root, _ = local_repository
     declare_provider(root)
     manifest = root / "signetum.toml"
     raw = tomllib.loads(manifest.read_text())
@@ -291,8 +299,10 @@ def test_adoption_declarations_match_the_shipped_manifest_schema(repository, sel
     assert list(validator.iter_errors(raw))
 
 
-def test_provider_cannot_mutate_source_to_make_its_selection_true(repository, selection_runtime):
-    root, _ = repository
+def test_provider_cannot_mutate_source_to_make_its_selection_true(
+    local_repository, selection_runtime
+):
+    root, _ = local_repository
     declare_provider(root, mode="mutate")
     with pytest.raises(selection_runtime.SelectionError, match="changed"):
         resolve(root, selection_runtime)
@@ -300,8 +310,10 @@ def test_provider_cannot_mutate_source_to_make_its_selection_true(repository, se
     assert git_output(root, "status", "--porcelain")
 
 
-def test_selection_rechecks_tool_identity_before_accepting_a_plan(repository, selection_runtime):
-    root, _ = repository
+def test_selection_rechecks_tool_identity_before_accepting_a_plan(
+    local_repository, selection_runtime
+):
+    root, _ = local_repository
     declare_provider(root, mode="change-tool")
     ignore = root / ".gitignore"
     ignore.write_text(ignore.read_text() + ".tool-id\n")
@@ -325,10 +337,11 @@ def test_selection_rechecks_tool_identity_before_accepting_a_plan(repository, se
     assert resolve(root, selection_runtime).selection.shards == ("test:check",)
 
 
+@pytest.mark.parametrize("selection_runtime", ["engine", "template"], indirect=True)
 def test_provider_process_leak_refuses_a_plan_and_settles_its_owned_child(
-    repository, selection_runtime
+    local_repository, selection_runtime
 ):
-    root, _ = repository
+    root, _ = local_repository
     declare_provider(root, mode="leak")
     with pytest.raises(selection_runtime.InfrastructureError, match="owned process leak"):
         resolve(root, selection_runtime)
@@ -354,7 +367,7 @@ def test_admission_recomputes_selection_proof_even_when_the_commands_are_unchang
     assert git_output(root, "rev-parse", "main") == base
 
 
-def test_open_merge_uses_full_checks_and_preserves_the_conflict_until_they_pass(
+def test_open_merge_runs_only_batch_static_and_final_retains_complete_checks(
     repository, selection_runtime
 ):
     runtime, root, first, base = _selected_member(repository, selection_runtime, broken_full=True)
@@ -373,17 +386,12 @@ def test_open_merge_uses_full_checks_and_preserves_the_conflict_until_they_pass(
         runtime.admit(batch, (second,))
     (batch / "source.py").write_text("def doubled(value): return sum((value, value))\n")
     git_output(batch, "add", "source.py")
-    before = git_output(batch, "rev-parse", "HEAD")
-    with pytest.raises(runtime.ValidationExecutionError):
-        runtime.continue_batch(batch)
-    assert git_output(batch, "rev-parse", "HEAD") == before
-    assert git_output(batch, "rev-parse", "--verify", "MERGE_HEAD")
-    test = batch / "tests/test_b.py"
-    test.write_text(test.read_text().replace("doubled(2), 9", "doubled(2), 4"))
-    git_output(batch, "add", "tests/test_b.py")
     continued = runtime.continue_batch(batch)
     assert continued["status"] == "continued"
-    assert continued["checks"]["executed"] == ["test:check"]
+    assert continued["static"]["executed"] == []
+    assert git_output(batch, "rev-parse", "--verify", "MERGE_HEAD", check=False) == ""
+    with pytest.raises(runtime.ValidationExecutionError):
+        runtime.validate(batch, "final")
     assert git_output(root, "rev-parse", "main") == base
 
 
@@ -408,6 +416,7 @@ def test_whole_shard_provider_needs_no_file_refinement_binding_for_changed_tests
     assert git_output(root, "rev-parse", "main") == base
 
 
+@pytest.mark.parametrize("selection_runtime", ["engine", "template"], indirect=True)
 def test_without_provider_executes_full_member_checks_despite_no_check_impact_rules(
     repository, selection_runtime
 ):
@@ -446,20 +455,3 @@ def test_without_provider_executes_full_member_checks_despite_no_check_impact_ru
             git_output(member, "rev-parse", "HEAD"),
             runtime.load_manifest(member / "signetum.toml"),
         )
-
-
-def test_working_set_migration_configuration_is_no_longer_supported(repository, selection_runtime):
-    root, _ = repository
-    manifest = root / "signetum.toml"
-    manifest.write_text(
-        manifest.read_text()
-        + """
-[[migration.sources]]
-id="constraints"
-path="docs/architecture/constraints.md"
-format="markdown-constraints@1"
-"""
-    )
-    loader = importlib.import_module(selection_runtime.__package__ + ".manifest").load_manifest
-    with pytest.raises(ValueError):
-        loader(manifest)

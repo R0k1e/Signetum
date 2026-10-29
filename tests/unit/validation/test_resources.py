@@ -74,6 +74,9 @@ def test_invalid_cgroup_measurement_is_infrastructure_failure(tmp_path):
 def test_repository_passes_recorded_allocation_to_actual_command(
     tmp_path, monkeypatch, repository_adapter
 ):
+    # This case supplies standalone host capacity; nested-lane behavior has its own public case.
+    monkeypatch.delenv("SIGNETUM_VALIDATION_WORKERS", raising=False)
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
     adapter, observations, _ = repository_adapter
     monkeypatch.setattr(
         observations, "observe_resources", lambda: observations.ResourceObservation(2, 3000)
@@ -108,7 +111,7 @@ def test_actual_pytest_workers_consume_allocation_and_retry_serially(
         "def test_bounded():\n"
         "    marker=Path(__file__).with_suffix('.first')\n"
         "    if not marker.exists():\n"
-        "        assert os.environ['PYTEST_XDIST_WORKER_COUNT']=='2'\n"
+        "        assert os.environ.get('PYTEST_XDIST_WORKER_COUNT')=='1'\n"
         "        marker.touch()\n"
         "        assert False, 'retry serially'\n"
         "    assert 'PYTEST_XDIST_WORKER' not in os.environ\n"
@@ -123,6 +126,7 @@ def test_actual_pytest_workers_consume_allocation_and_retry_serially(
                 "-q",
                 "-o",
                 "addopts=",
+                "--",
                 "test_bounded.py",
             ),
             workers=8,

@@ -52,8 +52,15 @@ def site_build(
     typer.echo(json.dumps({"files": len(files), "status": "built"}, sort_keys=True))
 
 
+_PASSTHROUGH_CONTEXT = {
+    "allow_extra_args": True,
+    "ignore_unknown_options": True,
+    "allow_interspersed_args": False,
+}
+
+
 @app.command(
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings=_PASSTHROUGH_CONTEXT,
     add_help_option=False,
 )
 def lifecycle(ctx: typer.Context) -> None:
@@ -62,7 +69,7 @@ def lifecycle(ctx: typer.Context) -> None:
 
 
 @app.command(
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings=_PASSTHROUGH_CONTEXT,
     add_help_option=False,
 )
 def maintenance(ctx: typer.Context) -> None:
@@ -71,7 +78,7 @@ def maintenance(ctx: typer.Context) -> None:
 
 
 @app.command(
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings=_PASSTHROUGH_CONTEXT,
     add_help_option=False,
 )
 def protocol(ctx: typer.Context) -> None:

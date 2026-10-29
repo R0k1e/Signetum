@@ -34,7 +34,7 @@ def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path, frontend):
         capture_output=True,
         text=True,
         check=False,
-        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
+        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report), SIGNETUM_VALIDATION_WORKERS="0"),
     )
     assert failed.returncode == 1, failed.stdout + failed.stderr
     assert "1 passed" in failed.stdout, "diagnostic retry did not execute"
@@ -46,6 +46,10 @@ def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path, frontend):
         capture_output=True,
         text=True,
         check=False,
-        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(tmp_path / "fresh.json")),
+        env=dict(
+            os.environ,
+            SIGNETUM_RECOVERY_REPORT=str(tmp_path / "fresh.json"),
+            SIGNETUM_VALIDATION_WORKERS="0",
+        ),
     )
     assert fixed.returncode == 0, fixed.stdout + fixed.stderr

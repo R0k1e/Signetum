@@ -9,8 +9,8 @@ repository check graph. Integration tests therefore consume release inputs
 created from the exact tree under validation, never a `dist/` directory left by
 an earlier command in one worktree. The same gate also invokes the locked Ruff
 check and format contracts, Bandit scan, and dependency audit used by CI; the
-older isolated pre-commit tool version is feedback rather than the sole static
-authority.
+local pre-commit Ruff hooks use that same locked version. The complete gate
+skips those two hooks because their named Ruff shards already own execution.
 
 The named pytest shard owns gate test execution. Pre-commit composes static
 hooks only, so inherited member tests are not secretly rerun by a static hook.
@@ -221,16 +221,18 @@ remove the clean batch worktree and clean member worktrees still at their
 admitted commits; a dirty or advanced member is retained and reported. CI may
 check these contracts but does not fix, merge, publish, or delete branches.
 
-Human control brackets implementation. Before work begins, the approved Review
-and Specifications project one concise approval view containing observable
-outcomes, acceptance evidence, and the execution autonomy boundary. During
-work, delivery-relevant discoveries are appended through the Signetum-owned
-deviation API to the repository Git common directory at
-`signetum/changes/<change-id>/deviations.jsonl`; linked members and the batch
-therefore share one local execution authority without committing it to the
-product tree.
+Human control brackets implementation. The approved change record supplies a
+concise view of outcomes, acceptance and autonomy. Consolidated changes retain
+significant discoveries and accepted clause edits in their source journal through
+`just protocol`; the frozen review binds its committed history and dispositions.
+Validation does not append its own success to that source.
 
-The public ledger API validates each record or resolution before appending,
+Legacy packages retain approved Reviews and Specifications and their existing
+common-Git deviation authority at
+`signetum/changes/<change-id>/deviations.jsonl`. Linked members and the batch share
+that operational state without committing it to the product tree.
+
+The legacy ledger API validates each record or resolution before appending,
 under a nonblocking per-change writer lock. Invalid authority, a repeated ID or
 an already resolved discovery is refused without changing the ledger; a failed
 resolution remains pending and can be corrected through the same API.
@@ -301,7 +303,7 @@ same command again as a static dependency.
 | ready | Close a clean implementation member using its recorded base and exact-tip evidence. |
 | batch-open --member path [...] | Reuse or create a named batch from the fresh configured delivery base and admit only named members. |
 | batch-admit batch --member path [...] | Capture and merge ready tips, then prepare and run the batch gate. Failure retains the merged state for ordinary fixup/re-admission. |
-| batch-continue batch | Prepare the resolved index, check paths whose staged result differs from both parents, run batch static checks, and commit only after success. |
+| batch-continue batch | Prepare the resolved index, run batch static checks, and commit only after success. |
 | final | Freeze under the batch lock, number newly accepted decisions above batch/base/fresh-remote holdings, reconcile, then validate that exact tip. |
 | batch-deliver source target expected-base expected-tip | Publish only the exact validated source, confirm remote identity before moving the target, and apply the shared residue rule. |
 
@@ -356,9 +358,40 @@ conservative full-member checks. Existing impact and mandatory checks remain.
 
 Provider code, rules and tools participate in identity. Admission recomputes the
 exact selection; inheritance also verifies its explanation of intervening paths.
-Final uses the original complete graph and commands. Open merge diagnostics use
-full declared member checks because the index is not a frozen provider source.
+Final uses the original complete graph and commands. Conflict continuation uses
+preparation and batch static checks, without running a selector or another member
+test pass against an open merge. Complete final validation judges integration.
 Without a provider, diagnostics and readiness execute the full declared member
 gate and required checks. Impact rules do not narrow this default or authorize
 test inheritance. Final retains its complete gate, including final-only checks.
 See [structured selection](../guides/structured-selection.md) for the protocol.
+
+
+## Explicit development test diagnostics
+
+`just -- protocol test --shard <declared-shard> -- <native-arguments>` appends
+explicit runner arguments to one declared command. It preserves existing argv
+and targets, uses the same allocator, deadline and owned-process supervisor as
+the gate, and writes no readiness receipt. It needs no registered workspace and
+can inspect uncommitted development work. The caller owns environment preparation
+and required build inputs; there is no hidden sync or build. The engine shortcut
+is `just test <paths-or-pytest-options>`; it disables whole-corpus coverage for
+explicit diagnostics. Ready and CI retain their full coverage requirement.
+CI and release use the same utility for
+the tree and world test shards.
+
+Shards remain sequential. Nested jobs respect the enclosing allocation; an
+xdist worker is one lane and cannot launch another full allocation. The pytest
+adapter records setup/call/teardown totals, slow nodes, elapsed time, reported
+child CPU and the OS largest-child RSS observation in diagnostic output.
+Largest-child RSS is not a whole-worker process-tree peak and cannot justify a
+new memory reserve. Allocation and shard elapsed time use existing details.
+Failed-node diagnostic retries remain serial and preserve the first failure.
+These observations create no timing or test-count threshold.
+
+Core tests cover pure matrices once. Real repository tests retain source,
+authority, locking, atomicity, failure and cleanup boundaries. Portable and
+installed tests retain representative independent execution and adapter-specific
+failures. Test setup provisions remotes only when used; successful installed
+wheel payloads may be read by several consumers in a worker, while mutable
+consumer state and generated outputs remain private. Failed setup is not cached.

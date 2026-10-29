@@ -5,11 +5,18 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import resource
 import subprocess  # nosec B404 -- fixed Python executable, argv, no shell
 import sys
 import tempfile
+import time
 from contextlib import nullcontext
 from pathlib import Path
+
+
+def _options(arguments: list[str], *options: str) -> list[str]:
+    separator = arguments.index("--") if "--" in arguments else len(arguments)
+    return [*arguments[:separator], *options, *arguments[separator:]]
 
 
 def _run(
@@ -39,16 +46,20 @@ def _run(
         if not workers.isdecimal():
             raise ValueError("invalid allocated worker count")
         if importlib.util.find_spec("xdist") is not None:
-            arguments = [*arguments, "-n", workers]
+            arguments = _options(arguments, "-n", workers)
         elif int(workers):
             raise RuntimeError("allocated workers require pytest-xdist")
     if nodes is not None:
         environment["SIGNETUM_RETRY_NODES"] = json.dumps(nodes)
-        arguments = [*arguments, "-k", "", "-m", "", "--maxfail=0"]
+        arguments = _options(arguments, "-k", "", "-m", "", "--maxfail=0")
         if importlib.util.find_spec("xdist") is not None:
-            arguments.append("-n0")
+            arguments = _options(arguments, "-n0")
         if importlib.util.find_spec("pytest_cov") is not None:
-            arguments.append("--cov-append")
+            arguments = _options(arguments, "--cov-append")
+    if not any(arg.startswith("--durations") for arg in arguments):
+        arguments = _options(arguments, "--durations=20")
+    started = time.perf_counter()
+    before = resource.getrusage(resource.RUSAGE_CHILDREN)
     result = subprocess.run(  # noqa: S603  # nosec B603 -- fixed executable, no shell
         [
             sys.executable,
@@ -63,7 +74,21 @@ def _run(
         env=environment,
         check=False,
     )
+    after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    cost = {
+        "event": "validation.pytest",
+        "attempt": "retry" if nodes is not None else "first",
+        "exit_code": result.returncode,
+        "wall_seconds": time.perf_counter() - started,
+        "child_cpu_seconds": (after.ru_utime + after.ru_stime)
+        - (before.ru_utime + before.ru_stime),
+        "largest_child_peak_rss_kib": after.ru_maxrss / (1024 if sys.platform == "darwin" else 1),
+        "workers": 0
+        if nodes is not None
+        else int(environment.get("SIGNETUM_VALIDATION_WORKERS", "0")),
+    }
     if not report.exists():
+        print(json.dumps(cost), file=sys.stderr)
         return result.returncode, []
     document = json.loads(report.read_text(encoding="utf-8"))
     if document["exit_code"] != result.returncode:
