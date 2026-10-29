@@ -46,13 +46,16 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `operations`, `git`, `source_authority`, `workspaces` | Operation values, isolated Git context, committed source proofs and immutable workspace/change records. |
 | `worktrunk` | Supervised Mise execution, repository environment projection and registered workspace inventory parsing. |
 | `preparation` | Configured preparation execution with clean or staged-state guards and unchanged source identity. |
-| `operation_cli` | Shared argument refusals, result categories and retained operation diagnostics. |
+| `operation_cli`, `workflow_status` | Shared argument refusals and diagnostics; read-only workspace, change and recorded-evidence overview. |
 | `change_record`, `decision_clauses`, `decision_history`, `development_log`, `development_store` | Consolidated approval, targeted clause edits, significant source journals and their deterministic current decision projection. |
 | `contract_values`, `change.models`, `change.paths`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
 | `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and the locked append-only ledger. |
 | `change.member`, `lifecycle_validation`, `provenance`, `execution_review`, `validation.review` | Member qualification, actual package Plans, exact validation and final review/receipt bindings through repository effect adapters. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
 | `impact`, `repository_selection`, `selection_contracts`, `selection_request`, `validation` | Explicit source-bound selection, dependency graphs and policy-bound execution identity. |
+| `python_selection` | Optional committed Python import reach through the existing selection protocol; manifest rules own families. |
+| `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Pure weighted units and grouping, pytest adaptation, source-bound optional CI plans/results; no lifecycle receipt authority. |
+| `release` | Exact delivered engine source eligibility and component identities, shared by local and hosted preflight. |
 | `evidence.receipts`, `validation.receipt_store`, `validation.admission`, `validation.inheritance` | Exact evidence values/storage, complete member qualification and conservative ancestor reuse. |
 | `validation.execution`, `process`, `resources`, `recovery`, `pytest_runner`, `pytest_report` | Execution, supervised commands, native resource budgets and retained failed-node recovery. |
 | `validation.diagnostic_protocol`, `validation.ratchet`, `synchronization` | Diagnostic multisets and snapshot measurements against verified synchronization sources. |
@@ -85,8 +88,9 @@ The record and decision-history preview commands never grant approval.
 at `changes/<change-id>/events.jsonl` retains significant observations,
 dispositions and exact accepted decision transactions. The current topic-aware
 working set is derived on read, so there is no second handwritten summary or
-cross-file partial update. `current` returns that working set; `status`
-returns observation dispositions; `history` retrieves a change or event's
+cross-file partial update. `current` returns that working set; `status` derives the workspace, change,
+observation and source-current recorded receipt overview without execution;
+`history` retrieves a change or event's
 original rationale and approval provenance on demand.
 
 Mutations require an active member workspace, its exact registered base and a
@@ -159,9 +163,8 @@ contract; an earlier approved contract cannot qualify a revised outcome.
 For consolidated changes, delivery scope names `change.toml` as the actual
 execution-plan owner. Delivered intent, contract and approval remain protected,
 while execution-step refinements can preserve the same behavior approval.
-Legacy package readers remain available for the historical and in-flight
-packages pending the remaining traceability and review migration; qualification
-of a consolidated member does not imply that this wider migration is complete.
+Legacy package readers remain available for unchanged historical and in-flight
+packages; they do not provide fallback approval for consolidated changes.
 
 Repository approval queries use the safe consolidated-record loader and a
 version-two review projection: each requirement appears once with its stable
@@ -175,12 +178,12 @@ checks exact active follow-up requirement ownership, and uses the same evidence
 progress algorithm as historical packages. A draft remains specified; an
 approved record's execution plan is the record itself. Ready, integration and
 delivery require matching observations, and a completed record never implies
-human acceptance. Historical version-one review projections remain unchanged
-while source journals and final-review reconciliation are being integrated.
+human acceptance. Historical version-one review projections remain readable. Consolidated journals
+and final-review reconciliation use the same committed source qualification.
 
 The standard `skills/repo-dev` folder contains one routing `SKILL.md`, conditional
 references and a local shell launcher. The launcher delegates to the consuming
-repository's `just protocol`; it does not fetch code, adopt policy or install
+repository's adopted `.agents/repo-dev/run protocol`, or its existing `just protocol`; it does not fetch code, adopt policy or install
 an application runner. The wheel carries that same folder for ordinary skill
 installation. Installed-artifact tests run its commands against a disposable
 consumer using the consumer's existing interpreter, including paths with spaces
@@ -227,3 +230,10 @@ are explicitly merged in the request; the tool does not infer their meaning.
 Semantic journal arguments infer only workspace/change identities and delegate
 to the existing append owner. Advanced atomic requests retain explicit identity
 inputs; neither path grants approval.
+
+Engine package releases and the bundled Skill use one delivered `engine` source.
+The rendered `main` Template has an independent revision. `release.preflight`
+checks clean exact source, delivered engine ancestry, actual component identities
+and a supplied release tag; it neither reads local final receipts nor grants
+publication. The release workflow calls this owner before building and validating
+artifacts. [Releasing](../maintainers/releasing.md) owns the maintainer procedure.

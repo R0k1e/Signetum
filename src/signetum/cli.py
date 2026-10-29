@@ -9,14 +9,16 @@ import typer
 
 from signetum.adoption import main as adoption_main
 from signetum.findings import FindingsError
+from signetum.git import GitError
 from signetum.lifecycle import main as lifecycle_main
 from signetum.maintenance import main as maintenance_main
 from signetum.manifest import ManifestError, load_manifest
+from signetum.operation_cli import utility_failure
 from signetum.product_surface import validate_product_surface
 from signetum.profiles import ProfileError, resolve_profiles
 from signetum.profiles.pip_audit import report as pip_audit_report
 from signetum.protocol_cli import main as protocol_main
-from signetum.release import ReleaseError, preflight
+from signetum.release import preflight
 from signetum.serialization import json_value
 from signetum.site import build_site
 from signetum.status.models import EvidenceSnapshot
@@ -221,16 +223,16 @@ def check_product_surface(
 def release_preflight(
     source: Annotated[str, typer.Option()],
     repository: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("."),
+    tag: Annotated[str | None, typer.Option()] = None,
 ) -> None:
-    """Verify that an exact source has matching final evidence."""
+    """Check an exact delivered engine source without granting publication."""
     try:
-        metadata = preflight(repository.resolve(), source)
-    except (OSError, ReleaseError) as error:
-        typer.echo(json.dumps({"error": str(error), "status": "invalid"}, sort_keys=True))
-        raise typer.Exit(code=2) from error
+        metadata = preflight(repository.resolve(), source, tag=tag)
+    except (OSError, ValueError, GitError) as error:
+        raise typer.Exit(code=utility_failure("release-preflight", error)) from error
     typer.echo(
         json.dumps(
-            {"status": "valid", "release": metadata.model_dump(mode="json")},
+            {"schema_version": 1, "status": "valid", "release": metadata.model_dump(mode="json")},
             sort_keys=True,
         )
     )

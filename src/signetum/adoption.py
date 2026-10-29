@@ -42,6 +42,9 @@ Architecture, process and security choices require an accepted decision proposal
 The agent authors records; the owner reviews outcomes and consequential choices.
 Use `record`, `resolve` and `reconcile` for significant findings and accepted
 clause edits. Do not maintain duplicate reports or command-by-command journals.
+When behavior, responsibility, commands or prerequisites change, update affected
+current architecture and usage instructions in the same change. Preserve reasons
+in history; check the affected current authorities before ready.
 Ordinary test output stays in logs. Run the repository's existing targeted checks;
 `ready` binds the exact member tip. A diagnostic retry never clears first failure.
 

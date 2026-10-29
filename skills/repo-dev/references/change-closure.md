@@ -19,4 +19,9 @@ approved retirement proposal. Preserve the original answer and its basis.
 
 Before claiming completion, verify every approved outcome and named deliverable
 against actual evidence. Keep the whole change open for unfulfilled obligations.
+Check affected architecture, command examples, prerequisites and Skill references
+against the implemented behavior. Update stale current guidance; leave unaffected
+pages alone. A passing link check does not establish factual accuracy. Put any
+significant finding or justified no-authority-change outcome in the existing
+journal, not another checklist report.
 Ready, integration, delivery and explicit human acceptance remain distinct.

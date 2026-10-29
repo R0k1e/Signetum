@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess  # nosec B404
+import re
+import tomllib
 from pathlib import Path
-from shutil import which
 
 from pydantic import BaseModel, ConfigDict, Field
+from yaml import YAMLError, safe_load
 
 from signetum import __version__
+from signetum.git import GitError, GitInfrastructureError, git_output
 
 
 class ReleaseError(ValueError):
@@ -37,64 +39,77 @@ def digest_path(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _skill_identity(repository: Path) -> tuple[str, str]:
+    root = repository / "skills" / "repo-dev"
+    try:
+        frontmatter = safe_load((root / "SKILL.md").read_text().split("---", 2)[1])
+        version = frontmatter["metadata"]["version"]
+        if not isinstance(version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+            raise ValueError("Skill version must be an explicit semantic version")
+    except (IndexError, KeyError, TypeError, ValueError, YAMLError) as error:
+        raise ReleaseError(f"invalid Skill identity: {error}") from error
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise ReleaseError("Skill release cannot contain symlinks")
+        if path.is_file():
+            content = path.read_bytes()
+            digest.update(json.dumps([path.relative_to(root).as_posix(), len(content)]).encode())
+            digest.update(content)
+    return version, "sha256:" + digest.hexdigest()
+
+
 def build_metadata(repository: Path, source: str) -> ReleaseMetadata:
-    components = (
-        ReleaseComponent(
-            name="schemas",
-            version=__version__,
-            digest=digest_path(repository / "schemas" / "release-metadata.schema.json"),
-        ),
-        ReleaseComponent(
-            name="repo-dev",
-            version=__version__,
-            digest=digest_path(repository / "skills" / "repo-dev" / "SKILL.md"),
-        ),
-        ReleaseComponent(
-            name="package",
-            version=__version__,
-            digest=digest_path(repository / "pyproject.toml"),
+    schema_path = repository / "schemas" / "release-metadata.schema.json"
+    try:
+        package = tomllib.loads((repository / "pyproject.toml").read_text())["project"]["version"]
+        schema_version = json.loads(schema_path.read_text())["properties"]["schema_version"][
+            "const"
+        ]
+        if type(schema_version) is not int or schema_version <= 0:
+            raise ValueError("release schema version must be a positive integer")
+    except (KeyError, TypeError, ValueError) as error:
+        raise ReleaseError(f"invalid release component identity: {error}") from error
+    if package != __version__:
+        raise ReleaseError("installed engine version differs from release source")
+    skill_version, skill_digest = _skill_identity(repository)
+    return ReleaseMetadata(
+        source=source,
+        components=(
+            ReleaseComponent(
+                name="schemas", version=str(schema_version), digest=digest_path(schema_path)
+            ),
+            ReleaseComponent(name="repo-dev", version=skill_version, digest=skill_digest),
+            ReleaseComponent(
+                name="package", version=package, digest=digest_path(repository / "pyproject.toml")
+            ),
         ),
     )
-    return ReleaseMetadata(source=source, components=components)
 
 
-def preflight(repository: Path, source: str) -> ReleaseMetadata:
-    git = which("git")
-    if git is None:
-        raise ReleaseError("git executable is unavailable")
-    completed = subprocess.run(  # nosec B603
-        (git, "-C", str(repository), "rev-parse", "HEAD"),
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    if completed.stdout.strip() != source:
+def preflight(repository: Path, source: str, *, tag: str | None = None) -> ReleaseMetadata:
+    """Check source eligibility; validation and publication authorization stay separate."""
+
+    def observe(*arguments: str) -> str:
+        try:
+            return git_output(repository, *arguments)
+        except GitInfrastructureError:
+            raise
+        except GitError as error:
+            raise ReleaseError(f"release source check {arguments[0]} failed: {error}") from error
+
+    if observe("rev-parse", "HEAD") != source:
         raise ReleaseError("release source differs from HEAD")
-    dirty = subprocess.run(  # nosec B603
-        (git, "-C", str(repository), "status", "--porcelain"),
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    if dirty.stdout:
+    if observe("status", "--porcelain"):
         raise ReleaseError("release source worktree is dirty")
-    common = subprocess.run(  # nosec B603
-        (git, "-C", str(repository), "rev-parse", "--git-common-dir"),
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    common_path = Path(common)
-    if not common_path.is_absolute():
-        common_path = repository / common_path
-    receipts = sorted((common_path.resolve() / "signetum" / "validation").glob("final-*.json"))
-    if not receipts:
-        raise ReleaseError("final receipt is absent")
-    if not any(
-        json.loads(path.read_text(encoding="utf-8")).get("source") == source for path in receipts
-    ):
-        raise ReleaseError("final receipt does not bind release source")
-    return build_metadata(repository, source)
+    observe("merge-base", "--is-ancestor", source, "refs/remotes/origin/engine")
+    metadata = build_metadata(repository, source)
+    if tag is not None:
+        if tag != "v" + __version__:
+            raise ReleaseError("release tag differs from engine version")
+        if observe("rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}") != source:
+            raise ReleaseError("release tag differs from source")
+    return metadata
 
 
 __all__ = ["ReleaseComponent", "ReleaseError", "ReleaseMetadata", "build_metadata", "preflight"]

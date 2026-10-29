@@ -3,7 +3,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from signetum import release
+from signetum import git as git_tools
 from signetum.cli import app
 from signetum.traceability.boundary import RepositoryInventory
 
@@ -117,15 +117,17 @@ def test_check_product_surface_maps_inventory_failure_to_invocation_result(
 
 
 def test_release_preflight_reports_a_versioned_failure(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(release, "which", lambda executable: None)
+    monkeypatch.setattr(git_tools, "which", lambda executable: None)
 
     result = CliRunner().invoke(
         app,
         ["release", "preflight", "--source", "abc", "--repository", str(tmp_path)],
     )
 
-    assert result.exit_code == 2
-    assert json.loads(result.stdout) == {
-        "error": "git executable is unavailable",
-        "status": "invalid",
-    }
+    assert result.exit_code == 4
+    failure = json.loads(result.stdout)
+    assert failure["schema_version"] == 1
+    assert failure["operation"] == "release-preflight"
+    assert failure["status"] == "infrastructure_error"
+    assert failure["cause"] == "Git executable is unavailable"
+    assert failure["expected"]

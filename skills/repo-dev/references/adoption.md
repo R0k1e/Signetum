@@ -5,6 +5,24 @@ repository owns its runtime and bindings. Install this `repo-dev` folder with
 the coding agent's standard skill installer; installation does not modify a
 project or adopt new policies.
 
+Before commands, distinguish three cases:
+
+- Skill only: instructions are installed; no repository runtime is implied.
+- Existing repository: Git and a host Python 3.12+ are needed. Install one exact
+  reviewed Signetum engine with uv to prepare adoption. The agent obtains an
+  available release or source commit and constructs the request; the owner
+  reviews the preview, not JSON syntax. Workspace operations also need the
+  repository-declared Mise and Worktrunk setup.
+- Adopted repository or rendered Template: use its local runtime and declared
+  tools. Normal development needs no globally installed Signetum engine; the
+  application can retain Node, Rust or another runner.
+
+Check tools without installing or trusting configuration automatically. If a
+prerequisite is missing, identify the exact missing tool and the next setup
+step from the [first-use guide](https://github.com/R0k1e/Signetum/blob/engine/QUICKSTART.md).
+An unavailable source revision needs an available reviewed revision; never
+substitute an old release or download an unreviewed latest version silently.
+
 When adoption is requested, read the maintained first-use and adoption guides.
 Use `adopt inspect` through this Skill launcher to inspect without mutation.
 It requires an installed reviewed engine, not an adopted repository. Prepare a
@@ -45,8 +63,9 @@ protocol interpreter does not impose Python project metadata on the application.
 Historical working sets are read and organized by the agent, using ordinary
 source references and reviewed decision proposals. Do not configure a document
 parser or infer approval from a table. Structured test selection is optional:
-without an explicit provider, diagnostics and readiness run all declared member
-checks without impact narrowing or inherited test skips. Final remains complete.
+without an explicit provider, readiness runs all declared member checks without
+impact narrowing or inherited test skips. Changed only explains selection;
+explicit test diagnostics run the named shard. Final remains complete.
 
 Bind local and CI test diagnostics to the repository's declared test shard and
 one allocator. Keep required preparation explicit. Use one locked static-tool

@@ -76,7 +76,7 @@ for the operation catalog and recovery rules.
 Install the standard [`repo-dev` skill folder](https://github.com/R0k1e/Signetum/tree/engine/skills/repo-dev)
 with your coding agent's skill installer. It contains `SKILL.md`, conditional
 references and a local launcher; the built wheel includes the same folder.
-The launcher calls the consuming repository's `just protocol` commands.
+The launcher uses the adopted local runtime, or an existing `just protocol` binding.
 Installation does not adopt a workflow, download a runtime or change a project.
 Existing repositories bind their local runtime and runners through an explicit
 reviewed adoption change. The skill points back here for maintained extensions.

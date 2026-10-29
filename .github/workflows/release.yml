@@ -21,6 +21,14 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - run: uv python install 3.12
       - run: uv sync --locked --all-extras --dev
+      - name: Verify the delivered engine release source
+        shell: bash
+        env:
+          RELEASE_SOURCE: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          git fetch --no-tags origin refs/heads/engine:refs/remotes/origin/engine
+          uv run --no-sync signetum release preflight --source "$RELEASE_SOURCE" --tag "$RELEASE_TAG" | tee "$RUNNER_TEMP/signetum-release-source.json"
       - run: uv build
       - name: Validate the exact tagged tree
         run: |
@@ -29,6 +37,7 @@ jobs:
           uv run --no-sync ruff check .
           uv run --no-sync ruff format --check .
           uv run --no-sync ty check
+      - run: cp "$RUNNER_TEMP/signetum-release-source.json" dist/release-source.json
       - run: shasum -a 256 dist/* > dist/SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

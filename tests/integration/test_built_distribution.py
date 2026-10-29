@@ -226,6 +226,9 @@ def test_installed_skill_routes_to_existing_repository_commands_and_generates_on
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(wheel.read(name))
     assert (installed / "SKILL.md").is_file()
+    interface = yaml.safe_load((installed / "agents/openai.yaml").read_text())["interface"]
+    assert interface["display_name"] == "Signetum"
+    assert "$repo-dev" in interface["default_prompt"]
     consumer = tmp_path / "existing repository"
     render_template(Path(__file__).parents[2] / "template", consumer)
     # This existing consumer binds its own host runner; the skill must preserve it.
