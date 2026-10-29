@@ -17,8 +17,10 @@ from change_fixtures import commit_approval, consolidated_approval
 from pydantic import JsonValue
 
 import signetum.lifecycle as lifecycle
+from signetum.development_store import snapshot as development_snapshot
 from signetum.validation import command_digest
 from signetum.validation.execution import ShardExecution, build_evidence_identity
+from signetum.workflow_status import workflow_status
 from signetum.workspaces import WorkspaceRecord, write_record
 
 
@@ -286,6 +288,9 @@ def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     assert admitted["ready_evidence"] == "member-lifecycle-ready.json"
     assert admitted["plan"] == ["changes/example/plans/behavior.md"]
     final = lifecycle.validate(batch, "final")
+    overview = workflow_status(batch, development_snapshot(batch), source=final["source"])
+    assert overview["workspace"]["kind"] == "batch"
+    assert any("final" in receipt["gates"] for receipt in overview["receipts"])
     formal = batch / "docs/decisions/ADP-0002-zebra.md"
     assert formal.is_file()
     assert (batch / "docs/decisions/ADP-historical.md").read_text() == legacy.read_text()

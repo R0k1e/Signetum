@@ -1,7 +1,6 @@
 # Generated from signetum.change_open; edit the engine source and regenerate.
 """Create one draft change record in a registered implementation workspace."""
 
-import argparse
 import json
 import re
 from pathlib import Path
@@ -10,6 +9,7 @@ from .change_paths import changes_root
 from .change_record import parse_change_record
 from .git import GitError
 from .manifest import load_manifest
+from .operation_cli import OperationParser, utility_failure
 from .policy import delivery_policy
 from .source_authority import source_path
 from .workspaces import WorkspaceError, branch_name, claim_change, read_record, state_root
@@ -80,15 +80,14 @@ action = "TODO extend the existing owner and verify the outcome."
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = OperationParser(description=__doc__)
     parser.add_argument("name")
     parser.add_argument("--repository", type=Path, default=Path.cwd())
-    parsed = parser.parse_args(arguments)
     try:
+        parsed = parser.parse_args(arguments)
         result = open_change(parsed.repository, parsed.name)
-    except ChangeOpenError as error:
-        print(json.dumps({"status": "refused", "reason": str(error)}, sort_keys=True))
-        return 2
+    except (ValueError, OSError) as error:
+        return utility_failure("change-open", error)
     print(json.dumps(result, sort_keys=True))
     return 0
 

@@ -50,6 +50,13 @@ security checks. Optional [existing-runner bindings](docs/guides/existing-runner
 retain Python, Node and Rust repository commands without changing their test
 frameworks or application metadata.
 
+Daily use is: describe a change, review its proposal, let the agent implement and
+check it, then inspect readiness. `protocol status` explains the current state
+and next step. `changed --explain` previews checks without running them; use it
+only when the plan needs inspection. Test, ready and final retain their separate
+roles. Recovery and optional optimization commands are conditional references,
+not extra steps every change must perform.
+
 ## The lifecycle
 
 ```text

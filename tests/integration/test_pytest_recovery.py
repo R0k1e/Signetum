@@ -113,6 +113,8 @@ def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
         "    assert 'PYTEST_XDIST_WORKER' not in os.environ, 'first parallel failure'\n"
     )
     report = tmp_path / "recovery.json"
+    weights = tmp_path / "weights.json"
+    weights.write_text(json.dumps({"test_parallel.py::test_parallel": 10}))
     result = subprocess.run(  # noqa: S603 -- isolated Python fixture, no shell
         [
             sys.executable,
@@ -124,7 +126,12 @@ def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
             "-n2",
             str(test),
         ],
-        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report), SIGNETUM_VALIDATION_WORKERS="2"),
+        env=dict(
+            os.environ,
+            SIGNETUM_RECOVERY_REPORT=str(report),
+            SIGNETUM_VALIDATION_WORKERS="2",
+            SIGNETUM_SCHEDULE_FILE=str(weights),
+        ),
         capture_output=True,
         text=True,
         check=False,
@@ -263,3 +270,48 @@ print(receipt.to_json(),end='')
     git_output(root, "commit", "-m", "bound recovery history to the current observation")
     bounded = run()
     assert bounded.returncode == 3, bounded.stdout + bounded.stderr
+
+
+def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path, monkeypatch):
+    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", "0")
+    observed = tmp_path / "order"
+    test = tmp_path / "test_order.py"
+    test.write_text(
+        "from pathlib import Path\n"
+        f"OUT=Path({str(observed)!r})\n"
+        'def test_light():\n    with OUT.open("a") as f: f.write("light\\n")\n'
+        'def test_heavy():\n    with OUT.open("a") as f: f.write("heavy\\n")\n'
+    )
+    weights = tmp_path / "weights.json"
+    weights.write_text(json.dumps({"test_order.py::test_heavy": 100}))
+    command = [
+        sys.executable,
+        "-m",
+        "signetum.validation.pytest_runner",
+        "--",
+        "-q",
+        "-o",
+        "addopts=",
+        str(test),
+    ]
+    result = subprocess.run(  # noqa: S603 -- actual runner, measured hints and private application tests
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=dict(os.environ, SIGNETUM_SCHEDULE_FILE=str(weights)),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert observed.read_text().splitlines() == ["heavy", "light"]
+    events = [json.loads(line) for line in result.stderr.splitlines() if line.startswith("{")]
+    cost = next(e for e in events if e.get("event") == "validation.pytest")
+    assert cost["workers"] == 0 and cost["phase_seconds"]["call"] >= 0
+    conflict = subprocess.run(  # noqa: S603 -- incompatible explicit scheduling refuses before test execution
+        [*command, "--dist=loadscope"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=dict(os.environ, SIGNETUM_SCHEDULE_FILE=str(weights)),
+    )
+    assert conflict.returncode != 0
+    assert observed.read_text().splitlines() == ["heavy", "light"]

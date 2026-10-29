@@ -37,3 +37,8 @@ Validate downstream use through the normal adoption path, retaining its product
 policy and selector. Do not claim downstream adoption from engine tests alone.
 For changes introducing concurrent, lazy or background paths, load
 `skills/repo-dev/references/stability.md` and use its conditional evidence rules.
+
+Preserve consequential reasoning with material alternatives, evidence and reopening
+conditions. Refer to original rationale rather than copy it across documents.
+Routine implementation, command output and repeated summaries do not enter a new
+report or decision file. Status is derived; it never becomes another authority.

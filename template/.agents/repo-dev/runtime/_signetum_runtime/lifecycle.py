@@ -96,7 +96,7 @@ def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> Val
     ).selection
 
 
-def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> dict[str, object]:
+def changed(repository: Path, explain: bool) -> dict[str, object]:
     _require_clean(repository)
     base = _recorded_base(repository)
     source = _git(repository, "rev-parse", "HEAD")
@@ -109,12 +109,7 @@ def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> 
     member_shards, deferred = _member_shards(manifest, selected, member_closure=False)
     if manifest.impact.provider is not None:
         selected = with_deferred_world(selected, deferred)
-    graph, inputs = _runtime_validation(manifest, member_shards=member_shards)
-    checks = (
-        {"executed": []}
-        if validate_only
-        else run_diagnostic_gate(repository, graph, "member", member_base=base, tools=inputs.tools)
-    )
+    _runtime_validation(manifest, member_shards=member_shards)
     if _git(repository, "rev-parse", "HEAD") != source:
         raise ValidationExecutionError("diagnostic changed the committed source")
     try:
@@ -123,9 +118,7 @@ def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> 
         raise ValidationExecutionError("diagnostic changed working files") from error
     return {
         "schema_version": 1,
-        "status": "selection-only"
-        if validate_only
-        else ("changed" if checks["executed"] else "nothing-selected"),
+        "status": "selection-only",
         "base": base,
         "source": source,
         "files": files,
@@ -137,10 +130,8 @@ def changed(repository: Path, explain: bool, *, validate_only: bool = False) -> 
         "unexplained": selected.unexplained,
         "requires_final": selected.requires_final,
         "explain": explain,
-        "executed": checks["executed"],
-        "checks_started": bool(checks["executed"]),
-        "shard_details": checks.get("shard_details", {}),
-        "recovered_flake_defects": checks.get("recovered_flake_defects", []),
+        "executed": [],
+        "checks_started": False,
         "deferred_world_shards": deferred,
     }
 
@@ -709,7 +700,6 @@ def _parser() -> argparse.ArgumentParser:
     workspace.add_argument("base")
     diagnostic = commands.add_parser("changed")
     diagnostic.add_argument("--explain", action="store_true")
-    diagnostic.add_argument("--validate-only", action="store_true")
     commands.add_parser("ready")
     opening = commands.add_parser("batch-open")
     opening.add_argument("--member", type=Path, action="append", required=True)
@@ -733,7 +723,7 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     if parsed.command == "workspace-open":
         result = workspace_open(repository, parsed.branch, parsed.base)
     elif parsed.command == "changed":
-        result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
+        result = changed(repository, parsed.explain)
     elif parsed.command == "ready":
         result = validate(repository, "member")
     elif parsed.command == "batch-open":

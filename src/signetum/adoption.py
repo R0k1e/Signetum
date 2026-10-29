@@ -1,6 +1,5 @@
 """Review and apply portable protocol bindings without replacing application tools."""
 
-import argparse
 import difflib
 import fcntl
 import hashlib
@@ -20,6 +19,7 @@ from signetum import __version__
 from signetum.contract_values import FrozenContract
 from signetum.git import git_output
 from signetum.manifest import parse_manifest
+from signetum.operation_cli import OperationParser, utility_failure
 from signetum.runtime_generation import RUNTIME_DIRECTORY, is_runtime_cache, runtime_files
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
 from signetum.source_authority import source_path
@@ -150,7 +150,7 @@ def _payload(request: AdoptionRequest) -> dict[str, str]:
     ]:
         files[f"{runtime}/{name}.py"] = (
             '"""Run the repository-owned protocol implementation."""\n'
-            "import sys\nfrom pathlib import Path\n"
+            "import sys\nsys.dont_write_bytecode = True\nfrom pathlib import Path\n"
             "sys.path.insert(0, str(Path(__file__).resolve().parent))\n"
             f"from _signetum_runtime.{module} import main\n"
             'if __name__ == "__main__":\n    raise SystemExit(main())\n'
@@ -319,15 +319,15 @@ def _replace(path: Path, text: str) -> None:
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = OperationParser(description=__doc__)
     parser.add_argument("operation", choices=["inspect", "preview", "apply"])
     parser.add_argument("--repository", type=Path, default=Path.cwd())
     parser.add_argument("--request", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--plan", type=Path)
     parser.add_argument("--expected-plan")
-    args = parser.parse_args(arguments)
     try:
+        args = parser.parse_args(arguments)
         if args.operation == "inspect":
             if any((args.request, args.output, args.plan, args.expected_plan)):
                 raise ValueError("inspect accepts only the repository")
@@ -374,17 +374,7 @@ def main(arguments: list[str] | None = None) -> int:
             plan = dataclass_from_mapping(AdoptionPlan, load_json(args.plan.read_text()))
             result = apply(args.repository, plan, args.expected_plan)
     except (OSError, ValueError, YAMLError) as error:
-        print(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "status": "refused",
-                    "reason": str(error),
-                    "next": "Preserve local work; correct the bindings and create a fresh preview.",
-                }
-            )
-        )
-        return 2
+        return utility_failure("adopt", error)
     print(json.dumps(result, sort_keys=True))
     return 0
 

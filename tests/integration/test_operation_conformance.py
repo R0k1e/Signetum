@@ -71,7 +71,7 @@ def test_native_cli_preserves_business_outcome_inside_success(frontend, monkeypa
     monkeypatch.setattr(
         frontend, "changed", lambda *a, **k: {"status": "selection-only", "executed": []}
     )
-    assert frontend.main(["changed", "--validate-only"]) == 0
+    assert frontend.main(["changed", "--explain"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result == {
         "schema_version": 1,

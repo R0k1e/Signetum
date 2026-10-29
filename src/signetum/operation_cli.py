@@ -51,21 +51,7 @@ def run_operation(
         GitError,
         OSError,
     ) as error:
-        if isinstance(error, OperationError):
-            status = error.status
-            expected = error.expected
-        elif isinstance(error, (ValidationInfrastructureError, ProfileResourceError)):
-            status = OperationStatus.INFRASTRUCTURE_ERROR
-            expected = "restore the declared validation inputs and tools, then retry"
-        elif isinstance(error, ValidationExecutionError):
-            status = OperationStatus.FAILED
-            expected = "repair the failing checks and retry the operation"
-        elif isinstance(error, OSError):
-            status = OperationStatus.INFRASTRUCTURE_ERROR
-            expected = "restore the required executable or filesystem and retry"
-        else:
-            status = OperationStatus.INVALID
-            expected = "correct the repository manifest and retry"
+        status, expected = _error_category(error)
         log = _archive_operation_failure(repository, str(error), state_root)
         print(f"{operation}: {error}", file=sys.stderr)
         failure = OperationResult(operation, status, {}, str(error), expected, log)
@@ -93,3 +79,27 @@ def _archive_operation_failure(
         return name
     except (OSError, OperationError):
         return None
+
+
+def utility_failure(operation: str, error: Exception, **fields: object) -> int:
+    """Use the same result/exit contract for utilities without another runner."""
+    status, expected = _error_category(error)
+    result = OperationResult(
+        operation, status, {"state_change": "not_confirmed", **fields}, str(error), expected
+    )
+    print(f"{operation}: {error}", file=sys.stderr)
+    print(json.dumps(result.document(), sort_keys=True))
+    return EXIT_CODES[status]
+
+
+def _error_category(error: Exception) -> tuple[OperationStatus, str]:
+    if isinstance(error, OperationError):
+        return error.status, error.expected
+    if isinstance(error, (ValidationInfrastructureError, ProfileResourceError, OSError)):
+        return (
+            OperationStatus.INFRASTRUCTURE_ERROR,
+            "Restore the declared inputs and tools, inspect status, then retry.",
+        )
+    if isinstance(error, ValidationExecutionError):
+        return OperationStatus.FAILED, "Repair the failing checks and retry ordinary validation."
+    return OperationStatus.INVALID, "Correct the input, inspect retained state and retry."

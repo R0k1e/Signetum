@@ -25,7 +25,9 @@ Use the repository's declared lifecycle commands for workspace and delivery
 operations. Read [adoption](references/adoption.md) only when setting up or
 migrating a repository.
 
-Before planning, read the current decision working set with `current`. Retrieve
+Use `status` to see workspace state, retained findings, source-bound receipts and
+the next action. It executes no checks and does not grant readiness. Before
+planning, read the current decision working set with `current`. Retrieve
 original rationale with `history --event <id>` or `history --change <id>` only
 when relevant. The view also lists historical authority sources and their declared standing.
 Consult relevant retained sources; `journal_only` does not mean they were migrated.

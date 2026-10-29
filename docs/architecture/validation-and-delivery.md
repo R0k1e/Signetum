@@ -299,7 +299,7 @@ same command again as a static dependency.
 | Operation | Observable contract |
 | --- | --- |
 | workspace-open branch base | Register the exact base before preparation. Retry the same branch/base after preparation failure; refuse a changed base or role. |
-| changed [--explain] [--validate-only] | Execute all declared member-safe checks by default, or provider-selected checks when configured; --validate-only reports the plan without execution. It never invokes final or grants readiness evidence. |
+| changed [--explain] | Explain the committed contribution and planned member checks without executing shards. It never invokes final or grants readiness evidence. |
 | ready | Close a clean implementation member using its recorded base and exact-tip evidence. |
 | batch-open --member path [...] | Reuse or create a named batch from the fresh configured delivery base and admit only named members. |
 | batch-admit batch --member path [...] | Capture and merge ready tips, then prepare and run the batch gate. Failure retains the merged state for ordinary fixup/re-admission. |
@@ -361,8 +361,8 @@ exact selection; inheritance also verifies its explanation of intervening paths.
 Final uses the original complete graph and commands. Conflict continuation uses
 preparation and batch static checks, without running a selector or another member
 test pass against an open merge. Complete final validation judges integration.
-Without a provider, diagnostics and readiness execute the full declared member
-gate and required checks. Impact rules do not narrow this default or authorize
+Without a provider, readiness executes the full declared member gate and
+required checks; changed explains that plan without executing it. Impact rules do not narrow this default or authorize
 test inheritance. Final retains its complete gate, including final-only checks.
 See [structured selection](../guides/structured-selection.md) for the protocol.
 
@@ -395,3 +395,20 @@ installed tests retain representative independent execution and adapter-specific
 failures. Test setup provisions remotes only when used; successful installed
 wheel payloads may be read by several consumers in a worker, while mutable
 consumer state and generated outputs remain private. Failed setup is not cached.
+
+`changed` is selection-only and never starts a shard. Explicit feedback uses the
+existing diagnostic owner, and ready creates member evidence. `protocol status`
+derives workspace, change, findings and source-current recorded receipt views
+without checks or network access. It does not observe current tool identities or
+re-run a provider, so admission retains qualification authority. There is no
+second status store. Utility refusals share the operation result/exit contract.
+
+Optional Python reach produces the existing selection response without importing
+source. Consumer families and dynamic loader declarations remain bound inputs.
+Unknown data or dynamic reach falls back, and modified tests retain whole-file
+coverage. Weighted scheduling preserves every scheduling unit; hints cannot
+change membership. Partition rules name roots, patterns, binding and shared groups
+as validation inputs. Plans bind source, graph, commands and observed tools.
+Run uses the supervised adapter; combine requires exactly one passing result per
+partition and rejects overlap or stale identity. This is CI diagnostic evidence,
+not a lifecycle final receipt. Preparation stays explicit and final stays complete.

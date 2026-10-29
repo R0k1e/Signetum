@@ -1,6 +1,5 @@
 """Opt-in application runner bindings with no installation or execution effects."""
 
-import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +7,7 @@ from typing import Annotated, Literal
 
 from signetum.contract_values import FrozenContract
 from signetum.manifest import ValidationCommands
+from signetum.operation_cli import OperationParser, utility_failure
 from signetum.serialization import Constraints, contract_mapping, dataclass_from_mapping, load_json
 from signetum.validation import GateDeclaration, ToolDeclaration, ValidationShard
 
@@ -47,10 +47,10 @@ def existing_runner_validation(request: ExistingRunnerRequest) -> ExistingRunner
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = OperationParser(description=__doc__)
     parser.add_argument("--request", type=Path, required=True)
-    parsed = parser.parse_args(arguments)
     try:
+        parsed = parser.parse_args(arguments)
         request = dataclass_from_mapping(
             ExistingRunnerRequest,
             load_json(parsed.request.read_text(encoding="utf-8")),
@@ -58,8 +58,7 @@ def main(arguments: list[str] | None = None) -> int:
         )
         binding = existing_runner_validation(request)
     except (OSError, ValueError) as error:
-        print(json.dumps({"schema_version": 1, "status": "invalid", "reason": str(error)}))
-        return 2
+        return utility_failure("runner", error)
     validation = contract_mapping(binding.validation)
     # These legacy input fields cannot authorize recovered success and are not
     # proposed as new configuration by an existing-runner adapter.

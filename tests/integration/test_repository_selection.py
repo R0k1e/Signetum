@@ -211,7 +211,7 @@ def test_real_member_diagnostics_ready_admission_and_full_final_share_selection(
     repository, selection_runtime
 ):
     runtime, root, member, base = _selected_member(repository, selection_runtime)
-    changed = runtime.changed(member, True, validate_only=True)
+    changed = runtime.changed(member, True)
     assert changed["selection"]["shards"] == ["test:check"]
     ready = runtime.validate(member, "member")
     assert ready["status"] == "ready"
@@ -427,7 +427,7 @@ def test_without_provider_executes_full_member_checks_despite_no_check_impact_ru
     manifest.write_text(text)
     git_output(member, "commit", "-am", "use full default validation")
     changed = runtime.changed(member, True)
-    assert changed["executed"] == ["test:check"]
+    assert changed["executed"] == []
     assert changed["shards"] == ("test:check",)
     first = runtime.validate(member, "member")
     note = member / "docs/note.md"
@@ -445,8 +445,9 @@ def test_without_provider_executes_full_member_checks_despite_no_check_impact_ru
     test = member / "tests/test_b.py"
     test.write_text(test.read_text().replace("doubled(2), 4", "doubled(2), 99"))
     git_output(member, "commit", "-am", "expose full default coverage")
+    assert runtime.changed(member, False)["checks_started"] is False
     with pytest.raises(runtime.ValidationExecutionError, match="test:check"):
-        runtime.changed(member, False)
+        runtime.validate(member, "member")
     with pytest.raises(runtime.ValidationExecutionError, match="test:check"):
         runtime.validate(member, "member")
     with pytest.raises(runtime.AdmissionError):

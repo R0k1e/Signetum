@@ -1,11 +1,9 @@
 # Generated from signetum.migration; edit the engine source and regenerate.
 """Read-only, source-bound inventory and explicit legacy clause mapping previews."""
 
-import argparse
 import hashlib
 import json
 import re
-import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -28,6 +26,7 @@ from .decision_clauses import ClauseRevision, Text
 from .decision_history import TopicRevision
 from .development_log import ObjectId
 from .git import git_output, run_git
+from .operation_cli import OperationParser, utility_failure
 from .serialization import Constraints, contract_mapping, dataclass_from_mapping, load_json
 from .source_authority import (
     authority_roots,
@@ -497,12 +496,12 @@ def preview(repository: Path, proposal: MigrationProposal) -> MigrationPreview:
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = OperationParser(description=__doc__)
     parser.add_argument("operation", choices=["inventory", "preview"])
     parser.add_argument("--repository", type=Path, default=Path.cwd())
     parser.add_argument("--proposal", type=Path)
-    options = parser.parse_args(arguments)
     try:
+        options = parser.parse_args(arguments)
         if options.operation == "inventory":
             if options.proposal is not None:
                 raise ValueError("inventory does not consume a mapping proposal")
@@ -514,11 +513,7 @@ def main(arguments: list[str] | None = None) -> int:
                 options.repository, parse_proposal(load_json(options.proposal.read_text()))
             )
     except (ValueError, OSError, TypeError) as error:
-        print(
-            json.dumps({"schema_version": 1, "status": "invalid", "reason": str(error)}),
-            file=sys.stderr,
-        )
-        return 2
+        return utility_failure("migration", error)
     print(
         json.dumps(
             {"schema_version": 1, "status": "preview", "result": contract_mapping(result)},

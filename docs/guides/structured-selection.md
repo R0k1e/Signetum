@@ -3,8 +3,8 @@
 An existing repository can retain its fine test selection without embedding its
 old gate, retry loop or receipt writer. The optional `signetum.selection@1`
 boundary supplies a plan to Signetum's existing execution and evidence owners.
-Without a provider declaration, `changed` and `ready` run the full declared
-member-safe gate and required checks. Impact rules cannot narrow this default,
+Without a provider declaration, `ready` runs the full declared member-safe gate
+and required checks; `changed` only explains that plan. Impact rules cannot narrow this default,
 and tests are not skipped using ancestor evidence. Final always runs its complete
 declared gate, including final-only checks.
 
@@ -84,8 +84,8 @@ and compares the exact selection. No second gate or receipt store is introduced.
 Inheritance still requires the existing exact input and graph proof, plus the
 provider's explanation of intervening changes. Unknown coverage or changed tests
 rerun the required checks. Final always executes original complete commands;
-member targets never narrow it. Open-merge diagnostics have no frozen committed
-provider source, so they run conservative full-member checks before continuation.
+member targets never narrow it. Conflict continuation uses preparation and batch
+static checks without another provider or member-test pass.
 
 For first adoption use the repository's existing authority. Compare old and new
 selection on fixed source cases, including new files, dependency changes,

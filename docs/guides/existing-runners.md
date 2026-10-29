@@ -18,7 +18,8 @@ signetum adopt preview --repository . --request /tmp/adoption-request.json --out
 signetum adopt apply --repository . --plan /tmp/adoption-plan.json --expected-plan <approved-plan-digest>
 ```
 
-`inspect` reads repository facts and executes no project command. The agent
+`inspect` is an optional prerequisite inventory; preview already validates its
+bindings. It reads repository facts and executes no project command. The agent
 prepares the disposable request; users review the preview, not protocol fields.
 The request contains `manifest` (the complete reviewed `signetum.toml` text),
 `policy` (the merged repository policy YAML text), and optional `interpreter`
@@ -123,7 +124,7 @@ Use the [structured selection boundary](structured-selection.md) when retaining
 repository-owned test dependence or contract-family selection. The optional
 existing-runner adapter alone does not reproduce those algorithms. Keep one
 execution, retry and receipt owner rather than nesting an old complete gate.
-Without a provider, diagnostics and readiness run the full declared member gate.
+Without a provider, readiness runs the full member gate; changed only explains that plan.
 Have the agent organize historical working sets into ordinary reviewed decision
 proposals, retaining source references and rationale without format-specific
 parsing or inferred approval.

@@ -9,7 +9,7 @@ Members run full member checks by default; an optional repository selection
 provider enables targeted checks. Only named ready tips enter a batch;
 final validates its exact frozen source. Significant findings and accepted
 clause edits belong in source journals through `just protocol`, not a second
-handwritten report. `current`, `history` and `status-all` provide the working
+handwritten report. `current`, `history` and `status` provide the working
 set, original rationale and standing answers on demand.
 
 Reconcile findings before final. The generated delivery review binds approved

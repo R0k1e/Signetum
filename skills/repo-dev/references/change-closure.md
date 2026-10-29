@@ -11,7 +11,7 @@ non-goal or arbitrary file cannot carry unfinished work. A scope reduction or
 changed accepted outcome requires owner confirmation; freeze only affected work
 while continuing independent work already authorized.
 
-Use `status-all` to inspect findings. Resolve or justify rejection through the
+Use `status` to inspect findings. Resolve or justify rejection through the
 journal tools; retract an incorrect answer by its exact resolution ID, then
 supply a corrected answer. Retire obsolete evidence only through an exact
 approved retirement proposal. Preserve the original answer and its basis.
