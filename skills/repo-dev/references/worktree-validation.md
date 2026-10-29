@@ -32,6 +32,8 @@ standing answer and accepted decision changes. Each mutation takes a structured
 `--request` and the `--expected-history` returned by `current` or `status-all`.
 Requests bind the expected approval digest. On a stale identity, inspect the
 current state and reassess the request; never force a replacement or edit JSONL.
+A refused write has not entered history. Commit changed authority bindings
+before retrying and verify the applied transaction returned by the owner.
 Ordinary command output stays in local logs, not a handwritten work report.
 
 A minimal `record` request has this shape; replace the identities and digest
