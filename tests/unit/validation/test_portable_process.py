@@ -1,5 +1,6 @@
 """Installed-independent command supervision survives caller termination."""
 
+import signal
 import subprocess
 import sys
 import time
@@ -18,8 +19,10 @@ ROOT = Path(__file__).parents[3]
     ],
 )
 @pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize("detached", [False, True])
+@pytest.mark.parametrize("interrupt", [False, True])
 def test_caller_death_terminates_owned_commands_without_site_packages(
-    tmp_path, runtime, module, nested
+    tmp_path, runtime, module, nested, detached, interrupt
 ):
     started = tmp_path / "started"
     orphan = tmp_path / "orphan"
@@ -34,6 +37,12 @@ def test_caller_death_terminates_owned_commands_without_site_packages(
         "Path(sys.argv[1]).touch(); time.sleep(1); Path(sys.argv[2]).touch()"
     )
     invocation = [sys.executable, "-I", "-S", "-c", child, str(started), str(orphan)]
+    if detached:
+        launch = (
+            "import subprocess,time; "
+            f"subprocess.Popen({invocation!r},start_new_session=True); time.sleep(30)"
+        )
+        invocation = [sys.executable, "-I", "-S", "-c", launch]
     if nested:
         inner = header + f"run_command(Path.cwd(),{invocation!r},timeout_seconds=30)"
         invocation = [sys.executable, "-I", "-S", "-c", inner]
@@ -50,7 +59,7 @@ def test_caller_death_terminates_owned_commands_without_site_packages(
             while not started.exists() and caller.poll() is None and time.monotonic() < deadline:
                 time.sleep(0.02)
             assert started.exists(), "owned command never started"
-            caller.kill()
+            caller.send_signal(signal.SIGINT) if interrupt else caller.kill()
             caller.communicate(timeout=3)
         finally:
             if caller.poll() is None:

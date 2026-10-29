@@ -168,8 +168,21 @@ but an ancestor containing recovered failures cannot replace fresh normal
 execution. Source-local failure logs retain both attempts, and successful
 receipts are not written for failed runs. Legacy recovery-window and threshold
 configuration cannot authorize a pass or weaken this first-failure rule.
-Shard timeouts terminate the owned process group, including the pytest adapter's
-child processes, before returning a failure.
+Each command carries a fresh local owner token while retaining enclosing job
+tokens. On normal exit the supervisor inventories its session and token-bearing
+detached processes, checks PID birth identity before each signal, and performs
+bounded TERM/KILL cleanup. A leak turns an otherwise successful command into a
+failure; an already failed command retains its original exit code. Native
+observation unavailability blocks success as infrastructure failure. Linux uses
+procfs and macOS uses public native process interfaces without application
+packages. Timeout, cancellation and the parent-held lease also clean owned
+detached descendants before returning or terminating the supervisor.
+
+The current observer recognizes verified session membership and inherited owner
+tokens. Detached children that deliberately clear their environment still need
+the registered scratch-root ownership channel required by
+[RELIABLE-008](../../changes/reliable-agentic-protocol/specs/protocol.toml);
+this implementation checkpoint does not close that requirement.
 
 Each nested check adapter owns an independent process group and deadline. A
 supervisor watches a parent-held pipe and terminates its group if its caller
