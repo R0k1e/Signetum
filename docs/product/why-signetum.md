@@ -1,47 +1,55 @@
 # Why Signetum exists
 
-Coding Agents can write code quickly, but repository delivery fails for reasons
-that code generation alone does not solve: a requirement stays in chat, an
-Agent misses an existing authority, parallel sessions overwrite one another,
-every branch repeats expensive tests, or a green commit cannot explain what was
-actually delivered.
+Signetum is a reliable agentic development and delivery protocol: one standard
+Skill, repository-owned instructions and local commands that connect an approved
+change to its implementation, evidence and explicit delivery.
 
-Signetum makes the repository itself carry the answer. It seals each recorded
-requirement to explicit design, isolated implementation, behavior evidence, and
-an inspectable delivery instead of letting those obligations disappear in chat.
+An Agent can produce working code while losing a requirement, repeating an old
+decision or reporting success for a commit that was never checked. Signetum makes
+these obligations inspectable after the conversation has ended.
 
-## Requirement coverage is a relation, not a checklist
+## One change, one record
 
-A Review preserves atomic human clauses. Exactly one approved Specification
-owns each active clause, and its Plan maps every clause to implementation and
-evidence. A postponed clause must transfer to another approved Specification.
-This makes recorded coverage machine-checkable without claiming perfect
-natural-language interpretation.
+New work starts with one structured change record. It keeps the intent, stable
+requirements, acceptance, autonomy and execution steps together. Tools generate
+the approval view; the owner confirms the exact contract before implementation.
+An omitted requirement or unapproved contract cannot qualify for readiness.
+Historical Review, Specification and Plan packages remain readable during
+migration; new work does not require three parallel handwritten documents.
 
-## Repository comprehension starts from evidence
+## History for explanation, a working set for action
 
-The architecture map, repository manifest, focused policy, production search,
-and public behavior tests identify existing authorities before a Plan proposes
-changes. An inspectable routing manifest shows what the Agent loaded and why;
-the Plan must still demonstrate concrete understanding through authority, reuse,
-contract, and adversarial analysis.
+Significant findings and accepted decision edits enter an append-only source
+journal through local tools. Stable decision clauses can be amended individually;
+unaffected clauses retain their authority. A topic-organized current working set
+is derived from accepted history, with original rationale available on demand.
+It is not another summary for Agents to maintain by hand. Until historical
+adoption is complete, relevant legacy decisions must still be consulted.
 
-## Parallelism ends at one controlled batch
+## Evidence has an identity
 
-Agent Team members work in isolated, Plan-owned worktrees. Each member closes
-against its exact commit. A batch admits only explicitly named members, runs the
-complete gate once on the frozen combined tree, and delivers only that validated
-identity. This reduces repeated full-suite work without weakening the final
-contract.
+Readiness binds the exact member commit and declared validation inputs. A later
+commit needs fresh evidence. Diagnostic retry success does not erase the first
+failure. An explicit batch combines named ready members and validates its frozen
+source before delivery. Publication confirms the remote identity before moving
+the local delivery target, and interrupted publication has an explicit retry path.
 
-## Delivery remains reviewable after the chat is gone
+These are observable contracts, not a guarantee that every requirement was
+understood or that passing software contains no defects. The protocol does not
+replace the repository's behavioral tests or the owner's review.
 
-The machine-readable delivery result records requirements, Plans, original and
-integrated commits, the validated batch tip, the delivery commit, remote
-confirmation, and cleanup. Human acceptance remains a later, explicit state.
+## Start with your existing repository
 
-## What Signetum is not
+Keep the application's runner and environment authority. The protocol core does
+not prescribe an application language; optional Python, Node and Rust bindings
+reuse existing commands. Installing the Skill alone neither adopts the protocol
+nor authorizes delivery. See the [existing-runner adoption guide](../guides/existing-runners.md).
 
-Signetum is not an Agent runtime, project-management service, hosted CI
-product, or guarantee of defect-free software. It is a standalone GitHub
-Template for repositories that want an inspectable Agent development lifecycle.
+Try the [minimal example and failure demonstrations](failure-demonstrations.md),
+then read the [practice article](protocol-in-practice.md). The
+[Quickstart](../../QUICKSTART.md) covers a new Template repository.
+
+The distribution is local and repository-owned. There is no cross-machine
+ledger, account service or automatic workflow upgrade. Reduced review time,
+fewer defects and faster delivery are intended benefits, not measured results
+claimed by this release.
