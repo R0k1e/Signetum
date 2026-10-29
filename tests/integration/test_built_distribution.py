@@ -8,6 +8,7 @@ from zipfile import ZipFile
 
 from change_fixtures import approve_change
 from test_batch_admission import MANIFEST
+from test_repository_selection import declare_provider
 
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
@@ -380,3 +381,71 @@ contract_digest = "{digest}"
     assert refused.returncode != 0
     assert list(unadopted.iterdir()) == [existing]
     assert existing.read_text() == "existing:\n    echo existing task\n"
+
+
+def test_installed_runtime_exercises_selection_and_historical_working_set_sources(
+    repository, tmp_path
+):
+    root, _ = repository
+    declare_provider(root)
+    constraints = root / "docs/architecture/constraints.md"
+    constraints.parent.mkdir(parents=True, exist_ok=True)
+    constraints.write_text(
+        "# Validation\n| do_not | because |\n| --- | --- |\n"
+        "| Clear a failure by retry | Retry is diagnostic. Reopen when approved. |\n"
+    )
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text()
+        + """
+[[migration.sources]]
+id="constraints"
+path="docs/architecture/constraints.md"
+format="markdown-constraints@1"
+"""
+    )
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "bind installed adoption boundaries")
+    wheels = tuple(Path("dist").glob("signetum-*.whl"))
+    assert len(wheels) == 1
+    uv = which("uv")
+    assert uv is not None
+    environment = tmp_path / "installed environment"
+    python = environment / "bin/python"
+    output = tmp_path / "installed runtime"
+    for command in (
+        (uv, "venv", "--python", sys.executable, str(environment)),
+        (uv, "pip", "install", "--python", str(python), "--no-deps", str(wheels[0].resolve())),
+        (str(python), "-I", "-m", "signetum.runtime_generation", str(output)),
+    ):
+        subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)  # noqa: S603 -- installed artifact in a disposable environment
+    script = """
+import sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from _signetum_runtime.git import git_output
+from _signetum_runtime.manifest import load_manifest
+from _signetum_runtime.repository_selection import select_repository
+from _signetum_runtime.migration import inventory
+root=Path(sys.argv[2]); source=git_output(root,"rev-parse","HEAD")
+selected=select_repository(root,load_manifest(root/"signetum.toml"),("source.py",),base=source,source=source)
+shard=next(s for s in selected.manifest.validation.shards if s.name=="test:check")
+assert shard.command[-1]=="tests/test_a.py"
+legacy=inventory(root)
+assert legacy.schema_version==2
+assert legacy.working_sets[0].status=="declared_working_set"
+assert legacy.working_sets[0].rows[0].because=="Retry is diagnostic. Reopen when approved."
+assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
+print("installed adoption boundaries verified")
+"""
+    completed = subprocess.run(  # noqa: S603 -- isolated generated runtime from the installed wheel
+        [str(python), "-I", "-S", "-c", script, str(output / RUNTIME_DIRECTORY.parent), str(root)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "installed adoption boundaries verified"
+    assert not git_output(root, "status", "--porcelain")

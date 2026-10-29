@@ -1,6 +1,7 @@
 """One manifest-to-validation projection shared by all repository adapters."""
 
 from collections.abc import Mapping
+from dataclasses import replace
 
 from signetum.evidence.receipts import ValidationSelection
 from signetum.manifest import ManifestError, RepositoryManifest
@@ -32,12 +33,24 @@ def configured_validation(
     graph = resolve_validation_graph(
         (GraphContribution("repository", manifest.validation.shards, gates),)
     )
+    tools = manifest.validation.tools
+    files = tuple(sorted(manifest.repository.lockfiles))
+    if provider := manifest.impact.provider:
+        by_name = {tool.name: tool for tool in tools}
+        if len(by_name) != len(tools) or len(set(files)) != len(files):
+            raise ManifestError("selection requires unique validation tools and artifact inputs")
+        files = tuple(sorted({*files, provider.entrypoint, *provider.inputs}))
+        for tool in provider.tools:
+            if tool.name in by_name and by_name[tool.name] != tool:
+                raise ManifestError("selection and validation declare conflicting tool identities")
+            by_name[tool.name] = tool
+        tools = tuple(by_name.values())
     try:
         inputs = ValidationInputs(
             "signetum.toml",
             tuple(sorted(profile.identity for profile in resolved)),
-            tuple(sorted(manifest.repository.lockfiles)),
-            manifest.validation.tools,
+            files,
+            tools,
             base=base,
             selection=selection,
             schema_digest=manifest.signetum.evidence_schema_digest,
@@ -77,7 +90,21 @@ def member_shards(
     for gate in selection.gates:
         for shard in gate_shards.get(gate, ()):
             admit(shard)
-    if selection.unexplained and member_closure:
+    if selection.unexplained and (member_closure or manifest.impact.provider is not None):
         for shard in gate_shards["member"]:
             admit(shard)
     return tuple(selected), tuple(sorted(deferred))
+
+
+def with_deferred_world(
+    selection: ValidationSelection, deferred: tuple[str, ...]
+) -> ValidationSelection:
+    return (
+        replace(
+            selection,
+            reasons=selection.reasons
+            + tuple(f"world shard {name} deferred to final" for name in deferred),
+        )
+        if deferred
+        else selection
+    )

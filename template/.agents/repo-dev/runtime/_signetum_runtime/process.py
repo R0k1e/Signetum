@@ -50,6 +50,7 @@ def run_command(
     *,
     timeout_seconds: float,
     environment: Mapping[str, str] | None = None,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     observer = _observer()
     owner = uuid.uuid4().hex
@@ -80,6 +81,7 @@ def run_command(
         with subprocess.Popen(  # noqa: S603  # nosec B603
             invocation,
             cwd=repository,
+            stdin=subprocess.PIPE if input_text is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -91,7 +93,7 @@ def run_command(
             os.close(lease_read)
             lease_read = -1
             try:
-                stdout, stderr = process.communicate(timeout=timeout_seconds)
+                stdout, stderr = process.communicate(input=input_text, timeout=timeout_seconds)
             except BaseException as error:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)

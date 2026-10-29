@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceReceipt,
     ReceiptError,
+    ValidationSelection,
     verify_gate_evidence,
 )
 from signetum.git import GitError, git_output
@@ -43,6 +45,8 @@ def find_test_inheritance(
     inputs: ValidationInputs,
     adapter: ValidationAdapter,
     receipt_root: Path,
+    *,
+    selector: Callable[[tuple[str, ...], str, str], ValidationSelection] | None = None,
 ) -> InheritedEvidence | None:
     """A malformed or incompatible nearest receipt never falls back to an older one."""
     member_names = set(graph.execution_order("member"))
@@ -102,7 +106,7 @@ def find_test_inheritance(
             }
         )
     )
-    selected = select_paths(paths, rules)
+    selected = selector(paths, nearest, current.commit) if selector else select_paths(paths, rules)
     if selected.unexplained or selected.modified_tests:
         return None
     affected = set(selected.shards)

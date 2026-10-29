@@ -2,7 +2,6 @@
 
 import json
 from collections.abc import Callable
-from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -17,12 +16,13 @@ from signetum.deviations import DeviationError, approval_view, reconciliation_su
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.execution_review import execution_review_inputs
 from signetum.git import git_output
-from signetum.impact import select_paths
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.operations import AdmissionError
+from signetum.repository_selection import select_repository
 from signetum.synchronization import member_contribution_paths
 from signetum.validation import ValidationGraph
 from signetum.validation.configuration import member_shards as select_member_shards
+from signetum.validation.configuration import with_deferred_world
 from signetum.validation.execution import (
     ValidationAdapter,
     ValidationExecutionError,
@@ -113,20 +113,20 @@ def validate_workspace(
         approvals = None
     manifest = load_manifest(repository / "signetum.toml")
     gate = "member" if kind == "member" else "final"
-    selected = (
-        select_paths(member_contribution_paths(repository, base, source), manifest.impact.rules)
-        if base is not None
-        else None
-    )
+    declared_manifest = manifest
+    selected = None
     member_shards: tuple[str, ...] | None = None
-    if selected is not None:
+    if base is not None:
+        resolved = select_repository(
+            repository,
+            manifest,
+            member_contribution_paths(repository, base, source),
+            base=base,
+            source=source,
+        )
+        manifest, selected = resolved.manifest, resolved.selection
         member_shards, deferred = select_member_shards(manifest, selected)
-        if deferred:
-            selected = replace(
-                selected,
-                reasons=selected.reasons
-                + tuple(f"world shard {name} deferred to final" for name in deferred),
-            )
+        selected = with_deferred_world(selected, deferred)
     graph, initial_inputs = configure(manifest, member_shards=member_shards)
     try:
         waivers = load_waivers(repository)
@@ -145,7 +145,21 @@ def validate_workspace(
     adapter = adapter_factory(repository, member_base=base)
     inherited = (
         find_test_inheritance(
-            repository, manifest.impact.rules, graph, inputs, adapter, receipt_root(repository)
+            repository,
+            manifest.impact.rules,
+            graph,
+            inputs,
+            adapter,
+            receipt_root(repository),
+            selector=(
+                lambda paths, ancestor, tip: (
+                    select_repository(
+                        repository, declared_manifest, paths, base=ancestor, source=tip
+                    ).selection
+                )
+            )
+            if declared_manifest.impact.provider is not None
+            else None,
         )
         if kind == "member"
         else None

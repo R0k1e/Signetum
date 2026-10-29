@@ -7,6 +7,7 @@ from tomllib import loads
 from typing import Literal
 
 from signetum.profiles.catalog import validate_selection
+from signetum.selection_contracts import SelectionProvider
 from signetum.serialization import dataclass_from_mapping
 from signetum.validation import GateDeclaration as ValidationGate
 from signetum.validation import ToolDeclaration as ValidationTool
@@ -91,6 +92,7 @@ class ImpactRule:
 @dataclass(frozen=True, kw_only=True)
 class ImpactConfiguration:
     rules: tuple[ImpactRule, ...] = ()
+    provider: SelectionProvider | None = None
 
     def __post_init__(self) -> None:
         if len(self.rules) != len({rule.name for rule in self.rules}):

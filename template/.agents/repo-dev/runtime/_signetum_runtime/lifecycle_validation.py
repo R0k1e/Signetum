@@ -3,7 +3,6 @@
 
 import json
 from collections.abc import Callable
-from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -12,6 +11,7 @@ from .change_member import qualify_member
 from .change_paths import changes_root
 from .change_scope import changed_commitments, delivery_scope
 from .configuration import member_shards as select_member_shards
+from .configuration import with_deferred_world
 from .decision_identity import numbered_targets
 from .development_store import DevelopmentReviewError
 from .development_store import reconciliation_summary as source_reconciliation_summary
@@ -25,11 +25,11 @@ from .execution import (
 )
 from .execution_review import execution_review_inputs
 from .git import git_output
-from .impact import select_paths
 from .inheritance import find_test_inheritance
 from .manifest import RepositoryManifest, load_manifest
 from .operations import AdmissionError
 from .receipt_store import ReceiptStore
+from .repository_selection import select_repository
 from .synchronization import member_contribution_paths
 from .validation import ValidationGraph
 from .validation_review import member_recovery_review, recovery_projection
@@ -114,20 +114,20 @@ def validate_workspace(
         approvals = None
     manifest = load_manifest(repository / "signetum.toml")
     gate = "member" if kind == "member" else "final"
-    selected = (
-        select_paths(member_contribution_paths(repository, base, source), manifest.impact.rules)
-        if base is not None
-        else None
-    )
+    declared_manifest = manifest
+    selected = None
     member_shards: tuple[str, ...] | None = None
-    if selected is not None:
+    if base is not None:
+        resolved = select_repository(
+            repository,
+            manifest,
+            member_contribution_paths(repository, base, source),
+            base=base,
+            source=source,
+        )
+        manifest, selected = resolved.manifest, resolved.selection
         member_shards, deferred = select_member_shards(manifest, selected)
-        if deferred:
-            selected = replace(
-                selected,
-                reasons=selected.reasons
-                + tuple(f"world shard {name} deferred to final" for name in deferred),
-            )
+        selected = with_deferred_world(selected, deferred)
     graph, initial_inputs = configure(manifest, member_shards=member_shards)
     try:
         waivers = load_waivers(repository)
@@ -146,7 +146,21 @@ def validate_workspace(
     adapter = adapter_factory(repository, member_base=base)
     inherited = (
         find_test_inheritance(
-            repository, manifest.impact.rules, graph, inputs, adapter, receipt_root(repository)
+            repository,
+            manifest.impact.rules,
+            graph,
+            inputs,
+            adapter,
+            receipt_root(repository),
+            selector=(
+                lambda paths, ancestor, tip: (
+                    select_repository(
+                        repository, declared_manifest, paths, base=ancestor, source=tip
+                    ).selection
+                )
+            )
+            if declared_manifest.impact.provider is not None
+            else None,
         )
         if kind == "member"
         else None
