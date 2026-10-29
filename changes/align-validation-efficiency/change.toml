@@ -154,7 +154,7 @@ id = "STEP-2"
 requirements = [
     "EFF-002",
 ]
-action = "Replace the four intent labels with one neutral fixture; move pure change-record cases to core tests. Merge repeated generated matrices in change records, journals, selection and conformance suites while retaining independent adapter-specific and isolated execution. Retain codec, source-ownership, failure and cleanup boundaries; remove prose pins only where no product contract is lost."
+action = "Replace the four text labels in tests/integration/test_consolidated_change_record.py with one neutral fixture; move retained pure matrices to tests/unit/test_change_record.py. Merge mechanical frontend duplication in development_store, repository_selection, migration_preview, preparation, member authority, final validation and evidence inheritance tests; retain their core matrices and representative independent portable paths. Retain receipt-decoding variants, real Git provenance, locks, rollback, failure and cleanup contracts. Replace tests/test_workflow_authority.py spelling inventories with structured safety validation in the existing product_surface owner; delete only obsolete history-name and teaching-prose pins. Extend protocol_cli acceptance for the newly shared diagnostic boundary."
 
 [[change.execution.steps]]
 id = "STEP-3"
@@ -175,7 +175,7 @@ id = "STEP-5"
 requirements = [
     "EFF-005",
 ]
-action = "Extend reusable fixture owners: separate local Git from remote acquisition and reuse successful read-only installed wheel payloads per worker. Remove superseded duplicate static invocations and use the locked toolchain."
+action = "Separate tests/conftest.py local repositories from remote preparation; use local fixtures where no remote is read. Reuse successful wheel installations per worker by content identity, preserving separate consumer and generated-output roots. Keep locked Ruff hooks for local feedback, skip duplicate hook execution in the gate, and use --no-sync after outer preparation."
 
 [[change.execution.steps]]
 id = "STEP-6"
