@@ -10,7 +10,9 @@ from change_fixtures import approve_change, consolidated_approval
 from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle
+from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
+from signetum.serialization import contract_mapping
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
@@ -247,3 +249,107 @@ def test_delivery_scope_refuses_a_symlink_record_as_a_structured_error(authority
     manifest = runtime.load_manifest(root / "signetum.toml")
     with pytest.raises(module.ChangeError, match="regular committed file"):
         module.delivered_plans(root, manifest, ("example",), git_output(root, "rev-parse", "HEAD"))
+
+
+@pytest.mark.parametrize(
+    "application", ["decision", "observation", "approval-only", "tampered", "borrowed"]
+)
+def test_authority_only_ready_requires_an_exact_applied_decision(authority, application):
+    runtime, root, marker, scratch = authority
+    base = git_output(root, "rev-parse", "HEAD")
+    member = scratch / "decision-member"
+    branch = "plan/decision-member"
+    git_output(root, "worktree", "add", "-b", branch, str(member), base)
+    write_record(state_root(root), WorkspaceRecord(1, branch, base, "member"))
+    path = consolidated_approval(member, base)
+    proposal = (
+        '{id="example/initial",change_id="example",'
+        'authority="changes/example/change.toml#decisions/example/initial",'
+        'reason="Retain the accepted boundary.",topics=[{expected_version=0,'
+        'revision={id="validation",version=1,'
+        'summary="Validation does not authorize delivery."}}]}'
+    )
+    source = path.read_text().split("[change.approval]")[0]
+    source = source.replace(
+        "[change.contract]\n", "[change.contract]\ndecisions=[" + proposal + "]\n"
+    )
+    digest = contract_digest(parse_change_record(source).contract)
+    source += f'''[change.approval]
+actor = "Owner"
+recorded_at = 2026-10-29
+source = "Owner confirmed the exact decision fixture."
+contract_digest = "{digest}"
+'''
+    path.write_text(source)
+    commit(member, "approve exact decision")
+    module = importlib.import_module(
+        "signetum.development_store"
+        if runtime is lifecycle
+        else "_signetum_runtime.development_store"
+    )
+    decision = parse_change_record(source).contract.decisions[0]
+    request: dict[str, object] = dict(
+        id="example/apply",
+        change_id="example",
+        approval_digest=digest,
+        operation="reconcile",
+        reason="Apply the exact approved decision.",
+    )
+    if application in {"decision", "tampered", "borrowed"}:
+        request["decisions"] = [contract_mapping(decision)]
+    elif application == "observation":
+        request["observations"] = [
+            dict(
+                id="example/note",
+                requirements=["REQ-1"],
+                summary="Inspection completed.",
+                reason="Keep the finding.",
+            )
+        ]
+    if application != "approval-only":
+        module.append_transaction(
+            member,
+            module.parse_request(request),
+            expected_history=module.snapshot(member).history_digest,
+        )
+        if application == "tampered":
+            journal = member / "changes/example/events.jsonl"
+            journal.write_text(
+                journal.read_text().replace(
+                    "Validation does not authorize delivery.", "Publication is automatic."
+                )
+            )
+        if application == "borrowed":
+            git_output(member, "switch", "-c", "side/decision")
+        commit(member, "apply approved authority without unrelated code")
+        if application == "borrowed":
+            git_output(member, "switch", branch)
+            git_output(member, "merge", "--no-ff", "side/decision", "-m", "borrow decision")
+            observation = dict(
+                id="example/after-merge",
+                change_id="example",
+                approval_digest=digest,
+                operation="record",
+                reason="An ordinary note is not own decision application.",
+                observations=[
+                    dict(
+                        id="example/note",
+                        requirements=["REQ-1"],
+                        summary="Review the merged decision.",
+                        reason="Keep context.",
+                    )
+                ],
+            )
+            module.append_transaction(
+                member,
+                module.parse_request(observation),
+                expected_history=module.snapshot(member).history_digest,
+            )
+            commit(member, "append ordinary observation after borrowed application")
+    if application == "decision":
+        assert runtime.validate(member, "member")["status"] == "ready"
+        assert marker.exists()
+    else:
+        with pytest.raises(runtime.AdmissionError):
+            runtime.validate(member, "member")
+        assert not marker.exists()

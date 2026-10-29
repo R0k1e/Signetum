@@ -277,6 +277,44 @@ def review_inputs(
     return _review_sources(repository, change_ids, commit)[0]
 
 
+def decision_application_commits(
+    repository: Path, change_ids: tuple[str, ...], commits: tuple[str, ...], *, commit: str
+) -> frozenset[str]:
+    """Identify own commits introducing exact current approved decision applications.
+
+    Ordinary observations and re-appended old history are not implementation.
+    The existing source reviewer remains the approval and journal verifier.
+    """
+    inputs, result = _review_sources(repository, change_ids, commit)
+    root, _ = authority_roots(repository, commit=commit)
+    candidates: dict[str, set[str]] = {}
+    for change_id in inputs["changes"]:
+        record, _ = _authority(repository, change_id, commit)
+        digest = contract_digest(record.contract)
+        lines = {
+            _json(contract_mapping(entry)).decode()
+            for entry in result.entries
+            if entry.transaction.change_id == change_id
+            and entry.transaction.approval_digest == digest
+            and entry.transaction.decisions
+        }
+        if lines:
+            candidates[f"{root}/{change_id}/events.jsonl"] = lines
+    applications = set()
+    for revision in commits:
+        for relative, lines in candidates.items():
+            current = committed_blob(repository, revision, relative)
+            if current is None:
+                continue
+            previous = committed_blob(repository, f"{revision}^", relative)
+            added = set(current[1].splitlines()) - (
+                set(previous[1].splitlines()) if previous else set()
+            )
+            if added & lines:
+                applications.add(revision)
+    return frozenset(applications)
+
+
 def reconciliation_summary(
     repository: Path, change_ids: tuple[str, ...], *, commit: str
 ) -> dict[str, object]:

@@ -72,9 +72,15 @@ A change package owns one isolated implementation branch from proposal through
 approval and implementation. The shared Git state binds its owner at the first
 discovery or readiness check and refuses a second implementation branch. A
 member is ready only with approved behavior and required decisions plus its own
-implementation commit after approval. A package-only member remains plan stage. A member without a carried approved
-change package is refused before checks and admission, even when it has an
-otherwise matching test receipt.
+implementation commit after approval. A consolidated authority-only change can
+qualify through its own commit introducing an exact approved decision application
+in the source journal. The existing source reviewer verifies the committed
+history, approval proof and current contract; qualification checks that the event
+was newly introduced by a non-merge commit on this member's first-parent history.
+Approval-only edits, ordinary observations and decisions merely borrowed through
+a merge do not constitute implementation. A package-only member remains plan
+stage. A member without a carried approved change package is refused before
+checks and admission, even when it has an otherwise matching test receipt.
 Readiness and final validation require member and batch workspace roles respectively.
 
 Actual committed paths identify each batch's first-delivered changes and their
