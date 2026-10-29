@@ -10,15 +10,20 @@ import errno
 import json
 import os
 import re
+import shutil
 import signal
+import stat
 import struct
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 OWNER_ENV = "SIGNETUM_PROCESS_OWNERS"
+SCRATCH_ENV = "SIGNETUM_PROCESS_SCRATCH"
+JOB_SCRATCH_ENV = "SIGNETUM_JOB_SCRATCH"
 
 
 class ProcessObservationUnavailable(OSError):
@@ -45,6 +50,82 @@ class OwnershipScan:
     owned: tuple[OwnedProcess, ...]
     unavailable: tuple[int, ...]
     uninspected: int = 0
+
+
+@dataclass(frozen=True)
+class ScratchRoot:
+    path: Path
+    device: int
+    inode: int
+    owner: str
+
+
+def verify_scratch_root(root: ScratchRoot) -> None:
+    """A path string alone never authorizes a process or directory removal."""
+    try:
+        identity = root.path.lstat()
+        if (
+            not stat.S_ISDIR(identity.st_mode)
+            or identity.st_uid != os.getuid()
+            or stat.S_IMODE(identity.st_mode) != 0o700
+            or (identity.st_dev, identity.st_ino) != (root.device, root.inode)
+            or root.path.resolve(strict=True) != root.path
+            or re.fullmatch(r"[0-9a-f]{32}", root.owner) is None
+            or not root.path.name.startswith(f"signetum-job-{root.owner}-")
+        ):
+            raise ProcessObservationUnavailable("registered scratch directory identity changed")
+    except OSError as error:
+        raise ProcessObservationUnavailable(
+            "registered scratch directory is unavailable"
+        ) from error
+
+
+def create_scratch_root(owner: str, *, parent: Path | None = None) -> ScratchRoot:
+    if re.fullmatch(r"[0-9a-f]{32}", owner) is None:
+        raise ValueError("scratch creation requires an exact owner token")
+    path = Path(tempfile.mkdtemp(prefix=f"signetum-job-{owner}-", dir=parent)).resolve()
+    identity = path.stat()
+    root = ScratchRoot(path, identity.st_dev, identity.st_ino, owner)
+    verify_scratch_root(root)
+    return root
+
+
+def encode_scratch_root(root: ScratchRoot) -> str:
+    verify_scratch_root(root)
+    return json.dumps(
+        {"path": str(root.path), "device": root.device, "inode": root.inode, "owner": root.owner}
+    )
+
+
+def decode_scratch_root(value: str, owner: str) -> ScratchRoot:
+    try:
+        data = json.loads(value)
+        if (
+            not isinstance(data, dict)
+            or set(data) != {"path", "device", "inode", "owner"}
+            or not isinstance(data["path"], str)
+            or type(data["device"]) is not int
+            or type(data["inode"]) is not int
+            or data["owner"] != owner
+        ):
+            raise ValueError("invalid scratch identity")
+        root = ScratchRoot(Path(data["path"]), data["device"], data["inode"], owner)
+        verify_scratch_root(root)
+        return root
+    except (ValueError, TypeError) as error:
+        raise ProcessObservationUnavailable("registered scratch identity is invalid") from error
+
+
+def scratch_contains(root: ScratchRoot, path: Path) -> bool:
+    verify_scratch_root(root)
+    # Native cwd observations are absolute kernel paths. Normalizing the
+    # observed path prevents a child symlink from claiming an unrelated tree.
+    return path.is_absolute() and path.resolve().is_relative_to(root.path)
+
+
+def remove_scratch_root(root: ScratchRoot) -> None:
+    verify_scratch_root(root)
+    shutil.rmtree(root.path)
 
 
 def owner_tokens(value: str) -> tuple[str, ...]:
@@ -230,6 +311,71 @@ def process_owner_tokens(pid: int) -> tuple[str, ...]:
     return _environment_tokens(values)
 
 
+class _VnodeStat(ctypes.Structure):
+    # Fixed-width public vinfo_stat, not the platform-dependent libc stat.
+    _fields_ = (
+        [
+            ("device", ctypes.c_uint32),
+            ("mode", ctypes.c_uint16),
+            ("links", ctypes.c_uint16),
+            ("inode", ctypes.c_uint64),
+            ("uid", ctypes.c_uint32),
+            ("gid", ctypes.c_uint32),
+        ]
+        + [
+            (name, ctypes.c_int64)
+            for name in (
+                "accessed",
+                "accessed_ns",
+                "modified",
+                "modified_ns",
+                "changed",
+                "changed_ns",
+                "born",
+                "born_ns",
+                "size",
+                "blocks",
+            )
+        ]
+        + [("block_size", ctypes.c_int32)]
+        + [(name, ctypes.c_uint32) for name in ("flags", "generation", "raw_device")]
+        + [("reserved", ctypes.c_int64 * 2)]
+    )
+
+
+class _VnodeInfo(ctypes.Structure):
+    _fields_ = (
+        ("stat", _VnodeStat),
+        ("type", ctypes.c_int),
+        ("pad", ctypes.c_int),
+        ("filesystem", ctypes.c_int32 * 2),
+    )
+
+
+class _VnodeInfoPath(ctypes.Structure):
+    _fields_ = (("info", _VnodeInfo), ("path", ctypes.c_char * 1024))
+    path: bytes
+
+
+class _VnodePathInfo(ctypes.Structure):
+    _fields_ = (("cwd", _VnodeInfoPath), ("root", _VnodeInfoPath))
+    cwd: _VnodeInfoPath
+
+
+def process_cwd(pid: int) -> Path:
+    if sys.platform.startswith("linux"):
+        return Path(os.readlink(Path("/proc") / str(pid) / "cwd"))
+    if sys.platform == "darwin":
+        info = _VnodePathInfo()
+        size = ctypes.sizeof(info)
+        if _libproc().proc_pidinfo(pid, 9, 0, ctypes.byref(info), size) != size:
+            raise OSError(ctypes.get_errno() or errno.ESRCH, "process cwd unavailable")
+        if not info.cwd.path:
+            raise ProcessObservationUnavailable("native cwd snapshot is empty")
+        return Path(os.fsdecode(info.cwd.path))
+    raise ProcessObservationUnavailable(f"unsupported process observation host: {sys.platform}")
+
+
 def _process_pids() -> tuple[int, ...]:
     if sys.platform == "darwin":
         return _darwin_pids()
@@ -238,10 +384,16 @@ def _process_pids() -> tuple[int, ...]:
     raise ProcessObservationUnavailable(f"unsupported process observation host: {sys.platform}")
 
 
-def observe_owned_processes(owner: str, session: int) -> OwnershipScan:
+def observe_owned_processes(
+    owner: str, session: int, scratch: ScratchRoot | None = None
+) -> OwnershipScan:
     """Protect the job root and observer; inspect only this user's environments."""
     if re.fullmatch(r"[0-9a-f]{32}", owner) is None or session <= 0:
         raise ValueError("process observation requires an exact owner token and positive session")
+    if scratch is not None:
+        verify_scratch_root(scratch)
+        if scratch.owner != owner:
+            raise ProcessObservationUnavailable("scratch belongs to a different job")
     pids = _process_pids()
     unavailable = []
     uninspected = 0
@@ -289,15 +441,30 @@ def observe_owned_processes(owner: str, session: int) -> OwnershipScan:
         if root_start is not None and identity.started < root_start:
             continue
         if root_owned and identity.session == session:
+            try:
+                # A session number may be recycled after its root exits.
+                # The target's own birth identity cannot prove root identity.
+                root_owned = process_identity(session) == root
+            except OSError:
+                root_owned = False
+        if root_owned and identity.session == session:
             found.append(OwnedProcess(identity, "session"))
         elif identity.uid == os.getuid():
+            matched = False
             try:
                 if owner in process_owner_tokens(pid):
                     found.append(OwnedProcess(identity, "owner-token"))
+                    matched = True
             except OSError:
                 # Unreadable unrelated environments establish no ownership and
                 # never authorize cleanup. Known session members use metadata.
                 uninspected += 1
+            if scratch is not None and not matched:
+                try:
+                    if scratch_contains(scratch, process_cwd(pid)):
+                        found.append(OwnedProcess(identity, "scratch-cwd"))
+                except OSError:
+                    uninspected += 1
     return OwnershipScan(
         tuple(sorted(found, key=lambda item: item.identity.pid)), tuple(unavailable), uninspected
     )
@@ -310,7 +477,9 @@ class ProcessSettlement:
     unavailable: tuple[int, ...]
 
 
-def settle_owned_processes(owner: str, session: int) -> ProcessSettlement:
+def settle_owned_processes(
+    owner: str, session: int, scratch: ScratchRoot | None = None
+) -> ProcessSettlement:
     """Bound cleanup and recheck birth identity before each destructive signal."""
     leaked: set[int] = set()
     unavailable: set[int] = set()
@@ -319,7 +488,7 @@ def settle_owned_processes(owner: str, session: int) -> ProcessSettlement:
     for termination_signal, duration in ((signal.SIGTERM, 0.2), (signal.SIGKILL, 0.3)):
         deadline = time.monotonic() + duration
         while True:
-            scan = observe_owned_processes(owner, session)
+            scan = observe_owned_processes(owner, session, scratch)
             unavailable.update(scan.unavailable)
             if not scan.owned:
                 return ProcessSettlement(tuple(sorted(leaked)), (), tuple(sorted(unavailable)))
@@ -338,7 +507,7 @@ def settle_owned_processes(owner: str, session: int) -> ProcessSettlement:
             if time.monotonic() >= deadline:
                 break
             time.sleep(0.02)
-    final = observe_owned_processes(owner, session)
+    final = observe_owned_processes(owner, session, scratch)
     unavailable.update(final.unavailable)
     return ProcessSettlement(
         tuple(sorted(leaked)),

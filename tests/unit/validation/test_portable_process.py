@@ -19,10 +19,12 @@ ROOT = Path(__file__).parents[3]
     ],
 )
 @pytest.mark.parametrize("nested", [False, True])
-@pytest.mark.parametrize("detached", [False, True])
+@pytest.mark.parametrize(
+    "detached,scrub_environment", [(False, False), (True, False), (True, True)]
+)
 @pytest.mark.parametrize("interrupt", [False, True])
 def test_caller_death_terminates_owned_commands_without_site_packages(
-    tmp_path, runtime, module, nested, detached, interrupt
+    tmp_path, runtime, module, nested, detached, scrub_environment, interrupt
 ):
     started = tmp_path / "started"
     orphan = tmp_path / "orphan"
@@ -39,8 +41,10 @@ def test_caller_death_terminates_owned_commands_without_site_packages(
     invocation = [sys.executable, "-I", "-S", "-c", child, str(started), str(orphan)]
     if detached:
         launch = (
-            "import subprocess,time; "
-            f"subprocess.Popen({invocation!r},start_new_session=True); time.sleep(30)"
+            "import os,subprocess,time; "
+            f"subprocess.Popen({invocation!r},start_new_session=True,"
+            + ("env={},cwd=os.environ['SIGNETUM_JOB_SCRATCH']" if scrub_environment else "env=None")
+            + "); time.sleep(30)"
         )
         invocation = [sys.executable, "-I", "-S", "-c", launch]
     if nested:

@@ -101,6 +101,7 @@ def test_unavailable_scan_is_infrastructure_without_masking_original_failure(
     monkeypatch, runner, capsys, exit_code
 ):
     observer = runner._observer()
+    monkeypatch.delenv(observer.SCRATCH_ENV, raising=False)
     monkeypatch.setenv(observer.OWNER_ENV, '["' + "a" * 32 + '"]')
     monkeypatch.setattr(runner.threading.Thread, "start", lambda _: None)
     monkeypatch.setattr(runner.subprocess, "call", lambda _: exit_code)
@@ -111,3 +112,23 @@ def test_unavailable_scan_is_infrastructure_without_masking_original_failure(
     monkeypatch.setattr(observer, "settle_owned_processes", unavailable)
     assert runner.main(["0", "--", "unused-fixture-command"]) == (exit_code or 126)
     assert "process observation unavailable" in capsys.readouterr().err
+
+
+def test_detached_child_with_cleared_environment_is_owned_by_private_scratch(tmp_path, runner):
+    script = (
+        "import os,subprocess,sys; from pathlib import Path; "
+        "scratch=Path(os.environ['SIGNETUM_JOB_SCRATCH']); "
+        "child=scratch/'child'; child.mkdir(); "
+        "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'],"
+        "cwd=child,env={},start_new_session=True); print(p.pid,flush=True)"
+    )
+    result = runner.run_command(tmp_path, [sys.executable, "-c", script], timeout_seconds=10)
+    assert result.stdout.strip().isdecimal(), result.stderr
+    assert result.returncode == 1
+    assert "owned process leak" in result.stderr
+    try:
+        identity = process_observation.process_identity(int(result.stdout.strip()))
+    except OSError:
+        pass
+    else:
+        assert identity.zombie

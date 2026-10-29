@@ -31,7 +31,7 @@ def test_native_observation_finds_only_owned_detached_processes(observer):
     processes = []
 
     def spawn(token):
-        process = subprocess.Popen(
+        process = subprocess.Popen(  # noqa: S603 -- controlled fixture, no shell
             [sys.executable, "-c", "import time; time.sleep(30)"],
             env=dict(
                 os.environ,
@@ -124,3 +124,104 @@ def test_unreadable_known_session_members_are_explicit(observer, monkeypatch):
     found = observer.observe_owned_processes(owner, root)
     assert found.owned == ()
     assert found.unavailable == (child,)
+
+
+def test_scratch_registration_binds_exact_directory_and_does_not_authorize_shared_paths(
+    observer, tmp_path
+):
+    owner = uuid.uuid4().hex
+    scratch = observer.create_scratch_root(owner, parent=tmp_path)
+    try:
+        assert scratch.path.parent == tmp_path.resolve()
+        assert scratch.path.stat().st_mode & 0o777 == 0o700
+        encoded = observer.encode_scratch_root(scratch)
+        assert observer.decode_scratch_root(encoded, owner) == scratch
+        assert observer.scratch_contains(scratch, scratch.path / "child")
+        assert not observer.scratch_contains(scratch, tmp_path)
+        assert not observer.scratch_contains(scratch, Path(str(scratch.path) + "-foreign"))
+        with pytest.raises(observer.ProcessObservationUnavailable):
+            observer.decode_scratch_root(encoded, uuid.uuid4().hex)
+        scratch.path.chmod(0o755)
+        with pytest.raises(observer.ProcessObservationUnavailable):
+            observer.decode_scratch_root(encoded, owner)
+    finally:
+        scratch.path.chmod(0o700)
+        observer.remove_scratch_root(scratch)
+
+
+def test_native_scratch_ownership_excludes_similarly_named_foreign_directory(observer, tmp_path):
+    owner = uuid.uuid4().hex
+    scratch = observer.create_scratch_root(owner, parent=tmp_path)
+    nested = scratch.path / "nested"
+    nested.mkdir()
+    foreign = tmp_path / (scratch.path.name + "-foreign")
+    foreign.mkdir()
+    processes = []
+
+    def spawn(cwd, environment):
+        process = subprocess.Popen(  # noqa: S603 -- controlled fixture, no shell
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            cwd=cwd,
+            env=environment,
+            start_new_session=True,
+        )
+        processes.append(process)
+        return process
+
+    try:
+        root = spawn(tmp_path, dict(os.environ, SIGNETUM_PROCESS_OWNERS=json.dumps([owner])))
+        child = spawn(nested, {})
+        unrelated = spawn(foreign, {})
+        assert observer.process_cwd(child.pid) == nested
+        scan = observer.observe_owned_processes(owner, root.pid, scratch)
+        assert [(item.identity.pid, item.ownership) for item in scan.owned] == [
+            (child.pid, "scratch-cwd")
+        ]
+        settled = observer.settle_owned_processes(owner, root.pid, scratch)
+        assert settled.leaked == (child.pid,)
+        assert settled.remaining == ()
+        assert settled.unavailable == ()
+        assert root.poll() is None and unrelated.poll() is None
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+            process.wait(timeout=5)
+        observer.remove_scratch_root(scratch)
+
+
+def test_replaced_scratch_is_refused_without_deleting_its_replacement(observer, tmp_path):
+    scratch = observer.create_scratch_root(uuid.uuid4().hex, parent=tmp_path)
+    retained = tmp_path / "retained-original"
+    scratch.path.rename(retained)
+    scratch.path.mkdir(mode=0o700)
+    sentinel = scratch.path / "unrelated-data"
+    sentinel.touch()
+    try:
+        with pytest.raises(observer.ProcessObservationUnavailable):
+            observer.remove_scratch_root(scratch)
+        assert sentinel.exists()
+        with pytest.raises(observer.ProcessObservationUnavailable):
+            observer.observe_owned_processes(scratch.owner, os.getpid(), scratch)
+    finally:
+        sentinel.unlink()
+        scratch.path.rmdir()
+        retained.rename(scratch.path)
+        observer.remove_scratch_root(scratch)
+
+
+def test_reused_session_root_cannot_authorize_an_unrelated_process(observer, monkeypatch):
+    owner = "a" * 32
+    root, child = 123, 456
+    original = observer.ProcessIdentity(root, root, 100, os.getuid(), False)
+    replacement = observer.ProcessIdentity(root, root, 200, os.getuid(), False)
+    candidate = observer.ProcessIdentity(child, root, 201, os.getuid(), False)
+    roots = iter((original, replacement))
+    monkeypatch.setattr(observer, "_process_pids", lambda: (child,))
+    monkeypatch.setattr(
+        observer, "process_identity", lambda pid: next(roots) if pid == root else candidate
+    )
+    monkeypatch.setattr(
+        observer, "process_owner_tokens", lambda pid: (owner,) if pid == root else ()
+    )
+    assert observer.observe_owned_processes(owner, root).owned == ()
