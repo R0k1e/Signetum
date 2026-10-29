@@ -14,13 +14,14 @@ number.
 
 **Seal every change with evidence.**
 
-Signetum is an Agent-native GitHub Template for teams that want coding Agents to
-work quickly without losing requirements, duplicating repository authorities,
-overwriting parallel work, or delivering a green commit nobody can explain.
+Signetum is a reliable agentic development and delivery protocol, distributed as
+one standard Skill plus repository-owned local commands. It connects approved
+requirements, current decisions, implementation evidence and explicit delivery.
+A clone-ready GitHub Template is available for new repositories.
 
-Use it when multiple coding Agents contribute to one repository, requirements
-must remain traceable after chat context disappears, or repeated full-suite
-testing is making parallel delivery unnecessarily slow.
+Use it when coding Agents need to preserve decisions across sessions, the owner
+needs a compact review of a change, or several members need an explicit shared
+delivery boundary.
 
 It gives a repository one inspectable development lifecycle instead of relying
 on chat history, an Agent's memory, or an unstructured collection of scripts.
@@ -80,8 +81,10 @@ reviewed adoption change. The skill points back here for maintained extensions.
 
 ## Start here
 
-1. Create a new repository with GitHub's **Use this template** action.
-2. Follow [Quickstart](QUICKSTART.md) to complete one governed change.
+1. Try the [minimal example and failure demonstrations](docs/product/failure-demonstrations.md).
+2. For an existing repository, follow the [explicit adoption guide](docs/guides/existing-runners.md).
+   For a new repository, use GitHub's **Use this template** action and the
+   [Quickstart](QUICKSTART.md).
 3. Read [Development lifecycle](docs/concepts/development-lifecycle.md) for the
    boundary between the change contract, source history, evidence and acceptance.
 4. Use [Agent Team delivery](docs/workflows/agent-team-delivery.md) for parallel
@@ -115,8 +118,8 @@ contracts. Signetum is both the product and machine protocol identity. See
 
 ## Project boundaries
 
-- This is a development lifecycle Template, not an Agent runtime or hosted
-  service.
+- The protocol is local and repository-owned; it provides no cross-machine
+  ledger, account service or automatic workflow adoption.
 - It does not update repositories previously created from it.
 - It does not replace product-specific architecture, tests, or human review.
 - Validation is check-only. Publication and delivery require explicit authority.

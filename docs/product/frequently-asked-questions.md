@@ -2,10 +2,10 @@
 
 ## What is Signetum?
 
-Signetum is an Agent-development repository Template that connects recorded
-requirements, approved behavior, repository-aware Plans, isolated parallel
-work, behavior tests, frozen batch validation, explicit delivery, and human
-acceptance in one inspectable lifecycle.
+Signetum is a reliable agentic development and delivery protocol: one standard
+Skill plus local commands connecting approved change records, current decisions,
+isolated work, behavioral evidence and explicit delivery. A GitHub Template is
+an optional starting point for a new repository.
 
 ## Is Signetum another CI template?
 
@@ -22,9 +22,31 @@ and validation enforce relations that prose instructions cannot prove.
 
 ## Does it guarantee that no requirement is ever missed?
 
-It guarantees structural coverage for requirements recorded as Review clauses.
+It checks structural coverage for requirements recorded with stable identities.
 It cannot guarantee that a human statement was interpreted perfectly, which is
-why Specification approval and delivered acceptance remain human decisions.
+why contract approval and delivered acceptance remain human decisions.
+
+## How much documentation does each change require?
+
+New work uses one structured change record and an append-only journal of
+significant findings and accepted decision applications. Tools generate approval
+and delivery views. Routine output remains in receipts and logs; there is no
+second handwritten execution report or decision summary. Historical packages
+remain readable during explicit migration.
+
+## Does installing the Skill adopt the protocol?
+
+No. The Skill routes instructions and delegates to the repository's local
+commands. Existing repositories need an explicit reviewed adoption change that
+preserves their runner and environment authorities. See the
+[existing-runner guide](../guides/existing-runners.md).
+
+## Does the current working set contain all historical decisions?
+
+Only accepted journal history enters the derived granular projection. During
+`journal_only` coverage, relevant legacy decisions remain authoritative and must
+also be read. A migration preview is a review candidate, not approval or a
+declaration that all historical decisions have been adopted.
 
 ## How does it reduce test cost without reducing quality?
 
@@ -68,4 +90,4 @@ identities instead of keeping compatibility aliases.
 
 No. `final` is check-only. Delivery is an explicit operation with exact source,
 target, base, and batch-tip identities. A delivered change is still not human
-accepted until its Review records acceptance.
+accepted until explicit acceptance evidence is recorded.
