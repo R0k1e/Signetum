@@ -14,7 +14,12 @@ from .change_models import (
     SpecificationStatus,
 )
 from .change_paths import changes_root
-from .change_record import ChangeRecord, contract_digest, parse_change_record
+from .change_record import (
+    ChangeRecord,
+    competing_legacy_authorities,
+    contract_digest,
+    parse_change_record,
+)
 from .decision_identity import numbered_targets
 from .git import GitError, git_output, run_git
 from .manifest import RepositoryManifest
@@ -218,7 +223,7 @@ def read_package(
                 f"{root}/specs",
                 f"{root}/plans",
             )
-            if legacy:
+            if competing_legacy_authorities(f"{root}/change.toml", frozenset(legacy.splitlines())):
                 raise ValueError("change has competing consolidated and legacy authorities")
             record = parse_change_record(source[1])
             if record.id != change_id:

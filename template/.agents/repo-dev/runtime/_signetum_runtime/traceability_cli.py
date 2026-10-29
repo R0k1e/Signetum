@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import TextIO
 
 from .change_paths import changes_root
+from .change_record import load_repository_record
 from .manifest import load_manifest
 from .serialization import contract_mapping
 from .status_models import EvidenceSnapshot
-from .status_projector import project_status
+from .status_projector import project_record_status, project_status
 from .traceability_boundary import (
     GitInventoryProvider,
     InventoryProvider,
@@ -24,6 +25,7 @@ from .traceability_loading import (
     load_review,
     load_specification,
 )
+from .traceability_records import record_issues
 from .traceability_validator import (
     TraceabilityValidator,
     decision_corpus_issues,
@@ -56,6 +58,18 @@ def query(
             if path.startswith(changes_prefix) and path.endswith("/review.toml")
         )
         reviews = {path: load_review(repository / path) for path in review_paths}
+        record_paths = sorted(
+            path
+            for path in inventory.paths
+            if path.startswith(changes_prefix)
+            and path.endswith("/change.toml")
+            and len(Path(path).relative_to(manifest.changes_root).parts) == 2
+        )
+        records = tuple(
+            (path, load_repository_record(repository, path, paths=inventory.paths))
+            for path in record_paths
+        )
+        consolidated_issues = record_issues(records)
         # A decision root holds decisions: filtering by file name would make an
         # unrecognised name silently unchecked instead of refused.
         decision_paths = sorted(
@@ -107,7 +121,16 @@ def query(
                         evidence,
                     )
                 )
-        valid = bool(review_paths) and all(report.valid for report in reports) and not corpus_issues
+        if not consolidated_issues:
+            projections.extend(
+                project_record_status(path, record, evidence) for path, record in records
+            )
+        valid = (
+            bool(review_paths or record_paths)
+            and all(report.valid for report in reports)
+            and not corpus_issues
+            and not consolidated_issues
+        )
         payload = {
             "schema_version": 1,
             "command": "traceability",
@@ -118,6 +141,7 @@ def query(
                 for issue in (
                     *(issue for report in reports for issue in report.issues),
                     *corpus_issues,
+                    *consolidated_issues,
                 )
             ],
         }
