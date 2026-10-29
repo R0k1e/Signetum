@@ -359,3 +359,36 @@ def test_admission_recomputes_selection_proof_even_when_the_commands_are_unchang
     with pytest.raises(runtime.AdmissionError, match="no evidence"):
         runtime.batch_open(root, (member,))
     assert git_output(root, "rev-parse", "main") == base
+
+
+def test_open_merge_uses_full_checks_and_preserves_the_conflict_until_they_pass(
+    repository, selection_runtime
+):
+    runtime, root, first, base = _selected_member(repository, selection_runtime, broken_full=True)
+    assert runtime.validate(first, "member")["status"] == "ready"
+    second = Path(runtime.workspace_open(root, "plan/other", base)["worktree"])
+    record = consolidated_approval(second, base)
+    record.write_text(record.read_text().replace('id = "example"', 'id = "other"'))
+    record.parent.rename(record.parent.with_name("other"))
+    git_output(second, "add", ".")
+    git_output(second, "commit", "-m", "approve another independent member")
+    (second / "source.py").write_text("def doubled(value): return 2 * value\n")
+    git_output(second, "commit", "-am", "implement the second approved outcome")
+    assert runtime.validate(second, "member")["status"] == "ready"
+    batch = Path(runtime.batch_open(root, (first,))["batch"])
+    with pytest.raises(runtime.MergeConflict):
+        runtime.admit(batch, (second,))
+    (batch / "source.py").write_text("def doubled(value): return sum((value, value))\n")
+    git_output(batch, "add", "source.py")
+    before = git_output(batch, "rev-parse", "HEAD")
+    with pytest.raises(runtime.ValidationExecutionError):
+        runtime.continue_batch(batch)
+    assert git_output(batch, "rev-parse", "HEAD") == before
+    assert git_output(batch, "rev-parse", "--verify", "MERGE_HEAD")
+    test = batch / "tests/test_b.py"
+    test.write_text(test.read_text().replace("doubled(2), 9", "doubled(2), 4"))
+    git_output(batch, "add", "tests/test_b.py")
+    continued = runtime.continue_batch(batch)
+    assert continued["status"] == "continued"
+    assert continued["checks"]["executed"] == ["test:check"]
+    assert git_output(root, "rev-parse", "main") == base
