@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
 
 
@@ -49,3 +50,38 @@ def commit_approval(repository: Path, change_id: str = "example") -> None:
     approve_change(repository, change_id)
     git_output(repository, "add", ".")
     git_output(repository, "commit", "-m", f"approve change {change_id}")
+
+
+def consolidated_approval(
+    member, base, *, approved=True, outcome="Implement the confirmed behavior."
+):
+    text = f'''[change]
+schema_version = 1
+id = "example"
+[change.source]
+kind = "human_direction"
+summary = "Implement the confirmed outcome."
+[change.contract]
+version = 1
+approved_base = "{base}"
+[[change.contract.requirements]]
+id = "REQ-1"
+outcome = "{outcome}"
+acceptance = ["The declared member check passes."]
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = ["REQ-1"]
+action = "Implement and validate the outcome."
+'''
+    if approved:
+        digest = contract_digest(parse_change_record(text).contract)
+        text += f'''[change.approval]
+actor = "Owner"
+recorded_at = 2026-10-29
+source = "Owner confirmed the fixture outcome."
+contract_digest = "{digest}"
+'''
+    path = member / "changes/example/change.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path

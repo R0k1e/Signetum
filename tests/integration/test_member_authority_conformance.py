@@ -6,11 +6,10 @@ import sys
 from pathlib import Path
 
 import pytest
-from change_fixtures import approve_change
+from change_fixtures import approve_change, consolidated_approval
 from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle
-from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
@@ -148,41 +147,6 @@ def test_admission_uses_committed_package_plans_and_ignores_forged_trailer(autho
     message = git_output(batch, "show", "-s", "--format=%B", tip)
     assert "Signetum-Plan: changes/example/plans/behavior.md" in message
     assert "Signetum-Plan: changes/forged/" not in message
-
-
-def consolidated_approval(
-    member, base, *, approved=True, outcome="Implement the confirmed behavior."
-):
-    text = f'''[change]
-schema_version = 1
-id = "example"
-[change.source]
-kind = "human_direction"
-summary = "Implement the confirmed outcome."
-[change.contract]
-version = 1
-approved_base = "{base}"
-[[change.contract.requirements]]
-id = "REQ-1"
-outcome = "{outcome}"
-acceptance = ["The declared member check passes."]
-[[change.execution.steps]]
-id = "STEP-1"
-requirements = ["REQ-1"]
-action = "Implement and validate the outcome."
-'''
-    if approved:
-        digest = contract_digest(parse_change_record(text).contract)
-        text += f'''[change.approval]
-actor = "Owner"
-recorded_at = 2026-10-29
-source = "Owner confirmed the fixture outcome."
-contract_digest = "{digest}"
-'''
-    path = member / "changes/example/change.toml"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
-    return path
 
 
 @pytest.mark.parametrize("stage", ["approved", "draft", "plan-only", "wrong-base", "dual"])

@@ -5,6 +5,8 @@ import hashlib
 from pathlib import Path
 
 from .change_scope import delivery_scope
+from .development_store import SourceReviewInputs
+from .development_store import review_inputs as source_review_inputs
 from .deviations import ReviewSnapshot, review_snapshot
 from .git import git_output
 from .manifest import RepositoryManifest
@@ -15,6 +17,7 @@ from .provenance import members_and_plans
 class ExecutionReviewInputs(ReviewSnapshot):
     member_evidence: dict[str, str]
     member_tips: dict[str, list[str]]
+    source_journals: SourceReviewInputs
 
 
 def execution_review_inputs(
@@ -47,4 +50,20 @@ def execution_review_inputs(
         tuple(item["branch"] for item in members),
         member_tips=tips,
     )
-    return {**snapshot, "member_evidence": fingerprints, "member_tips": tips}
+    source_changes = tuple(
+        sorted(
+            set(
+                (
+                    *snapshot["changes"],
+                    *(item.change_id for item in scope.previously_delivered),
+                )
+            )
+        )
+    )
+    source_journals = source_review_inputs(repository, source_changes, commit=tip)
+    return {
+        **snapshot,
+        "member_evidence": fingerprints,
+        "member_tips": tips,
+        "source_journals": source_journals,
+    }

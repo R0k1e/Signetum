@@ -532,6 +532,22 @@ def test_deferral_requires_an_explicit_approved_transfer_and_an_active_requireme
     assert result.observations[0].status == "deferred"
     assert result.observations[0].resolution.followup == "beta#REQ-1"
     assert store.snapshot(repository) == result
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", "retain the exact approved deferral")
+    summary = store.reconciliation_summary(
+        repository, ("alpha",), commit=git_output(repository, "rev-parse", "HEAD")
+    )
+    assert summary["changes"][0]["observations"][0]["status"] == "deferred"
+    following = repository / "changes/beta/change.toml"
+    following.write_text(
+        following.read_text().replace("[change]", '[change]\nstatus = "withdrawn"', 1)
+    )
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", "withdraw the follow-up")
+    with pytest.raises(ValueError, match="active owning change"):
+        store.reconciliation_summary(
+            repository, ("alpha",), commit=git_output(repository, "rev-parse", "HEAD")
+        )
 
 
 def test_retirement_preserves_the_original_resolution_and_retains_other_evidence(repository, store):
@@ -610,6 +626,15 @@ def test_retirement_preserves_the_original_resolution_and_retains_other_evidence
     assert current.resolution == original_resolution
     assert current.effective_evidence == ("retained.py", "changes/beta/change.toml")
     assert current.retirements[0].retirement.targets == ("behavior.py",)
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", "retain the approved evidence retirement")
+    summary = store.reconciliation_summary(
+        repository, ("beta",), commit=git_output(repository, "rev-parse", "HEAD")
+    )
+    assert summary["observation_count"] == 1
+    historical = next(row for row in summary["changes"] if row["change_id"] == "alpha")
+    assert historical["observations"][0]["status"] == "resolved"
+    assert historical["observations"][0]["retirements"][0]["retirement"]["id"] == retirement["id"]
     assert (path.parent / "events.jsonl").read_bytes() == old_history
     assert store.snapshot(repository) == result
 
@@ -1276,3 +1301,136 @@ def test_partially_superseded_legacy_authority_keeps_its_unaffected_clauses(repo
         repository, transaction, expected_history=store.snapshot(repository).history_digest
     )
     assert result.working_set.clauses[0].revision.id == "VAL-001"
+
+
+def test_source_review_binds_committed_history_and_refuses_pending_findings(repository, store):
+    initial = store.snapshot(repository)
+    store.append_transaction(
+        repository, request(repository, store), expected_history=initial.history_digest
+    )
+    with pytest.raises(ValueError, match="committed"):
+        store.review_inputs(
+            repository, ("alpha",), commit=git_output(repository, "rev-parse", "HEAD")
+        )
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", "retain source observation")
+    commit = git_output(repository, "rev-parse", "HEAD")
+    inputs = store.review_inputs(repository, ("alpha",), commit=commit)
+    assert inputs["journals"]["changes/alpha/events.jsonl"] == git_output(
+        repository, "rev-parse", "HEAD:changes/alpha/events.jsonl"
+    )
+    with pytest.raises(ValueError, match="unresolved source observations"):
+        store.reconciliation_summary(repository, ("alpha",), commit=commit)
+    assert store.reconciliation_summary(repository, (), commit=commit)["observation_count"] == 0
+
+
+@pytest.mark.parametrize(
+    "outcome", ["resolved", "rejected", "retracted", "missing", "untracked", "complete"]
+)
+def test_source_reconciliation_preserves_standing_answers_and_frozen_evidence(
+    repository, store, outcome
+):
+    state = store.append_transaction(
+        repository,
+        request(repository, store),
+        expected_history=store.snapshot(repository).history_digest,
+    )
+    evidence = "probe.txt" if outcome == "untracked" else "behavior.py"
+    if outcome == "untracked":
+        (repository / evidence).write_text("untracked evidence must not qualify")
+    resolution = {
+        "id": "alpha/answer",
+        "target": "alpha/first/observation",
+        "status": "rejected" if outcome == "rejected" else "resolved",
+        "reason": "The retained source justifies this disposition.",
+        "evidence": [] if outcome == "rejected" else [evidence],
+    }
+    state = store.append_transaction(
+        repository,
+        request(
+            repository,
+            store,
+            "alpha/resolve",
+            operation="resolve",
+            observations=[],
+            resolutions=[resolution],
+        ),
+        expected_history=state.history_digest,
+    )
+    if outcome == "retracted":
+        store.append_transaction(
+            repository,
+            request(
+                repository,
+                store,
+                "alpha/retract",
+                operation="retract",
+                observations=[],
+                retractions=[
+                    {
+                        "id": "alpha/withdraw",
+                        "target": "alpha/first/observation",
+                        "resolution_id": "alpha/answer",
+                        "reason": "The answer needs correction.",
+                    }
+                ],
+            ),
+            expected_history=state.history_digest,
+        )
+    if outcome == "missing":
+        git_output(repository, "rm", "behavior.py")
+    elif outcome == "complete":
+        path = repository / "changes/alpha/change.toml"
+        path.write_text(path.read_text().replace("[change]", '[change]\nstatus = "complete"', 1))
+    git_output(repository, "add", "changes")
+    git_output(repository, "commit", "-m", "retain standing source answer")
+    commit = git_output(repository, "rev-parse", "HEAD")
+    journal = repository / "changes/alpha/events.jsonl"
+    before = journal.read_bytes()
+    if outcome in {"retracted", "missing", "untracked"}:
+        with pytest.raises(ValueError, match=r"unresolved|evidence is absent"):
+            store.reconciliation_summary(repository, ("alpha",), commit=commit)
+    else:
+        summary = store.reconciliation_summary(repository, ("alpha",), commit=commit)
+        assert summary["observation_count"] == 1
+        expected = "rejected" if outcome == "rejected" else "resolved"
+        assert summary["changes"][0]["observations"][0]["status"] == expected
+    assert journal.read_bytes() == before
+    git_output(repository, "commit", "--allow-empty", "-m", "new source identity")
+    with pytest.raises(ValueError, match="commit differs"):
+        store.review_inputs(repository, ("alpha",), commit=commit)
+
+
+@pytest.mark.parametrize("recorded", [False, True])
+def test_source_review_requires_exact_approved_decisions_in_committed_history(
+    repository, store, recorded
+):
+    path = repository / "changes/alpha/change.toml"
+    proposal = _decision()
+    _approve(
+        repository,
+        path.read_text().replace(
+            "[change.contract]\n", "[change.contract]\ndecisions=" + _inline([proposal]) + "\n"
+        ),
+    )
+    if recorded:
+        store.append_transaction(
+            repository,
+            request(
+                repository,
+                store,
+                "alpha/accept",
+                operation="reconcile",
+                decisions=[proposal],
+            ),
+            expected_history=store.snapshot(repository).history_digest,
+        )
+        git_output(repository, "add", ".")
+        git_output(repository, "commit", "-m", "retain accepted decision and finding")
+    commit = git_output(repository, "rev-parse", "HEAD")
+    if recorded:
+        view = store.review_inputs(repository, ("alpha",), commit=commit)
+        assert view["decision_transactions"] == [proposal["id"]]
+    else:
+        with pytest.raises(ValueError, match="approved decision is absent"):
+            store.review_inputs(repository, ("alpha",), commit=commit)

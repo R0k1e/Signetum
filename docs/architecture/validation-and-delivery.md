@@ -320,3 +320,20 @@ member readiness never performs cleanup.
 A sync conflict remains ordinary member Git state: resolve and commit it,
 prepare the resulting environment, then run ready. A batch admission conflict
 instead remains open for batch-continue. Neither recovery resets or rebases work.
+
+Consolidated source journals also participate in final and delivery review.
+Review inputs bind their exact committed Git blobs, the accepted-history digest
+and the source commit. Uncommitted journal suffixes cannot qualify. Current
+approved decision transactions must already be present in that history.
+Final reconciles discoveries owned by selected changes and older discoveries
+affected by their resolutions, retractions or retirements. A pending finding,
+missing committed effective evidence or inactive follow-up refuses final.
+Retired evidence preserves the old answer and exposes its retirement provenance.
+Later, unadmitted member journals do not enter the frozen batch's source review.
+
+The generated review reports the selected standing answers and provenance;
+ordinary validation output stays in receipts. Validation appends no success
+event to its source. Final rechecks source-journal bindings before writing its
+receipt, and delivery rechecks them before publication. Missing or altered
+bindings require fresh final validation. The historical local-ledger checks
+remain separate while legacy source adoption is still being migrated.
