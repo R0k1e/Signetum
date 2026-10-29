@@ -45,6 +45,7 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `worktrunk` | Supervised Mise execution, repository environment projection and registered workspace inventory parsing. |
 | `preparation` | Configured preparation execution with clean or staged-state guards and unchanged source identity. |
 | `operation_cli` | Shared argument refusals, result categories and retained operation diagnostics. |
+| `change_record`, `decision_clauses`, `decision_history` | Consolidated candidate records with content-bound approval, targeted clause edits and deterministic topic-aware history projection. |
 | `contract_values`, `change.models`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
 | `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and the locked append-only ledger. |
 | `change.member`, `lifecycle_validation`, `provenance`, `execution_review`, `validation.review` | Member qualification, actual package Plans, exact validation and final review/receipt bindings through repository effect adapters. |
@@ -77,3 +78,10 @@ cases exercise both the engine and generated library; isolated template and
 installed-distribution cases check the packaged boundary.
 [Tooling alignment](../../changes/align-perdura-development-tooling/specs/tooling.toml)
 owns the complete requirement and acceptance scope.
+
+The new record and decision-history command modules currently provide read-only
+candidate previews. Projection checking refuses an independently edited current
+set. These functions do not create approval or mutate journals; existing
+traceability and ledger writers remain in force until their approved migration
+is integrated. Repository effect boundaries must validate approval standing
+before committing proposed decision transactions.
