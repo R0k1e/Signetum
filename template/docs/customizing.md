@@ -15,7 +15,8 @@ upgrade.
 
 `signetum.toml` contains only executable runtime and validation settings.
 `.agents/repo-dev/repo.yaml` contains repository paths, Agent policy routing,
-and delivery settings. Start real work with `just change-open <kebab-name>`;
+and delivery settings. In a registered member workspace, start a draft with
+`just change-open <kebab-name>`;
 the command creates a draft under `changes/` and never edits `examples/`.
 
 ## Checks which depend on the outside world

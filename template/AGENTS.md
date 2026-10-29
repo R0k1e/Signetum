@@ -1,35 +1,39 @@
 # Repository Agent Contract
 
-Before planning, editing, or running repository commands:
+Before planning, editing or running repository commands, read
+`docs/ARCHITECTURE.md` and its responsibility links, then
+`.agents/repo-dev/repo.yaml`. Load mandatory policies and groups selected by
+intent or paths. Report the selected groups and reasons.
 
-1. Read `docs/ARCHITECTURE.md` and its linked responsibility documents.
-2. Read `.agents/repo-dev/repo.yaml`.
-3. Load every mandatory policy and every policy selected by intent or path.
-4. Emit a bounded routing manifest with each selected group and its reason.
+Read `just protocol current` before planning. Retrieve original rationale with
+`history` only when needed. While coverage is `journal_only`, consult relevant
+legacy decisions; an empty working set does not withdraw accepted rules.
 
-Behavior changes require a human-confirmed specification. Architecture,
-process, and security decisions require an accepted standalone decision.
-Develop in a plan-owned worktree; keep the delivery worktree clean. Preserve
-unrelated changes. Use the repository-declared environment authority and
-behavioral tests. Never hide a deferred requirement in prose: point it to an
-active specification. Delivery is explicit and is the only operation allowed
-to mutate the delivery worktree.
+New work uses one `change.toml` created by `just protocol change-open <id>` in a
+registered member workspace. It owns intent, requirements, acceptance, scope,
+autonomy, decision proposals and necessary execution steps. Generate the
+approval view with `just protocol view <record-path>`. Behavior requires actual
+human confirmation; durable architecture, process and security choices require
+an accepted, independently identified decision. Record confirmation accurately,
+commit it before implementation and preserve unrelated work.
 
-Before implementation, present one concise approval view covering observable
-outcomes, included and excluded scope, acceptance evidence, and execution
-autonomy. Record every delivery-relevant execution discovery through
-`.agents/repo-dev/runtime/deviations.py`; never leave it only in chat or edit
-its JSON Lines ledger directly. Safe implementation clarifications may proceed.
-For a scope reduction, explicit non-goal change, incompatible accepted
-decision, destructive action, or irreversible choice, freeze only the affected
-work and continue independent work. Before `final`, resolve every retained
-deviation into the applicable specification, decision, architecture authority,
-behavior test, explicit follow-up change, justified rejection, or justified
-no-authority-change result. After `final`, present the generated delivery review
-before requesting explicit delivery.
+Use `just protocol record`, `resolve`, `retract`, `reconcile` and `retire` for
+significant source events and accepted decisions. Never edit JSONL or maintain
+a duplicate decision summary, execution report or review file. Preserve accepted
+history. A deferral names an exact active follow-up requirement. For a changed
+commitment or unauthorized irreversible action, freeze affected work and
+continue independent authorized work. Legacy changes keep their declared API
+until explicitly migrated; do not rewrite their accepted files.
 
-Use the lifecycle operations registered by
-`.agents/repo-dev/runtime/lifecycle.py --help` and exposed through `Justfile`.
-Preparation and diagnostics do not grant readiness or delivery authority.
+Use the declared environment and behavioral tests. Commit significant events
+before freezing the source. `ready` proves member evidence only; `final` checks
+the frozen batch and generates its delivery review. Reconcile findings before
+final and show the generated review before explicit delivery. Validation never
+appends its own success to source. Keep the delivery worktree clean; only
+explicit delivery may change it.
+
+The lifecycle has eight operations: `workspace-open`, `changed`, `ready`,
+`batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
+`protocol` and `maintenance` are separate local utilities.
 
 Use English for repository artifacts and the user's language for discussion.

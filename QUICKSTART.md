@@ -16,59 +16,52 @@ uv sync --locked
 
 Read `AGENTS.md`, `docs/ARCHITECTURE.md`, and `.agents/repo-dev/repo.yaml` before
 changing files. The manifest must name the repository's actual architecture,
-environment, policy, specification, Plan, validation, and delivery authorities.
+environment, policy, change, validation and delivery authorities.
 
-## 2. Record the requirement
+## 2. Open isolated member work
 
-Create one stable change package:
-
-```text
-changes/add-health-endpoint/
-  review.toml
-  specs/health-endpoint.toml
-  plans/health-endpoint.md
-```
-
-The Review records the human request as atomic clauses. `signetum.toml`
-selects one or more language profiles and binds the repository's impact,
-validation, and evidence graph. The approved
-Specification owns observable behavior. The Plan maps every owned clause to an
-implementation obligation and exact evidence. Copy the teaching structure from
-[`examples/complete-change`](examples/complete-change/README.md), then replace
-all example identities and behavior with the real change.
-
-Behavior changes require human confirmation of the Specification. Architecture,
-process, and security decisions also require an accepted standalone decision.
-
-## 3. Open isolated member work
-
-Resolve the exact approved base and create a Plan-owned worktree:
+Resolve the exact base and create the member workspace before authoring:
 
 ```bash
 BASE=$(git rev-parse origin/main)
 just workspace-open impl/health-endpoint "$BASE"
 ```
 
-Perform discovery before implementation: follow the architecture map, search
-production and test implementations, identify the current authority, and record
-the selected policy groups and reasons. Write behavior tests through the real
-public boundary before adding new behavior.
+Continue inside the worktree returned by that operation. Follow architecture
+and selected policies, report routing, and read `just protocol current`. While
+coverage is `journal_only`, also inspect relevant declared historical decisions.
+Original rationale is available through `just protocol history` on demand.
 
-During development, use the repository's targeted commands. `changed` explains
-the selected validation impact without starting the complete final gate:
-
-```bash
-just changed "$BASE" --explain
-```
-
-Commit one coherent member and close it against the same base:
+## 3. Confirm one change and implement it
 
 ```bash
-just ready "$BASE"
+just change-open add-health-endpoint
+just protocol view changes/add-health-endpoint/change.toml
 ```
 
-The ready receipt belongs to that exact commit. A later fix requires a new
-commit and a new `ready` result.
+Fill that single draft with intent, stable requirements, observable acceptance,
+exclusions, transfers, autonomy and execution steps before showing the view.
+The view never grants approval. Record the owner's actual confirmation and exact
+contract digest, then commit approval before implementation. Architecture,
+process and security choices require an accepted identified decision proposal;
+apply its exact clause edits through `just protocol reconcile`.
+
+Use existing implementation and test owners. Capture significant findings and
+standing answers through the journal tools, with a structured request and its
+expected history digest. Do not add handwritten reports or duplicate current
+decision summaries. Commit significant events before validating the source.
+Run the repository's targeted commands, then:
+
+```bash
+just changed --explain
+just ready
+```
+
+Both commands read the workspace's recorded base; neither takes a base argument.
+Changed checks do not run the complete final gate or grant readiness. A first
+failure remains failed after a diagnostic retry; fix it and run ordinary
+validation again. Ready evidence binds the exact member tip. A later fix needs
+a new commit and fresh readiness.
 
 ## 4. Assemble an explicit batch
 
@@ -114,8 +107,8 @@ just batch-deliver \
 
 Successful delivery reports the member identities, Plans, validated batch tip,
 delivery commit, remote identity, validation evidence, and controlled cleanup.
-Only after inspecting that delivery can a human record acceptance or reopening
-against its delivery commit in the Review.
+Explicit human acceptance remains separate evidence against that delivery; a
+record marked complete does not imply it.
 
 ## What success means
 
@@ -123,6 +116,6 @@ against its delivery commit in the Review.
 - `integrated`: that member is present in a named batch.
 - `final passed`: the complete graph passed on the exact frozen batch tip.
 - `delivered`: that validated tip reached the declared target and remote.
-- `accepted`: a human accepted named Review clauses for that delivery.
+- `accepted`: a human explicitly accepted the named outcomes for that delivery.
 
 No earlier state implies a later state.

@@ -16,7 +16,7 @@ the full suite, and green commits that cannot explain what they delivered.
 ## The workflow
 
 ```text
-Review → Specification → Plan → isolated worktree
+registered member → approved change record → implementation
        → member ready → named batch → frozen final validation
        → explicit delivery → human acceptance or reopening
 ```
@@ -43,13 +43,14 @@ changing the lifecycle operations.
 
 ## What is enforced
 
-- Every requirement has a valid disposition and Specification owner.
-- Deferred work points to a real approved Specification.
-- Plans cover every owned clause.
+- One record owns requirements, approval and exhaustive execution steps.
+- Deferred work names an exact active follow-up requirement.
+- Significant source journals retain findings and accepted clause decisions.
 - Actual changes resolve to explainable profiles, gates, and shards.
 - Receipts bind code, configuration, lockfiles, tools, and executed checks.
 - Only explicitly named ready worktrees enter a delivery batch.
-- Parallel decision proposals receive formal ADP numbers inside the batch.
+- Accepted clause edits preserve unaffected decisions and their rationale.
+- Historical Markdown proposals retain their declared numbering rules.
 - Delivery and human acceptance remain separate facts.
 
 Signetum guarantees the accounting and execution boundary. Your repository
@@ -60,9 +61,9 @@ still owns its architecture, behavioral contracts, and test sufficiency.
 1. Create a repository with GitHub's **Use this template** action.
 2. Run `mise install`.
 3. Replace the product facts in `docs/ARCHITECTURE.md`.
-4. Run `just change-open <kebab-name>` and complete the generated Review.
-5. Confirm the Specification, then open isolated implementation with
-   `just workspace-open <branch> <base>`.
+4. Open isolated work with `just workspace-open <branch> <base>`.
+5. Inside that workspace, run `just change-open <kebab-name>`, fill the single
+   record and show `just protocol view <record-path>` for actual confirmation.
 
 See [`docs/development-lifecycle.md`](docs/development-lifecycle.md),
 [`docs/agent-team-delivery.md`](docs/agent-team-delivery.md), and

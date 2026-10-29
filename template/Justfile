@@ -5,7 +5,7 @@ _signetum *args:
 
 # Authoring utility; not a lifecycle operation.
 change-open name:
-    mise exec -- uv run --no-project python .agents/repo-dev/runtime/change_open.py {{name}}
+    just protocol change-open "$@"
 
 workspace-open branch base:
     just _signetum workspace-open {{branch}} {{base}}
@@ -34,3 +34,7 @@ batch-deliver source target expected-base expected-batch-tip:
 # Local support utility; not a lifecycle operation.
 maintenance *args:
     mise exec -- uv run --no-project python .agents/repo-dev/runtime/maintenance.py {{args}}
+
+# Local authoring and journal utility; not a lifecycle operation.
+protocol *args:
+    mise exec -- uv run --no-project python .agents/repo-dev/runtime/protocol.py "$@"

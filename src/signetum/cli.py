@@ -14,6 +14,7 @@ from signetum.manifest import ManifestError, load_manifest
 from signetum.product_surface import validate_product_surface
 from signetum.profiles import ProfileError, resolve_profiles
 from signetum.profiles.pip_audit import report as pip_audit_report
+from signetum.protocol_cli import main as protocol_main
 from signetum.release import ReleaseError, preflight
 from signetum.serialization import json_value
 from signetum.site import build_site
@@ -67,6 +68,15 @@ def lifecycle(ctx: typer.Context) -> None:
 def maintenance(ctx: typer.Context) -> None:
     """Run explicit local workspace maintenance outside the lifecycle."""
     raise typer.Exit(code=maintenance_main(list(ctx.args)))
+
+
+@app.command(
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+)
+def protocol(ctx: typer.Context) -> None:
+    """Run local change authoring and development-journal utilities."""
+    raise typer.Exit(code=protocol_main(list(ctx.args)))
 
 
 @template_app.command("check")

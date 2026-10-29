@@ -1,3 +1,6 @@
+> This read-only fixture preserves the historical three-file format. New work
+> uses one `change.toml`; follow the [current lifecycle](../../docs/development-lifecycle.md).
+
 # Complete change example
 
 This directory is a teaching artifact, not a second active change authority.

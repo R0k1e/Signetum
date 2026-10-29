@@ -20,9 +20,12 @@ repository:
         paths: [changes, plans]
         reference: .agents/repo-dev/references/git-worktrunk.md
   authorities:
-    reviews: changes/*/review.toml
-    specifications: changes/*/specs/*.toml
-    plans: changes/*/plans/*.md
+    records: changes/*/change.toml
+    journals: changes/*/events.jsonl
+    legacy:
+      reviews: changes/*/review.toml
+      specifications: changes/*/specs/*.toml
+      plans: changes/*/plans/*.md
     decisions: docs/decisions/*.md
     manifest_schema: signetum.resources.schemas
     profiles: signetum.resources.profiles

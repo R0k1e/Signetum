@@ -1,4 +1,5 @@
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -8,10 +9,13 @@ from zipfile import ZipFile
 from change_fixtures import approve_change
 from test_batch_admission import MANIFEST
 
+from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
 from signetum.manifest import load_manifest
 from signetum.runtime_generation import RUNTIME_DIRECTORY, runtime_files
+from signetum.template import render_template
 from signetum.validation.repository import configured_validation
+from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
 def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() -> None:
@@ -201,3 +205,178 @@ assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
         cwd=tmp_path,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_installed_skill_routes_to_existing_repository_commands_and_generates_one_draft(tmp_path):
+    wheels = tuple(Path("dist").glob("signetum-*.whl"))
+    assert len(wheels) == 1
+    installed = tmp_path / "installed skills/repo-dev"
+    prefix = "signetum/resources/skills/repo-dev/"
+    with ZipFile(wheels[0]) as wheel:
+        for name in wheel.namelist():
+            if name.startswith(prefix) and not name.endswith("/"):
+                target = installed / name.removeprefix(prefix)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(wheel.read(name))
+    assert (installed / "SKILL.md").is_file()
+    consumer = tmp_path / "existing repository"
+    render_template(Path(__file__).parents[2] / "template", consumer)
+    # This existing consumer binds its own host runner; the skill must preserve it.
+    interpreter = shlex.quote(sys.executable)
+    protocol = shlex.quote(str(consumer / ".agents/repo-dev/runtime/protocol.py"))
+    (consumer / "Justfile").write_text(
+        "set positional-arguments\nprotocol *args:\n    "
+        + interpreter
+        + " -I -S "
+        + protocol
+        + ' "$@"\n'
+    )
+    git_output(consumer, "init", "-b", "plan/consumer")
+    git_output(consumer, "config", "user.name", "Skill consumer")
+    git_output(consumer, "config", "user.email", "skill@example.invalid")
+    git_output(consumer, "add", ".")
+    git_output(consumer, "commit", "-m", "existing repository authority")
+    base = git_output(consumer, "rev-parse", "HEAD")
+    write_record(state_root(consumer), WorkspaceRecord(1, "plan/consumer", base, "member"))
+    launcher = installed / "scripts/repo-dev"
+    shell = which("sh")
+    assert shell is not None
+    just = which("just")
+    assert just is not None
+    for command in (("current",), ("change-open", "adopted-change")):
+        result = subprocess.run(  # noqa: S603 -- installed skill, existing runner and temporary repo
+            [shell, str(launcher), *command],
+            cwd=consumer,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+    record = consumer / "changes/adopted-change/change.toml"
+    assert parse_change_record(record.read_text()).approval is None
+    viewed = subprocess.run(  # noqa: S603 -- actual installed launcher preserves paths with spaces
+        [shell, str(launcher), "view", str(record)],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert viewed.returncode == 0, viewed.stderr
+    assert json.loads(viewed.stdout)["status"] == "proposal"
+    assert len(list(record.parent.iterdir())) == 1
+    source = record.read_text().replace("TODO", "Fixture owner confirmed:")
+    digest = contract_digest(parse_change_record(source).contract)
+    record.write_text(
+        source
+        + f'''[change.approval]
+actor = "Fixture owner"
+recorded_at = 2026-10-29
+source = "The fixture owner confirms this isolated utility test."
+contract_digest = "{digest}"
+'''
+    )
+    git_output(consumer, "add", "changes")
+    git_output(consumer, "commit", "-m", "confirm isolated utility contract")
+    current = subprocess.run(  # noqa: S603 -- installed skill reads the current history identity
+        [shell, str(launcher), "current"],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert current.returncode == 0, current.stderr
+    history = json.loads(current.stdout)["history_digest"]
+    request_path = tmp_path / "request with spaces.json"
+    transaction = {
+        "id": "adopted-change/observe",
+        "change_id": "adopted-change",
+        "approval_digest": digest,
+        "operation": "record",
+        "reason": "Retain the existing command owner.",
+        "observations": [
+            {
+                "id": "adopted-change/finding",
+                "requirements": ["REQ-001"],
+                "summary": "The consumer owns the runner.",
+                "reason": "Avoid creating a duplicate runner.",
+            }
+        ],
+    }
+    for operation in ("record", "resolve"):
+        if operation == "resolve":
+            transaction = {
+                **transaction,
+                "id": "adopted-change/answer",
+                "operation": "resolve",
+                "observations": [],
+                "resolutions": [
+                    {
+                        "id": "adopted-change/disposition",
+                        "target": "adopted-change/finding",
+                        "status": "rejected",
+                        "reason": "Existing binding already covers this need.",
+                    }
+                ],
+            }
+        request_path.write_text(json.dumps(transaction))
+        result = subprocess.run(  # noqa: S603 -- installed mutations bind literal request paths and CAS
+            [
+                shell,
+                str(launcher),
+                operation,
+                "--request",
+                str(request_path),
+                "--expected-history",
+                history,
+            ],
+            cwd=consumer,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        history = json.loads(result.stdout)["history_digest"]
+    status = subprocess.run(  # noqa: S603 -- standing answer is observed through the installed utility
+        [shell, str(launcher), "status-all"],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert status.returncode == 0, status.stderr
+    assert json.loads(status.stdout)["observations"][0]["status"] == "rejected"
+    retained = subprocess.run(  # noqa: S603 -- original rationale remains independently retrievable
+        [shell, str(launcher), "history", "--change", "adopted-change"],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert retained.returncode == 0, retained.stderr
+    assert len(json.loads(retained.stdout)["entries"]) == 2
+    assert sorted(path.name for path in record.parent.iterdir()) == ["change.toml", "events.jsonl"]
+    sentinel = consumer / "must-not-run"
+    refused = subprocess.run(  # noqa: S603 -- shell syntax is a literal invalid utility argument
+        [shell, str(launcher), "change-open", "$(touch must-not-run)"],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert refused.returncode != 0
+    assert not sentinel.exists()
+
+    unadopted = tmp_path / "unadopted"
+    unadopted.mkdir()
+    existing = unadopted / "Justfile"
+    existing.write_text("existing:\n    echo existing task\n")
+    refused = subprocess.run(  # noqa: S603 -- installation alone must not adopt a repository
+        [shell, str(launcher), "current"],
+        cwd=unadopted,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert refused.returncode != 0
+    assert list(unadopted.iterdir()) == [existing]
+    assert existing.read_text() == "existing:\n    echo existing task\n"

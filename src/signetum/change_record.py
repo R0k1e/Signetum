@@ -176,21 +176,33 @@ def load_repository_record(
     return record
 
 
-def review_view(record: ChangeRecord) -> dict[str, object]:
+def review_view(record: ChangeRecord, *, require_approval: bool = True) -> dict[str, object]:
     """A concise approval/review projection, never an approval mutation."""
     validate_change_record(record)
-    if record.approval is None or record.status == "withdrawn":
+    if require_approval and (record.approval is None or record.status == "withdrawn"):
         raise ValueError("change record is not approved for review")
     return {
         "schema_version": 2,
-        "status": "approval",
+        "status": (
+            "withdrawn"
+            if record.status == "withdrawn"
+            else "approval"
+            if record.approval is not None
+            else "proposal"
+        ),
+        "record_status": record.status,
+        "contract_digest": contract_digest(record.contract),
+        "source": contract_mapping(record.source),
         "change_id": record.id,
+        "approved_base": record.contract.approved_base,
+        "contract_version": record.contract.version,
         "requirements": [contract_mapping(item) for item in record.contract.requirements],
         "non_goals": [contract_mapping(item) for item in record.contract.excluded],
         "deferred": [contract_mapping(item) for item in record.contract.transferred],
         "autonomy": contract_mapping(record.contract.autonomy),
-        "approval": contract_mapping(record.approval),
+        "approval": contract_mapping(record.approval) if record.approval is not None else None,
         "decisions": [contract_mapping(item) for item in record.contract.decisions],
+        "retirements": [contract_mapping(item) for item in record.contract.retirements],
     }
 
 
@@ -217,9 +229,13 @@ def approval_view(record: ChangeRecord) -> dict[str, object]:
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("record", type=Path)
+    parser.add_argument("--review", action="store_true")
     parsed = parser.parse_args(arguments)
     try:
-        result = approval_view(parse_change_record(parsed.record.read_text(encoding="utf-8")))
+        record = parse_change_record(parsed.record.read_text(encoding="utf-8"))
+        result = (
+            review_view(record, require_approval=False) if parsed.review else approval_view(record)
+        )
     except (OSError, ValueError, TypeError) as error:
         print(
             json.dumps({"schema_version": 1, "status": "invalid", "reason": str(error)}),
