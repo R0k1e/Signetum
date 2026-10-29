@@ -45,7 +45,7 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `worktrunk` | Supervised Mise execution, repository environment projection and registered workspace inventory parsing. |
 | `preparation` | Configured preparation execution with clean or staged-state guards and unchanged source identity. |
 | `operation_cli` | Shared argument refusals, result categories and retained operation diagnostics. |
-| `change_record`, `decision_clauses`, `decision_history` | Consolidated candidate records with content-bound approval, targeted clause edits and deterministic topic-aware history projection. |
+| `change_record`, `decision_clauses`, `decision_history`, `development_log`, `development_store` | Consolidated approval, targeted clause edits, significant source journals and their deterministic current decision projection. |
 | `contract_values`, `change.models`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
 | `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and the locked append-only ledger. |
 | `change.member`, `lifecycle_validation`, `provenance`, `execution_review`, `validation.review` | Member qualification, actual package Plans, exact validation and final review/receipt bindings through repository effect adapters. |
@@ -79,9 +79,49 @@ installed-distribution cases check the packaged boundary.
 [Tooling alignment](../../changes/align-perdura-development-tooling/specs/tooling.toml)
 owns the complete requirement and acceptance scope.
 
-The new record and decision-history command modules currently provide read-only
-candidate previews. Projection checking refuses an independently edited current
-set. These functions do not create approval or mutate journals; existing
-traceability and ledger writers remain in force until their approved migration
-is integrated. Repository effect boundaries must validate approval standing
-before committing proposed decision transactions.
+The record and decision-history preview commands never grant approval.
+`development_store` owns mutations for consolidated records: one source journal
+at `changes/<change-id>/events.jsonl` retains significant observations,
+dispositions and exact accepted decision transactions. The current topic-aware
+working set is derived on read, so there is no second handwritten summary or
+cross-file partial update. `current` returns that working set; `status-all`
+returns observation dispositions; `history` retrieves a change or event's
+original rationale and approval provenance on demand.
+
+Mutations require an active member workspace, its exact registered base and a
+committed approved contract. Requests name the expected approval digest, so a
+stale request cannot be reinterpreted under a revised approval. A common-Git
+writer lock, expected history digest,
+per-journal hash chain, protected committed prefix and atomic replacement bound
+each append. An exact retry is idempotent. Reconciliation validates all changes
+before writing; a failed target or decision amendment changes no source bytes.
+Ordinary execution-step refinements do not invalidate unchanged behavior
+approval. Completed and withdrawn records cannot authorize new writes.
+
+An independently identified decision proposal in the contract is accepted by
+that contract's exact approval. Its authority reference is
+`changes/<change-id>/change.toml#decisions/<transaction-id>`; the generated
+current view retains context, affected clauses and provenance without requiring
+another handwritten Markdown copy. History binds the original approval commit
+and blob, rather than reinterpreting old acceptance from the latest record.
+Deferral requires an explicit approved requirement transfer to an active
+follow-up requirement. A retraction names the exact standing resolution and
+returns its observation to pending; it never withdraws the observation or
+carries a replacement answer. Withdrawals apply before standing resolutions
+are judged, so a semantically invalid old answer has an append-only repair.
+Raw `history` remains readable in that case, and the refused status view
+reports the history identity needed by the repair request.
+
+Evidence retirement requires an exact proposal in the approved contract and
+committed deletion of those targets since the registered base. It retains the
+original resolution, its outcome, other evidence and the retiring contract's
+provenance; it does not claim a new implementation of the old finding.
+Mutation output contains the affected observations and decision identities,
+rather than repeating the entire current set or source history.
+
+Existing traceability and the common-Git deviation API remain in force until
+the explicit legacy and lifecycle migration in
+[RELIABLE-006 and RELIABLE-011](../../changes/reliable-agentic-protocol/specs/protocol.toml)
+is integrated. The new command reports `authority_coverage = journal_only`;
+its working set does not silently absorb or replace historical Markdown
+decisions. Candidate preview input is never treated as an accepted journal.

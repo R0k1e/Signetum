@@ -16,6 +16,8 @@ from signetum.vendor_resources import yaml_payload
 
 RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
 MODULES = {
+    "signetum.development_log": "development_log.py",
+    "signetum.development_store": "development_store.py",
     "signetum.validation.process_observation": "process_observation.py",
     "signetum.change_record": "change_record.py",
     "signetum.decision_history": "decision_history.py",

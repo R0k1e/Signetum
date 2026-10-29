@@ -51,6 +51,15 @@ class ExecutionAutonomy(FrozenContract):
 
 
 @dataclass(frozen=True, kw_only=True)
+class EvidenceRetirement(FrozenContract):
+    id: Identifier
+    target: Identifier
+    resolution_id: Identifier
+    targets: Annotated[tuple[Text, ...], Constraints(min_length=1)]
+    reason: Text
+
+
+@dataclass(frozen=True, kw_only=True)
 class ChangeContract(FrozenContract):
     version: Version
     approved_base: Text
@@ -59,6 +68,7 @@ class ChangeContract(FrozenContract):
     excluded: tuple[ExcludedScope, ...] = ()
     transferred: tuple[TransferredRequirement, ...] = ()
     decisions: tuple[DecisionTransaction, ...] = ()
+    retirements: tuple[EvidenceRetirement, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -89,6 +99,7 @@ class ChangeRecord(FrozenContract):
     contract: ChangeContract
     execution: ExecutionPlan
     approval: RecordedApproval | None = None
+    status: Literal["active", "complete", "withdrawn"] = "active"
 
 
 def contract_digest(contract: ChangeContract) -> str:
@@ -101,6 +112,8 @@ def contract_digest(contract: ChangeContract) -> str:
 def validate_change_record(record: ChangeRecord) -> None:
     """Check exhaustive planning and prevent approval surviving changed behavior."""
     requirements = {item.id for item in record.contract.requirements}
+    if record.status == "complete" and record.approval is None:
+        raise ValueError("a completed change requires a recorded approval")
     transfers = {item.id for item in record.contract.transferred}
     if (
         len(requirements) != len(record.contract.requirements)
@@ -136,7 +149,13 @@ def approval_view(record: ChangeRecord) -> dict[str, object]:
     return {
         "schema_version": 1,
         "change_id": record.id,
-        "stage": "approved" if record.approval is not None else "draft",
+        "stage": (
+            record.status
+            if record.status != "active"
+            else "approved"
+            if record.approval is not None
+            else "draft"
+        ),
         "contract_digest": contract_digest(record.contract),
         "source": contract_mapping(record.source),
         "contract": contract_mapping(record.contract),
