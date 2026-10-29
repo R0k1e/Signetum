@@ -5,6 +5,7 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from re import fullmatch
 from tomllib import loads
+from typing import Literal
 
 from .profile_catalog import validate_selection
 from .serialization import dataclass_from_mapping
@@ -98,6 +99,36 @@ class ImpactConfiguration:
 
 
 @dataclass(frozen=True, kw_only=True)
+class HistoricalSource:
+    id: str
+    path: str
+    format: Literal["markdown-constraints@1"]
+
+    def __post_init__(self) -> None:
+        if fullmatch(r"[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*", self.id) is None:
+            raise ManifestError("migration source identity must be namespaced")
+        path = Path(self.path)
+        if (
+            not self.path
+            or path.is_absolute()
+            or ".." in path.parts
+            or path.as_posix() != self.path
+        ):
+            raise ManifestError("migration source must name an exact repository-relative file")
+
+
+@dataclass(frozen=True, kw_only=True)
+class MigrationConfiguration:
+    sources: tuple[HistoricalSource, ...] = ()
+
+    def __post_init__(self) -> None:
+        if len({item.id for item in self.sources}) != len(self.sources) or len(
+            {item.path for item in self.sources}
+        ) != len(self.sources):
+            raise ManifestError("migration source identities and paths must be unique")
+
+
+@dataclass(frozen=True, kw_only=True)
 class ValidationCommands:
     tools: tuple[ValidationTool, ...] = ()
     shards: tuple[ValidationShard, ...]
@@ -138,6 +169,7 @@ class RepositoryManifest:
     repository: RepositoryBindings
     impact: ImpactConfiguration = field(default_factory=ImpactConfiguration)
     validation: ValidationCommands
+    migration: MigrationConfiguration = field(default_factory=MigrationConfiguration)
 
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:

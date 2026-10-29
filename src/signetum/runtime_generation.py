@@ -24,6 +24,7 @@ MODULES = {
     "signetum.maintenance": "maintenance.py",
     "signetum.source_authority": "source_authority.py",
     "signetum.migration": "migration.py",
+    "signetum.working_sets": "working_sets.py",
     "signetum.development_log": "development_log.py",
     "signetum.development_store": "development_store.py",
     "signetum.validation.process_observation": "process_observation.py",
