@@ -8,7 +8,9 @@ Unsupported schema and profile identities fail without fallback interpretation.
 Present the approved behavior and acceptance evidence before implementation.
 Record significant discoveries through `just protocol` for consolidated changes;
 legacy packages retain their declared deviation API. Do not keep findings only
-in chat or edit JSON Lines state directly. Safe
+in chat or edit JSON Lines state directly. A refused request has not entered
+history: commit changed authority bindings before retrying, and verify the
+returned applied transaction rather than continuing on an assumed write. Safe
 implementation clarification may continue, but freeze an affected unauthorized
 decision while independent work proceeds. Before final validation, reconcile
 every retained deviation into the applicable durable authority or an explicit
