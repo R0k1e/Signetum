@@ -50,6 +50,10 @@ def test_deleted_source_relative_imports_and_conftest_preserve_reach():
         b"import importlib\nimportlib.import_module(name)\n",
         b"from importlib import import_module as load\nload(name)\n",
         b"exec(code)\n",
+        b"import importlib\nimportlib.import_module('.feature', __package__)\n",
+        b"import importlib as il\ngetattr(il, key)(name)\n",
+        b"import importlib\nload=importlib.import_module\nload(name)\n",
+        b"import importlib\ngetattr(importlib, 'import_module')(name)\n",
         b"broken(\n",
     ],
 )
