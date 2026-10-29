@@ -1,10 +1,5 @@
 # Signetum
 
-The Signetum engine and the rendered Template use independent semantic
-versions. The package version identifies an engine release; `template_version`
-identifies the clone-ready repository revision and does not mirror the package
-number.
-
 <p align="center">
   <img src="assets/brand/signetum-mark-256.png" width="180" alt="Signetum logo: a seal holding a verified repository with a Git branch on its flipper">
 </p>
@@ -18,6 +13,12 @@ Signetum is a reliable agentic development and delivery protocol, distributed as
 one standard Skill plus repository-owned local commands. It connects approved
 requirements, current decisions, implementation evidence and explicit delivery.
 A clone-ready GitHub Template is available for new repositories.
+
+The product is built around development usefulness, self-use and real experience
+from Perdura. Signetum uses its own protocol to develop itself and turns verified
+lessons into reusable tools and instructions. Protocol maintenance is part of the
+cost it must reduce. It is designed for reliable work with large teams of coding
+Agents; claims about scale and outcomes must stay within demonstrated evidence.
 
 Use it when coding Agents need to preserve decisions across sessions, the owner
 needs a compact review of a change, or several members need an explicit shared
@@ -78,6 +79,15 @@ The launcher calls the consuming repository's `just protocol` commands.
 Installation does not adopt a workflow, download a runtime or change a project.
 Existing repositories bind their local runtime and runners through an explicit
 reviewed adoption change. The skill points back here for maintained extensions.
+
+Installation, first use and literal command forwarding are product acceptance
+boundaries. Keep the existing application's environment and test runner; adopt
+only the local bindings needed for its reviewed workflow.
+
+The Signetum engine and the rendered Template use independent semantic
+versions. The package version identifies an engine release; `template_version`
+identifies the clone-ready repository revision and does not mirror the package
+number.
 
 ## Start here
 

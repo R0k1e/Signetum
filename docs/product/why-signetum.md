@@ -8,6 +8,24 @@ An Agent can produce working code while losing a requirement, repeating an old
 decision or reporting success for a commit that was never checked. Signetum makes
 these obligations inspectable after the conversation has ended.
 
+## Built from development, used in development
+
+The repository and Skill exist to make development and review easier. Maintaining
+the protocol is part of that cost. Signetum develops itself through the shipped
+protocol and implementation owners, so self-use problems become product repair
+inputs rather than private exceptions.
+
+Perdura is an originating application and a continuing source of real problems
+and validated lessons. Reusable experience belongs in Signetum; application
+selection rules, paths and product policy remain with the consuming repository.
+This experience transfer does not mean Perdura adoption is already complete.
+
+The intended audience includes large teams of coding Agents. Explain the product
+through concrete failures, the repairs made and evidence of their outcomes.
+Mechanism demonstrations do not establish a measured deployment scale or a
+general reduction in review time or defects. Installation, distribution and first
+use must remain simple and must be exercised through the actual entrypoints.
+
 ## One change, one record
 
 New work starts with one structured change record. It keeps the intent, stable
