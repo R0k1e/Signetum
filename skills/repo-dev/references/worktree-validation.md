@@ -7,6 +7,25 @@ runner. Without a selection provider, run the full declared member gate. An
 explicit provider may select checks; this skill does not select an application
 language or replace its test system.
 
+Before adding tests, classify existing affected evidence as retain, extend,
+merge, replace, delete or new. Keep necessary real traversals for distinct public
+contracts and put pure matrices in core tests. Generated/installed execution
+checks their own boundaries; it does not mechanically repeat every shared case.
+Do not pin teaching prose or private call order. Keep mutable test resources
+independent and reuse only successful immutable preparation.
+
+For explicit development feedback, use the repository's configured diagnostic
+utility: `test --shard <declared-shard> -- <native-test-arguments>`. It appends
+arguments to the existing command, preserves its declared targets and uses the
+normal allocator and supervisor without registration or readiness evidence.
+Prepare its environment and required build inputs first. Native runner options
+are repository-specific; the skill does not guess a framework or rewrite argv.
+Do not independently multiply worker counts inside an enclosing parallel run.
+Use observed setup/call/teardown and phase cost to decide whether a wider shard
+or grouping helps. Do not introduce a permanent timing/count gate or handwritten
+test inventory. Stop repeating verification once relevant checks pass unless a
+new change or unresolved concern requires another run.
+
 Use `record` for a finding that changes implementation, authority, scope or the
 delivery explanation. Use `resolve`, `retract`, `reconcile` or `retire` for its
 standing answer and accepted decision changes. Each mutation takes a structured

@@ -16,6 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -32,7 +34,10 @@ jobs:
       - run: uv python install "${{ matrix.python-version }}"
       - run: uv sync --locked --all-extras --dev
       - run: uv build
-      - run: uv run --no-sync pytest
+      - run: uv run --no-sync signetum protocol test --shard engine:pytest
+        env:
+          HYPOTHESIS_PROFILE: ci
+      - run: uv run --no-sync signetum protocol test --shard engine:world-tests
         env:
           HYPOTHESIS_PROFILE: ci
   static:

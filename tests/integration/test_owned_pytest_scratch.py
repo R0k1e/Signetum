@@ -9,6 +9,7 @@ import pytest
 
 @pytest.fixture(params=["engine", "template"])
 def command_owner(request, monkeypatch):
+    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", "0")
     if request.param == "engine":
         return importlib.import_module("signetum.validation.process")
     monkeypatch.syspath_prepend(
@@ -19,14 +20,17 @@ def command_owner(request, monkeypatch):
 
 @pytest.mark.parametrize("workers", [0, 2])
 def test_default_pytest_scratch_finds_environment_scrubbed_detached_leak(
-    tmp_path, command_owner, workers
+    tmp_path, command_owner, workers, monkeypatch
 ):
+    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", str(workers))
     case = tmp_path / "test_leak.py"
     observed = tmp_path / "observed-scratch"
+    width = tmp_path / "observed-width"
     case.write_text(
-        "import subprocess,sys\nfrom pathlib import Path\n"
+        "import os,subprocess,sys\nfrom pathlib import Path\n"
         "def test_leak(tmp_path):\n"
         f"    Path({str(observed)!r}).write_text(str(tmp_path))\n"
+        f"    Path({str(width)!r}).write_text(os.environ.get('PYTEST_XDIST_WORKER_COUNT', '0'))\n"
         "    subprocess.Popen([sys.executable,'-c','import time; time.sleep(3)'],"
         "cwd=tmp_path,env={},start_new_session=True)\n"
     )
@@ -39,6 +43,7 @@ def test_default_pytest_scratch_finds_environment_scrubbed_detached_leak(
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "1 passed" in result.stdout
+    assert width.read_text() == str(workers)
     assert "owned process leak" in result.stderr
     assert "signetum-job-" in observed.read_text()
     assert not Path(observed.read_text()).exists()

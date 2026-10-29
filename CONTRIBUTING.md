@@ -15,3 +15,11 @@ remote delivery, acceptance, publication, and cleanup remain explicit maintainer
 actions. See [Agent Team batch delivery](docs/workflows/agent-team-delivery.md).
 
 Never commit credentials, local paths, caches, validation receipts, or editor state.
+
+
+For explicit test feedback after `uv sync --locked --all-extras --dev`, run
+`just test tests/unit` or pass the affected test paths. Build once with `uv build`
+before installed-artifact tests. This diagnostic uses the configured test command
+and allocator without granting readiness. Run the ordinary member gate to close
+work. Before adding tests, extend or consolidate existing evidence; core matrices,
+real public traversals and portable/installed acceptance have distinct purposes.

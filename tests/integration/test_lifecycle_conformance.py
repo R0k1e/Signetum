@@ -172,6 +172,9 @@ def test_native_template_accepts_complete_final_evidence(template_admission_memb
 
 
 def test_template_passes_actual_bounded_worker_count_to_its_command(tmp_path, monkeypatch):
+    # This case supplies standalone host capacity; nested-lane behavior has its own public case.
+    monkeypatch.delenv("SIGNETUM_VALIDATION_WORKERS", raising=False)
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
     runtime = _template_lifecycle()
     resources = importlib.import_module("_signetum_runtime.resources")
     monkeypatch.setattr(

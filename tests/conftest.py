@@ -1,5 +1,6 @@
 """Shared disposable Git and Worktrunk effects for lifecycle contracts."""
 
+import hashlib
 import importlib
 import json
 import subprocess
@@ -15,7 +16,7 @@ from signetum.workspaces import branch_name
 
 
 @pytest.fixture
-def repository(tmp_path, monkeypatch):
+def local_repository(tmp_path, monkeypatch):
     root = tmp_path / "repository"
     root.mkdir()
     git_output(root, "init", "-b", "main")
@@ -51,11 +52,6 @@ def repository(tmp_path, monkeypatch):
     (root / "seed.txt").write_text("base\n")
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "base")
-    remote = tmp_path / "remote.git"
-    remote.mkdir()
-    git_output(remote, "init", "--bare")
-    git_output(root, "remote", "add", "origin", str(remote))
-    git_output(root, "push", "origin", "main")
 
     def native_worktrunk(repository, arguments, *, json_output=False):
         del json_output
@@ -128,3 +124,76 @@ def repository(tmp_path, monkeypatch):
     monkeypatch.setattr(copied, "run_tool", copied_preparation)
 
     return root, state
+
+
+@pytest.fixture
+def record_source():
+    kind = "example"
+    return f'''[change]
+schema_version = 1
+id = "{kind}"
+[change.source]
+kind = "human_direction"
+summary = "Preserve the original {kind} intent and rationale."
+[change.contract]
+version = 1
+approved_base = "approved-base"
+[[change.contract.requirements]]
+id = "REQ-1"
+outcome = "Expose the {kind} result."
+acceptance = ["The existing entrypoint returns that result."]
+[[change.contract.excluded]]
+statement = "Publish a release."
+reason = "Delivery authorization is separate."
+[change.execution]
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = ["REQ-1"]
+action = "Extend the current owner and verify its public entrypoint."
+'''
+
+
+@pytest.fixture
+def repository(local_repository, tmp_path):
+    root, state = local_repository
+    remote = tmp_path / "remote.git"
+    remote.mkdir()
+    git_output(remote, "init", "--bare")
+    git_output(root, "remote", "add", "origin", str(remote))
+    git_output(root, "push", "origin", "main")
+
+    return root, state
+
+
+@pytest.fixture(scope="session")
+def _installed_payloads():
+    return {}
+
+
+@pytest.fixture
+def installed_python(_installed_payloads, tmp_path_factory):
+    wheels = tuple((Path(__file__).parents[1] / "dist").glob("signetum-*.whl"))
+    assert len(wheels) == 1
+    wheel = wheels[0]
+    identity = hashlib.sha256(wheel.read_bytes()).hexdigest()
+    if identity not in _installed_payloads:
+        root = tmp_path_factory.mktemp("installed payload with spaces")
+        environment = root / "environment"
+        python = environment / "bin/python"
+        for command in (
+            ["uv", "venv", "--python", sys.executable, str(environment)],
+            ["uv", "pip", "install", "--python", str(python), "--no-deps", str(wheel)],
+            [
+                str(python),
+                "-B",
+                "-I",
+                "-c",
+                "from pathlib import Path; import sys,signetum; "
+                "from importlib.util import find_spec; "
+                "assert Path(signetum.__file__).is_relative_to(Path(sys.prefix)); "
+                "assert find_spec('pydantic') is None",
+            ],
+        ):
+            subprocess.run(command, cwd=root, check=True, capture_output=True, text=True)
+        _installed_payloads[identity] = python
+    return _installed_payloads[identity]

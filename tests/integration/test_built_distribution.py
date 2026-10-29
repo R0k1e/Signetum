@@ -47,27 +47,16 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
     assert build_machine_home not in payload
 
 
-def test_installed_wheel_generates_the_same_portable_runtime(tmp_path):
-    wheels = tuple(Path("dist").glob("signetum-*.whl"))
-    assert len(wheels) == 1
-    uv = which("uv")
-    assert uv is not None
-    environment = tmp_path / "environment"
-    python = environment / "bin/python"
+def test_installed_wheel_generates_the_same_portable_runtime(tmp_path, installed_python):
+    python = installed_python
     output = tmp_path / "template"
-    probe = (
-        "from pathlib import Path; import sys,signetum; from importlib.util import find_spec; "
-        "assert Path(signetum.__file__).is_relative_to(Path(sys.prefix)); "
-        "assert find_spec('pydantic') is None"
+    subprocess.run(  # noqa: S603 -- successful immutable payload; generated output belongs to this test
+        [str(python), "-B", "-I", "-m", "signetum.runtime_generation", str(output)],
+        check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
     )
-    commands = (
-        (uv, "venv", "--python", sys.executable, str(environment)),
-        (uv, "pip", "install", "--python", str(python), "--no-deps", str(wheels[0].resolve())),
-        (str(python), "-I", "-c", probe),
-        (str(python), "-I", "-m", "signetum.runtime_generation", str(output)),
-    )
-    for command in commands:
-        subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)  # noqa: S603 -- fixed tools and disposable artifact paths
     runtime = output / RUNTIME_DIRECTORY
     actual = {
         path.relative_to(runtime).as_posix(): path.read_bytes()
@@ -95,7 +84,16 @@ print(json.dumps({'identities':[item.identity for item in resolved],
                   'graph':graph.digest,'schema':inputs.schema_digest,'profiles':list(inputs.profiles)}))
 """
     result = subprocess.run(  # noqa: S603 -- isolated installed output, no engine/site packages
-        [str(python), "-I", "-S", "-c", catalog_probe, str(runtime.parent), str(manifest_path)],
+        [
+            str(python),
+            "-B",
+            "-I",
+            "-S",
+            "-c",
+            catalog_probe,
+            str(runtime.parent),
+            str(manifest_path),
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -356,6 +354,41 @@ contract_digest = "{digest}"
     assert retained.returncode == 0, retained.stderr
     assert len(json.loads(retained.stdout)["entries"]) == 2
     assert sorted(path.name for path in record.parent.iterdir()) == ["change.toml", "events.jsonl"]
+    # Native options survive Just and the installed shell launcher unchanged.
+    observed = tmp_path / "diagnostic-arguments.json"
+    command = [
+        sys.executable,
+        "-c",
+        "import json,sys; from pathlib import Path; "
+        f"Path({str(observed)!r}).write_text(json.dumps(sys.argv[1:]))",
+    ]
+    manifest = consumer / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text()
+        + '\n[[validation.shards]]\nname="repo:diagnostic"\ncommand='
+        + json.dumps(command)
+        + "\n"
+    )
+    feedback = subprocess.run(  # noqa: S603 -- installed launcher must retain the native option boundary
+        [
+            shell,
+            str(launcher),
+            "test",
+            "--shard",
+            "repo:diagnostic",
+            "--",
+            "--literal",
+            "argument with spaces",
+        ],
+        cwd=consumer,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert feedback.returncode == 0, feedback.stdout + feedback.stderr
+    assert json.loads(feedback.stdout)["outcome"] == "diagnostic"
+    assert json.loads(observed.read_text()) == ["--literal", "argument with spaces"]
+
     sentinel = consumer / "must-not-run"
     refused = subprocess.run(  # noqa: S603 -- shell syntax is a literal invalid utility argument
         [shell, str(launcher), "change-open", "$(touch must-not-run)"],
@@ -383,22 +416,20 @@ contract_digest = "{digest}"
     assert existing.read_text() == "existing:\n    echo existing task\n"
 
 
-def test_installed_runtime_exercises_optional_selection_and_full_default(repository, tmp_path):
+def test_installed_runtime_exercises_optional_selection_and_full_default(
+    repository, tmp_path, installed_python
+):
     root, _ = repository
     declare_provider(root)
-    wheels = tuple(Path("dist").glob("signetum-*.whl"))
-    assert len(wheels) == 1
-    uv = which("uv")
-    assert uv is not None
-    environment = tmp_path / "installed environment"
-    python = environment / "bin/python"
+    python = installed_python
     output = tmp_path / "installed runtime"
-    for command in (
-        (uv, "venv", "--python", sys.executable, str(environment)),
-        (uv, "pip", "install", "--python", str(python), "--no-deps", str(wheels[0].resolve())),
-        (str(python), "-I", "-m", "signetum.runtime_generation", str(output)),
-    ):
-        subprocess.run(command, check=True, cwd=tmp_path, capture_output=True, text=True)  # noqa: S603 -- installed artifact in a disposable environment
+    subprocess.run(  # noqa: S603 -- installed generator produces this consumer's own runtime
+        [str(python), "-B", "-I", "-m", "signetum.runtime_generation", str(output)],
+        check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
     script = """
 import sys
 from pathlib import Path
@@ -416,12 +447,24 @@ full=select_repository(root,replace(manifest,impact=replace(manifest.impact,prov
                        ("docs/readme.md",),base=source,source=source)
 assert full.selection.gates==("member",)
 assert next(s for s in full.manifest.validation.shards if s.name=="test:check").command[-1]=="tests"
-assert not (Path(sys.argv[1])/"_signetum_runtime/working_sets.py").exists()
+from _signetum_runtime.test_diagnostic import run_test_diagnostic
+feedback=run_test_diagnostic(root,"test:check",())
+assert feedback["status"]=="diagnostic"
+assert not list((root/".git/signetum/validation").glob("*.json"))
 assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
 print("installed adoption boundaries verified")
 """
     completed = subprocess.run(  # noqa: S603 -- isolated generated runtime from the installed wheel
-        [str(python), "-I", "-S", "-c", script, str(output / RUNTIME_DIRECTORY.parent), str(root)],
+        [
+            str(python),
+            "-B",
+            "-I",
+            "-S",
+            "-c",
+            script,
+            str(output / RUNTIME_DIRECTORY.parent),
+            str(root),
+        ],
         cwd=tmp_path,
         capture_output=True,
         text=True,

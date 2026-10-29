@@ -13,9 +13,9 @@ from signetum.git import git_output
 from signetum.serialization import contract_mapping
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture
 def migration(request, monkeypatch):
-    if request.param == "engine":
+    if getattr(request, "param", "engine") == "engine":
         return importlib.import_module("signetum.migration")
     monkeypatch.syspath_prepend(
         str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
@@ -46,6 +46,7 @@ def repository(tmp_path):
     return tmp_path
 
 
+@pytest.mark.parametrize("migration", ["engine", "template"], indirect=True)
 def test_inventory_retains_source_claims_acceptance_and_base_without_writing(repository, migration):
     before = git_output(repository, "status", "--porcelain")
     result = migration.inventory(repository)
@@ -96,6 +97,7 @@ def proposal(repository, migration):
     )
 
 
+@pytest.mark.parametrize("migration", ["engine", "template"], indirect=True)
 def test_explicit_mapping_previews_original_text_and_never_creates_approval(repository, migration):
     original = (repository / "docs/decisions/AD-1.md").read_bytes()
     before = git_output(repository, "status", "--porcelain")
@@ -255,6 +257,7 @@ def test_code_only_commits_do_not_reinterpret_unchanged_legacy_sources(repositor
     assert result.clauses[0].excerpts == ("Keep the first failure failed.",)
 
 
+@pytest.mark.parametrize("migration", ["engine", "template"], indirect=True)
 def test_real_mapping_commands_are_read_only_and_work_without_engine_site_packages(
     repository, migration
 ):

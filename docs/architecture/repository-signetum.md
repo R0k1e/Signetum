@@ -19,8 +19,10 @@ Template is rooted at `template/` and validated by an exact inventory and
 deterministic render. `QUICKSTART.md`, focused
 concept and workflow guides, the complete-change teaching artifact, and public
 governance files explain current contracts without becoming additional
-execution authorities. Repository validation checks that those required assets
-and their local Markdown references remain present.
+execution authorities. Repository validation checks that required assets and
+local Markdown references remain present. The same public-surface authority
+checks structured workflow permissions, triggering-commit checkout and exact
+external-action identities, without pinning teaching prose or command spelling.
 
 
 Portable runtime modules have one maintained engine source, enumerated by
@@ -76,8 +78,7 @@ policy, batch admission and final decision numbering. Its command-line entry
 point only delegates to that lifecycle. Common real-Git workspace and admission
 cases exercise both the engine and generated library; isolated template and
 installed-distribution cases check the packaged boundary.
-[Tooling alignment](../../changes/align-perdura-development-tooling/specs/tooling.toml)
-owns the complete requirement and acceptance scope.
+The validation and delivery responsibility page owns these observable contracts.
 
 The record and decision-history preview commands never grant approval.
 `development_store` owns mutations for consolidated records: one source journal
@@ -119,10 +120,8 @@ provenance; it does not claim a new implementation of the old finding.
 Mutation output contains the affected observations and decision identities,
 rather than repeating the entire current set or source history.
 
-Existing traceability and the common-Git deviation API remain in force until
-the explicit legacy and lifecycle migration in
-[RELIABLE-006 and RELIABLE-011](../../changes/reliable-agentic-protocol/specs/protocol.toml)
-is integrated. The new command reports `authority_coverage = journal_only`;
+Existing traceability and the common-Git deviation API remain available for
+historical and in-flight packages until explicitly migrated. The new command reports `authority_coverage = journal_only`;
 its working set does not silently absorb or replace historical Markdown
 decisions. Candidate preview input is never treated as an accepted journal.
 
@@ -189,7 +188,9 @@ and refusal of unadopted repositories.
 runtime. It requires a registered member, refuses the declared delivery branch
 and unsafe destinations, and creates one unapproved record bound to the recorded
 base. The protocol dispatcher routes authoring, concise proposal views, journal
-operations and migration previews to their existing owners. Candidate views
+operations, migration previews and explicit test diagnostics to their existing
+owners. Test diagnostics delegate to the normal repository execution adapter;
+they do not own another runner or readiness store. Candidate views
 expose the exact base, approval digest and retirement proposals without recording
 confirmation. Consolidated records refuse legacy-ledger mutations, preserving
 one journal write channel. Agent instructions

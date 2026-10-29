@@ -12,10 +12,14 @@ from signetum.git import git_output
 from signetum.workspaces import state_root
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture
 def preparation(request, repository):
     root, state = repository
-    runtime = workspace_operations if request.param == "engine" else _template_lifecycle()
+    runtime = (
+        workspace_operations
+        if getattr(request, "param", "engine") == "engine"
+        else _template_lifecycle()
+    )
     return runtime, root, state
 
 
@@ -33,6 +37,7 @@ def change_command(root, command):
     commit(root, "signetum.toml", text.replace(json.dumps(list(previous)), json.dumps(command)))
 
 
+@pytest.mark.parametrize("preparation", ["engine", "template"], indirect=True)
 def test_preparation_executes_only_its_gate_without_changing_source_or_issuing_evidence(
     preparation,
 ):
@@ -85,6 +90,7 @@ def test_preparation_refuses_unstaged_or_untracked_work(preparation, merge):
 
 
 @pytest.mark.parametrize("stage", [False, True])
+@pytest.mark.parametrize("preparation", ["engine", "template"], indirect=True)
 def test_preparation_cannot_rewrite_staged_resolution(preparation, stage, capsys):
     runtime, root, _ = preparation
     script = (
@@ -127,6 +133,7 @@ def test_preparation_refuses_a_command_that_advances_head(preparation):
     assert git_output(root, "rev-parse", "HEAD") != tip
 
 
+@pytest.mark.parametrize("preparation", ["engine", "template"], indirect=True)
 def test_public_preparation_uses_explicit_worktree_and_one_result(
     preparation, monkeypatch, capsys, tmp_path
 ):
@@ -148,3 +155,8 @@ def test_public_preparation_uses_explicit_worktree_and_one_result(
     assert result["executed"] == ["test:prepare"]
     assert (state / "attempts").read_text() == "1"
     assert not (state_root(root) / "validation").exists()
+
+
+@pytest.fixture(name="repository")
+def local_only_repository(local_repository):
+    return local_repository

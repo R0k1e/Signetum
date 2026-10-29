@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess  # nosec B404 -- declarative argv, never a shell
+import sys
 import tempfile
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -88,6 +91,7 @@ class RepositoryValidationAdapter:
         return identity
 
     def run_shard(self, shard: ValidationShard) -> ShardExecution:
+        started = time.perf_counter()
         allocation = (
             resources.allocate_workers(
                 shard.workers, shard.worker_memory_mb, resources.observe_resources()
@@ -95,6 +99,14 @@ class RepositoryValidationAdapter:
             if shard.workers
             else {"workers": 0, "declared_workers": 0}
         )
+        enclosing = os.environ.get("SIGNETUM_VALIDATION_WORKERS")
+        if enclosing is not None or os.environ.get("PYTEST_XDIST_WORKER"):
+            if enclosing is not None and not enclosing.isdecimal():
+                raise ValidationInfrastructureError("invalid enclosing worker allocation")
+            # Each xdist worker is one lane of its enclosing allocation.
+            limit = 1 if os.environ.get("PYTEST_XDIST_WORKER") else max(1, int(enclosing or "0"))
+            allocation["enclosing_worker_limit"] = limit
+            allocation["workers"] = min(allocation["workers"], limit)
         if shard.ratchet_command and self.member_base is not None:
             execution = run_ratchet(
                 self.repository,
@@ -112,7 +124,27 @@ class RepositoryValidationAdapter:
                     raise ValidationInfrastructureError(
                         f"shard command unavailable: {shard.name}: {error}"
                     ) from error
-        return replace(execution, details={**execution.details, "resource_allocation": allocation})
+        elapsed = time.perf_counter() - started
+        print(
+            json.dumps(
+                {
+                    "event": "validation.shard",
+                    "shard": shard.name,
+                    "elapsed_seconds": elapsed,
+                    "command_succeeded": execution.succeeded,
+                    "resource_allocation": allocation,
+                }
+            ),
+            file=sys.stderr,
+        )
+        return replace(
+            execution,
+            details={
+                **execution.details,
+                "resource_allocation": allocation,
+                "elapsed_seconds": elapsed,
+            },
+        )
 
     def _run_shard(self, shard: ValidationShard, report: Path, workers: int) -> ShardExecution:
         try:

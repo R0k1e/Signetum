@@ -226,3 +226,8 @@ def test_native_ledger_frontends_share_state_and_refuse_wrong_owner_without_writ
     target = copied("status", "--change", "example")
     assert target.returncode == 0, target.stdout + target.stderr
     assert json.loads(target.stdout) == source
+
+
+@pytest.fixture(name="repository")
+def local_only_repository(local_repository):
+    return local_repository

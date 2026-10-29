@@ -24,7 +24,8 @@ jobs:
       - run: uv build
       - name: Validate the exact tagged tree
         run: |
-          uv run --no-sync pytest
+          uv run --no-sync signetum protocol test --shard engine:pytest
+          uv run --no-sync signetum protocol test --shard engine:world-tests
           uv run --no-sync ruff check .
           uv run --no-sync ruff format --check .
           uv run --no-sync ty check

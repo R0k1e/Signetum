@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 _reports: list[dict[str, str]] = []
+_phase_seconds: dict[str, float] = {}
 
 
 def _node_id(value: str) -> str:
@@ -28,6 +29,7 @@ def pytest_collection_modifyitems(items):
 
 
 def pytest_runtest_logreport(report):
+    _phase_seconds[report.when] = _phase_seconds.get(report.when, 0.0) + report.duration
     _reports.append(
         {
             "node_id": _node_id(report.nodeid),
@@ -42,5 +44,13 @@ def pytest_sessionfinish(session, exitstatus):
     # Workers report through the controller. Only that controller owns the file.
     if not hasattr(session.config, "workerinput"):
         Path(os.environ["SIGNETUM_PYTEST_REPORT"]).write_text(
-            json.dumps({"exit_code": int(exitstatus), "reports": _reports}), encoding="utf-8"
+            json.dumps(
+                {
+                    "exit_code": int(exitstatus),
+                    "reports": _reports,
+                    "phase_seconds": _phase_seconds,
+                    "workers": session.config.getoption("numprocesses", default=0) or 0,
+                }
+            ),
+            encoding="utf-8",
         )

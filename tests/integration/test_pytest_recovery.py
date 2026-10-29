@@ -21,7 +21,8 @@ from signetum.validation.repository import run_repository_gate
 
 
 @pytest.fixture(params=["engine", "template"])
-def runner_command(request):
+def runner_command(request, monkeypatch):
+    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", "0")
     if request.param == "engine":
         return ["-m", "signetum.validation.pytest_runner"]
     runner = Path(__file__).parents[2] / (
@@ -123,7 +124,7 @@ def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
             "-n2",
             str(test),
         ],
-        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
+        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report), SIGNETUM_VALIDATION_WORKERS="2"),
         capture_output=True,
         text=True,
         check=False,

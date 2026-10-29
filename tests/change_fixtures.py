@@ -85,3 +85,16 @@ contract_digest = "{digest}"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
     return path
+
+
+def approved_record_source(source):
+    record = parse_change_record(source)
+    return (
+        source
+        + f'''[change.approval]
+actor = "Owner"
+recorded_at = 2026-10-29
+source = "Owner confirmed the behavior."
+contract_digest = "{contract_digest(record.contract)}"
+'''
+    )

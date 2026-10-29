@@ -39,3 +39,10 @@ source references and reviewed decision proposals. Do not configure a document
 parser or infer approval from a table. Structured test selection is optional:
 without an explicit provider, diagnostics and readiness run all declared member
 checks without impact narrowing or inherited test skips. Final remains complete.
+
+Bind local and CI test diagnostics to the repository's declared test shard and
+one allocator. Keep required preparation explicit. Use one locked static-tool
+version and avoid repeating the same static check inside another gate. Batch
+admission and conflict continuation run preparation and batch static checks;
+complete final validation judges the assembled result. Keep current how-pages
+self-contained and historical reasons in the existing decision/change history.
