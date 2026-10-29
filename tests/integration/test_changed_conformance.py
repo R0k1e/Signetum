@@ -97,23 +97,20 @@ def test_changed_requires_a_clean_committed_contribution(diagnostic, dirty):
     assert not (state_root(member) / "validation").exists()
 
 
-def test_changed_does_not_expand_to_required_member_checks_when_unselected(diagnostic):
+def test_changed_without_provider_runs_required_checks_for_unmatched_paths(diagnostic):
     runtime, open_member, _ = diagnostic
     member = open_member(code="raise SystemExit(7)", selected=False)
     commit_contribution(member)
-    result = runtime.changed(member, True)
-    assert result["status"] == "nothing-selected"
-    assert result["executed"] == []
-    assert result["requires_final"] is True
+    with pytest.raises(runtime.ValidationExecutionError, match="exited 7"):
+        runtime.changed(member, True)
 
 
-def test_changed_defers_world_checks_without_running_member_required_checks(diagnostic):
+def test_changed_without_provider_runs_member_checks_despite_world_impact_rule(diagnostic):
     runtime, open_member, _ = diagnostic
     member = open_member(code="raise SystemExit(7)", world=True)
     commit_contribution(member)
-    result = runtime.changed(member, True)
-    assert result["executed"] == []
-    assert result["deferred_world_shards"] == ("test:world",)
+    with pytest.raises(runtime.ValidationExecutionError, match="exited 7"):
+        runtime.changed(member, True)
 
 
 def test_changed_refuses_success_after_a_check_mutates_working_files(diagnostic):

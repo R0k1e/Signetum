@@ -133,7 +133,8 @@ root checks. Ratchet results must still qualify against the currently verified
 source; losing or changing that qualification requires fresh readiness.
 Strict final evidence remains a stronger alternative for the same exact tip.
 
-Only tree test shards explicitly declaring `inherit = true` may reuse the
+With an explicit selection provider, only tree test shards declaring
+`inherit = true` may reuse the
 nearest receipted first-parent ancestor in the member's `base..HEAD` range.
 The ancestor's committed tree and file inputs must verify, and base,
 configuration, profiles, graph, schema, lockfiles and current tool identities
@@ -296,7 +297,7 @@ same command again as a static dependency.
 | Operation | Observable contract |
 | --- | --- |
 | workspace-open branch base | Register the exact base before preparation. Retry the same branch/base after preparation failure; refuse a changed base or role. |
-| changed [--explain] [--validate-only] | Execute only selected member-safe checks in a clean committed workspace; --validate-only reports selection without execution. It never invokes final or grants readiness evidence. |
+| changed [--explain] [--validate-only] | Execute all declared member-safe checks by default, or provider-selected checks when configured; --validate-only reports the plan without execution. It never invokes final or grants readiness evidence. |
 | ready | Close a clean implementation member using its recorded base and exact-tip evidence. |
 | batch-open --member path [...] | Reuse or create a named batch from the fresh configured delivery base and admit only named members. |
 | batch-admit batch --member path [...] | Capture and merge ready tips, then prepare and run the batch gate. Failure retains the merged state for ordinary fixup/re-admission. |
@@ -357,5 +358,7 @@ Provider code, rules and tools participate in identity. Admission recomputes the
 exact selection; inheritance also verifies its explanation of intervening paths.
 Final uses the original complete graph and commands. Open merge diagnostics use
 full declared member checks because the index is not a frozen provider source.
-Existing repositories retain their ordinary impact selection without opt-in.
+Without a provider, diagnostics and readiness execute the full declared member
+gate and required checks. Impact rules do not narrow this default or authorize
+test inheritance. Final retains its complete gate, including final-only checks.
 See [structured selection](../guides/structured-selection.md) for the protocol.

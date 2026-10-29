@@ -126,12 +126,10 @@ is integrated. The new command reports `authority_coverage = journal_only`;
 its working set does not silently absorb or replace historical Markdown
 decisions. Candidate preview input is never treated as an accepted journal.
 
-Optional committed `migration.sources` declarations extend inventory to existing
-constraint working sets. `working_sets` owns the strict Markdown row reader;
-these sources retain a distinct declared status, original context, source blobs,
-row locations and unresolved issues. Preview preserves the exact prohibition,
-basis and reopen condition and reports remaining unmapped rows. Discovery grants
-no acceptance. See [historical working sets](../guides/historical-working-sets.md).
+Agents organize historical working sets using the repository's ordinary change
+and decision process, preserving original sources and rationale for review.
+The engine does not parse constraint tables or assign semantic meaning to their
+rows. Source text and mapping previews never confer approval.
 
 `migration inventory` captures committed Review, Specification, Plan and
 decision sources by exact Git blob identity. It uses the same parsers and

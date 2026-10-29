@@ -85,6 +85,12 @@ def member_shards(
         if name not in selected:
             selected.append(name)
 
+    if manifest.impact.provider is None:
+        # Do not permit callers or old impact projections to narrow the default.
+        for shard in (*gate_shards["member"], *manifest.validation.member_required):
+            admit(shard)
+        return tuple(selected), tuple(sorted(deferred))
+
     for shard in selection.shards:
         admit(shard)
     for gate in selection.gates:

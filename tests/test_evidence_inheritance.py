@@ -77,6 +77,24 @@ def configured(repository, runtime):
         )
         + "\n"
     )
+    (root / "selector.py").write_text("""import json,sys
+q=json.load(sys.stdin)
+coverage=[]
+for p in q["files"]:
+    known=p.startswith(("src/","docs/","changes/"))
+    coverage.append(dict(path=p,status="covered" if known else "unexplained",
+                         shards=["test:check"] if p.startswith("src/") else [],
+                         reason="Explicit fixture selection."))
+print(json.dumps(dict(protocol="signetum.selection@1",request_digest=q["request_digest"],
+                     coverage=coverage,targets=[])))
+""")
+    text += '\n[impact.provider]\nprotocol="signetum.selection@1"\nentrypoint="selector.py"\n'
+    text += "command=" + json.dumps([sys.executable, "{selector}"]) + "\n"
+    text += (
+        'tools=[{name="selector-python",identity_command='
+        + json.dumps([sys.executable, "--version"])
+        + "}]\n"
+    )
     manifest.write_text(text)
     (state / "tool").write_text("v1")
     git_output(root, "add", ".")

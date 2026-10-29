@@ -83,6 +83,7 @@ Use the [structured selection boundary](structured-selection.md) when retaining
 repository-owned test dependence or contract-family selection. The optional
 existing-runner adapter alone does not reproduce those algorithms. Keep one
 execution, retry and receipt owner rather than nesting an old complete gate.
-For historical constraint tables outside a decision log, use explicitly declared
-[working-set sources](historical-working-sets.md); inventory and mapping previews
-never confer approval or rewrite accepted history.
+Without a provider, diagnostics and readiness run the full declared member gate.
+Have the agent organize historical working sets into ordinary reviewed decision
+proposals, retaining source references and rationale without format-specific
+parsing or inferred approval.

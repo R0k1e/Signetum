@@ -151,17 +151,13 @@ def validate_workspace(
             inputs,
             adapter,
             receipt_root(repository),
-            selector=(
-                lambda paths, ancestor, tip: (
-                    select_repository(
-                        repository, declared_manifest, paths, base=ancestor, source=tip
-                    ).selection
-                )
-            )
-            if declared_manifest.impact.provider is not None
-            else None,
+            selector=lambda paths, ancestor, tip: (
+                select_repository(
+                    repository, declared_manifest, paths, base=ancestor, source=tip
+                ).selection
+            ),
         )
-        if kind == "member"
+        if kind == "member" and declared_manifest.impact.provider is not None
         else None
     )
     receipt = execute(graph, gate, inputs, adapter, inherited=inherited)

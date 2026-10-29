@@ -341,36 +341,6 @@
           }
         }
       }
-    },
-    "migration": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "sources": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "id",
-              "path",
-              "format"
-            ],
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
-              },
-              "path": {
-                "$ref": "#/$defs/path"
-              },
-              "format": {
-                "const": "markdown-constraints@1"
-              }
-            }
-          }
-        }
-      }
     }
   },
   "$defs": {

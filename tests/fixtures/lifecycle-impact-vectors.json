@@ -1,22 +1,48 @@
 {
   "cases": [
     {
-      "files": ["src/service.py"],
-      "gates": [],
-      "profiles": ["python-default@1"],
-      "requires_final": false,
-      "rules": ["python.source"],
-      "shards": ["python:ruff", "python:format", "python:ty", "python:unit"],
-      "unexplained": []
-    },
-    {
-      "files": ["README.md"],
-      "gates": [],
+      "files": [
+        "src/service.py"
+      ],
+      "gates": [
+        "member"
+      ],
       "profiles": [],
       "requires_final": true,
       "rules": [],
-      "shards": [],
-      "unexplained": ["README.md"]
+      "shards": [
+        "python:sync",
+        "repository:diff",
+        "repository:traceability",
+        "python:ruff",
+        "python:format",
+        "python:ty",
+        "python:unit",
+        "python:secrets"
+      ],
+      "unexplained": []
+    },
+    {
+      "files": [
+        "README.md"
+      ],
+      "gates": [
+        "member"
+      ],
+      "profiles": [],
+      "requires_final": true,
+      "rules": [],
+      "shards": [
+        "python:sync",
+        "repository:diff",
+        "repository:traceability",
+        "python:ruff",
+        "python:format",
+        "python:ty",
+        "python:unit",
+        "python:secrets"
+      ],
+      "unexplained": []
     }
   ]
 }
