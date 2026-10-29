@@ -8,8 +8,7 @@ nav { display:flex; align-items:center; justify-content:space-between; padding:2
 .brand { display:flex; gap:12px; align-items:center; font-weight:800; text-decoration:none; font-size:1.25rem; }
 .brand img { width:44px; height:44px; }
 .hero { display:grid; grid-template-columns:1.35fr .65fr; align-items:center; gap:56px; padding:92px 0 110px; }
-.eyebrow { color:#337a80; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
-h1 { margin:.15em 0; color:var(--navy); font-size:clamp(3rem,8vw,6.4rem); line-height:.95; letter-spacing:-.06em; }
+h1 { margin:.15em 0; color:var(--navy); font-size:clamp(3rem,8vw,6rem); line-height:.95; letter-spacing:-.04em; }
 .lede { font-size:clamp(1.2rem,2.2vw,1.55rem); max-width:720px; }
 .seal { width:100%; filter:drop-shadow(0 20px 30px #102d5922); }
 .actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:30px; }
