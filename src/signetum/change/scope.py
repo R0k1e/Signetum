@@ -20,6 +20,7 @@ from signetum.change_record import (
     parse_change_record,
 )
 from signetum.decision_identity import numbered_targets
+from signetum.development_store import DevelopmentReviewError, decision_application_commits
 from signetum.git import GitError, git_output, run_git
 from signetum.manifest import RepositoryManifest
 from signetum.operations import OperationError
@@ -302,13 +303,26 @@ def require_member_changes(
         raise ChangeError("member requires an approved change package")
     root = changes_root(manifest) + "/"
     decisions = manifest.repository.decisions.rstrip("/") + "/"
+    applications: frozenset[str] = frozenset()
+    if required_contracts and any(
+        path.endswith("/events.jsonl")
+        for path in git_output(repository, "diff", "--name-only", base, tip).splitlines()
+    ):
+        try:
+            applications = decision_application_commits(
+                repository, tuple(required_contracts), commits, commit=tip
+            )
+        except DevelopmentReviewError as error:
+            raise ChangeError(str(error)) from error
     approved = False
     for commit in (base, *commits):
         if approved:
             paths = git_output(
                 repository, "diff-tree", "--no-commit-id", "--name-only", "-r", commit
             ).splitlines()
-            if any(not path.startswith((root, decisions)) for path in paths):
+            if commit in applications or any(
+                not path.startswith((root, decisions)) for path in paths
+            ):
                 return carried
         try:
             for change_id in carried:
