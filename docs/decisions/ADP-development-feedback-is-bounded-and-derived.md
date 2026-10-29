@@ -2,7 +2,8 @@
 
 Status: Accepted
 Review date: 2026-10-29
-Supersedes: None
+Supersedes: ADP-optional-selection-and-agent-history.md
+Partially supersedes: ADP-optional-selection-and-agent-history.md
 Superseded by: None
 
 ## Context
@@ -15,6 +16,8 @@ Current state is derived; important reasoning is retained without transcripts.
 
 Make changed a source/selection explanation only and expose workflow status
 through one read-only utility, replacing the observation-only status-all entry.
+This replaces only the earlier changed-executes requirement; optional selection,
+full default readiness and historical-source boundaries remain effective.
 Keep the eight lifecycle operation boundaries. Retain one execution, journal
 and evidence owner, and use consistent structured failures at public utilities.
 

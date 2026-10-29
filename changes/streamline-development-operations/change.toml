@@ -7,7 +7,7 @@ kind = "human_direction"
 summary = "Complete stages one to four of the approved next-step plan: operations, test efficiency, concise decision records and optional validation optimization."
 
 [change.contract]
-version = 1
+version = 2
 approved_base = "833b49cf8307ef589651bae9a3e9270911864ffb"
 
 [[change.contract.requirements]]
@@ -122,6 +122,35 @@ scope = [
 statement = "Dependence selection, weighted scheduling and verified partitioning are optional capabilities with repository-owned inputs; neither heuristics nor timing can replace complete final validation."
 rationale = "These techniques generalize, but their language and grouping facts are not generic defaults."
 
+[[change.contract.decisions]]
+id = "streamline-development-operations/align-current-selection-clause"
+change_id = "streamline-development-operations"
+authority = "docs/decisions/ADP-development-feedback-is-bounded-and-derived.md"
+parents = [
+    "simplify-adoption-boundaries/boundaries",
+]
+reason = "Apply the owner-approved changed planning behavior to the existing affected clause rather than leave contradictory current rules."
+
+[[change.contract.decisions.clauses]]
+id = "streamline-development-operations/amend-selection-default"
+change_id = "streamline-development-operations"
+action = "amend"
+expected = [
+    { id = "ADOPTION-SEL-001", version = 2 },
+]
+authority = "docs/decisions/ADP-development-feedback-is-bounded-and-derived.md"
+reason = "Only changed stops executing checks; full readiness by default and complete final remain unchanged."
+
+[[change.contract.decisions.clauses.updates]]
+id = "ADOPTION-SEL-001"
+version = 3
+topic = "repository-adoption"
+scope = [
+    "Repository validation and evidence",
+]
+statement = "Structured repository selection is optional. Changed explains the planned member checks without executing shards. Without a provider, readiness executes the complete declared member-safe gate without impact narrowing or test inheritance; final always executes its complete declared gate."
+rationale = "Separate plan inspection from execution to avoid repeated complete member checks while preserving the simple safe default."
+
 [change.contract.autonomy]
 allowed = [
     "Implement and remove superseded in-repository entrypoints, update policy and Skill, generate portable artifacts, validate installed behavior, reconcile and stop at ready.",
@@ -193,5 +222,5 @@ action = "Retain existing source, Git, journal, receipt, recovery and complete-f
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-10-29
-source = "The owner said to complete the first four stages of the immediately preceding concrete plan, with RAM volumes and background deletion left out."
-contract_digest = "sha256:b50a7d6909a71fefe32edfd6fe499deeb17873ae1904902ab5d877c487ef44cc"
+source = "The owner explicitly approved completing stages one to four, including changed becoming selection-only. This approval binding names the corresponding targeted amendment to the existing current rule; scope and behavior are unchanged."
+contract_digest = "sha256:c4da9c52387e5f3614cdcca69c3e7db68347e5b809163a16585efc81505099a8"
