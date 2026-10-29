@@ -12,10 +12,12 @@ from pathlib import Path
 import pytest
 
 from signetum.change_record import (
+    EvidenceRetirement,
     RecordedApproval,
     approval_view,
     contract_digest,
     parse_change_record,
+    review_view,
     validate_change_record,
 )
 from signetum.git import git_output
@@ -402,3 +404,25 @@ def test_consolidated_progress_requires_matching_evidence_and_never_implies_huma
     assert result.state == expected
     assert all(item.state == expected for item in result.clauses)
     assert result.state != "accepted"
+
+
+def test_concise_proposal_shows_the_exact_base_and_retirement_to_be_confirmed(record_source):
+    record = parse_change_record(record_source)
+    retirement = EvidenceRetirement(
+        id=f"{record.id}/retire",
+        target=f"{record.id}/finding",
+        resolution_id=f"{record.id}/answer",
+        targets=("obsolete.py",),
+        reason="Remove obsolete evidence while preserving the original answer.",
+    )
+    record = replace(record, contract=replace(record.contract, retirements=(retirement,)))
+    view = review_view(record, require_approval=False)
+    assert view["approval"] is None and view["status"] == "proposal"
+    assert view["approved_base"] == record.contract.approved_base
+    assert view["contract_version"] == record.contract.version
+    proposals = view["retirements"]
+    assert isinstance(proposals, list)
+    proposal = proposals[0]
+    assert isinstance(proposal, dict)
+    assert proposal["targets"] == ["obsolete.py"]
+    assert proposal["reason"] == retirement.reason

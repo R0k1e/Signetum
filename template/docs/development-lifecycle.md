@@ -1,32 +1,27 @@
 # Development lifecycle
 
-Every user request starts in `changes/<change>/review.toml`. Each independently
-verifiable clause has a stable ID and one disposition: covered by a confirmed
-specification, explicitly out of scope with a reason, or deferred to another
-active specification. A completed change cannot contain an unresolved deferral.
+Open a registered member workspace with `just workspace-open <branch> <base>`.
+Inside it, `just protocol current` reads the current decision working set and
+`just change-open <id>` creates one unapproved `change.toml`. Fill the intent,
+requirements, acceptance, exclusions, transfers, autonomy and execution steps.
+`just protocol view <record-path>` generates the approval proposal. Record the
+owner's actual confirmation and exact contract digest before implementation.
 
-The specification defines observable behavior and acceptance boundaries. The
-plan maps every covered clause to implementation and behavioral validation.
-Implementation begins only after human confirmation of the specification.
+Keep significant findings and accepted clause edits in `events.jsonl` through
+`just protocol` journal commands. Original rationale is available through
+`history`; the current decision view is derived rather than maintained twice.
+`status-all` shows findings and their standing answers. Preserve historical
+accepted documents until an explicit reviewed migration replaces their authority.
 
-`ready` and `final` run the repository-owned Traceability Validator. It checks
-that every Review clause has one valid disposition, covered and deferred
-clauses resolve to a Specification, and the referenced Plan names every owned
-clause. It checks accounting structure, not whether the requirement or code is
-correct.
+Run the existing repository checks during implementation. A failed diagnostic
+retry remains a failure; fix it and run ordinary validation again. `ready`
+qualifies the exact member tip. Named members enter a batch through `batch-open`
+or `batch-admit`; `batch-continue` recovers an open merge. `final` validates the
+frozen batch and generates the delivery review, refusing pending discoveries,
+unrecorded approved decisions or unavailable effective evidence. Validation
+does not append success to source. Present that review before explicit
+`batch-deliver`; readiness alone authorizes neither integration nor publication.
 
-Run `just change-open <kebab-name>` to create the three draft artifacts. The
-content under `examples/` is read-only teaching material; active state exists
-only under `changes/`.
-
-Development uses a plan-owned worktree. `ready` closes a member; `batch-open`
-and `batch-admit` assemble only named members; `final` validates the frozen
-batch once; `batch-deliver` explicitly lands that exact validated source.
-`changed` executes the selected member-safe checks in a clean, committed
-workspace without issuing readiness evidence or running final. Use
-`changed --validate-only` to inspect selection without execution.
-`batch-continue` is conflict recovery.
-
-After dependency inputs change, `just maintenance worktree-prepare <worktree-path>` runs the
-declared `prepare` gate without issuing readiness evidence. Preparation refuses
-dirty source and does not change the workspace's recorded base.
+Use `just maintenance worktree-prepare <path>` after dependency inputs change.
+Preparation and `changed` do not grant readiness. Ordinary command output stays
+in local logs and receipts; do not create duplicate execution or review reports.

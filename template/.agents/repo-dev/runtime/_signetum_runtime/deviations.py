@@ -131,6 +131,14 @@ def ledger_path(repository: Path, change_id: str) -> Path:
 
 def append_event(repository: Path, event: DeviationEvent) -> Path:
     """Validate and append exactly one complete event with O_APPEND semantics."""
+    _validate_identity(event.change_id)
+    manifest_path = repository / "signetum.toml"
+    root = changes_root(load_manifest(manifest_path)) if manifest_path.exists() else "changes"
+    consolidated = repository / root / event.change_id / "change.toml"
+    if consolidated.exists() or consolidated.is_symlink():
+        raise DeviationError(
+            "consolidated changes use the repository protocol source-journal tools"
+        )
     if isinstance(event, Discovered):
         require_change_workspace(repository, event.change_id, event.member)
         source = git_output(repository, "rev-parse", "HEAD")

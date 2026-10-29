@@ -30,3 +30,10 @@ batch-deliver source target expected-base expected-batch-tip:
 # Local support utility; not a lifecycle operation.
 maintenance *args:
     mise exec -- uv run signetum maintenance {{args}}
+
+# Local authoring and journal utility; not a lifecycle operation.
+protocol *args:
+    mise exec -- uv run signetum protocol "$@"
+
+change-open name:
+    just protocol change-open "$@"

@@ -1,76 +1,48 @@
 ---
 name: repo-dev
-description: Govern repository discovery, requirement closure, implementation, validation, delivery, recovery, and bootstrap from repository-declared authorities. Use when changing or auditing a repository; do not use it as a substitute for the repository's own manifest or authorization.
+description: Use a repository's reliable agentic development and delivery protocol to plan changes, retain decisions, validate implementation, or prepare delivery. Applies to repositories that declare this protocol; installation alone does not adopt it or authorize publication.
 metadata:
-  version: "3.0.0"
+  version: "4.0.0"
 ---
 
-# Repository development
+# Reliable agentic development and delivery
 
-Use this skill as a lifecycle router, not as a source of repository facts. The
-repository manifest selects concrete paths, profiles, commands, branches,
-evidence adapters, and public operations. If the manifest is absent,
-unsupported, or pins a different skill identity, stop before mutation and
-report the mismatch; installing a newer skill grants no downstream authority.
+Read the repository's Agent contract, architecture entry and declared development
+manifest. Load mandatory policies and only the groups selected by intent or
+paths; report those groups and reasons. Repository bindings own paths,
+environments, runners and delivery targets. If adoption or a required binding
+is absent, report what is missing before mutation. Do not install a workflow
+into an existing repository merely because this skill was invoked.
 
-## Route before acting
+Keep cwd in the user's repository. The local utility launcher is
+`sh <skill-base-dir>/scripts/repo-dev <command> [arguments]`; it delegates to
+`just protocol` in that repository. It does not download or update anything.
+Honor declared schema, profile and skill identities. A mismatch requires an
+explicit adoption change; installing this folder does not change existing pins.
+Use the repository's declared lifecycle commands for workspace and delivery
+operations. Read [adoption](references/adoption.md) only when setting up or
+migrating a repository.
 
-Classify the request as discovery, requirement closure, planning,
-implementation, validation, delivery, recovery, or bootstrap. Before planning
-or mutation:
+Before planning, read the current decision working set with `current`. Retrieve
+original rationale with `history --event <id>` or `history --change <id>` only
+when relevant. If `authority_coverage` is `journal_only`, also consult the
+relevant declared legacy decisions; an empty projection does not erase them.
+For new or changed behavior, read
+[change approval](references/spec-plan-decisions.md); create one change record
+and generate its approval view. Read [change closure](references/change-closure.md)
+for scope, deferral or completion checks.
 
-1. Read the repository safety contract and architecture entry selected by the
-   manifest.
-2. Load every mandatory policy group plus groups selected by intent and
-   affected paths.
-3. Resolve Review, Specification, Plan, decision, evidence, and legacy
-   authorities from the manifest. Never supply conventional paths from memory.
-4. Emit a bounded manifest of the selected groups and selection reasons.
+During implementation, read [work and validation](references/worktree-validation.md).
+Keep significant findings and accepted decision edits in the source journal
+through its tools. Do not maintain a second handwritten decision summary,
+execution report, review document or command-by-command log.
 
-Do not proceed when a required authority cannot be resolved. Repository-owned
-instructions and authorization boundaries remain controlling.
+For integration, final review, delivery or recovery, read
+[delivery and recovery](references/delivery-recovery.md). A passed check proves
+its observed source; it grants no permission for a later operation. Report only
+the furthest evidenced state: ready, integrated or delivered. Human acceptance
+requires its own explicit evidence.
 
-## Requirement closure
-
-Before planning, dispatch, or behavior changes, read
-[change closure](references/change-closure.md). Preserve the chain from Review
-clause through its one current approved Specification owner, exhaustive Plan
-obligations, implementation evidence, delivery, and human acceptance.
-
-A dispatch selects obligations for execution; it cannot reduce approved scope.
-Never call a whole Plan complete from a partial dispatch or an agent report.
-Deferral requires an approved transfer of ownership before the current work can
-continue toward closure.
-
-For new behavior, changed accepted behavior, durable architecture/process/
-security choices, planning, or supersession, read
-[specification, plan, and decision gates](references/spec-plan-decisions.md).
-
-## Work and evidence
-
-Use only the workspace and environment authorities named by the manifest.
-Preserve unrelated work and keep external mutation within the user's explicit
-authorization. For implementation, member readiness, or final validation,
-read [worktree and validation](references/worktree-validation.md).
-
-Report these derived states separately:
-
-- **ready**: member evidence passes for its exact source identity;
-- **integrated**: the member is included in a named integration identity;
-- **delivered**: the validated integration reached the declared target;
-- **accepted**: a human accepted the delivered Review clauses.
-
-The state of a parent is the least-complete state of its clauses. None of these
-states implies a later one.
-
-For integration, delivery, acceptance, rejection, or failed-workflow recovery,
-read [delivery and recovery](references/delivery-recovery.md). Delivery,
-publication, remote mutation, and cleanup need their own repository-declared
-authority; validation never implies permission for them.
-
-## Bootstrap boundary
-
-When creating a repository specialization, keep generic lifecycle decisions in
-this versioned skill and repository facts in the downstream manifest and its
-focused policies. Select technology profiles only from repository evidence.
-Do not create duplicate runners, aliases, selectors, or delivery mechanics.
+The maintained implementation and extension point is
+[Signetum](https://github.com/R0k1e/Signetum). Adopt a later revision as an explicit
+local change; never replace repository authorities automatically.

@@ -1,3 +1,7 @@
+> This read-only example preserves the historical Review/Specification/Plan
+> format. New work uses `just change-open` in a registered member workspace to
+> create one `change.toml`; see the [current quickstart](../../QUICKSTART.md).
+
 # Complete change example
 
 This directory is a teaching artifact, not a second active change authority.

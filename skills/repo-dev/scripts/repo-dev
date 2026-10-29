@@ -1,0 +1,8 @@
+#!/bin/sh
+# Repository-owned commands remain the execution authority.
+set -eu
+if ! command -v just >/dev/null 2>&1; then
+    echo "Repository command authority unavailable: install the repository-declared just tool." >&2
+    exit 127
+fi
+exec just protocol "$@"

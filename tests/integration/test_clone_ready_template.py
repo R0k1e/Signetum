@@ -7,14 +7,16 @@ from tomllib import loads
 from urllib.parse import quote
 
 import pytest
-from change_fixtures import commit_approval
+from change_fixtures import approve_change, commit_approval
 from typer.testing import CliRunner
 
 from signetum.cli import app
 from signetum.evidence.receipts import EvidenceReceipt
+from signetum.git import git_output
 from signetum.manifest import load_manifest
 from signetum.template import TOP_LEVEL, render_template, validate_template
 from signetum.validation.repository import configured_validation
+from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 ROOT = Path(__file__).parents[2]
 
@@ -318,49 +320,64 @@ def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate:
 def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:
     rendered = tmp_path / "repository"
     render_template(ROOT / "template", rendered)
-    scaffold = rendered / ".agents/repo-dev/runtime/change_open.py"
+    for args in (
+        ("init", "-b", "main"),
+        ("config", "user.name", "Author"),
+        ("config", "user.email", "author@example.invalid"),
+        ("add", "."),
+        ("commit", "-m", "template base"),
+    ):
+        git_output(rendered, *args)
+    base = git_output(rendered, "rev-parse", "HEAD")
+    member = tmp_path / "member"
+    git_output(rendered, "worktree", "add", "-b", "plan/first-change", str(member), base)
+    write_record(state_root(rendered), WorkspaceRecord(1, "plan/first-change", base, "member"))
+    scaffold = member / ".agents/repo-dev/runtime/change_open.py"
 
     opened = subprocess.run(
         (sys.executable, "-I", str(scaffold), "first-change"),
-        cwd=rendered,
+        cwd=member,
         check=True,
         capture_output=True,
         text=True,
     )
     duplicate = subprocess.run(
         (sys.executable, "-I", str(scaffold), "first-change"),
-        cwd=rendered,
+        cwd=member,
         check=False,
         capture_output=True,
         text=True,
     )
     invalid = subprocess.run(
         (sys.executable, "-I", str(scaffold), "../unsafe"),
-        cwd=rendered,
+        cwd=member,
         check=False,
         capture_output=True,
         text=True,
     )
 
     assert '"status": "opened"' in opened.stdout
-    assert (rendered / "changes/first-change/review.toml").is_file()
-    assert (rendered / "changes/first-change/specs/change.toml").is_file()
-    assert (rendered / "changes/first-change/plans/change.md").is_file()
+    record = member / "changes/first-change/change.toml"
+    assert record.is_file()
+    assert len(list(record.parent.iterdir())) == 1
+    assert not (rendered / "changes/first-change").exists()
     assert duplicate.returncode == 2
     assert invalid.returncode == 2
 
 
-def test_rendered_template_retains_and_reconciles_execution_deviations(tmp_path: Path) -> None:
+def test_rendered_template_retains_and_reconciles_legacy_execution_deviations(
+    tmp_path: Path,
+) -> None:
     rendered = tmp_path / "repository"
     render_template(ROOT / "template", rendered)
     for command in (
         ("git", "init", "-b", "main"),
         ("git", "config", "user.name", "Signetum test"),
         ("git", "config", "user.email", "signetum@example.invalid"),
-        (sys.executable, ".agents/repo-dev/runtime/change_open.py", "first-change"),
     ):
         subprocess.run(command, cwd=rendered, check=True, capture_output=True)
-    specification = rendered / "changes/first-change/specs/change.toml"
+    approve_change(rendered, "first-change")
+    specification = rendered / "changes/first-change/specs/behavior.toml"
     specification.write_text(
         specification.read_text(encoding="utf-8")
         .replace('status = "draft"', 'status = "approved"')

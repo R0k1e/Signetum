@@ -14,7 +14,7 @@ Agent 记得之前发生过什么。
 ## 开发流程
 
 ```text
-Review → Specification → Plan → 隔离 worktree
+registered member → approved change record → implementation
        → 成员 ready → 命名批次 → 冻结后的最终验证
        → 显式交付 → 人工验收或重新打开
 ```
@@ -38,13 +38,13 @@ enabled = ["python-default@1", "typescript-local@1"]
 
 ## 机器保证什么
 
-- 每项需求都有合法处置和 Specification owner；
-- deferred 工作指向真实且已批准的 Specification；
-- Plan 覆盖每个归属 Clause；
+- One record owns requirements, approval and exhaustive execution steps.
+- Deferred work names an exact active follow-up requirement.
+- Source journals retain significant findings and accepted clause decisions.
 - 实际改动能解析到可解释的 Profile、Gate 和 Shard；
 - 收据绑定代码、配置、锁文件、工具和实际执行的检查；
 - 只有显式点名且 ready 的 worktree 才能进入交付批次；
-- 并行决策提案只在批次中领取正式 ADP 编号；
+- Accepted clause edits preserve unaffected decisions; historical numbering remains explicit.
 - 交付和人工验收始终是两个不同事实。
 
 Signetum 保证需求账目和执行边界。产品架构、行为契约以及测试是否充分，仍由你的
@@ -55,8 +55,9 @@ Signetum 保证需求账目和执行边界。产品架构、行为契约以及�
 1. 使用 GitHub 的 **Use this template** 创建仓库。
 2. 运行 `mise install`。
 3. 在 `docs/ARCHITECTURE.md` 中填写产品的真实架构。
-4. 运行 `just change-open <短横线名称>`，再填写生成的 Review。
-5. 人工确认 Specification 后，运行 `just workspace-open <branch> <base>` 开始隔离实现。
+4. Open isolated work with `just workspace-open <branch> <base>`.
+5. Inside it, run `just change-open <id>`, fill the single record and present
+   `just protocol view <record-path>` for actual confirmation.
 
 进一步阅读 [`docs/development-lifecycle.md`](docs/development-lifecycle.md)、
 [`docs/agent-team-delivery.md`](docs/agent-team-delivery.md) 和

@@ -14,3 +14,12 @@ receipts, and local paths out of Git.
 Specifications own behavior, and Plans cannot narrow them. Accepted decisions
 must precede architecture, process, or security changes. Use English for code
 and technical documents. Use Chinese for user discussion.
+
+For new work, use `just protocol current` for the decision working set, then
+`just protocol change-open <id>` in the registered member workspace. Maintain
+one `change.toml` and its significant source journal; use `just protocol view`
+for approval and `history` for rationale on demand. Record, resolve, retract,
+reconcile and retire through `just protocol`, never direct JSONL edits. Do not
+write duplicate execution or decision summaries. Until reviewed legacy adoption
+is complete, `journal_only` coverage requires relevant historical authorities;
+existing legacy changes retain their declared deviation API and accepted files.

@@ -3,8 +3,12 @@ product: replace-with-product-name
 architecture: docs/ARCHITECTURE.md
 authorities:
   changes: changes
-  specifications: changes/*/specs/*.toml
-  plans: changes/*/plans/*.md
+  records: changes/*/change.toml
+  journals: changes/*/events.jsonl
+  legacy:
+    reviews: changes/*/review.toml
+    specifications: changes/*/specs/*.toml
+    plans: changes/*/plans/*.md
   decisions: docs/decisions
 policy:
   mandatory:

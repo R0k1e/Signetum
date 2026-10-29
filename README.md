@@ -34,7 +34,7 @@ lifecycle runtime and does not install the Signetum package.
 
 | Outcome | Repository contract |
 | --- | --- |
-| Recorded requirements do not disappear silently | Every Review clause has exactly one approved Specification owner and an exhaustive Plan obligation. |
+| Recorded requirements do not disappear silently | One approved change record binds stable requirements, acceptance and exhaustive execution steps. |
 | Agents inspect before changing | Architecture and repository policy route discovery to named authorities and require an inspectable routing manifest. |
 | Development feedback stays fast | Members run targeted or changed validation; complete validation runs once on the frozen batch. |
 | Agent Teams work safely in parallel | Each member uses an isolated plan-owned worktree and cannot mutate the delivery worktree. |
@@ -55,7 +55,7 @@ security checks.
 ## The lifecycle
 
 ```text
-Review -> Specification -> Plan -> isolated implementation
+registered member -> approved change record -> implementation
        -> member ready -> named batch -> final validation
        -> explicit delivery -> human acceptance or reopening
 ```
@@ -66,12 +66,22 @@ preparation and cleanup have the same machine-readable result contract.
 See [Validation and delivery](docs/architecture/validation-and-delivery.md#workspace-operations)
 for the operation catalog and recovery rules.
 
+## Skill distribution
+
+Install the standard [`repo-dev` skill folder](https://github.com/R0k1e/Signetum/tree/engine/skills/repo-dev)
+with your coding agent's skill installer. It contains `SKILL.md`, conditional
+references and a local launcher; the built wheel includes the same folder.
+The launcher calls the consuming repository's `just protocol` commands.
+Installation does not adopt a workflow, download a runtime or change a project.
+Existing repositories bind their local runtime and runners through an explicit
+reviewed adoption change. The skill points back here for maintained extensions.
+
 ## Start here
 
 1. Create a new repository with GitHub's **Use this template** action.
 2. Follow [Quickstart](QUICKSTART.md) to complete one governed change.
 3. Read [Development lifecycle](docs/concepts/development-lifecycle.md) for the
-   boundary between Review, Specification, Plan, evidence, and acceptance.
+   boundary between the change contract, source history, evidence and acceptance.
 4. Use [Agent Team delivery](docs/workflows/agent-team-delivery.md) for parallel
    members and batch delivery.
 5. Read [Customizing the Template](docs/guides/customizing-the-template.md)

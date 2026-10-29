@@ -1,56 +1,55 @@
-# Worktree and validation
+# Work and validation
 
-Read this reference for implementation, member readiness, validation evidence,
-or final-gate work.
+Use the registered member workspace, immutable base and repository environment.
+Find and extend the existing implementation owner. Reproduce changed behavior
+through its public boundary and validate the approved contract with the existing
+runner. Repository bindings select checks; this skill does not select an
+application language or replace its test system.
 
-## Isolate implementation
+Use `record` for a finding that changes implementation, authority, scope or the
+delivery explanation. Use `resolve`, `retract`, `reconcile` or `retire` for its
+standing answer and accepted decision changes. Each mutation takes a structured
+`--request` and the `--expected-history` returned by `current` or `status-all`.
+Requests bind the expected approval digest. On a stale identity, inspect the
+current state and reassess the request; never force a replacement or edit JSONL.
+Ordinary command output stays in local logs, not a handwritten work report.
 
-Use the workspace authority, base identity, and environment command declared by
-the repository manifest. Work only in the Plan-owned workspace. Preserve
-unrelated changes and stop when the declared base, skill identity, schema, or
-workspace invariant does not match.
+A minimal `record` request has this shape; replace the identities and digest
+with the current approved values. Keep request files disposable; the tool owns
+the durable journal.
 
-Search production and test authorities selected by architecture and manifest
-before changing an implementation. Reuse or extend the owning authority and
-remove superseded duplicate behavior. For defects, reproduce the failure
-through its public boundary before changing production code. For new behavior,
-write contract-protecting tests before implementation.
+```json
+{
+  "id": "change-id/observation-1",
+  "change_id": "change-id",
+  "approval_digest": "sha256:<approved-contract-digest>",
+  "operation": "record",
+  "reason": "Why this finding matters to the approved outcome.",
+  "observations": [{
+    "id": "change-id/finding-1",
+    "requirements": ["REQ-001"],
+    "summary": "The significant finding.",
+    "reason": "Its supporting basis.",
+    "evidence": ["path/to/existing-evidence"]
+  }]
+}
+```
 
-## Bind evidence
+For `resolve`, use a fresh transaction ID, no new observations, and
+`resolutions` entries with `id`, exact observation `target`, `status`, `reason`
+and `evidence`. Status is `resolved`, `rejected` or `deferred`; a deferral also
+names `followup` as `change-id#REQ-ID` and requires the exact approved transfer.
+A `retract` entry names `id`, `target`, `resolution_id` and `reason`.
+`reconcile` combines changes atomically; its `decisions` must exactly match the
+accepted contract proposals. `retirements` likewise match the contract's exact
+approved evidence-retirement proposals. Each operation uses a fresh namespaced
+ID and the same approved digest; inspect `--help` for command arguments.
 
-Run targeted or changed validation during coherent work and the repository's
-complete final authority once on the frozen integration tree. Use only declared
-selectors and commands; do not invent a runner or copy its selection logic.
+Commit significant source events before validation freezes the source. Run the
+repository's targeted checks during work and its member gate for ready. A first
+failure remains failed even when a diagnostic retry passes; after fixing it,
+run ordinary validation again. Process settlement checks only positively owned
+jobs and refuses successful commands that leave owned children behind.
 
-Evidence must identify the exact source or integration identity, declared tool
-and skill identity, selected scope, result, and any repository-required inputs.
-A diagnostic may say complete validation is required but must not silently run
-or claim that gate.
-
-A member gate judges what the member owns. A judgement over the whole tree or a
-whole corpus belongs to the final gate, because a member owns neither the
-finding nor, while its base is frozen, any means of acquiring the fix. A check
-enters a member gate only when it accepts a scope, or when it reports findings
-as a comparable set so the gate can judge the member tree against the same
-check run on the member's base. A check that does neither is a final-gate
-check.
-
-Member evidence can establish **ready** only. Integration evidence establishes
-**integrated** only for the named integration identity. Neither proves delivery
-or human acceptance. Agent summaries are explanations, never evidence.
-
-## Test what the contract owes
-
-Do not assert that a string literal is absent. `assert "widget" not in payload`
-records the change its author was making, not a behavior the code owes anyone:
-it is true when written and afterwards only constrains renaming, and it silently
-stops protecting anything the author did not think to list. Assert what is
-there. Where absence really is the contract, bind the value to a name which says
-why it must not appear, or state a relation between two observations, so the
-assertion keeps holding for cases nobody enumerated. Never repair such an
-assertion by rewriting it as an equality on the same object: that pins an
-internal shape and breaks on any legitimate addition.
-
-Keep disposable test output separate from durable specifications, plans,
-receipts, and delivery state. Leave a coherent, clean, validated member ready
-for explicit integration or delivery authorization.
+Preserve unrelated files and processes. Stop at a clean ready unless integration
+or delivery is authorized. Validation never appends its own success to source.

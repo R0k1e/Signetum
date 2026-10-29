@@ -171,3 +171,22 @@ approved record's execution plan is the record itself. Ready, integration and
 delivery require matching observations, and a completed record never implies
 human acceptance. Historical version-one review projections remain unchanged
 while source journals and final-review reconciliation are being integrated.
+
+The standard `skills/repo-dev` folder contains one routing `SKILL.md`, conditional
+references and a local shell launcher. The launcher delegates to the consuming
+repository's `just protocol`; it does not fetch code, adopt policy or install
+an application runner. The wheel carries that same folder for ordinary skill
+installation. Installed-artifact tests run its commands against a disposable
+consumer using the consumer's existing interpreter, including paths with spaces
+and refusal of unadopted repositories.
+
+`change_open` is the single authoring owner, shared by engine and generated
+runtime. It requires a registered member, refuses the declared delivery branch
+and unsafe destinations, and creates one unapproved record bound to the recorded
+base. The protocol dispatcher routes authoring, concise proposal views, journal
+operations and migration previews to their existing owners. Candidate views
+expose the exact base, approval digest and retirement proposals without recording
+confirmation. Consolidated records refuse legacy-ledger mutations, preserving
+one journal write channel. Agent instructions
+use these commands, preserve relevant legacy authorities during `journal_only`
+coverage, and require significant journals rather than duplicate reports.
