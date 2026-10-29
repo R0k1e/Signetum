@@ -65,7 +65,7 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
         text=True,
         check=False,
     )
-    assert result.returncode == (0 if retry == "pass" else 1), result.stdout + result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
     defects = json.loads(report.read_text())
     if retry == "pass":
         assert len(defects) == 1
@@ -128,11 +128,11 @@ def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
         text=True,
         check=False,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
     assert "first parallel failure" in str(json.loads(report.read_text()))
 
 
-def test_recovered_defect_is_in_receipt_and_repeated_member_recovery_fails(tmp_path):
+def test_failed_original_never_writes_success_even_with_a_one_run_window(tmp_path):
     repository = tmp_path / "repository"
     repository.mkdir()
     (repository / ".gitignore").write_text("__pycache__/\n")
@@ -183,14 +183,10 @@ def test_recovered_defect_is_in_receipt_and_repeated_member_recovery_fails(tmp_p
     )
     inputs = ValidationInputs("signetum.toml", (), (), (), recovery_threshold=2)
     receipts = tmp_path / "receipts"
-    receipt, _ = run_repository_gate(repository, graph, "member", inputs, receipts)
-    assert "recurring contention failure" in str(receipt.extensions["recovered_flake_defects"])
-    with pytest.raises(ValidationExecutionError, match="repeated recovered robustness defect"):
-        run_repository_gate(repository, graph, "member", inputs, receipts)
-    bounded, _ = run_repository_gate(
-        repository, graph, "member", replace(inputs, recovery_window=1), receipts
-    )
-    assert bounded.valid
+    for policy in (inputs, replace(inputs, recovery_window=1)):
+        with pytest.raises(ValidationExecutionError, match="recurring contention failure"):
+            run_repository_gate(repository, graph, "member", policy, receipts)
+        assert not tuple(receipts.glob("member-*.json"))
 
 
 def test_independent_template_retains_recovery_and_refuses_a_repeated_node(repository, tmp_path):
@@ -258,18 +254,11 @@ print(receipt.to_json(),end='')
         )
 
     first = run()
-    assert first.returncode == 0, first.stdout + first.stderr
-    evidence = json.loads(first.stdout)
-    defect = evidence["extensions"]["recovered_flake_defects"][0]
-    assert "recurring template failure" in str(defect["first_failure"])
-    assert defect["source"] == git_output(root, "rev-parse", "HEAD")
-    assert defect["gate"] == "member" and defect["shard"] == "test:pytest"
-    repeated = run()
-    assert repeated.returncode == 3, repeated.stdout + repeated.stderr
-    assert "repeated recovered robustness defect" in repeated.stdout
-    assert "recurring template failure" in repeated.stdout
+    assert first.returncode == 3, first.stdout + first.stderr
+    assert "recurring template failure" in first.stdout
+    assert "diagnostic retry passed" in first.stdout
     manifest.write_text(manifest.read_text().replace("recovery_window = 20", "recovery_window = 1"))
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "bound recovery history to the current observation")
     bounded = run()
-    assert bounded.returncode == 0, bounded.stdout + bounded.stderr
+    assert bounded.returncode == 3, bounded.stdout + bounded.stderr

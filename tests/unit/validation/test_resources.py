@@ -129,7 +129,8 @@ def test_actual_pytest_workers_consume_allocation_and_retry_serially(
             worker_memory_mb=1000,
         )
     )
-    assert result.succeeded, result.diagnostic
+    assert not result.succeeded
+    assert "diagnostic retry passed" in result.diagnostic
     assert len(result.recovered) == 1
     assert "retry serially" in str(result.recovered)
 

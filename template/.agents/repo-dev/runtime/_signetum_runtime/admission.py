@@ -7,9 +7,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from .evidence_receipts import EvidenceIdentity, EvidenceReceipt, ReceiptError
-from .execution import ValidationInputs, require_recovery_limit
+from .execution import ValidationInputs, require_original_success
 from .operations import AdmissionError
-from .recovery import with_recovery_history
 from .serialization import ValueDecodeError, load_json
 
 
@@ -71,15 +70,7 @@ def find_member_evidence(
             if outcome.evidence == "tree" and outcome.status == "passed"
         )
         if required_digests <= proven:
-            if receipt.execution.gates == ("final",):
-                policy_inputs = with_recovery_history(
-                    inputs,
-                    receipt_root,
-                    exclude=path.with_name(path.name.replace("-lifecycle-", "-")),
-                )
-                require_recovery_limit(
-                    receipt.extensions.get("recovered_flake_defects", []), policy_inputs
-                )
+            require_original_success(receipt.extensions.get("recovered_flake_defects", []))
             return path.name
     raise AdmissionError(
         "member has no evidence proving its selected validation for the exact tip and inputs"

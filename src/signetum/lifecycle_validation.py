@@ -28,7 +28,6 @@ from signetum.validation.execution import (
 )
 from signetum.validation.inheritance import find_test_inheritance
 from signetum.validation.receipt_store import ReceiptStore
-from signetum.validation.recovery import with_recovery_history
 from signetum.validation.review import member_recovery_review, recovery_projection
 from signetum.waivers import WaiverError, load_waivers
 from signetum.workspaces import recorded_base, require_clean
@@ -136,14 +135,6 @@ def validate_workspace(
         selection=selected,
         schema_digest=manifest.signetum.evidence_schema_digest,
         waivers=waivers,
-    )
-    inputs = with_recovery_history(
-        replace(
-            inputs,
-            recovery_threshold=initial_inputs.recovery_threshold,
-            recovery_window=initial_inputs.recovery_window,
-        ),
-        receipt_root(repository),
     )
     adapter = adapter_factory(repository, member_base=base)
     inherited = (

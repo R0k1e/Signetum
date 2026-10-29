@@ -12,8 +12,9 @@ from pydantic import JsonValue
 from test_workspace_operations import commit_file, opened
 
 from signetum import lifecycle
+from signetum.evidence.receipts import EvidenceReceipt
 from signetum.git import git_output
-from signetum.validation.repository import RepositoryValidationAdapter
+from signetum.validation.receipt_store import ReceiptStore
 
 
 @pytest.fixture(params=["engine", "template"])
@@ -184,33 +185,25 @@ def test_incompatible_nearest_receipt_does_not_fall_back_to_older_evidence(
     assert (state / "tests").read_text() == "xx"
 
 
-def test_inherited_recovery_is_visible_but_not_a_new_recovery_observation(
-    repository, monkeypatch, runtime
-):
-    adapter_type = (
-        RepositoryValidationAdapter if runtime is lifecycle else runtime.RepositoryValidationAdapter
-    )
-    original = adapter_type.run_shard
+def test_an_ancestor_with_recovered_failure_requires_fresh_normal_tests(repository, runtime):
+    member, state, first = configured(repository, runtime)
+    evidence = first["evidence"]
+    assert isinstance(evidence, dict)
+    historical = EvidenceReceipt.from_json(json.dumps(evidence))
     defect: dict[str, JsonValue] = {
+        "shard": "test:check",
         "node_id": "test_contract",
         "first_failure": [{"phase": "call", "outcome": "failed", "diagnostic": "retained failure"}],
     }
-
-    def run(adapter, shard):
-        result = original(adapter, shard)
-        return replace(result, recovered=(defect,)) if shard.inherit else result
-
-    monkeypatch.setattr(adapter_type, "run_shard", run)
-    member, state, _ = configured(repository, runtime)
+    ReceiptStore(runtime._receipt_root(member)).write(
+        "member", replace(historical, extensions={"recovered_flake_defects": [defect]})
+    )
     (member / "docs").mkdir()
-    for name in ("one", "two"):
-        commit_file(member, f"docs/{name}.md")
-        ready = runtime.validate(member, "member")
-        evidence = ready["evidence"]
-        assert isinstance(evidence, dict)
-        inherited = evidence["extensions"]["recovered_flake_defects"]
-        assert "retained failure" in str(inherited)
-        assert inherited[0]["inherited_from"]
-    commit_file(member, "src/feature.py", "new = True\n")
+    commit_file(member, "docs/one.md")
+    ready = runtime.validate(member, "member")
+    assert (state / "tests").read_text() == "xx"
+    assert isinstance(ready["evidence"], dict)
+    assert "inherited_test_evidence_from" not in ready["evidence"].get("extensions", {})
+    commit_file(member, "docs/two.md")
     runtime.validate(member, "member")
     assert (state / "tests").read_text() == "xx"

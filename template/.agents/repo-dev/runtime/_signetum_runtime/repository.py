@@ -30,7 +30,7 @@ from .process import run_command
 from .profiles import builtin_catalog
 from .ratchet import run_ratchet
 from .receipt_store import ReceiptStore
-from .recovery import shard_execution, with_recovery_history
+from .recovery import shard_execution
 from .validation import (
     ToolDeclaration,
     ValidationGraph,
@@ -169,7 +169,6 @@ def run_repository_gate(
 
     adapter = RepositoryValidationAdapter(repository)
     adapter.require_clean()
-    inputs = with_recovery_history(inputs, receipt_root)
     adapter.member_base = inputs.base if gate == "member" else None
     receipt = execute_gate(graph, gate, inputs, adapter)
     adapter.require_clean()

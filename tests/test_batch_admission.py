@@ -395,27 +395,27 @@ def test_a_completed_final_gate_satisfies_member_admission(tmp_path: Path) -> No
     assert admitted[0]["ready_evidence"] == "final-lifecycle-frozen.json"
 
 
-def test_final_review_projects_member_and_final_recovered_defects(tmp_path, monkeypatch):
+def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monkeypatch):
     member, batch, _ = _member_and_batch(tmp_path, approved=True)
+    adapter = lifecycle.RepositoryValidationAdapter
+    original = adapter.run_shard
     defect: dict[str, JsonValue] = {
         "node_id": "tests/test_contract.py::test_contract",
         "first_failure": [{"phase": "call", "outcome": "failed", "diagnostic": "first contention"}],
     }
-    monkeypatch.setattr(
-        lifecycle.RepositoryValidationAdapter,
-        "run_shard",
-        lambda self, shard: ShardExecution(True, recovered=(defect,)),
-    )
-    ready = lifecycle.validate(member, "member")
+
+    def retried(self, shard):
+        return ShardExecution(True, recovered=(defect,))
+
+    monkeypatch.setattr(adapter, "run_shard", retried)
+    with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
+        lifecycle.validate(member, "member")
+    monkeypatch.setattr(adapter, "run_shard", original)
+    lifecycle.validate(member, "member")
     lifecycle.admit(batch, (member,))
-    final = lifecycle.validate(batch, "final")
-    review = final["delivery_review"]
-    assert isinstance(review, dict)
-    defects = review["recovered_flake_defects"]
-    assert len(defects) == 2
-    assert {item["source_gate"] for item in defects} == {"member", "final"}
-    assert any(item["source_receipt"] == ready["receipt"] for item in defects)
-    assert all("first contention" in str(item["first_failure"]) for item in defects)
+    monkeypatch.setattr(adapter, "run_shard", retried)
+    with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
+        lifecycle.validate(batch, "final")
 
 
 @pytest.mark.parametrize("damage", ["missing", "altered", "different-tip"])
@@ -439,7 +439,7 @@ def test_final_refuses_invalid_provenance_named_member_evidence(tmp_path, damage
         lifecycle.validate(batch, "final")
 
 
-def test_final_evidence_cannot_bypass_repeated_member_recovery_policy(tmp_path: Path) -> None:
+def test_final_evidence_cannot_bypass_original_failure_policy(tmp_path: Path) -> None:
     member, batch, _ = _member_and_batch(tmp_path, approved=True)
     path = _evidence_receipt(
         member,
@@ -458,7 +458,7 @@ def test_final_evidence_cannot_bypass_repeated_member_recovery_policy(tmp_path: 
         prior["identity"]["commit"] = str(index) * 40
         path.with_name(f"member-prior-{index}.json").write_text(json.dumps(prior))
     before = _git(batch, "rev-parse", "HEAD")
-    with pytest.raises(lifecycle.ValidationExecutionError, match="repeated recovered"):
+    with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
         lifecycle.admit(batch, (member,))
     assert _git(batch, "rev-parse", "HEAD") == before
 
