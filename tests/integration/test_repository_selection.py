@@ -72,7 +72,7 @@ if mode=="docs-aware":
         if item["path"].startswith(("docs/", "changes/")): item["shards"]=[]
 digest="sha256:"+"0"*64 if mode=="stale" else q["request_digest"]
 plans=[dict(shard="test:check",tests=[dict(path=path,argument=argument)])]
-if not any(item["shards"] for item in coverage): plans=[]
+if mode=="whole-shard" or not any(item["shards"] for item in coverage): plans=[]
 print(json.dumps(dict(protocol="signetum.selection@1",request_digest=digest,
                      coverage=coverage,targets=plans)))
 """)
@@ -88,6 +88,8 @@ print(json.dumps(dict(protocol="signetum.selection@1",request_digest=digest,
         + "}]\n"
     )
     text += '[[impact.provider.targets]]\nshard="test:check"\nroots=["tests"]\nargument_index=3\n'
+    if mode == "whole-shard":
+        text = text.split("[[impact.provider.targets]]")[0]
     manifest.write_text(text)
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "declare repository selection authority")
@@ -391,4 +393,25 @@ def test_open_merge_uses_full_checks_and_preserves_the_conflict_until_they_pass(
     continued = runtime.continue_batch(batch)
     assert continued["status"] == "continued"
     assert continued["checks"]["executed"] == ["test:check"]
+    assert git_output(root, "rev-parse", "main") == base
+
+
+def test_whole_shard_provider_needs_no_file_refinement_binding_for_changed_tests(
+    repository, selection_runtime
+):
+    runtime, root, member, base = _selected_member(
+        repository, selection_runtime, mode="whole-shard"
+    )
+    test = member / "tests/test_a.py"
+    test.write_text(test.read_text() + "# A modified test must run through the full shard.\n")
+    git_output(member, "commit", "-am", "refine a test without file-target support")
+    ready = runtime.validate(member, "member")
+    assert ready["status"] == "ready"
+    assert ready["evidence"]["selection"]["modified_tests"] == ["tests/test_a.py"]
+    command_digest = importlib.import_module(
+        selection_runtime.__package__ + ".validation"
+    ).command_digest
+    full = (sys.executable, "-m", "unittest", "discover", "-s", "tests")
+    assert ready["evidence"]["execution"]["shards"][0]["command_digest"] == command_digest(full)
+    assert runtime.batch_open(root, (member,))["admitted"]
     assert git_output(root, "rev-parse", "main") == base

@@ -219,12 +219,15 @@ def _select(
             if committed_blob(repository, source, path) is None:
                 continue  # Deleted tests still invalidate inheritance, but cannot be executed.
             proven = any(
-                name in bindings
-                and _under(path, bindings[name].roots)
+                declarations[name].evidence == "tree"
                 and (
                     name not in targets
-                    or path
-                    in {test.path for test in targets[name].tests if test.argument == test.path}
+                    or (
+                        name in bindings
+                        and _under(path, bindings[name].roots)
+                        and path
+                        in {test.path for test in targets[name].tests if test.argument == test.path}
+                    )
                 )
                 for name in coverage[path].shards
             )
