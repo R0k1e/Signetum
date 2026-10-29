@@ -150,9 +150,9 @@ def _payload(request: AdoptionRequest) -> dict[str, str]:
     ]:
         files[f"{runtime}/{name}.py"] = (
             '"""Run the repository-owned protocol implementation."""\n'
-            "import sys\nsys.dont_write_bytecode = True\nfrom pathlib import Path\n"
+            "import sys\nfrom pathlib import Path\nsys.dont_write_bytecode = True\n"
             "sys.path.insert(0, str(Path(__file__).resolve().parent))\n"
-            f"from _signetum_runtime.{module} import main\n"
+            f"from _signetum_runtime.{module} import main  # noqa: E402\n"
             'if __name__ == "__main__":\n    raise SystemExit(main())\n'
         )
     files[".agents/repo-dev/run"] = (

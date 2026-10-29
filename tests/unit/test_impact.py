@@ -132,7 +132,7 @@ shards = ["test:unit", "test:web"]
     script = (
         "import sys,json; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
         "from _signetum_runtime import lifecycle; "
-        "selected=lifecycle.changed(Path(sys.argv[2]),True,validate_only=True); "
+        "selected=lifecycle.changed(Path(sys.argv[2]),True); "
         "print(json.dumps(selected['selection'])); "
         "assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules"
     )
