@@ -1,0 +1,82 @@
+[change]
+schema_version = 1
+id = "perdura-adoption-boundaries"
+[change.source]
+kind = "human_direction"
+summary = "Complete the Signetum side of the preceding Perdura adoption plan; leave Perdura unchanged."
+[change.contract]
+version = 1
+approved_base = "cc1c7be09510654cfff72f410a541eebf57d58d7"
+decisions = [{id="adoption/boundaries",change_id="perdura-adoption-boundaries",authority="docs/decisions/ADP-external-selection-and-working-set-sources.md",reason="The owner authorized the Signetum side of the reviewed Perdura adoption plan.",topics=[{expected_version=0,revision={id="repository-adoption",version=1,summary="Repositories supply selection and historical source facts; Signetum owns validation and review mechanisms.",boundaries=["A provider never owns a second gate or receipt.","Discovery and mapping previews never confer approval."]}}],clauses=[{id="adoption/boundary-clauses",change_id="perdura-adoption-boundaries",action="add",expected=[{id="ADOPTION-SEL-001",version=0},{id="ADOPTION-HIST-001",version=0}],updates=[{id="ADOPTION-SEL-001",version=1,topic="repository-adoption",scope=["Repository validation and evidence"],statement="A declared repository provider supplies structured selection through one validated boundary; the existing generic runner and evidence owner execute and judge it.",rationale="Nesting repository gates duplicates retries, receipts, cleanup and eligibility rules."},{id="ADOPTION-HIST-001",version=1,topic="repository-adoption",scope=["Historical authority inventory and migration preview"],statement="Historical working sets enter inventory only through explicit committed source declarations; mappings preserve source facts and remain unapproved until separately accepted.",rationale="A working-set table can be authority without being a decision log, and missing provenance must not be invented."}],reason="Keep generic mechanisms separate from repository-specific facts and approval.",authority="docs/decisions/ADP-external-selection-and-working-set-sources.md"}]}]
+[change.contract.autonomy]
+allowed = ["Implement and test the approved generic boundaries in this isolated member.", "Refine safe implementation details, generate the runtime, build and verify artifacts, and run readiness."]
+requires_confirmation = ["Change approved behavior or scope.", "Modify Perdura, assemble a real batch, deliver or publish."]
+[[change.contract.excluded]]
+statement = "Perdura adapters, workflow cutover, product preparation, real batch integration, delivery and publication."
+reason = "The owner requested the Signetum-side work first."
+
+[[change.contract.requirements]]
+id = "ADOPT-001"
+outcome = "Accept a strict versioned repository selection provider at one shared boundary used by diagnostics, readiness and admission."
+acceptance = ["Provider input binds the source, base, exact contribution paths and declared graph; output names selected tests/shards, reasons and unexplained paths.","Unknown identities, malformed output, missing changed-test coverage and invalid target paths refuse before validation; unexplained paths retain conservative full-member fallback."]
+
+[[change.contract.requirements]]
+id = "ADOPT-002"
+outcome = "Bind selection implementation, rules and declared inputs to exact validation evidence without a second execution or receipt authority."
+acceptance = ["Selected test targets execute through the existing supervised runner, resource budget, failure policy and receipt owner.","Changed provider bytes, input declarations, selected targets or commands invalidate eligibility; final retains the declared complete gate and never narrows it using member targets.","Inheritance is admitted only when its complete source, selection and command proof remains valid; unsupported proof reruns required checks."]
+
+[[change.contract.requirements]]
+id = "ADOPT-003"
+outcome = "Inventory explicitly declared historical working-set sources alongside decision history without assuming that every Markdown file is an accepted decision."
+acceptance = ["Committed manifest declarations opt in exact regular repository files; dirty bindings, symlinks, missing files and changed source bytes are refused.","Inventory retains original source status, Git blobs and precise source locations; no approval or current decision is created by discovery."]
+
+[[change.contract.requirements]]
+id = "ADOPT-004"
+outcome = "Produce reviewable working-set clause mappings that preserve prohibitions, rationale and reopen conditions."
+acceptance = ["A Markdown do_not/because table can supply explicit row candidates, context and source spans without invented decision provenance.","Ambiguous tables, incomplete rows and unmapped sources remain explicit review issues; changed inventory refuses stale proposals.","Preview is unapproved and accepted historical files remain byte-for-byte unchanged."]
+
+[[change.contract.requirements]]
+id = "ADOPT-005"
+outcome = "Ship the same generic boundaries through engine and generated runtime, with one owner and an actionable existing-repository adoption guide."
+acceptance = ["Generated and installed frontends exercise structured selection and historical-source discovery without importing the engine or requiring an application-language runner.","No Perdura path, product import, preparation action or repository-specific policy enters generic code; existing repositories without new declarations retain their current contract."]
+
+[[change.contract.requirements]]
+id = "ADOPT-006"
+outcome = "Verify the complete Signetum-side integration and stop at a clean ready member."
+acceptance = ["Behavioral evidence covers valid selection, conservative fallback, stale evidence, missing tests, provider failure and owned process cleanup.","History tests cover explicit declarations, row mappings, bad references, source changes and refusal of implicit approval.","Required checks, build/installed-artifact checks and formal readiness pass without mutating any delivery worktree or Perdura checkout."]
+
+[[change.execution.steps]]
+id = "IMPLEMENT-001"
+requirements = ["ADOPT-001"]
+action = "Extend the existing owner for ADOPT-001 and verify its observable positive and negative boundaries."
+
+[[change.execution.steps]]
+id = "IMPLEMENT-002"
+requirements = ["ADOPT-002"]
+action = "Extend the existing owner for ADOPT-002 and verify its observable positive and negative boundaries."
+
+[[change.execution.steps]]
+id = "IMPLEMENT-003"
+requirements = ["ADOPT-003"]
+action = "Extend the existing owner for ADOPT-003 and verify its observable positive and negative boundaries."
+
+[[change.execution.steps]]
+id = "IMPLEMENT-004"
+requirements = ["ADOPT-004"]
+action = "Extend the existing owner for ADOPT-004 and verify its observable positive and negative boundaries."
+
+[[change.execution.steps]]
+id = "IMPLEMENT-005"
+requirements = ["ADOPT-005"]
+action = "Extend the existing owner for ADOPT-005 and verify its observable positive and negative boundaries."
+
+[[change.execution.steps]]
+id = "IMPLEMENT-006"
+requirements = ["ADOPT-006"]
+action = "Extend the existing owner for ADOPT-006 and verify its observable positive and negative boundaries."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-29
+source = "The owner instructed: complete the Signetum-side changes first, following the preceding six-stage adoption proposal."
+contract_digest = "sha256:cf208ecc6e0a639ffbcc3ec17dfb11439335496da7e7a9646d3381cd9f61be3a"
