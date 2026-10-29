@@ -34,7 +34,7 @@ from signetum.validation.execution import (
 from signetum.validation.process import run_command
 from signetum.validation.ratchet import run_ratchet
 from signetum.validation.receipt_store import ReceiptStore
-from signetum.validation.recovery import shard_execution, with_recovery_history
+from signetum.validation.recovery import shard_execution
 
 
 class RepositoryValidationAdapter:
@@ -168,7 +168,6 @@ def run_repository_gate(
 
     adapter = RepositoryValidationAdapter(repository)
     adapter.require_clean()
-    inputs = with_recovery_history(inputs, receipt_root)
     adapter.member_base = inputs.base if gate == "member" else None
     receipt = execute_gate(graph, gate, inputs, adapter)
     adapter.require_clean()

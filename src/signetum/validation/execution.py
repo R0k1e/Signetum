@@ -145,6 +145,9 @@ def _resolve_outcome(
     if execution.details:
         details[shard.name] = execution.details
     if execution.succeeded:
+        require_original_success(
+            [{**defect, "shard": shard.name} for defect in execution.recovered]
+        )
         recovered.extend({**defect, "shard": shard.name} for defect in execution.recovered)
         return ShardOutcome(shard.name, shard.digest, shard.evidence, "passed", observed_at)
     if shard.evidence != "world":
@@ -247,8 +250,6 @@ def execute_gate(
         raise failure_type("; ".join(failures))
     if build_evidence_identity(graph, inputs, adapter) != identity:
         raise ValidationExecutionError("validation inputs changed during execution")
-    if gate == "member":
-        require_recovery_limit(recovered, inputs)
     receipt = combine_shard_evidence(
         gate=gate,
         required_shards=graph.execution_order(gate),
@@ -274,17 +275,17 @@ def execute_gate(
                 if isinstance(defect, dict) and defect.get("shard") in inherited_names
             )
     if defects:
+        require_original_success(defects)
         extensions["recovered_flake_defects"] = defects
     if extensions:
         return replace(receipt, extensions=extensions)
     return receipt
 
 
-def require_recovery_limit(defects: object, inputs: ValidationInputs) -> None:
-    """A final receipt used for member admission cannot bypass recovery policy."""
+def require_original_success(defects: object) -> None:
+    """A diagnostic retry cannot authorize current execution or admission."""
     if not isinstance(defects, list):
         raise ValidationExecutionError("invalid recovered robustness defects")
-    repeated = []
     for defect in defects:
         if (
             not isinstance(defect, dict)
@@ -292,15 +293,9 @@ def require_recovery_limit(defects: object, inputs: ValidationInputs) -> None:
             or not isinstance(defect.get("node_id"), str)
         ):
             raise ValidationExecutionError("invalid recovered robustness defect")
-        key = f"{defect['shard']}::{defect['node_id']}"
-        count = 1 + sum(key in history for history in inputs.recovery_history)
-        if count >= inputs.recovery_threshold:
-            repeated.append(f"{key} recoveries={count}")
-    if repeated:
+    if defects:
         raise ValidationExecutionError(
-            "repeated recovered robustness defect: "
-            + "; ".join(repeated)
-            + "; first_failures="
+            "original validation failure cannot be cleared by retry; first_failures="
             + json.dumps(defects, sort_keys=True)
         )
 
@@ -347,6 +342,7 @@ def execute_diagnostic_gate(
                 advisories.append({"shard": name, "diagnostic": result.diagnostic})
                 continue
             raise ValidationExecutionError(result.diagnostic or f"check failed: {name}")
+        require_original_success([{**defect, "shard": name} for defect in result.recovered])
         if shard.evidence == "tree":
             proven.add(shard.digest)
     return {

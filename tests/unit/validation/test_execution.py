@@ -17,6 +17,7 @@ from signetum.validation.execution import (
     ShardExecution,
     ValidationExecutionError,
     ValidationInputs,
+    execute_diagnostic_gate,
     execute_gate,
 )
 from signetum.waivers import Waiver, parse_waiver
@@ -73,6 +74,39 @@ def _inputs() -> ValidationInputs:
         lockfiles=("uv.lock",),
         tools=(ToolDeclaration("uv", ("uv", "--version")),),
     )
+
+
+@pytest.mark.parametrize("gate", ["member", "final", "diagnostic"])
+def test_an_adapter_cannot_report_a_failed_original_as_success(gate):
+    class RetriedAdapter(Adapter):
+        def run_shard(self, shard):
+            return ShardExecution(
+                True,
+                recovered=(
+                    {
+                        "node_id": "test_failed",
+                        "first_failure": [{"phase": "call", "outcome": "failed"}],
+                    },
+                ),
+            )
+
+    graph = resolve_validation_graph(
+        (
+            GraphContribution(
+                "core",
+                shards=(ValidationShard("core:test", ("test",)),),
+                gates=(
+                    GateDeclaration("member", ("core:test",)),
+                    GateDeclaration("final", ("core:test",)),
+                ),
+            ),
+        )
+    )
+    with pytest.raises(ValidationExecutionError, match="cannot be cleared by retry"):
+        if gate == "diagnostic":
+            execute_diagnostic_gate(graph, "member", RetriedAdapter())
+        else:
+            execute_gate(graph, gate, _inputs(), RetriedAdapter())
 
 
 def test_gate_executes_dependencies_and_binds_every_declared_input() -> None:

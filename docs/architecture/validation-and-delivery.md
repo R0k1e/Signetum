@@ -155,22 +155,21 @@ its failed-node retry remains serial. The engine ceiling is four workers with
 a conservative 1024 MiB estimate per worker, configured in `signetum.toml`.
 
 The Python test adapter is `python -m signetum.validation.pytest_runner -- <pytest
-arguments>`. Only pytest exit 1 with one through thirty explicitly failed nodes
-permits one retry. The retry preserves repository pytest configuration, selects
-only those nodes and disables xdist workers. A recovered node needs a passed call
-and no failed phase; a skip, missing node or collection error cannot recover it.
-Coverage is appended on retry. The original phase reports and complete failure
-representations remain in the receipt's `extensions.recovered_flake_defects`,
-together with shard, gate and source identity. Diagnostics return those defects
-without publishing readiness evidence.
+arguments>`. Pytest exit 1 with one through thirty explicitly failed nodes may
+trigger one serial diagnostic retry. The retry preserves repository pytest
+configuration and retains the original phase reports. A passed retry does not
+change the original failed exit status. Missing, skipped or collection-failed
+nodes never demonstrate recovery. Only a fresh normal validation after a fix
+can publish successful evidence.
 
-`validation.recovery_window` (default 20) bounds recent valid gate receipts;
-`validation.recovery_threshold` (default 3) refuses a member whose current
-recovered shard/node reaches that many observations in the window including the
-current run. Final may record recovery for review, but consuming final evidence
-for member admission applies the same refusal. Lifecycle projections do not
-count as additional receipts. Shard timeouts terminate the owned process group,
-including the pytest adapter's child processes, before returning a failure.
+Gate execution, diagnostics and admission reject a success result carrying
+original failure metadata. Historical receipts remain decodable for inspection,
+but an ancestor containing recovered failures cannot replace fresh normal
+execution. Source-local failure logs retain both attempts, and successful
+receipts are not written for failed runs. Legacy recovery-window and threshold
+configuration cannot authorize a pass or weaken this first-failure rule.
+Shard timeouts terminate the owned process group, including the pytest adapter's
+child processes, before returning a failure.
 
 Each nested check adapter owns an independent process group and deadline. A
 supervisor watches a parent-held pipe and terminates its group if its caller

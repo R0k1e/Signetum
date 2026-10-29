@@ -128,6 +128,10 @@ def find_test_inheritance(
             if receipt.schema_digest != inputs.schema_digest:
                 return None
             verify_committed_inputs(repository, receipt)
+            # A historical retry may explain a failure, but it cannot replace
+            # fresh normal execution under the current first-failure policy.
+            if receipt.extensions.get("recovered_flake_defects", []):
+                return None
             outcomes = {outcome.name: outcome for outcome in receipt.execution.shards}
             if any(
                 name not in outcomes

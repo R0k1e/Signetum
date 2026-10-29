@@ -27,7 +27,6 @@ from .inheritance import find_test_inheritance
 from .manifest import RepositoryManifest, load_manifest
 from .operations import AdmissionError
 from .receipt_store import ReceiptStore
-from .recovery import with_recovery_history
 from .synchronization import member_contribution_paths
 from .validation import ValidationGraph
 from .validation_review import member_recovery_review, recovery_projection
@@ -137,14 +136,6 @@ def validate_workspace(
         selection=selected,
         schema_digest=manifest.signetum.evidence_schema_digest,
         waivers=waivers,
-    )
-    inputs = with_recovery_history(
-        replace(
-            inputs,
-            recovery_threshold=initial_inputs.recovery_threshold,
-            recovery_window=initial_inputs.recovery_window,
-        ),
-        receipt_root(repository),
     )
     adapter = adapter_factory(repository, member_base=base)
     inherited = (

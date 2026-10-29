@@ -79,7 +79,7 @@ def main(arguments: list[str] | None = None) -> int:
         failed = sorted({report["node_id"] for report in reports if report["outcome"] == "failed"})
         if not failed or len(failed) > 30:
             return status
-        retry_status, retried = _run(supplied, root / "retry.json", nodes=failed)
+        _, retried = _run(supplied, root / "retry.json", nodes=failed)
         recovered = []
         for node in failed:
             outcomes = [report for report in retried if report["node_id"] == node]
@@ -97,8 +97,10 @@ def main(arguments: list[str] | None = None) -> int:
         if destination := os.environ.get("SIGNETUM_RECOVERY_REPORT"):
             Path(destination).write_text(json.dumps(recovered), encoding="utf-8")
         for defect in recovered:
-            print(f"recovered robustness defect: {defect['node_id']}", file=sys.stderr)
-        return 0 if retry_status == 0 and len(recovered) == len(failed) else 1
+            print(f"diagnostic retry passed for failed node: {defect['node_id']}", file=sys.stderr)
+        # Retrying a narrower, serial workload is diagnostic evidence. Only a
+        # fresh normal execution may prove the source after the defect is fixed.
+        return status
 
 
 if __name__ == "__main__":
