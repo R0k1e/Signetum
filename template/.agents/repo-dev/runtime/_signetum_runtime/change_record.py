@@ -12,7 +12,7 @@ import sys
 import tomllib
 from dataclasses import dataclass, field
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Annotated, Literal
 
 from .change_models import ClauseId, Identifier, ReviewSource
@@ -20,6 +20,7 @@ from .contract_values import FrozenContract
 from .decision_clauses import Text, Version
 from .decision_history import DecisionTransaction
 from .serialization import Constraints, contract_mapping, dataclass_from_mapping
+from .source_authority import source_path
 
 Digest = Annotated[str, Constraints(pattern="^sha256:[0-9a-f]{64}$")]
 
@@ -142,6 +143,56 @@ def parse_change_record(source: str) -> ChangeRecord:
     record = dataclass_from_mapping(ChangeRecord, document["change"], use_defaults=True)
     validate_change_record(record)
     return record
+
+
+def competing_legacy_authorities(record_path: str, paths: frozenset[str]) -> tuple[str, ...]:
+    root = PurePosixPath(record_path).parent.as_posix()
+    return tuple(
+        sorted(
+            path
+            for path in paths
+            if path == f"{root}/review.toml"
+            or path.startswith((f"{root}/specs/", f"{root}/plans/"))
+        )
+    )
+
+
+def load_repository_record(
+    repository: Path, relative: str, *, paths: frozenset[str] | None = None
+) -> ChangeRecord:
+    path = source_path(repository, relative)
+    if path.name != "change.toml" or not path.is_file():
+        raise ValueError("consolidated authority must name a regular change.toml")
+    if paths is None:
+        paths = frozenset(
+            item.relative_to(repository.resolve()).as_posix()
+            for item in path.parent.rglob("*")
+            if item.is_file() or item.is_symlink()
+        )
+    if competing_legacy_authorities(relative, paths):
+        raise ValueError("change has competing consolidated and legacy authorities")
+    record = parse_change_record(path.read_text(encoding="utf-8"))
+    if record.id != path.parent.name:
+        raise ValueError("consolidated record declares another change identity")
+    return record
+
+
+def review_view(record: ChangeRecord) -> dict[str, object]:
+    """A concise approval/review projection, never an approval mutation."""
+    validate_change_record(record)
+    if record.approval is None or record.status == "withdrawn":
+        raise ValueError("change record is not approved for review")
+    return {
+        "schema_version": 2,
+        "status": "approval",
+        "change_id": record.id,
+        "requirements": [contract_mapping(item) for item in record.contract.requirements],
+        "non_goals": [contract_mapping(item) for item in record.contract.excluded],
+        "deferred": [contract_mapping(item) for item in record.contract.transferred],
+        "autonomy": contract_mapping(record.contract.autonomy),
+        "approval": contract_mapping(record.approval),
+        "decisions": [contract_mapping(item) for item in record.contract.decisions],
+    }
 
 
 def approval_view(record: ChangeRecord) -> dict[str, object]:

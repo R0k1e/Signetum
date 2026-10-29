@@ -156,3 +156,18 @@ while execution-step refinements can preserve the same behavior approval.
 Legacy package readers remain available for the historical and in-flight
 packages pending the remaining traceability and review migration; qualification
 of a consolidated member does not imply that this wider migration is complete.
+
+Repository approval queries use the safe consolidated-record loader and a
+version-two review projection: each requirement appears once with its stable
+ID, outcome and acceptance, alongside excluded scope, explicit transfers,
+autonomy and the exact recorded approval. The view does not repeat flat
+outcome or acceptance summaries and never creates approval. Competing legacy
+files, path identity mismatches, symlinks and stale approval bindings refuse.
+
+Traceability discovers consolidated records under the declared change root,
+checks exact active follow-up requirement ownership, and uses the same evidence
+progress algorithm as historical packages. A draft remains specified; an
+approved record's execution plan is the record itself. Ready, integration and
+delivery require matching observations, and a completed record never implies
+human acceptance. Historical version-one review projections remain unchanged
+while source journals and final-review reconciliation are being integrated.

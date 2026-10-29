@@ -21,6 +21,7 @@ from typing import Annotated, Literal, TypedDict
 from .change_authority import validate_specification_authority
 from .change_models import DecisionStatus, Identifier
 from .change_paths import changes_root
+from .change_record import load_repository_record, review_view
 from .contract_values import FrozenContract
 from .git import GitError, git_output, run_git
 from .manifest import ManifestError, load_manifest
@@ -360,6 +361,14 @@ def approval_view(repository: Path, change_id: str, *, root: str = "changes") ->
     """Project the tracked Review and Specification into a concise approval payload."""
     _validate_identity(change_id)
     change = repository.resolve() / root / change_id
+    consolidated = change / "change.toml"
+    if consolidated.exists() or consolidated.is_symlink():
+        try:
+            return review_view(
+                load_repository_record(repository, f"{root}/{change_id}/change.toml")
+            )
+        except (OSError, ValueError) as error:
+            raise DeviationError(f"consolidated approval is unavailable: {error}") from error
     try:
         review = tomllib.loads((change / "review.toml").read_text(encoding="utf-8"))["review"]
     except (OSError, KeyError, tomllib.TOMLDecodeError) as error:

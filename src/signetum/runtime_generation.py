@@ -16,6 +16,7 @@ from signetum.vendor_resources import yaml_payload
 
 RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
 MODULES = {
+    "signetum.traceability.records": "traceability_records.py",
     "signetum.change.paths": "change_paths.py",
     "signetum.maintenance": "maintenance.py",
     "signetum.source_authority": "source_authority.py",
