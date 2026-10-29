@@ -572,3 +572,39 @@ def test_working_set_inventory_runs_through_the_isolated_public_frontend(reposit
     assert result["schema_version"] == 2
     assert result["working_sets"][0]["status"] == "declared_working_set"
     assert not git_output(repository, "status", "--porcelain")
+
+
+@pytest.mark.parametrize("example", ["long-fence", "indented", "unsupported-columns"])
+def test_markdown_examples_and_unsupported_tables_cannot_silently_supply_rules(
+    repository, migration, example
+):
+    valid = (
+        "# Constraints\n| do_not | because |\n| --- | --- |\n"
+        "| Existing rule | Original basis. |\n\n"
+    )
+    snippets = {
+        "long-fence": (
+            "````markdown\n```\n| do_not | because |\n| --- | --- |\n"
+            "| Example only | Not an accepted rule. |\n````\n"
+        ),
+        "indented": (
+            "    | do_not | because |\n    | --- | --- |\n"
+            "    | Example only | Not an accepted rule. |\n"
+        ),
+        "unsupported-columns": (
+            "| do_not | because | extra |\n| --- | --- | --- |\n"
+            "| Ambiguous rule | Basis. | Extra meaning. |\n"
+        ),
+    }
+    after = (
+        "\n| do_not | because |\n| --- | --- |\n"
+        "| Post-example rule | A real rule after the example. |\n"
+    )
+    _declare_working_set(repository, body=valid + snippets[example] + after)
+    result = migration.inventory(repository)
+    assert [row.do_not for row in result.working_sets[0].rows] == [
+        "Existing rule",
+        "Post-example rule",
+    ]
+    if example == "unsupported-columns":
+        assert any(issue.code == "ambiguous_working_set_table" for issue in result.issues)

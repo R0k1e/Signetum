@@ -35,7 +35,18 @@ class WorkingSetSource(FrozenContract):
     issues: tuple[WorkingSetIssue, ...]
 
 
+def _indented_code(line: str) -> bool:
+    expanded = line.expandtabs(4)
+    return len(expanded) - len(expanded.lstrip(" ")) >= 4
+
+
+def _separator(cells: tuple[str, ...] | None) -> bool:
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells or ())
+
+
 def _cells(line: str) -> tuple[str, ...] | None:
+    if _indented_code(line):
+        return None
     value = line.strip()
     if not value.startswith("|") or not value.endswith("|"):
         return None
@@ -56,20 +67,23 @@ def parse_working_set(*, identity: str, path: str, blob: str, text: str) -> Work
     rows, issues = [], []
     topic = "Unclassified"
     table = False
-    fence: str | None = None
+    fence: tuple[str, int] | None = None
     first_table = len(lines)
     skip_separator = False
     for index, line in enumerate(lines):
         stripped = line.strip()
-        if stripped.startswith(("```", "~~~")):
-            marker = stripped[:3]
-            if fence is None:
-                fence = marker
-            elif marker == fence:
-                fence = None
+        if _indented_code(line):
             table = False
             continue
-        if fence:
+        if fence is not None:
+            marker, length = fence
+            if re.fullmatch(re.escape(marker) + "{" + str(length) + r",}\s*", stripped):
+                fence = None
+            continue
+        opening = re.fullmatch(r"(`{3,}|~{3,})(.*)", stripped)
+        if opening is not None and (opening.group(1)[0] != "`" or "`" not in opening.group(2)):
+            fence = (opening.group(1)[0], len(opening.group(1)))
+            table = False
             continue
         if stripped.startswith("#"):
             topic = stripped.lstrip("#").strip() or "Unclassified"
@@ -78,11 +92,7 @@ def parse_working_set(*, identity: str, path: str, blob: str, text: str) -> Work
         if cells == ("do_not", "because"):
             first_table = min(first_table, index)
             separator = _cells(lines[index + 1]) if index + 1 < len(lines) else None
-            table = (
-                separator is not None
-                and len(separator) == 2
-                and all(re.fullmatch(r":?-{3,}:?", cell) for cell in separator)
-            )
+            table = separator is not None and len(separator) == 2 and _separator(separator)
             skip_separator = table
             if not table:
                 issues.append(
@@ -93,6 +103,19 @@ def parse_working_set(*, identity: str, path: str, blob: str, text: str) -> Work
                     )
                 )
             continue
+        if cells is not None and ("do_not" in cells or "because" in cells):
+            separator = _cells(lines[index + 1]) if index + 1 < len(lines) else None
+            if _separator(separator):
+                table = False
+                issues.append(
+                    WorkingSetIssue(
+                        line=index + 1,
+                        code="ambiguous_working_set_table",
+                        reason="Unsupported constraint columns require explicit review; "
+                        "do not discard their meaning.",
+                    )
+                )
+                continue
         if skip_separator:
             skip_separator = False
             continue
