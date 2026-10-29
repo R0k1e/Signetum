@@ -10,18 +10,6 @@ change-open name:
 workspace-open branch base:
     just _signetum workspace-open {{branch}} {{base}}
 
-workspace-sync *args:
-    just _signetum workspace-sync {{args}}
-
-cleanup *args:
-    just _signetum cleanup {{args}}
-
-batch-discard batch:
-    just _signetum batch-discard {{batch}}
-
-worktree-prepare worktree:
-    just _signetum worktree-prepare {{worktree}}
-
 changed *args:
     just _signetum changed {{args}}
 
@@ -42,3 +30,7 @@ final:
 
 batch-deliver source target expected-base expected-batch-tip:
     just _signetum batch-deliver {{source}} {{target}} {{expected-base}} {{expected-batch-tip}}
+
+# Local support utility; not a lifecycle operation.
+maintenance *args:
+    mise exec -- uv run --no-project python .agents/repo-dev/runtime/maintenance.py {{args}}

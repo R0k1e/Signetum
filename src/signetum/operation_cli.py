@@ -28,7 +28,7 @@ class OperationParser(argparse.ArgumentParser):
     """Keep invalid lifecycle invocations in the result contract."""
 
     def error(self, message: str) -> Never:
-        raise AdmissionError(message, expected="inspect lifecycle --help and correct arguments")
+        raise AdmissionError(message, expected=f"inspect {self.prog} --help and correct arguments")
 
 
 def run_operation(

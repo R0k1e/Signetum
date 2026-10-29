@@ -50,16 +50,13 @@ from signetum.validation.repository import (
     run_diagnostic_gate,
 )
 from signetum.validation.repository import configured_validation as _runtime_validation
+from signetum.workspace_operations import cleanup_delivered as _cleanup_delivered_worktrees
 from signetum.workspace_operations import (
-    batch_discard,
-    cleanup,
     fresh_delivery,
     open_workspace,
     workspace_open,
-    workspace_sync,
     worktree_prepare,
 )
-from signetum.workspace_operations import cleanup_delivered as _cleanup_delivered_worktrees
 from signetum.workspaces import (
     branch_name as _branch,
 )
@@ -691,23 +688,11 @@ def _git_executable() -> str:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = OperationParser()
+    parser = OperationParser(prog="lifecycle")
     commands = parser.add_subparsers(dest="command", required=True)
     workspace = commands.add_parser("workspace-open")
     workspace.add_argument("branch")
     workspace.add_argument("base")
-    sync = commands.add_parser("workspace-sync")
-    sync.add_argument("--batch", type=Path)
-    prepare = commands.add_parser("worktree-prepare")
-    prepare.add_argument("worktree", type=Path)
-    clean = commands.add_parser("cleanup")
-    clean.add_argument("--worktree", type=Path)
-    clean.add_argument("--branch")
-    clean.add_argument("--all-delivered", action="store_true")
-    clean.add_argument("--protected-worktree", type=Path, action="append", default=[])
-    clean.add_argument("--discard", action="store_true")
-    discard = commands.add_parser("batch-discard")
-    discard.add_argument("batch", type=Path)
     diagnostic = commands.add_parser("changed")
     diagnostic.add_argument("--explain", action="store_true")
     diagnostic.add_argument("--validate-only", action="store_true")
@@ -733,21 +718,6 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     result: dict[str, object]
     if parsed.command == "workspace-open":
         result = workspace_open(repository, parsed.branch, parsed.base)
-    elif parsed.command == "workspace-sync":
-        result = workspace_sync(repository, parsed.batch.resolve() if parsed.batch else None)
-    elif parsed.command == "worktree-prepare":
-        result = dict(worktree_prepare(parsed.worktree.resolve()))
-    elif parsed.command == "cleanup":
-        result = cleanup(
-            repository,
-            worktree=parsed.worktree,
-            branch=parsed.branch,
-            all_delivered=parsed.all_delivered,
-            discard=parsed.discard,
-            protected_worktrees=tuple(parsed.protected_worktree),
-        )
-    elif parsed.command == "batch-discard":
-        result = batch_discard(parsed.batch.resolve())
     elif parsed.command == "changed":
         result = changed(repository, parsed.explain, validate_only=parsed.validate_only)
     elif parsed.command == "ready":

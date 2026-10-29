@@ -99,7 +99,7 @@ carries the same record and its base is read the same way. The
 attestation, and delivery refuses a batch whose record and trailer disagree; no
 operation recovers a base by searching commit prose.
 
-A member's recorded base never changes. workspace-sync optionally merges an
+A member's recorded base never changes. `maintenance workspace-sync` optionally merges an
 exact delivery or verified batch snapshot without preparing dependencies.
 Member path selection excludes unchanged inputs imported by supported sync
 merges, so siblings' packages do not become the caller's ownership. Changed
@@ -290,8 +290,6 @@ same command again as a static dependency.
 | Operation | Observable contract |
 | --- | --- |
 | workspace-open branch base | Register the exact base before preparation. Retry the same branch/base after preparation failure; refuse a changed base or role. |
-| workspace-sync [--batch path] | Merge a fresh delivery snapshot or an exact same-repository batch snapshot under its lock; never rewrite the member base. |
-| worktree-prepare path | Run the declared prepare gate with its time bounds, without publishing validation evidence. |
 | changed [--explain] [--validate-only] | Execute only selected member-safe checks in a clean committed workspace; --validate-only reports selection without execution. It never invokes final or grants readiness evidence. |
 | ready | Close a clean implementation member using its recorded base and exact-tip evidence. |
 | batch-open --member path [...] | Reuse or create a named batch from the fresh configured delivery base and admit only named members. |
@@ -299,6 +297,16 @@ same command again as a static dependency.
 | batch-continue batch | Prepare the resolved index, check paths whose staged result differs from both parents, run batch static checks, and commit only after success. |
 | final | Freeze under the batch lock, number newly accepted decisions above batch/base/fresh-remote holdings, reconcile, then validate that exact tip. |
 | batch-deliver source target expected-base expected-tip | Publish only the exact validated source, confirm remote identity before moving the target, and apply the shared residue rule. |
+
+The public lifecycle has exactly eight operations above. Explicit local maintenance
+uses `signetum maintenance <command>` or `just maintenance <command>`; the
+generated runtime provides `.agents/repo-dev/runtime/maintenance.py`. These
+commands retain their existing preconditions and authorization boundaries.
+
+| Maintenance command | Observable contract |
+| --- | --- |
+| workspace-sync [--batch path] | Merge a fresh delivery snapshot or an exact same-repository batch snapshot under its lock; never rewrite the member base. |
+| worktree-prepare path | Run the declared prepare gate with its time bounds, without publishing validation evidence. |
 | cleanup selector [--protected-worktree path] [--discard] | Fetch the delivery branch and remove only eligible residue selected by worktree, branch, or --all-delivered. |
 | batch-discard batch | Remove only a clean unpublished and undelivered batch with no open Git operation. |
 
