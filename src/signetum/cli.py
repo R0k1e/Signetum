@@ -31,8 +31,8 @@ check_app = typer.Typer(add_completion=False, help="Run read-only repository che
 app.add_typer(check_app, name="check")
 release_app = typer.Typer(add_completion=False, help="Verify immutable release candidates.")
 app.add_typer(release_app, name="release")
-template_app = typer.Typer(add_completion=False, help="Check or render the public Template.")
-app.add_typer(template_app, name="template")
+template_app = typer.Typer(add_completion=False, help="Maintain internal scaffold material.")
+app.add_typer(template_app, name="template", hidden=True)
 site_app = typer.Typer(add_completion=False, help="Build the engine-owned product site.")
 app.add_typer(site_app, name="site")
 findings_app = typer.Typer(
@@ -99,7 +99,7 @@ def adopt(ctx: typer.Context) -> None:
 def template_check(
     source: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("template"),
 ) -> None:
-    """Validate the exact clone-ready Template inventory."""
+    """Validate the internal scaffold inventory."""
     report = validate_template(source)
     typer.echo(
         json.dumps({"files": report.files, "problems": report.problems, "valid": report.valid})

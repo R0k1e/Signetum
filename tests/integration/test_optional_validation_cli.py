@@ -220,6 +220,11 @@ def test_ci_plan_runs_exact_files_and_refuses_failed_stale_or_incomplete_results
     planned = _cli(root, "partition", "plan", "--config", str(config), "--output", str(plan_path))
     assert planned.returncode == 0, planned.stdout + planned.stderr
     assert json.loads(planned.stdout)["partitions"] == 2
+    dirty = root / "uncommitted.txt"
+    dirty.touch()
+    with pytest.raises(ValueError):
+        create_plan(root, config)
+    dirty.unlink()
     result = _cli(
         root, "partition", "run", "--plan", str(plan_path), "--index", "0", "--output", str(output)
     )

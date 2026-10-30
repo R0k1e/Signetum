@@ -21,13 +21,14 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - run: uv python install 3.12
       - run: uv sync --locked --all-extras --dev
-      - name: Verify the delivered engine release source
+      - name: Verify the delivered product release source
         shell: bash
         env:
           RELEASE_SOURCE: ${{ github.sha }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          git fetch --no-tags origin refs/heads/engine:refs/remotes/origin/engine
+          SOURCE_BRANCH="$(uv run --no-sync python -c 'from pathlib import Path; from signetum.policy import delivery_policy; print(delivery_policy(Path.cwd()).branch)')"
+          git fetch --no-tags origin "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
           uv run --no-sync signetum release preflight --source "$RELEASE_SOURCE" --tag "$RELEASE_TAG" | tee "$RUNNER_TEMP/signetum-release-source.json"
       - run: uv build
       - name: Validate the exact tagged tree

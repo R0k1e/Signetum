@@ -41,7 +41,7 @@ REQUIRED_PRODUCT_PATHS = (
     "docs/product/frequently-asked-questions.md",
     "docs/product/signetum-and-specification-tools.md",
     "docs/workflows/agent-team-delivery.md",
-    "docs/guides/customizing-the-template.md",
+    "docs/guides/repository-bindings.md",
     "docs/maintainers/releasing.md",
     "examples/complete-change/README.md",
     "examples/complete-change/review.yaml",

@@ -56,7 +56,7 @@ id = "{name}"
 
 [change.source]
 kind = "human_direction"
-summary = "TODO record the original intent and relevant context."
+summary = "TODO record the requested outcome and relevant basis; reference retained sources."
 
 [change.contract]
 version = 1
@@ -74,7 +74,7 @@ requires_confirmation = []
 [[change.execution.steps]]
 id = "STEP-001"
 requirements = ["REQ-001"]
-action = "TODO extend the existing owner and verify the outcome."
+action = "TODO extend one owner; choose risk-based tests and reconcile current authorities."
 '''
 
 

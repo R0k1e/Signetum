@@ -1,4 +1,4 @@
-"""Structural contracts for the versioned generic repo-dev skill."""
+"""Structural contracts for the versioned Signetum Skill."""
 
 import re
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).parents[3]
-SKILL = ROOT / "skills" / "repo-dev"
+SKILL = ROOT / "skills" / "signetum"
 ENTRYPOINT = SKILL / "SKILL.md"
 
 
@@ -26,6 +26,7 @@ def test_entrypoint_links_resolve_to_packaged_references() -> None:
 
 def test_skill_declares_an_immutable_release_version() -> None:
     frontmatter = yaml.safe_load(ENTRYPOINT.read_text(encoding="utf-8").split("---", 2)[1])
+    assert frontmatter["name"] == SKILL.name
     version = frontmatter["metadata"]["version"]
     assert isinstance(version, str)
     assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)

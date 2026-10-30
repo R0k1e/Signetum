@@ -10,7 +10,10 @@ language or replace its test system.
 Choose the cheapest layer that can expose each distinct risk. Pure rules and
 input combinations belong in unit/property tests; integration traverses necessary
 public boundaries. Use installed artifacts or a complete lifecycle only when that
-boundary is at risk. State the risk briefly in the existing execution plan, not
+boundary is at risk. Configuration/component matrices use supplied values and minimal materials;
+repository acquisition and source binding have their own necessary real tests.
+Do not create a Git repository, install an environment or copy the full product
+for each pure rejection case. State the risk briefly in the existing execution plan, not
 in another test inventory. A documentation rewrite alone needs link/static checks,
 not a new behavior suite.
 

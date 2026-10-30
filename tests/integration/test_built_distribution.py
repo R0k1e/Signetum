@@ -37,7 +37,7 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
     assert "signetum/resources/schemas/validation-graph-v2.schema.json" in names
     assert "signetum/resources/schemas/validation-evidence-v3.schema.json" in names
     assert "signetum/resources/schemas/contracts/release-metadata.schema.json" in names
-    assert "signetum/resources/skills/repo-dev/SKILL.md" in names
+    assert "signetum/resources/skills/signetum/SKILL.md" in names
     assert "signetum/resources/vectors/validation-evidence-v3.json" in names
     # Absence is the contract here, so each value is bound to the reason it
     # must not appear rather than left as a bare literal nobody can extend.
@@ -217,8 +217,8 @@ assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
 def test_installed_skill_routes_to_existing_repository_commands_and_generates_one_draft(tmp_path):
     wheels = tuple(Path("dist").glob("signetum-*.whl"))
     assert len(wheels) == 1
-    installed = tmp_path / "installed skills/repo-dev"
-    prefix = "signetum/resources/skills/repo-dev/"
+    installed = tmp_path / "installed skills/signetum"
+    prefix = "signetum/resources/skills/signetum/"
     with ZipFile(wheels[0]) as wheel:
         for name in wheel.namelist():
             if name.startswith(prefix) and not name.endswith("/"):
@@ -228,7 +228,7 @@ def test_installed_skill_routes_to_existing_repository_commands_and_generates_on
     assert (installed / "SKILL.md").is_file()
     interface = yaml.safe_load((installed / "agents/openai.yaml").read_text())["interface"]
     assert interface["display_name"] == "Signetum"
-    assert "$repo-dev" in interface["default_prompt"]
+    assert "$signetum" in interface["default_prompt"]
     consumer = tmp_path / "existing repository"
     render_template(Path(__file__).parents[2] / "template", consumer)
     # This existing consumer binds its own host runner; the skill must preserve it.
@@ -248,7 +248,7 @@ def test_installed_skill_routes_to_existing_repository_commands_and_generates_on
     git_output(consumer, "commit", "-m", "existing repository authority")
     base = git_output(consumer, "rev-parse", "HEAD")
     write_record(state_root(consumer), WorkspaceRecord(1, "plan/consumer", base, "member"))
-    launcher = installed / "scripts/repo-dev"
+    launcher = installed / "scripts/signetum"
     shell = which("sh")
     assert shell is not None
     just = which("just")
@@ -564,7 +564,7 @@ def test_installed_engine_previews_adopts_and_routes_skill_without_replacing_app
         assert (consumer / name).read_bytes() == original
     launcher = tmp_path / "installed skill launcher"
     with ZipFile(next(Path("dist").glob("signetum-*.whl"))) as wheel:
-        launcher.write_bytes(wheel.read("signetum/resources/skills/repo-dev/scripts/repo-dev"))
+        launcher.write_bytes(wheel.read("signetum/resources/skills/signetum/scripts/signetum"))
     shell = which("sh")
     assert shell is not None
     result = subprocess.run(  # noqa: S603 -- installed launcher discovers the actual adopted local runtime

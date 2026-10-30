@@ -1,4 +1,4 @@
-"""Deterministic boundary for the public clone-ready Template tree."""
+"""Deterministic boundary for internal scaffold source material."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class TemplateReport:
 
 
 def validate_template(source: Path) -> TemplateReport:
-    """Validate the exact public surface without following symlinks."""
+    """Validate the exact scaffold surface without following symlinks."""
     root = source.resolve()
     problems: list[str] = []
     actual = {path.name for path in root.iterdir()}

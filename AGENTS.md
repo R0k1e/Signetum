@@ -11,8 +11,10 @@ stash, destructive reset/restore/clean, force push, direct merge, or ad-hoc
 worktree deletion. Preserve unrelated changes and keep credentials, caches,
 receipts, and local paths out of Git.
 
-Specifications own behavior, and Plans cannot narrow them. Accepted decisions
-must precede architecture, process, or security changes. Use English for code
+Specifications own behavior, and Plans cannot narrow them. Accepted decision transactions
+must precede architecture, process, or security changes. Keep their basis once
+in the owning change; standalone ADRs are conditional cross-change authorities.
+Ordinary implementation and command output create no extra decision document. Use English for code
 and technical documents. Use Chinese for user discussion.
 
 For new work, use `just protocol current` for the decision working set, then

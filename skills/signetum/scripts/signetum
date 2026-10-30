@@ -7,7 +7,12 @@ if [ "${1:-}" = adopt ]; then
         echo "Adoption needs a reviewed Signetum engine; see the maintained first-use guide." >&2
         exit 127
     fi
-    exec signetum adopt "$@"
+    engine="$(command -v signetum)"
+    if [ "$engine" -ef "$0" ]; then
+        echo "Setup tool is shadowed by the Skill launcher; use its installed engine executable." >&2
+        exit 127
+    fi
+    exec "$engine" adopt "$@"
 fi
 if [ -f .agents/repo-dev/run ]; then
     exec sh .agents/repo-dev/run protocol "$@"

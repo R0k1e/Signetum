@@ -17,14 +17,13 @@ Start with [First use](../QUICKSTART.md): install, review adoption and complete 
 - [Adopt existing repository runners](guides/existing-runners.md)
 - [Preserve structured test selection](guides/structured-selection.md)
 - [Development lifecycle concepts](concepts/development-lifecycle.md)
-- [Complete change example](../examples/complete-change/README.md)
 
-- [Optional validation optimization](../skills/repo-dev/references/validation-optimization.md)
+- [Optional validation optimization](../skills/signetum/references/validation-optimization.md)
 
 ## Operate
 
 - [Agent Team batch delivery](workflows/agent-team-delivery.md)
-- [Customizing the Template](guides/customizing-the-template.md)
+- [Repository bindings](guides/repository-bindings.md)
 - [Architecture](ARCHITECTURE.md)
 
 ## Govern
@@ -32,5 +31,6 @@ Start with [First use](../QUICKSTART.md): install, review adoption and complete 
 - [Contributing](../CONTRIBUTING.md)
 - [Security](../SECURITY.md)
 - [Changelog](../CHANGELOG.md)
-- [Architecture decisions](decisions/README.md)
+- [Retained decisions](decisions/README.md)
+- [Historical format example](../examples/complete-change/README.md)
 - [Maintainer release guide](maintainers/releasing.md)

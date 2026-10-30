@@ -1,4 +1,0 @@
-interface:
-  display_name: "Signetum"
-  short_description: "Reliable agentic development and delivery"
-  default_prompt: "Use $repo-dev to inspect this repository and prepare a reviewed development or adoption plan."

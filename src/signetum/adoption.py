@@ -37,7 +37,10 @@ Read `current` before planning and consult relevant historical sources listed
 there. Create one record with `change-open <name>`. Fill intent, observable
 requirements, acceptance, scope and autonomy, then show its generated `view`.
 Record actual owner confirmation of that exact contract before implementation.
-Architecture, process and security choices require an accepted decision proposal.
+Important architecture, process and security choices require an accepted decision
+transaction in that contract. A standalone ADR is only for an independently
+maintained cross-change authority; keep its reasoning once and reference it.
+Ordinary implementation choices and command output create no extra document.
 
 The agent authors records; the owner reviews outcomes and consequential choices.
 Use `record`, `resolve` and `reconcile` for significant findings and accepted

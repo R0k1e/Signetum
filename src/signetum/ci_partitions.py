@@ -3,6 +3,7 @@
 import fnmatch
 import json
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
@@ -17,6 +18,7 @@ from signetum.repository_selection import _digest
 from signetum.selection_contracts import repository_file
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
 from signetum.test_scheduling import partition_units
+from signetum.validation import ValidationGraph
 from signetum.validation.execution import ValidationExecutionError, build_evidence_identity
 from signetum.validation.repository import RepositoryValidationAdapter, configured_validation
 
@@ -69,6 +71,45 @@ class PartitionResult(FrozenContract):
     recovered: bool
 
 
+def _partition_paths(config: PartitionConfiguration, paths: tuple[str, ...]) -> tuple[str, ...]:
+    files = tuple(
+        sorted(
+            p
+            for p in paths
+            if any(root == "." or p.startswith(root.rstrip("/") + "/") for root in config.roots)
+            and any(fnmatch.fnmatchcase(p, pattern) for pattern in config.patterns)
+        )
+    )
+    if any(p.startswith("-") or "::" in p for p in files):
+        raise ValueError("partition file cannot masquerade as an option or node")
+    return files
+
+
+def partition_snapshot(
+    config: PartitionConfiguration,
+    graph: ValidationGraph,
+    sources: Mapping[str, bytes],
+    *,
+    configuration_path: str,
+    declared_inputs: tuple[str, ...],
+) -> tuple[tuple[str, ...], ...]:
+    """Plan immutable supplied source bytes; the repository adapter owns acquisition."""
+    if configuration_path not in declared_inputs:
+        raise ValueError("partition configuration must be a declared validation input")
+    shard = next((s for s in graph.shards if s.name == config.shard), None)
+    if shard is None or shard.ratchet_command or shard.evidence != "tree":
+        raise ValueError("partitioning requires a declared non-ratchet tree shard")
+    if config.shard not in graph.execution_order("final") or config.argument_index > len(
+        shard.command
+    ):
+        raise ValueError("partition shard must be final-covered and its command binding valid")
+    files = _partition_paths(config, tuple(sources))
+    groups = config.groups
+    if config.framework == "pytest":
+        groups = (*groups, *shared_file_groups({p: sources[p] for p in files}))
+    return partition_units(files, config.slices, config.weights, groups)
+
+
 def create_plan(
     repository: Path, configuration_path: Path, *, run_id: str | None = None
 ) -> PartitionPlan:
@@ -80,35 +121,18 @@ def create_plan(
         PartitionConfiguration, load_json(configuration_path.read_text()), use_defaults=True
     )
     manifest = load_manifest(repository / "signetum.toml")
-    # The partition rules and underlying adapter implementation belong among the
-    # repository's declared validation inputs, not mutable CI-only parameters.
-    if relative not in manifest.repository.lockfiles:
-        raise ValueError("partition configuration must be a declared validation input")
     graph, inputs = configured_validation(manifest)
-    shard = next((s for s in graph.shards if s.name == config.shard), None)
-    if shard is None or shard.ratchet_command or shard.evidence != "tree":
-        raise ValueError("partitioning requires a declared non-ratchet tree shard")
-    if config.shard not in graph.execution_order("final") or config.argument_index > len(
-        shard.command
-    ):
-        raise ValueError("partition shard must be final-covered and its command binding valid")
     inventory = regular_tree_files(repository, adapter.commit_identity())
-    files = tuple(
-        sorted(
-            p
-            for p in inventory
-            if any(root == "." or p.startswith(root.rstrip("/") + "/") for root in config.roots)
-            and any(fnmatch.fnmatchcase(p, pattern) for pattern in config.patterns)
-        )
+    files = _partition_paths(config, tuple(inventory))
+    blobs = read_blob_contents(repository, tuple(sorted({inventory[p] for p in files})))
+    partitions = partition_snapshot(
+        config,
+        graph,
+        {p: blobs[inventory[p]] for p in files},
+        configuration_path=relative,
+        declared_inputs=manifest.repository.lockfiles,
     )
-    for path in files:
-        if path.startswith("-") or "::" in path:
-            raise ValueError("partition file cannot masquerade as an option or node")
-    groups = config.groups
-    if config.framework == "pytest":
-        blobs = read_blob_contents(repository, tuple(sorted({inventory[p] for p in files})))
-        groups = (*groups, *shared_file_groups({p: blobs[inventory[p]] for p in files}))
-    partitions = partition_units(files, config.slices, config.weights, groups)
+    shard = next(s for s in graph.shards if s.name == config.shard)
     identity = build_evidence_identity(graph, inputs, adapter)
     if identity.commit != adapter.commit_identity() or identity.tree != adapter.tree_identity():
         raise ValueError("source changed while planning partitions")

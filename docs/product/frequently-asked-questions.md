@@ -4,8 +4,7 @@
 
 Signetum is a reliable agentic development and delivery protocol: one standard
 Skill plus local commands connecting approved change records, current decisions,
-isolated work, behavioral evidence and explicit delivery. A GitHub Template is
-an optional starting point for a new repository.
+isolated work, behavioral evidence and explicit delivery. New and existing projects use the same Skill-guided adoption path.
 
 ## Is Signetum another CI template?
 
@@ -67,11 +66,12 @@ Its structured result identifies the approved base, member branches and
 commits, integrated commits, Plan paths, validated batch tip, final receipt,
 delivery commit, remote commit, and controlled cleanup.
 
-## Does a repository receive later Template updates?
+## Does a repository update automatically?
 
-No. GitHub Template creation is a one-time copy. The new repository owns and
-customizes its lifecycle independently. A useful later idea can be implemented
-manually there as an ordinary local governed change.
+No. The project owns its adopted runtime and policy. A later fixed-version setup
+tool prepares an explicit upgrade preview; installation never silently replaces
+local authorities. New projects initialize ordinary application files and then
+use the same adoption path as existing projects.
 
 ## Is Signetum a specification generator?
 

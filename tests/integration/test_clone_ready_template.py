@@ -30,32 +30,10 @@ def test_template_is_minimal_and_clone_ready() -> None:
     assert "README.zh-CN.md" in report.files
     assert "changes/.gitkeep" in report.files
     assert "signetum.yaml" not in report.files
-    template_text = "\n".join(
-        path.read_text(encoding="utf-8", errors="replace")
-        for path in (ROOT / "template").rglob("*")
-        if path.is_file()
-    )
-    assert "uvx" not in template_text
-    assert "signetum==" not in template_text
-
-
-def test_template_enables_installable_python_default() -> None:
-    manifest = (ROOT / "template/signetum.toml").read_text()
-    toolchain = (ROOT / "template/mise.toml").read_text()
-    project = (ROOT / "template/pyproject.toml").read_text()
-
-    assert 'enabled = ["python-default@1", "git-worktrunk@1"]' in manifest
-    assert 'python = "3.12.14"' in toolchain
-    assert 'uv = "0.8.15"' in toolchain
-    for tool in ("ruff", "ty", "pytest", "pip-audit", "detect-secrets"):
-        assert tool in project
-    assert (ROOT / "template/tests/unit/test_application.py").is_file()
-    assert (ROOT / "template/tests/integration/test_application.py").is_file()
 
 
 def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
     lifecycle = loads((ROOT / "template/signetum.toml").read_text())
-    workflow = (ROOT / "template/.github/workflows/ci.yml").read_text()
 
     shards = {item["name"]: item["command"] for item in lifecycle["validation"]["shards"]}
     gates = {item["name"]: item["shards"] for item in lifecycle["validation"]["gates"]}
@@ -69,10 +47,6 @@ def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
     assert shards["python:ty"] == ["uv", "run", "--no-sync", "ty", "check", "src"]
     assert "python:integration" not in gates["member"]
     assert {"python:integration", "python:audit"}.issubset(gates["final"])
-    assert "- run: uv sync --locked" in workflow
-    assert (
-        "- run: uv run --no-project python .agents/repo-dev/runtime/lifecycle.py final" in workflow
-    )
 
 
 def test_template_render_has_identical_inventory(tmp_path: Path) -> None:

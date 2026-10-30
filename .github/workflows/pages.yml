@@ -2,7 +2,7 @@ name: Pages
 
 on:
   push:
-    branches: [engine]
+    branches: [main]
     paths:
       - "site/**"
       - "assets/brand/**"
