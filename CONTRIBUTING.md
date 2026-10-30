@@ -22,7 +22,7 @@ a diagnostic or ready result grants none of them.
 The repository's complete toolchain is in `mise.toml`; Node and Rust support
 native acceptance tests, not Skill consumers. Run `mise trust mise.toml` after
 reviewing it, then `mise install` and `uv sync --locked --all-extras --dev`.
-Portable runtime fixtures are derived from maintained source automatically before
+Portable runtime fixtures are derived from maintained source by workspace preparation and before
 pytest workers start; they are not committed code copies. Rendering also builds
 them for a fresh scaffold. Hosted CI uses the declared final gate on Linux and macOS through one reusable
 workflow, without private workspace records or lifecycle receipts. It enforces

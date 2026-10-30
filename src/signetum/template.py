@@ -84,12 +84,11 @@ def render_template(source: Path, destination: Path) -> TemplateReport:
         raise ValueError("; ".join(report.problems))
     if destination.exists():
         raise ValueError(f"destination already exists: {destination}")
-    shutil.copytree(
-        source,
-        destination,
-        symlinks=False,
-        ignore=lambda directory, names: [name for name in names if is_runtime_cache(Path(name))],
-    )
+    destination.mkdir(parents=True)
+    for name in report.files:
+        target = destination / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / name, target)
     generate_runtime(destination)
     rendered = validate_template(destination)
     expected = set(report.files) | {
