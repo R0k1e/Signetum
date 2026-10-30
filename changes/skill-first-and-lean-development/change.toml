@@ -7,7 +7,7 @@ kind = "human_direction"
 summary = "Implement the approved single Signetum Skill entry, internal scaffold, lean test preparation and compressed future decision records."
 
 [change.contract]
-version = 1
+version = 2
 approved_base = "b9fcd680fa3cb5613665a89704d56a8dce28652d"
 
 [[change.contract.requirements]]
@@ -131,6 +131,35 @@ scope = [
 statement = "One delivered main source owns the package, standard Signetum Skill and internal scaffolding; release preflight derives the delivered branch from repository policy and verifies exact source, versions and tag. Skill installation and preflight grant no publication authority."
 rationale = "A single product entry should have a single source and release contract."
 
+[[change.contract.decisions]]
+id = "skill-first-and-lean-development/batch-source-preparation"
+change_id = "skill-first-and-lean-development"
+authority = "changes/skill-first-and-lean-development/change.toml#decisions/skill-first-and-lean-development/batch-source-preparation"
+parents = [
+    "skill-first-and-lean-development/boundaries",
+]
+reason = "The actual main migration refused before admission because the old tree lacks prepare. Base preparation duplicates the merged-source owner; create the immutable batch, admit already-qualified named members, then require preparation and batch checks on actual combined source. Member opening retains its preparation requirement."
+
+[[change.contract.decisions.clauses]]
+id = "skill-first-and-lean-development/batch-preparation-clause"
+change_id = "skill-first-and-lean-development"
+action = "add"
+expected = [
+    { id = "SKILL-BATCH-001", version = 0 },
+]
+reason = "Necessary source migration repair without a bypass or additional lifecycle operation."
+authority = "changes/skill-first-and-lean-development/change.toml#decisions/skill-first-and-lean-development/batch-source-preparation"
+
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-BATCH-001"
+version = 1
+topic = "skill-first-development"
+scope = [
+    "Batch assembly",
+]
+statement = "Batch creation records the immutable delivery base without executing its obsolete environment. Named qualified members must declare prepare and batch gates; after admission, the existing owner prepares and checks the actual combined tree. Member opening still prepares its approved source."
+rationale = "A base cannot be required to have capabilities introduced by the member being admitted, and duplicate preparation wastes work."
+
 [change.contract.autonomy]
 allowed = [
     "Implement the confirmed Skill rename, product routing, test and document refactors, verify installed cold-start behavior, and prepare exact source migration and delivery review.",
@@ -142,6 +171,34 @@ requires_confirmation = [
 [[change.contract.excluded]]
 statement = "New template repository, automatic consumer updates, new persistent bootstrap service, RAM volumes and background deletion."
 reason = "The approved plan removes public entry and maintenance layers rather than adding them."
+
+[[change.contract.retirements]]
+id = "skill-first-and-lean-development/retire-old-skill-journal"
+target = "align-validation-efficiency/journal-binding-transition"
+resolution_id = "align-validation-efficiency/journal-binding-transition-resolved"
+targets = [
+    "skills/repo-dev/references/worktree-validation.md",
+]
+reason = "The approved Skill rename removes these exact old paths. Preserve their original acceptance and reasoning; current Signetum Skill and installed verification protect the successor behavior."
+
+[[change.contract.retirements]]
+id = "skill-first-and-lean-development/retire-old-skill-launcher"
+target = "align-validation-efficiency/literal-option-forwarding"
+resolution_id = "align-validation-efficiency/literal-option-forwarding-proof-corrected"
+targets = [
+    "skills/repo-dev/scripts/repo-dev",
+]
+reason = "The approved Skill rename removes these exact old paths. Preserve their original acceptance and reasoning; current Signetum Skill and installed verification protect the successor behavior."
+
+[[change.contract.retirements]]
+id = "skill-first-and-lean-development/retire-old-skill-adoption"
+target = "unify-distribution-and-current-authorities/split-release-and-stale-guidance/observation"
+resolution_id = "unify-distribution-and-current-authorities/distribution-and-guidance-reconciled/resolution"
+targets = [
+    "skills/repo-dev/SKILL.md",
+    "skills/repo-dev/references/adoption.md",
+]
+reason = "The approved Skill rename removes these exact old paths. Preserve their original acceptance and reasoning; current Signetum Skill and installed verification protect the successor behavior."
 
 [[change.execution.steps]]
 id = "STEP-1"
@@ -172,10 +229,10 @@ requirements = [
     "SKILL-005",
     "SKILL-006",
 ]
-action = "Bind release to repository delivery policy, prepare main source migration and review, regenerate and build, compare targeted costs, reconcile and run complete member validation."
+action = "Bind release to repository delivery policy, prepare main source migration and review, regenerate and build, compare targeted costs, reconcile and run complete member validation. Remove duplicate batch-base preparation while retaining member gate checks and mandatory post-admission preparation; retire exact old Skill evidence through the existing approved writer."
 
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-10-30
-source = "The owner set the active goal to implement the immediately preceding confirmed plan, including the signetum name, single Skill entry, concrete test refactors and compressed future decisions."
-contract_digest = "sha256:6ef161e23219bc8e46e5a0fc445f321993fdf28655f3f5ba2b16957c58414711"
+source = "The owner approved implementing the preceding Skill-first plan. Version two binds exact evidence retirement inherent in the approved rename and the necessary batch-base preparation repair discovered while implementing main source migration; outcomes and delivery authority are unchanged."
+contract_digest = "sha256:6b08df2f22aa1862c14feddbdda9cfa71eb6bc359dd2a6c7a9c1c3b1db927c87"
