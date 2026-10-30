@@ -74,9 +74,26 @@ def delivery_scope(
         parts = PurePosixPath(path).parts
         if parts[: len(prefix)] == prefix and len(parts) > len(prefix) + 1:
             grouped.setdefault(parts[len(prefix)], []).append(path)
+    # Raw history below the change root is not an executable approval package.
+    # Inspect both snapshots so removing a current authority cannot hide its scope.
+    authority_packages: set[str] = set()
+    for revision in (base, tip):
+        for path in git_output(
+            repository, "ls-tree", "-r", "--name-only", revision, "--", root
+        ).splitlines():
+            candidate = PurePosixPath(path)
+            parts = candidate.parts
+            if parts[: len(prefix)] != prefix or len(parts) <= len(prefix) + 1:
+                continue
+            if (
+                len(parts) == len(prefix) + 2 and candidate.name in {"change.toml", "review.toml"}
+            ) or candidate.match(manifest.repository.specifications):
+                authority_packages.add(parts[len(prefix)])
     first: list[str] = []
     previous: list[PreviousChange] = []
     for change_id, change_paths in sorted(grouped.items()):
+        if change_id not in authority_packages:
+            continue
         held = git_output(
             repository, "ls-tree", "-d", "--name-only", base, "--", f"{root}/{change_id}"
         )
