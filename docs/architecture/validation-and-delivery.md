@@ -1,11 +1,14 @@
 # Validation and delivery responsibilities
 
-Ordinary validation is read-only and observes one exact commit. Evidence binds
+Qualified validation preserves tracked source and observes one exact commit;
+checks may write owned ignored runtime outputs. Dirty development diagnostics
+never grant qualification. Evidence binds
 Signetum, schema, profile, commit, and check identities. A successful member
 check is not batch integration, delivery, or human acceptance.
 
-The member and final gate build the source distribution and wheel before the
-repository check graph. Its declared `uv build --clear` replaces the owned
+The pytest gate dependency builds the source distribution and wheel before tests;
+final always includes it, while documentation-only members omit build and pytest.
+The declared `uv build --clear` replaces the owned
 output directory, so a version change cannot mix old and current payloads.
 Integration tests therefore consume release inputs
 created from the exact tree under validation, never a `dist/` directory left by
