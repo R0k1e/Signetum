@@ -73,7 +73,7 @@ engine_version = "0.3.0"
 "signetum.waivers" = "sha256:a22506dfe4d295a5abb8762425da68b63ccc5f76ac0033f39cee0e9af5d82332" # pragma: allowlist secret
 "signetum.workflow_status" = "sha256:283f96ed3e671c1ac539e2b14894411f7f2a11f6fbe044c4e00c516f93c9ddcd" # pragma: allowlist secret
 "signetum.workspace_operations" = "sha256:dfaedceccd471a0d0db9ecaaf2e00b939c4427c4296bbd09fe4e5d8b669c914a" # pragma: allowlist secret
-"signetum.workspaces" = "sha256:ef0d12d891c22bfa5d302dbeb2ada3d62fce499c5c4bcf230ee65241e348a644" # pragma: allowlist secret
+"signetum.workspaces" = "sha256:5900b16b2c7b5ea613b94df2391082e620d22e63dc730d81b25c4431d02726c4" # pragma: allowlist secret
 "signetum.worktrunk" = "sha256:a36bdb20e11e6def6068577079bda2165aa5b0d9500e7fb6130bfa0e838695a3" # pragma: allowlist secret
 
 [files]
@@ -172,5 +172,5 @@ engine_version = "0.3.0"
 "waivers.py" = "sha256:d2f9cc48e245c3cf90d60c0f76b56ecf0c19a04dca189c29a73821fe5336cd54" # pragma: allowlist secret
 "workflow_status.py" = "sha256:5565d9c80d4299d702591ca3cf4b40fe3d71e064ce92d90de39e9c72d9b5467f" # pragma: allowlist secret
 "workspace_operations.py" = "sha256:555a4c76b447845efc77ea119b6e19e0616cf8e4f133e8e6078b31ab271bfb74" # pragma: allowlist secret
-"workspaces.py" = "sha256:1c6554336430d5c11e6be034f63daf05c5517e3736aee4c19f66f2fdb105e347" # pragma: allowlist secret
+"workspaces.py" = "sha256:436e8835e1afaaafa2f1278edcf19173931841d6248f5bd58c59746e38ee5059" # pragma: allowlist secret
 "worktrunk.py" = "sha256:d201dbf67ec67eb361dddca2420a4ac7b8284150a52c84caf54b49f60dbf54af" # pragma: allowlist secret
