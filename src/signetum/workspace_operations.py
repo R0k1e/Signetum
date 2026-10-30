@@ -70,11 +70,10 @@ def open_workspace(
         if record.base != source or record.kind != kind:
             raise AdmissionError("existing workspace has a different recorded base or role")
     else:
-        manifest = parse_manifest(git_output(root, "show", f"{source}:signetum.toml"))
-        graph, _ = configured_validation(manifest)
-        graph.gate("prepare")
-        if kind == "batch":
-            graph.gate("batch")
+        if kind == "member":
+            manifest = parse_manifest(git_output(root, "show", f"{source}:signetum.toml"))
+            graph, _ = configured_validation(manifest)
+            graph.gate("prepare")
         wt.worktrunk(
             root,
             (
@@ -108,18 +107,17 @@ def open_workspace(
             "-m",
             f"Signetum-Batch-Format: 1\nSignetum-Batch-Base: {source}",
         )
-    try:
-        preparation = worktree_prepare(workspace.path)
-    except InfrastructureError as error:
-        if kind == "batch" and members:
-            retry = ["batch-admit", str(workspace.path)]
-            for member in members:
-                retry.extend(("--member", member))
-        elif kind == "batch":
-            retry = ["maintenance", "worktree-prepare", str(workspace.path)]
-        else:
+    if kind == "batch":
+        # Admission prepares the actual merged source once, including protocol upgrades.
+        preparation = PreparationResult(
+            status="pending_admission", worktree=str(workspace.path), executed=[]
+        )
+    else:
+        try:
+            preparation = worktree_prepare(workspace.path)
+        except InfrastructureError as error:
             retry = ["workspace-open", branch, source]
-        raise InfrastructureError(str(error), expected=shlex.join(retry)) from error
+            raise InfrastructureError(str(error), expected=shlex.join(retry)) from error
     return {
         "status": "opened",
         "base": source,
