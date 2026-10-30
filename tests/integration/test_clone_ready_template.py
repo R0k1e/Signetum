@@ -58,7 +58,7 @@ def test_template_render_has_identical_inventory(tmp_path: Path) -> None:
 
 
 def test_template_reports_missing_extra_forbidden_and_symlink(tmp_path: Path) -> None:
-    source = tmp_path / "tests/fixtures/portable-python"
+    source = tmp_path / "fixture"
     source.mkdir()
     for name in TOP_LEVEL - {"README.md"}:
         path = source / name

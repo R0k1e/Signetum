@@ -41,7 +41,7 @@ def test_generation_is_deterministic_and_refuses_drift(tmp_path):
 
 
 def test_template_validation_refuses_a_stale_shared_runtime(tmp_path):
-    source = tmp_path / "tests/fixtures/portable-python"
+    source = tmp_path / "fixture"
     shutil.copytree(ROOT / "tests/fixtures/portable-python", source)
     target = source / ".agents/signetum/runtime/_signetum_runtime/findings.py"
     target.write_bytes(target.read_bytes() + b"\n# stale implementation\n")
@@ -51,7 +51,7 @@ def test_template_validation_refuses_a_stale_shared_runtime(tmp_path):
 
 
 def test_interpreter_caches_do_not_enter_rendered_artifacts(tmp_path):
-    source = tmp_path / "tests/fixtures/portable-python"
+    source = tmp_path / "fixture"
     shutil.copytree(ROOT / "tests/fixtures/portable-python", source)
     shutil.rmtree(source / RUNTIME_DIRECTORY)
     assert validate_template(source).valid
@@ -136,7 +136,7 @@ def test_generation_preserves_unmanaged_extensions(tmp_path):
 def test_generation_refuses_a_symlinked_parent(tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
-    target = tmp_path / "tests/fixtures/portable-python"
+    target = tmp_path / "fixture"
     target.mkdir()
     (target / ".agents").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ValueError, match="symlink"):

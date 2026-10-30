@@ -106,7 +106,7 @@ def test_admitted_historical_discovery_is_reviewed_without_reopening_approval(tm
     assert review["reconciliation"]["deviation_count"] == 1
 
 
-def test_numbering_projects_targets_and_preserves_original_ledger(tmp_path):
+def test_final_preserves_original_decision_targets_and_ledger(tmp_path):
     member, batch = member_and_batch(tmp_path)
     event = discovery(member)
     append_event(member, event)
@@ -118,7 +118,7 @@ def test_numbering_projects_targets_and_preserves_original_ledger(tmp_path):
     review = final["delivery_review"]
     assert isinstance(review, dict)
     row = review["reconciliation"]["changes"][0]["deviations"][0]
-    assert row["targets"] == ["docs/decisions/ADP-0001-new.md"]
+    assert row["targets"] == ["docs/decisions/ADP-proposal-new.md"]
     assert row["recorded_targets"] == ["docs/decisions/ADP-proposal-new.md"]
     assert ledger_path(member, "example").read_bytes() == original
     assert lifecycle.validate(batch, "final")["delivery_review"] == final["delivery_review"]
