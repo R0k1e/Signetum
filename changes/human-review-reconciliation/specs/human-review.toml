@@ -1,0 +1,40 @@
+[specification]
+schema_version = 1
+id = "human-review-reconciliation/human-review"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["docs/decisions/ADP-human-review-brackets-reconciled-execution.md"]
+plan = "changes/human-review-reconciliation/plans/human-review.md"
+acceptance = [
+  "One approved change produces a concise approval projection without creating a second tracked requirement authority.",
+  "Every delivery-relevant execution discovery is retained under the repository Git common directory with exact change and member provenance.",
+  "Safe deviations do not interrupt independent execution, while unauthorized decision changes freeze only their affected work.",
+  "Final validation refuses unresolved deviations and remains check-only on the frozen batch.",
+  "The post-final delivery review accounts for every approved commitment and separately discloses deviations, authority updates, extra work, and unfinished work.",
+  "The rendered Template contains the behavior and instructions but no engine change history or local deviation state.",
+]
+
+[specification.review]
+id = "human-review-reconciliation"
+clauses = ["HRI-001", "HRI-002", "HRI-003", "HRI-004", "HRI-005"]
+
+[specification.boundaries]
+public_operations = 8
+adds_public_operation = false
+final_is_check_only = true
+delivery_requires_explicit_human_request = true
+ledger_path = ".git/reposeal/changes/<change-id>/deviations.jsonl"
+ledger_is_tracked = false
+approval_view_is_tracked = false
+delivery_review_is_tracked = false
+engine_history_is_rendered = false
+
+[specification.invariants]
+single_authority = "One change identity resolves to exactly one deviation ledger through Git's common-directory authority from engine, member, batch, and rendered-Template repositories."
+recording_threshold = "A discovery is retained when it may affect the approved commitment, a durable authority, or what the human must know at delivery; ordinary implementation narration is excluded."
+autonomy = "Implementation clarifications and safe supporting changes may continue after recording; unauthorized reductions, explicit non-goal changes, incompatible Decisions, destructive actions, and irreversible choices are not implemented without approval."
+authority_feedback = "A retained deviation is not closed by prose alone; it resolves against a Specification, Decision, architecture authority, behavior test, explicit follow-up change, justified rejection, or justified no-authority-change disposition."
+decision_feedback = "A contradiction with an accepted Decision requires an approved clarification or explicit supersession relationship before final validation."
+member_survival = "Member records remain available through batch admission and delivered-worktree cleanup."
+human_readability = "Approval and delivery views lead with observable outcomes and do not require internal identifiers to understand the decision."

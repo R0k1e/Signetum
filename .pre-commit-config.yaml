@@ -1,0 +1,36 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '^(src/signetum/resources/vendor_yaml/|template/\.agents/repo-dev/runtime/_signetum_runtime/vendor_yaml/)'
+      - id: end-of-file-fixer
+        exclude: '^(\.env\.example$|\.vscode/settings\.json$|src/signetum/resources/vendor_yaml/|template/\.agents/repo-dev/runtime/_signetum_runtime/vendor_yaml/)'
+      - id: check-yaml
+      - id: check-json
+        exclude: '^\.vscode/settings\.json$'
+      - id: check-toml
+      - id: check-added-large-files
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (locked environment)
+        entry: uv run --no-sync ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format (locked environment)
+        entry: uv run --no-sync ruff format --check --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: product-surface
+        name: product-surface
+        entry: uv run --no-sync signetum check product-surface --repository .
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: typos
+        name: typos
+        entry: uv run --no-sync typos
+        language: system
+        pass_filenames: false

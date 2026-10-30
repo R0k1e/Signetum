@@ -1,0 +1,62 @@
+specification:
+  schema_version: 1
+  id: devloom-brand/product-identity
+  version: 1
+  status: approved
+  implementation_authorized: true
+  review:
+    id: devloom-brand
+    clauses:
+      - DEVLOOM-001
+      - DEVLOOM-002
+      - DEVLOOM-003
+      - DEVLOOM-004
+      - DEVLOOM-005
+  decisions:
+    - docs/decisions/ADP-devloom-is-the-public-product-identity.md
+  plan: changes/devloom-brand/plans/devloom-product-identity.md
+
+  intent:
+    - give the Template a concise, memorable identity independent of Python and CI
+    - make the product discoverable through the problems and outcomes it owns
+    - preserve a clear distinction between public brand and internal machine identifiers
+
+  outputs:
+    - a DevLoom-first README, Quickstart, documentation map, product explanation, and FAQ
+    - repository metadata guidance and public contribution templates using the DevLoom identity
+    - checked product-surface requirements that prevent the former placeholder brand from returning
+
+  invariants:
+    - DevLoom is the only public product name
+    - the tagline is Weave requirements into verified releases
+    - claims remain bounded by repository-enforced behavior
+    - the development_foundation distribution and foundation CLI are described as internal protocol identifiers
+    - the repository remains a one-time GitHub Template with no upstream synchronization promise
+    - no second validation, lifecycle, or delivery authority is introduced
+
+  scenarios:
+    - id: evaluate-devloom
+      given: an engineer finds the repository without prior context
+      when: the engineer reads the README and follows its product links
+      then:
+        - DevLoom's purpose is understandable from the first screen
+        - the six primary outcomes are connected to concrete repository mechanisms
+        - the engineer can distinguish DevLoom from a CI template or specification generator
+    - id: reject-stale-public-identity
+      given: a required public entry point loses the DevLoom identity
+      when: repository validation runs
+      then:
+        - validation fails through the existing product-surface check
+
+  removed_or_forbidden:
+    - Development Foundation as a public-facing product name
+    - Python CI/CD Template as the current product category
+    - renaming the Python import package or CLI as an undocumented side effect
+    - claims that DevLoom guarantees perfect interpretation or defect-free software
+
+  acceptance:
+    - all required public entry points consistently identify DevLoom
+    - the Why and FAQ pages answer product-category and differentiation questions directly
+    - repository metadata recommendations name DevLoom and use its current positioning
+    - targeted product-surface and traceability tests pass
+    - the complete repository gate passes on the final tree

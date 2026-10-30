@@ -1,0 +1,21 @@
+review:
+  schema_version: 1
+  id: reposeal-v0-traceability
+  status: active
+  source:
+    kind: human_direction
+    summary: Normalize the public release to 0.1 and enforce traceability in the self-contained Template.
+  clauses:
+    - id: V0-001
+      statement: The first public Template release is versioned v0.1.0 without rewriting historical releases.
+    - id: V0-002
+      statement: Review and Specification artifacts use standard-library-readable TOML.
+    - id: V0-003
+      statement: Broken Review, Specification, and Plan ownership makes member and final validation fail.
+    - id: V0-004
+      statement: The default delivery branch matches the GitHub Template default branch main.
+  acceptance:
+    result: pending
+    delivery_commit: null
+    accepted_clauses: []
+    rejected_clauses: []

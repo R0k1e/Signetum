@@ -1,0 +1,43 @@
+[review]
+schema_version = 1
+id = "protocol-is-published-one-way"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "Withdraw an unverifiable cross-repository guarantee, publish the protocol as a release artifact a consumer can check itself against, and stop tests from recording absence lists nobody can extend."
+
+[[review.clauses]]
+id = "PUB-001"
+statement = "The evidence protocol travels in one direction: RepoSeal defines and publishes it, names no consumer, and carries no test depending on a repository outside this one."
+disposition = "covered"
+specification = "protocol-is-published-one-way/published-protocol"
+
+[[review.clauses]]
+id = "PUB-002"
+statement = "The evidence schema, its canonical digest, and conformance vectors ship as release artifacts a consumer can pin and verify its own copy against."
+disposition = "covered"
+specification = "protocol-is-published-one-way/published-protocol"
+
+[[review.clauses]]
+id = "PUB-003"
+statement = "A decision is a proposal by its declared status rather than its file name, and delivery numbers it and records its acceptance together."
+disposition = "covered"
+specification = "protocol-is-published-one-way/published-protocol"
+
+[[review.clauses]]
+id = "PUB-004"
+statement = "A test states what the contract owes instead of listing string literals that must be absent, and the skill carries that rule."
+disposition = "covered"
+specification = "protocol-is-published-one-way/published-protocol"
+
+[[review.clauses]]
+id = "PUB-005"
+statement = "The skill states that a member gate judges only what the member owns and names the two properties which admit a check to it."
+disposition = "covered"
+specification = "protocol-is-published-one-way/published-protocol"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

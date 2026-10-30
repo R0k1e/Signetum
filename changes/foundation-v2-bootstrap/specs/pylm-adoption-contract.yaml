@@ -1,0 +1,45 @@
+specification:
+  schema_version: 1
+  id: foundation-v2-bootstrap/pylm-adoption-contract
+  version: 1
+  status: approved
+  implementation_authorized: true
+  review:
+    id: foundation-v2-bootstrap
+    clauses: [FIND-010, FIND-011]
+  decisions:
+    - docs/decisions/ADP-template-becomes-versioned-development-foundation.md
+  plan: changes/foundation-v2-bootstrap/plans/pylm-adoption-contract-plan.md
+
+  intent:
+    - define the foundation side of an explicit PyLM adoption
+    - preserve PyLM product authorities and legacy documents
+
+  preconditions:
+    - a Foundation v2 immutable release exists
+    - PyLM has accepted its own adoption ADP and behavior Specification
+    - PyLM has created a plan-owned worktree from its approved base
+
+  invariants:
+    - existing PyLM specs/ and plans/ are not modified or moved
+    - PyLM rejects new files under those legacy roots
+    - all new PyLM work uses manifest-declared change-package paths
+    - PyLM retains its exact eight public lifecycle operations
+    - PyLM test selection, receipts, batch topology, final gate, delivery, and cleanup remain repository-owned
+    - PyLM receipts bind the selected foundation identity
+    - PyLM cannot silently consume another foundation release
+    - the generic foundation does not import or call PyLM modules
+
+  required_pylm_adapters:
+    - repository path and policy manifest
+    - member evidence lookup
+    - frozen batch evidence lookup
+    - delivery provenance lookup
+    - foundation identity observation
+
+  acceptance:
+    - an unchanged legacy tree passes
+    - a new legacy-root file fails
+    - new Plan paths work through commit, receipt, decision rewrite, batch, delivery, and cleanup
+    - a mismatched foundation identity invalidates new evidence
+    - no ninth public operation or second validation runner appears

@@ -1,22 +1,23 @@
 # Architecture
 
-This file is the first discovery authority for every Agent. Replace the
-bracketed facts when the repository is created; keep the responsibility links
-stable as the product evolves.
+Signetum is a standard Skill for reliable agentic development and delivery.
+`skills/signetum` is the public entry for both project initialization and existing
+repository adoption. `main` owns the product source, runtime/setup package,
+schemas, Skill, tests and documentation. Existing consumers update explicitly.
 
-## Product boundary
+The agent obtains a fixed-version setup tool, prepares reviewed local bindings,
+and then calls the project's own portable runtime. Application tools, architecture
+and delivery policy remain project-owned. `template/` is internal scaffolding and
+portable-runtime evidence, not a second public product or default-branch artifact.
 
-- Product: `[name and user-visible purpose]`
-- Public entry points: `[CLI, API, UI, jobs, or libraries]`
-- Production implementation roots: `[paths]`
-- Test roots: `[paths]`
-- Environment authority: `[mise, uv, npm, cargo, or another repository-owned tool]`
+Responsibility documents:
 
-## Responsibilities
+- [Implementation and distribution](architecture/repository-signetum.md) owns
+  package, Skill, setup, source and generation boundaries.
+- [Validation and delivery](architecture/validation-and-delivery.md) owns checks,
+  source-bound evidence and explicit delivery.
 
-- [Development lifecycle](development-lifecycle.md)
-- [Agent-team delivery](agent-team-delivery.md)
-- [Customization](customizing.md)
-
-Search all production and test implementations before changing an authority.
-Extend one owner and remove superseded implementations and compatibility paths.
+Current authorities describe actual behavior and owners. Reconcile affected pages
+in the implementing change; leave unaffected pages alone. New reasoning belongs
+once in the owning change and significant append history. Standalone decisions
+are conditional cross-change authorities; accepted historical sources are retained.
