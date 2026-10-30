@@ -5,7 +5,9 @@ Signetum, schema, profile, commit, and check identities. A successful member
 check is not batch integration, delivery, or human acceptance.
 
 The member and final gate build the source distribution and wheel before the
-repository check graph. Integration tests therefore consume release inputs
+repository check graph. Its declared `uv build --clear` replaces the owned
+output directory, so a version change cannot mix old and current payloads.
+Integration tests therefore consume release inputs
 created from the exact tree under validation, never a `dist/` directory left by
 an earlier command in one worktree. The same gate also invokes the locked Ruff
 check and format contracts, Bandit scan, and dependency audit used by CI; the

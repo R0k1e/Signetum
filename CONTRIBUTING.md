@@ -7,7 +7,7 @@ and significant append history; generate its approval view and record actual
 confirmation before implementation. Routine work creates no extra report or ADR.
 
 Use an isolated member workspace and the declared uv environment. For focused
-feedback, run `just test <affected-paths-or-pytest-options>`. Build with `uv build`
+feedback, run `just test <affected-paths-or-pytest-options>`. Build with `uv build --clear`
 before installed-artifact tests. `changed` explains selection without checks;
 `ready` validates a committed member. Extend or consolidate existing tests at the
 cheapest boundary that exposes the risk.

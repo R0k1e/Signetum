@@ -79,7 +79,7 @@ command = ["uv", "sync", "--locked", "--all-extras", "--dev"]
 
 [[validation.shards]]
 name = "engine:build"
-command = ["uv", "build"]
+command = ["uv", "build", "--clear"]
 requires = ["engine:sync"]
 
 [[validation.shards]]

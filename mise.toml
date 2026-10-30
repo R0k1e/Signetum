@@ -1,7 +1,7 @@
 [tools]
 just = "1.42.4"
 python = "3.12.14"
-uv = "0.8.15"
+uv = "0.12.2"
 worktrunk = "0.74.0"
 node = "24.19.0"
 rust = "1.97.1"
