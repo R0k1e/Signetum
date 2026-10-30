@@ -5,6 +5,13 @@ their original release history. Git and accepted change records retain reasoning
 
 ## 0.3.0 - Unreleased
 
+- Use manifest schema 3 with one `repository.changes` root; remove the separate
+  template version and Specification/Plan bindings. Old active fields are refused.
+- Keep new development on one approved change record and source journal; retire
+  historical workflow commands, qualification and duplicate teaching matrices.
+- Contain managed worktrees under the primary repository, retire removed
+  registrations, share gate verdicts and enable conservative local selection.
+
 - Make the standard `signetum` Skill the single entry for new and existing projects;
   keep templates internal and use one main source and release path.
 - Adopt reviewed local bindings without changing application tools. Daily work

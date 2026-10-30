@@ -2,7 +2,8 @@
 
 Status: Accepted
 Review date: 2026-10-30
-Supersedes: None
+Supersedes: ADP-change-packages-close-requirements.md
+Partially supersedes: ADP-change-packages-close-requirements.md
 Superseded by: None
 
 The owner approved the comprehensive release cleanup and implementation through
@@ -40,3 +41,10 @@ Manifest schema 3 removes `template_version` and separate Specification/Plan glo
 bindings. One exact `repository.changes` directory owns records and retained
 history. This is a real wire-format change, so the schema advances independently
 of product 0.3.0; old fields are refused rather than silently reinterpreted.
+
+This partially supersedes the three-document representation in
+ADP-change-packages-close-requirements.md. Its requirement accounting, explicit
+human approval and preservation of original intent remain in force; the current
+record and journal supply those obligations. Historical static workflow commands
+and teaching matrices are retired together, rather than maintained as a second
+process. Original decisions and approval evidence remain readable.

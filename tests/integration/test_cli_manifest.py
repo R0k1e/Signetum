@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from change_fixtures import consolidated_approval
 from typer.testing import CliRunner
 
 from signetum import git as git_tools
@@ -42,8 +43,10 @@ def test_check_manifest_composes_the_existing_public_contract() -> None:
     assert json.loads(result.stdout)["status"] == "valid"
 
 
-def test_check_traceability_uses_the_public_query_boundary() -> None:
-    repository = Path(__file__).parents[1] / "fixtures" / "changes" / "valid"
+def test_check_traceability_uses_the_public_query_boundary(tmp_path) -> None:
+    repository = tmp_path
+    git_tools.git_output(repository, "init", "-b", "main")
+    consolidated_approval(repository, "a" * 40)
 
     result = CliRunner().invoke(
         app,
@@ -59,6 +62,13 @@ def test_check_traceability_uses_the_public_query_boundary() -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.stdout)["valid"] is True
+    (repository / "changes").rename(repository / "requests")
+    (repository / "signetum.toml").write_text(
+        FIXTURE.read_text().replace('changes = "changes"', 'changes = "requests"')
+    )
+    inferred = CliRunner().invoke(app, ["check", "traceability", "--repository", str(repository)])
+    assert inferred.exit_code == 0, inferred.stdout
+    assert json.loads(inferred.stdout)["valid"] is True
 
 
 def test_check_product_surface_reports_one_versioned_result() -> None:
