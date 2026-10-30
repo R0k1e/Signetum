@@ -4,15 +4,21 @@ build-backend = "hatchling.build"
 
 [project]
 name = "signetum"
-version = "3.0.0"
-description = "Signetum: seal every change with evidence"
+version = "5.0.0"
+description = "Reliable agentic development and delivery through a standard Skill"
 readme = "README.md"
+license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.12,<3",
     "pyyaml>=6.0,<7",
     "typer>=0.20,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/R0k1e/Signetum"
+Documentation = "https://github.com/R0k1e/Signetum/blob/main/QUICKSTART.md"
+Issues = "https://github.com/R0k1e/Signetum/issues"
 
 [project.scripts]
 signetum = "signetum.cli:app"
@@ -52,7 +58,6 @@ include = [
     "/SECURITY.md",
     "/changes",
     "/docs",
-    "/examples",
     "/profiles",
     "/schemas",
     "/skills",

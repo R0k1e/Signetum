@@ -1,56 +1,31 @@
-# Agent Team batch delivery
+# Parallel development and batch delivery
 
-An Agent Team scales implementation by isolating members and sharing only the
-explicit batch boundary.
+Each coherent change has an approved record and isolated member workspace.
+Members develop independently; one operator integrates only explicitly named
+members into a batch. `ready` binds checks to a member's exact commit.
 
 ```text
-approved base
-  +-- member A worktree -> commit A -> ready receipt A --+
-  +-- member B worktree -> commit B -> ready receipt B --+-> named batch
-  +-- member C worktree -> commit C -> ready receipt C --+      |
-                                                               final once
-                                                                   |
-                                                          explicit delivery
+member A -> ready A --+
+member B -> ready B --+-> named batch -> full final -> explicit delivery
+member C -> ready C --+
 ```
 
-## Member rules
+Use targeted test diagnostics during implementation. `changed` only explains
+selection. Members neither enumerate peers nor merge into the delivery branch.
+Admission holds the batch exclusively, merges qualified members and prepares and
+statically checks the combined tree. Conflicts remain open for `batch-continue`;
+continuation runs preparation and batch checks, not another member test pass.
 
-- Each development task uses a Plan-owned worktree created from the exact approved base.
-- A member contains one coherent, independently reviewable outcome.
-- Targeted or changed validation supplies fast feedback during implementation.
-- `ready` binds evidence to the member's exact commit, not its branch name.
-- Members never merge themselves into the delivery branch or enumerate peers.
+If final fails, repair the owning member, commit and run ready, then admit its
+new tip into the same batch. History is retained. Run final on the new frozen
+batch; an earlier receipt cannot qualify it.
 
-## Batch rules
+The generated review binds approvals, retained discoveries, exact source and
+admitted evidence. Present it before requesting explicit delivery. Delivery
+confirms the remote before updating the target and performs only eligible cleanup.
+It proves neither package publication nor human acceptance.
 
-- `batch-open` and `batch-admit` require explicit `--member` paths.
-- A failed `final` has no dedicated operation. Repair the member, close it
-  with `ready`, and `batch-admit` it into the same batch again; the new work
-  arrives as a second merge and the branch is never rewritten.
-- One operator mutates a batch at a time. Admission and continuation hold the
-  batch exclusively and refuse, naming the holder, rather than interleaving.
-- Admission merges member branches without rewriting them.
-- A member can rejoin after a later ready fix; its history is not permanently consumed.
-- Conflicts finish through `batch-continue` after repair and changed validation.
-- Complete validation runs once on the frozen batch tip.
-
-## Delivery evidence
-
-The delivery result is machine-readable and reports:
-
-- approved base;
-- each member branch, original commit, integrated commit, and summary;
-- delivered Plan paths;
-- exact validated batch tip and final receipt;
-- resulting delivery and remote commit;
-- worktrees and branches removed only after remote confirmation.
-
-This lets a reviewer answer “what shipped?” without reconstructing it from chat
-or relying on an Agent summary.
-
-## Human boundaries
-
-Agents may perform ordinary implementation and validation inside the approved
-scope. Human confirmation remains necessary for Specification meaning, durable
-architecture/process/security decisions, scope exclusion or deferral, explicit
-delivery, and acceptance of delivered clauses.
+[Delivery and recovery](../../skills/signetum/references/delivery-recovery.md)
+owns the operation procedure; [validation responsibilities](../architecture/validation-and-delivery.md)
+own evidence, locking and failure semantics. Do not maintain a parallel command
+list or handwritten delivery report.

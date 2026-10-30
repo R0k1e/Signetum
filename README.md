@@ -14,8 +14,8 @@ new projects and existing repositories, using their own application tools.
 
 Install [`skills/signetum`](https://github.com/R0k1e/Signetum/tree/main/skills/signetum)
 with your agent's standard Skill installer. Select an exact reviewed release tag
-or commit for reproducibility. Replace an older `repo-dev` Skill explicitly;
-installing the new Skill does not update previously adopted repositories.
+or commit for reproducibility. Skill installation does not update previously
+adopted repositories.
 
 Then ask:
 

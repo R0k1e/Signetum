@@ -32,5 +32,4 @@ Start with [First use](../QUICKSTART.md): install, review adoption and complete 
 - [Security](../SECURITY.md)
 - [Changelog](../CHANGELOG.md)
 - [Retained decisions](decisions/README.md)
-- [Historical format example](../examples/complete-change/README.md)
 - [Maintainer release guide](maintainers/releasing.md)
