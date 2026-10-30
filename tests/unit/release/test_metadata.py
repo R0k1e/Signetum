@@ -1,4 +1,8 @@
+import json
+from pathlib import Path
+
 import pytest
+from jsonschema import validate
 
 from signetum import git as git_tools
 from signetum import release
@@ -9,8 +13,8 @@ from signetum.release import ReleaseError, build_metadata, preflight
 @pytest.fixture
 def components(tmp_path):
     (tmp_path / "schemas").mkdir()
-    (tmp_path / "schemas/release-metadata.schema.json").write_text(
-        '{"properties":{"schema_version":{"const":1}}}'
+    (tmp_path / "schemas/release-metadata-v2.schema.json").write_text(
+        '{"properties":{"schema_version":{"const":2}}}'
     )
     (tmp_path / "pyproject.toml").write_text(
         f'[project]\nname="signetum"\nversion="{release.__version__}"\n'
@@ -28,9 +32,16 @@ def components(tmp_path):
 
 
 def test_release_metadata_binds_versions_and_complete_skill(components):
+    source = Path(__file__).resolve().parents[3]
+    schema = json.loads((source / "schemas/release-metadata-v2.schema.json").read_text())
+    validate(build_metadata(source, "source-commit").model_dump(mode="json"), schema)
+    duplicated = build_metadata(source, "source-commit").model_dump(mode="json")
+    duplicated["components"] = [duplicated["components"][0]] * 3
+    with pytest.raises(ValueError):
+        release.ReleaseMetadata.model_validate(duplicated)
     before = build_metadata(components, "source-commit")
     versions = {item.name: item.version for item in before.components}
-    assert versions == {"package": release.__version__, "schemas": "1", "signetum-skill": "4.0.0"}
+    assert versions == {"package": release.__version__, "schemas": "2", "signetum-skill": "4.0.0"}
     reference = components / "skills/signetum/references/adoption.md"
     reference.write_text(reference.read_text() + "Changed adoption basis.\n")
     after = build_metadata(components, "source-commit")
@@ -50,7 +61,7 @@ def test_component_refusals_need_no_repository(components, damage):
     elif damage == "skill-symlink":
         (components / "skills/signetum/linked").symlink_to("SKILL.md")
     else:
-        (components / "schemas/release-metadata.schema.json").write_text("{}")
+        (components / "schemas/release-metadata-v2.schema.json").write_text("{}")
     with pytest.raises(ReleaseError):
         build_metadata(components, "source-commit")
 

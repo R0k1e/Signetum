@@ -7,8 +7,9 @@ import json
 import re
 import tomllib
 from pathlib import Path
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from yaml import YAMLError, safe_load
 
 from signetum import __version__
@@ -23,17 +24,23 @@ class ReleaseError(ValueError):
 class ReleaseComponent(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    name: str
-    version: str
+    name: Literal["package", "schemas", "signetum-skill"]
+    version: str = Field(min_length=1)
     digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
 class ReleaseMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    schema_version: int = 1
-    source: str
-    components: tuple[ReleaseComponent, ...]
+    schema_version: Literal[2] = 2
+    source: str = Field(min_length=1)
+    components: tuple[ReleaseComponent, ...] = Field(min_length=3, max_length=3)
+
+    @model_validator(mode="after")
+    def unique_components(self) -> Self:
+        if len({component.name for component in self.components}) != 3:
+            raise ValueError("release requires each component identity exactly once")
+        return self
 
 
 def digest_path(path: Path) -> str:
@@ -61,14 +68,14 @@ def _skill_identity(repository: Path) -> tuple[str, str]:
 
 
 def build_metadata(repository: Path, source: str) -> ReleaseMetadata:
-    schema_path = repository / "schemas" / "release-metadata.schema.json"
+    schema_path = repository / "schemas" / "release-metadata-v2.schema.json"
     try:
         package = tomllib.loads((repository / "pyproject.toml").read_text())["project"]["version"]
         schema_version = json.loads(schema_path.read_text())["properties"]["schema_version"][
             "const"
         ]
-        if type(schema_version) is not int or schema_version <= 0:
-            raise ValueError("release schema version must be a positive integer")
+        if type(schema_version) is not int or schema_version != 2:
+            raise ValueError("release metadata requires schema version two")
     except (KeyError, TypeError, ValueError) as error:
         raise ReleaseError(f"invalid release component identity: {error}") from error
     if package != __version__:

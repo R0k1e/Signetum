@@ -3,7 +3,8 @@
 The product source is `main`, declared by `delivery.branch` in repository policy.
 The package bundles the same `skills/signetum` folder users install through their
 agent. Skill, package and schema versions may differ; release metadata binds their
-actual identities to one exact delivered source. Internal scaffolding has no
+actual identities to one exact delivered source through metadata schema v2.
+The historical v1 schema stays immutable; v2 permits independent component versions. Internal scaffolding has no
 independent public release. Historical tags and artifacts remain immutable.
 
 ## Prepare the exact source
