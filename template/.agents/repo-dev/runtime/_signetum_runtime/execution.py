@@ -85,13 +85,8 @@ class ValidationInputs:
     schema_digest: str = "sha256:" + "0" * 64
     waivers: tuple[Waiver, ...] = field(default=())
     today: date | None = None
-    recovery_history: tuple[frozenset[str], ...] = ()
-    recovery_threshold: int = 3
-    recovery_window: int = 20
 
     def __post_init__(self) -> None:
-        if self.recovery_window < 1 or self.recovery_threshold < 1:
-            raise ValidationExecutionError("recovery window and threshold must be positive")
         if self.configuration_path != "signetum.toml":
             raise ValidationExecutionError("configuration path must be signetum.toml")
         if self.profiles != tuple(sorted(set(self.profiles))):

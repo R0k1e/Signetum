@@ -161,12 +161,14 @@ def test_every_gate_shard_depends_on_the_shard_which_builds_the_environment() ->
         name for name, needed in requires.items() if not needed and name.endswith(":sync")
     )
 
+    def prepared(name, seen=()):
+        return name == environment or (
+            name not in seen
+            and any(prepared(dependency, (*seen, name)) for dependency in requires[name])
+        )
+
     for gate in manifest.validation.gates:
-        unprepared = [
-            name
-            for name in gate.shards
-            if name != environment and environment not in requires[name]
-        ]
+        unprepared = [name for name in gate.shards if not prepared(name)]
         assert unprepared == [], f"{gate.name} runs {unprepared} without {environment}"
 
 

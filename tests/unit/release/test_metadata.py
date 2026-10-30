@@ -22,7 +22,8 @@ def components(tmp_path):
     skill = tmp_path / "skills/signetum"
     (skill / "references").mkdir(parents=True)
     (skill / "SKILL.md").write_text(
-        '---\nname: signetum\ndescription: Fixture\nmetadata:\n  version: "4.0.0"\n---\n'
+        "---\nname: signetum\ndescription: Fixture\nmetadata:\n"
+        f'  version: "{release.__version__}"\n---\n'
     )
     (skill / "references/adoption.md").write_text("Fixture adoption basis.\n")
     policy = tmp_path / ".agents/repo-dev/repo.yaml"
@@ -41,7 +42,11 @@ def test_release_metadata_binds_versions_and_complete_skill(components):
         release.ReleaseMetadata.model_validate(duplicated)
     before = build_metadata(components, "source-commit")
     versions = {item.name: item.version for item in before.components}
-    assert versions == {"package": release.__version__, "schemas": "2", "signetum-skill": "4.0.0"}
+    assert versions == {
+        "package": release.__version__,
+        "schemas": "2",
+        "signetum-skill": release.__version__,
+    }
     reference = components / "skills/signetum/references/adoption.md"
     reference.write_text(reference.read_text() + "Changed adoption basis.\n")
     after = build_metadata(components, "source-commit")
@@ -57,7 +62,9 @@ def test_component_refusals_need_no_repository(components, damage):
         p.write_text(p.read_text().replace(release.__version__, "999.0.0"))
     elif damage == "skill-version":
         p = components / "skills/signetum/SKILL.md"
-        p.write_text(p.read_text().replace('version: "4.0.0"', 'version: "unknown"'))
+        p.write_text(
+            p.read_text().replace(f'version: "{release.__version__}"', 'version: "999.0.0"')
+        )
     elif damage == "skill-symlink":
         (components / "skills/signetum/linked").symlink_to("SKILL.md")
     else:

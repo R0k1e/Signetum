@@ -22,8 +22,8 @@ Git, Python, uv and Mise/Worktrunk. These are repository development dependencie
 not additional application-language requirements for Skill users.
 
 Before delivery, update the package version and release notes, regenerate the
-portable runtime and complete the normal batch final review. The release version
-must agree with `pyproject.toml`; choose an unused `v<version>` tag. Historical
+portable runtime and complete the normal batch final review. Release preflight requires package and Skill versions to agree with
+`pyproject.toml`; choose an unused `v<version>` tag. Historical
 RepoSeal tags remain unchanged. The 0.3.0 entry is a candidate until published.
 
 Deliver the reviewed source explicitly. Require successful CI for that exact

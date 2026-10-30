@@ -48,3 +48,10 @@ human approval and preservation of original intent remain in force; the current
 record and journal supply those obligations. Historical static workflow commands
 and teaching matrices are retired together, rather than maintained as a second
 process. Original decisions and approval evidence remain readable.
+
+Retained ledger answers are historical statements, not a second current authority.
+Keep original targets and source bindings when the approved cleanup retires their
+files; do not reinterpret old answers through a removed Specification/Plan workflow.
+Original pending work still blocks, and a historical deferral requires explicit
+current-change reconciliation. The audited retained ledgers contain no deferrals.
+Current journals continue to require effective committed evidence and exact approval.

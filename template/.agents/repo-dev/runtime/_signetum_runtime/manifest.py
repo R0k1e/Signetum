@@ -101,8 +101,6 @@ class ValidationCommands:
     shards: tuple[ValidationShard, ...]
     gates: tuple[ValidationGate, ...]
     member_required: tuple[str, ...] = ()
-    recovery_window: int = 20
-    recovery_threshold: int = 3
 
     def __post_init__(self) -> None:
         if not self.shards or len(self.shards) != len({item.name for item in self.shards}):
@@ -110,8 +108,6 @@ class ValidationCommands:
         gates = {item.name for item in self.gates}
         if len(self.gates) != len(gates) or not {"member", "final"} <= gates:
             raise ManifestError("validation.gates must contain unique member and final gates")
-        if self.recovery_window < 1 or self.recovery_threshold < 1:
-            raise ManifestError("validation recovery window and threshold must be positive")
         world = {item.name for item in self.shards if item.evidence == "world"}
         declared = {item.name for item in self.shards}
         member = next(item.shards for item in self.gates if item.name == "member")

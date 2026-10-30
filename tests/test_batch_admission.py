@@ -608,7 +608,7 @@ def test_an_incomplete_change_is_refused_even_without_a_trailer(tmp_path: Path) 
     _git(member, "add", ".")
     _git(member, "commit", "-m", "record a change package without naming it")
 
-    with pytest.raises(lifecycle.AdmissionError, match="package is unavailable or invalid"):
+    with pytest.raises(lifecycle.AdmissionError, match="approved change package"):
         lifecycle.admit(batch, (member,))
 
 

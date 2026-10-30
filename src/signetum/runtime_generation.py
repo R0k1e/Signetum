@@ -48,7 +48,6 @@ MODULES = {
     "signetum.provenance": "provenance.py",
     "signetum.execution_review": "execution_review.py",
     "signetum.validation.review": "validation_review.py",
-    "signetum.change.authority": "change_authority.py",
     "signetum.deviations": "deviations.py",
     "signetum.contract_values": "contract_values.py",
     "signetum.change.models": "change_models.py",

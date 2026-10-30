@@ -178,8 +178,8 @@ Gate execution, diagnostics and admission reject a success result carrying
 original failure metadata. Historical receipts remain decodable for inspection,
 but an ancestor containing recovered failures cannot replace fresh normal
 execution. Source-local failure logs retain both attempts, and successful
-receipts are not written for failed runs. Legacy recovery-window and threshold
-configuration cannot authorize a pass or weaken this first-failure rule.
+receipts are not written for failed runs. The active manifest and execution inputs expose no recovery-window or threshold
+knobs; first failure is unconditional.
 Each command carries a fresh local owner token while retaining enclosing job
 tokens. On normal exit the supervisor inventories its session and token-bearing
 detached processes, checks PID birth identity before each signal, and performs
@@ -233,8 +233,11 @@ significant discoveries and accepted clause edits in their source journal throug
 Validation does not append its own success to that source.
 
 Historical Reviews, Specifications and common-Git ledgers are retained as read-only
-evidence. Their original resolutions and authority references remain inspectable
-and participate in exact final-review bindings. There is no legacy writer command
+evidence. Their original resolutions and recorded targets remain inspectable
+and participate in exact final-review bindings. These are historical statements,
+not grants under current policy; an explicitly retired file need not remain in
+the current tree. Pending historical findings and any deferred obligation remain
+blocking. Current requirements and evidence are judged through the source journal. There is no legacy writer command
 or qualification fallback: current implementation requires an approved record.
 
 Before final validation, the Agent reconciles every retained discovery into

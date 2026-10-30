@@ -235,14 +235,6 @@
         "member_required": {
           "$ref": "#/$defs/uniqueStrings"
         },
-        "recovery_window": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "recovery_threshold": {
-          "type": "integer",
-          "minimum": 1
-        },
         "tools": {
           "type": "array",
           "items": {
