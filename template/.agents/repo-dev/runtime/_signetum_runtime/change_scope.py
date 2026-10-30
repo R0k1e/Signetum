@@ -84,7 +84,7 @@ def delivery_scope(
                 authority_packages.add(parts[len(prefix)])
             elif (
                 len(parts) == len(prefix) + 2 and candidate.name == "review.toml"
-            ) or candidate.match(manifest.repository.specifications):
+            ) or candidate.match(f"{root}/*/specs/*.toml"):
                 # Historical promises remain protected without authorizing new work.
                 authority_packages.add(parts[len(prefix)])
     first: list[str] = []

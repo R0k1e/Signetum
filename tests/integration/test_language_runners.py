@@ -111,11 +111,11 @@ def configure_existing_runner(root, language, command, tools, metadata):
     original = load_manifest(root / "signetum.toml")
     app = binding.validation.shards[0]
     text = (
-        'schema_version = 2\n[signetum]\nprotocol = 2\ntemplate_version = "0.2.0"\n'
+        "schema_version = 3\n[signetum]\nprotocol = 2\n"
         "[profiles]\nenabled = "
         + json.dumps([binding.identity])
         + '\n[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
-        'specifications = "changes/*/specs/*.toml"\nplans = "changes/*/plans/*.md"\n'
+        'changes = "changes"\n'
         'decisions = "docs/decisions"\nlockfiles = ' + json.dumps(sorted(metadata)) + "\n"
         '\n[[impact.rules]]\nname="application"\npaths=["**"]\nshards='
         + json.dumps([app.name])

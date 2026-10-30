@@ -40,16 +40,14 @@ def _git(repository: Path, *arguments: str) -> str:
     ).stdout.strip()
 
 
-MANIFEST = """schema_version = 2
+MANIFEST = """schema_version = 3
 
 [signetum]
 protocol = 2
-template_version = "0.2.0"
 
 [repository]
 architecture = "docs/ARCHITECTURE.md"
-specifications = "changes/*/specs/*.toml"
-plans = "changes/*/plans/*.md"
+changes = "changes"
 decisions = "docs/decisions"
 
 [[impact.rules]]
@@ -807,7 +805,7 @@ def test_change_scope_uses_the_declared_package_root(tmp_path):
     _approve_change(member)
     (member / "changes").rename(member / "work")
     manifest = member / "signetum.toml"
-    manifest.write_text(manifest.read_text().replace('"changes/', '"work/'))
+    manifest.write_text(manifest.read_text().replace('changes = "changes"', 'changes = "work"'))
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve package under declared root")
     (member / "implemented.txt").write_text("behavior")

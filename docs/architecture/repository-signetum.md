@@ -216,6 +216,7 @@ inputs; neither path grants approval.
 Product releases and the bundled standard Skill use one delivered source on the
 branch declared in repository policy (`main` here). `release.preflight` reads that
 same policy and checks clean exact source, delivered ancestry, component identities
-and a supplied tag. It grants no publication authority. Internal scaffold revision
-fields retained by the wire contract are not a separate product release.
+and a supplied tag. It grants no publication authority. Manifest schema 3 binds one `repository.changes` root. It has no template version
+or Specification/Plan configuration aliases; schema revisions follow wire changes
+and are independent of the shared package/Skill product version.
 [Releasing](../maintainers/releasing.md) owns the maintainer procedure.

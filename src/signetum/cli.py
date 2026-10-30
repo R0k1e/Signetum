@@ -125,7 +125,6 @@ def validate(manifest: Annotated[Path, typer.Option(exists=True, dir_okay=False)
         json.dumps(
             {
                 "protocol": loaded.signetum.protocol,
-                "template_version": loaded.signetum.template_version,
                 "manifest_schema": loaded.schema_version,
                 "profiles": [profile.identity for profile in profiles],
                 "status": "valid",

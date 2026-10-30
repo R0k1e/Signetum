@@ -36,7 +36,7 @@ class Adapter:
         return "b" * 40
 
     def read_file(self, path: str) -> bytes:
-        return {"signetum.toml": b"schema_version = 2\n", "uv.lock": b"lock"}[path]
+        return {"signetum.toml": b"schema_version = 3\n", "uv.lock": b"lock"}[path]
 
     def identify_tool(self, tool: ToolDeclaration) -> str:
         return "uv 0.8.14"

@@ -59,8 +59,9 @@ def test_native_loader_supplies_the_same_declared_defaults(manifest_file):
     [
         "root-extra",
         "protocol-type",
-        "version",
+        "retired-field",
         "repository-extra",
+        "change-root",
         "escape",
         "impact-name",
         "impact-paths",
@@ -77,10 +78,11 @@ def test_native_loader_supplies_the_same_declared_defaults(manifest_file):
 def test_native_loaders_reject_the_same_invalid_contract(manifest_file, damage):
     text = manifest_file.read_text()
     substitutions = {
-        "root-extra": ("schema_version = 2\n", "schema_version = 2\nunexpected = true\n"),
+        "root-extra": ("schema_version = 3\n", "schema_version = 3\nunexpected = true\n"),
         "protocol-type": ("protocol = 2", 'protocol = "2"'),
-        "version": ('template_version = "0.2.0"', 'template_version = "main"'),
+        "retired-field": ("[signetum]\n", '[signetum]\ntemplate_version = "main"\n'),
         "repository-extra": ("[repository]\n", "[repository]\nunexpected = true\n"),
+        "change-root": ('changes = "changes"', 'changes = "changes/*"'),
         "escape": ('architecture = "docs/ARCHITECTURE.md"', 'architecture = "../outside.md"'),
         "impact-name": ('name = "python.source"', 'name = "Invalid"'),
         "impact-paths": ('paths = ["src/**"]', 'paths = "src/**"'),

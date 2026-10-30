@@ -159,7 +159,7 @@ def test_failed_original_never_writes_success_even_with_a_one_run_window(tmp_pat
     repository.mkdir()
     (repository / ".gitignore").write_text("__pycache__/\n")
     state = tmp_path / "attempts"
-    (repository / "signetum.toml").write_text("schema_version = 2\n")
+    (repository / "signetum.toml").write_text("schema_version = 3\n")
     (repository / "test_retry.py").write_text(
         "from pathlib import Path\n"
         "def test_retry():\n"
@@ -236,11 +236,11 @@ def test_independent_template_retains_recovery_and_refuses_a_repeated_node(repos
     ]
     manifest = root / "signetum.toml"
     manifest.write_text(
-        'schema_version = 2\n[signetum]\nprotocol = 2\ntemplate_version = "0.2.0"\n'
+        "schema_version = 3\n[signetum]\nprotocol = 2\n"
         'evidence_protocol = "reposeal.validation-evidence@3"\n'
         'evidence_schema_digest = "sha256:' + "0" * 64 + '"\n'
         '[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
-        'specifications = "changes/*/specs/*.toml"\nplans = "changes/*/plans/*.md"\n'
+        'changes = "changes"\n'
         'decisions = "docs/decisions"\n'
         "[validation]\nrecovery_threshold = 2\nrecovery_window = 20\n"
         '[[validation.shards]]\nname = "test:pytest"\ncommand = ' + json.dumps(command) + "\n"

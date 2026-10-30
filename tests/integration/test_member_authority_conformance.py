@@ -58,7 +58,7 @@ def test_ready_requires_own_approved_change_before_checks(authority, stage):
     runtime, root, marker, scratch = authority
     if stage == "custom-root":
         path = root / "signetum.toml"
-        path.write_text(path.read_text().replace("changes/*", "requests/*"))
+        path.write_text(path.read_text().replace('changes = "changes"', 'changes = "requests"'))
         commit(root, "declare custom change root")
     base = git_output(root, "rev-parse", "HEAD")
     member = scratch / "member"

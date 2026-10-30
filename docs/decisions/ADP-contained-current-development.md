@@ -35,3 +35,8 @@ is not a separately versioned product. Keep one reusable hosted validation owner
 current architecture and task-focused Skill instructions. Revisit these choices
 when demonstrated consumer or platform requirements require a different boundary,
 not to preserve accidental compatibility or historical packaging layers.
+
+Manifest schema 3 removes `template_version` and separate Specification/Plan glob
+bindings. One exact `repository.changes` directory owns records and retained
+history. This is a real wire-format change, so the schema advances independently
+of product 0.3.0; old fields are refused rather than silently reinterpreted.

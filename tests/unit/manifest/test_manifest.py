@@ -10,9 +10,8 @@ FIXTURE = Path(__file__).parents[3] / "template" / "signetum.toml"
 def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
     manifest = load_manifest(FIXTURE)
 
-    assert manifest.schema_version == 2
+    assert manifest.schema_version == 3
     assert manifest.signetum.protocol == 2
-    assert manifest.signetum.template_version == "0.2.0"
     assert manifest.repository.architecture == "docs/ARCHITECTURE.md"
     assert manifest.profiles.enabled == ("python-default@1", "git-worktrunk@1")
     assert manifest.impact.rules[0].shards == (
@@ -33,33 +32,30 @@ def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
     ("name", "text", "message"),
     [
         ("signetum.toml", "schema_version = 1\n", "unsupported manifest schema: 1"),
-        ("repository.toml", "schema_version = 2\n", "must be named signetum.toml"),
+        ("repository.toml", "schema_version = 3\n", "must be named signetum.toml"),
         (
             "signetum.toml",
-            """schema_version = 2
+            """schema_version = 3
 [signetum]
 protocol = 2
 template_version = "main"
 [repository]
 architecture = "docs/ARCHITECTURE.md"
-specifications = "changes"
-plans = "changes"
+changes = "changes"
 decisions = "docs/decisions"
 """,
-            "signetum.template_version must be semantic",
+            "unknown dataclass fields",
         ),
         (
             "signetum.toml",
-            """schema_version = 2
+            """schema_version = 3
 [signetum]
 protocol = 2
-template_version = "0.2.0"
 [profiles]
 enabled = ["python-default@1", "python-default@1"]
 [repository]
 architecture = "docs/ARCHITECTURE.md"
-specifications = "changes"
-plans = "changes"
+changes = "changes"
 decisions = "docs/decisions"
 """,
             "profiles.enabled must contain unique identities",
@@ -88,16 +84,14 @@ def test_invalid_manifest_is_rejected(tmp_path: Path, name: str, text: str, mess
 def test_profile_composition_errors_fail_closed(tmp_path: Path, extra: str, message: str) -> None:
     path = tmp_path / "signetum.toml"
     path.write_text(
-        f"""schema_version = 2
+        f"""schema_version = 3
 [signetum]
 protocol = 2
-template_version = "0.2.0"
 [profiles]
 {extra}
 [repository]
 architecture = "docs/ARCHITECTURE.md"
-specifications = "changes"
-plans = "changes"
+changes = "changes"
 decisions = "docs/decisions"
 """,
         encoding="utf-8",
@@ -124,14 +118,12 @@ def test_impact_contract_rejects_ambiguous_or_escaping_rules(
 ) -> None:
     path = tmp_path / "signetum.toml"
     path.write_text(
-        f"""schema_version = 2
+        f"""schema_version = 3
 [signetum]
 protocol = 2
-template_version = "0.2.0"
 [repository]
 architecture = "docs/ARCHITECTURE.md"
-specifications = "changes"
-plans = "changes"
+changes = "changes"
 decisions = "docs/decisions"
 [[impact.rules]]
 {rule}
@@ -164,14 +156,12 @@ def test_validation_graph_is_strict_and_named(
 ) -> None:
     path = tmp_path / "signetum.toml"
     path.write_text(
-        f"""schema_version = 2
+        f"""schema_version = 3
 [signetum]
 protocol = 2
-template_version = "0.2.0"
 [repository]
 architecture = "docs/ARCHITECTURE.md"
-specifications = "changes"
-plans = "changes"
+changes = "changes"
 decisions = "docs/decisions"
 [validation]
 {validation}
