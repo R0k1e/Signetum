@@ -42,10 +42,10 @@ dev = [
 packages = ["src/signetum"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"schemas" = "signetum/resources/schemas/contracts"
 "skills/signetum" = "signetum/resources/skills/signetum"
 
 [tool.hatch.build.targets.sdist]
+exclude = ["/template/.agents/signetum/runtime/_signetum_runtime"]
 include = [
     "/.agents",
     "/.github",
@@ -58,8 +58,6 @@ include = [
     "/SECURITY.md",
     "/changes",
     "/docs",
-    "/profiles",
-    "/schemas",
     "/skills",
     "/src",
     "/tests",
@@ -90,7 +88,7 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 "src/signetum/lifecycle.py" = ["S603"]
 # Security-boundary rationale: Worktrunk runs through resolved Mise with explicit argv.
 "src/signetum/worktrunk.py" = ["S603"]
-"template/.agents/repo-dev/runtime/lifecycle.py" = ["S603"]
+"template/.agents/signetum/runtime/lifecycle.py" = ["S603"]
 # Security-boundary rationale: both adapters resolve Git to an absolute host
 # executable and pass validated tuple arguments without a shell.
 "src/signetum/release/__init__.py" = ["S603"]
@@ -119,7 +117,7 @@ precision = 2
 
 [tool.ty.environment]
 python-version = "3.12"
-extra-paths = ["template/.agents/repo-dev/runtime"]
+extra-paths = ["template/.agents/signetum/runtime"]
 
 [tool.ty.src]
-exclude = ["template/.agents/repo-dev/runtime/_signetum_runtime/vendor_yaml"]
+exclude = ["template/.agents/signetum/runtime/_signetum_runtime/vendor_yaml"]

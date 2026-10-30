@@ -22,7 +22,7 @@ def adoption(local_repository):
     git_output(root, "commit", "-m", "existing application")
     request = AdoptionRequest(
         manifest=(root / "signetum.toml").read_text(),
-        policy=(root / ".agents/repo-dev/repo.yaml").read_text(),
+        policy=(root / ".agents/signetum/repo.yaml").read_text(),
     )
     return root, request
 
@@ -39,7 +39,7 @@ def test_review_apply_and_exact_retry_preserve_application_and_unrelated_work(ad
     assert (root / "user-work").read_text() == "not part of adoption"
     assert (root / "AGENTS.md").read_text().startswith("Existing instructions.\n")
     assert apply(root, plan, plan_digest(plan))["status"] == "unchanged"
-    assert (root / ".agents/repo-dev/runtime/protocol.py").is_file()
+    assert (root / ".agents/signetum/runtime/protocol.py").is_file()
 
 
 @pytest.mark.parametrize("changed", ["digest", "source", "target", "payload", "symlink"])
@@ -60,12 +60,12 @@ def test_stale_or_unsafe_adoption_refuses_before_any_write(adoption, tmp_path, c
     else:
         outside = tmp_path / "outside"
         outside.mkdir()
-        (root / ".agents/repo-dev/runtime").symlink_to(outside, target_is_directory=True)
+        (root / ".agents/signetum/runtime").symlink_to(outside, target_is_directory=True)
     status = git_output(root, "status", "--porcelain")
     with pytest.raises(ValueError):
         apply(root, plan, expected)
     assert git_output(root, "status", "--porcelain") == status
-    assert not (root / ".agents/repo-dev/run").exists()
+    assert not (root / ".agents/signetum/run").exists()
 
 
 def test_partial_filesystem_failure_rolls_back_owned_writes(adoption, monkeypatch):
@@ -103,7 +103,7 @@ def test_subdirectory_and_unmanaged_runtime_are_explicit_refusals(adoption):
     root, request = adoption
     with pytest.raises(ValueError, match="repository root"):
         preview(root / "docs", request)
-    unmanaged = root / ".agents/repo-dev/runtime/_signetum_runtime/custom.py"
+    unmanaged = root / ".agents/signetum/runtime/_signetum_runtime/custom.py"
     unmanaged.parent.mkdir(parents=True)
     unmanaged.write_text("user_owned = True\n")
     with pytest.raises(ValueError, match="unmanaged runtime"):

@@ -18,7 +18,7 @@ def observer(request, monkeypatch):
     if getattr(request, "param", "engine") == "engine":
         return process_observation
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[3] / "template/.agents/repo-dev/runtime")
+        str(Path(__file__).parents[3] / "template/.agents/signetum/runtime")
     )
     return importlib.import_module("_signetum_runtime.process_observation")
 

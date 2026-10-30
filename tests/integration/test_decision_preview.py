@@ -72,7 +72,7 @@ def test_candidate_history_preview_is_read_only_and_rejects_missing_predecessors
     candidate = tmp_path / "candidate.jsonl"
     candidate.write_text(json.dumps(contract_mapping(proposal)) + "\n")
     before = candidate.read_bytes()
-    runtime = Path(__file__).parents[2] / "template/.agents/repo-dev/runtime"
+    runtime = Path(__file__).parents[2] / "template/.agents/signetum/runtime"
     script = """
 import sys
 sys.path.insert(0,sys.argv[1])

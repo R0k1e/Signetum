@@ -29,7 +29,7 @@ def test_maintenance_preparation_dispatches_existing_authority(
 ):
     if backend == "_signetum_runtime":
         generate_runtime(tmp_path)
-        monkeypatch.syspath_prepend(str(tmp_path / ".agents/repo-dev/runtime"))
+        monkeypatch.syspath_prepend(str(tmp_path / ".agents/signetum/runtime"))
     module = importlib.import_module(backend + ".maintenance")
     calls = []
 
@@ -48,7 +48,7 @@ def test_maintenance_preparation_dispatches_existing_authority(
 def test_template_entrypoint_runs_without_engine_or_site_packages(tmp_path, entry):
     root = Path(__file__).parents[2]
     # The rendered entrypoint imports only its bundled generated authority.
-    script = root / "template/.agents/repo-dev/runtime" / (entry + ".py")
+    script = root / "template/.agents/signetum/runtime" / (entry + ".py")
     result = subprocess.run(  # noqa: S603 -- fixed interpreter and repository-owned entrypoint
         [sys.executable, "-I", "-S", str(script), "--help"],
         cwd=tmp_path,

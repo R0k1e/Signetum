@@ -14,4 +14,4 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       - run: uv sync --locked
-      - run: uv run --no-project python .agents/repo-dev/runtime/lifecycle.py final
+      - run: uv run --no-project python .agents/signetum/runtime/lifecycle.py final

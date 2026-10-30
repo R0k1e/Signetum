@@ -552,7 +552,7 @@ def lifecycle_frontend(request, monkeypatch):
     if request.param == "engine":
         return
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[1] / "template/.agents/repo-dev/runtime")
+        str(Path(__file__).parents[1] / "template/.agents/signetum/runtime")
     )
     for name, module in {
         "lifecycle": "lifecycle",
@@ -578,7 +578,7 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
     old += '[[validation.gates]]\nname="member"\nshards=["test:check"]\n'
     old += '[[validation.gates]]\nname="final"\nshards=["test:check"]\n'
     manifest.write_text(old)
-    policy = root / ".agents/repo-dev/repo.yaml"
+    policy = root / ".agents/signetum/repo.yaml"
     policy.write_text("delivery:\n  branch: main\n  state: .signetum/delivery\n")
     git_output(root, "commit", "-am", "retain an older delivery configuration")
     git_output(root, "push", "origin", "main")
@@ -589,7 +589,7 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
         ops.state_root(root), ops.WorkspaceRecord(1, "plan/protocol-upgrade", base, "member")
     )
     (member / "signetum.toml").write_text(current)
-    (member / ".agents/repo-dev/repo.yaml").write_text("delivery:\n  branch: main\n")
+    (member / ".agents/signetum/repo.yaml").write_text("delivery:\n  branch: main\n")
     commit_approval(member)
     commit_file(member, "implementation.txt")
     lifecycle.validate(member, "member")

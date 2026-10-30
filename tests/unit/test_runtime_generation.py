@@ -15,7 +15,13 @@ from pathlib import Path
 import pytest
 
 from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
-from signetum.runtime_generation import generate_runtime, portable_source, runtime_files
+from signetum.runtime_generation import (
+    RUNTIME_DIRECTORY,
+    generate_runtime,
+    portable_source,
+    runtime_files,
+    runtime_problems,
+)
 from signetum.template import render_template, validate_template
 from signetum.vendor_resources import upstream_yaml_payload, yaml_payload
 
@@ -26,7 +32,7 @@ def test_generation_is_deterministic_and_refuses_drift(tmp_path):
     first = runtime_files()
     assert runtime_files() == first
     generate_runtime(tmp_path)
-    target = tmp_path / ".agents/repo-dev/runtime/_signetum_runtime/git.py"
+    target = tmp_path / ".agents/signetum/runtime/_signetum_runtime/git.py"
     target.write_bytes(target.read_bytes() + b"\n# hand edit\n")
     with pytest.raises(ValueError, match="generated runtime"):
         generate_runtime(tmp_path, check=True)
@@ -37,7 +43,7 @@ def test_generation_is_deterministic_and_refuses_drift(tmp_path):
 def test_template_validation_refuses_a_stale_shared_runtime(tmp_path):
     source = tmp_path / "template"
     shutil.copytree(ROOT / "template", source)
-    target = source / ".agents/repo-dev/runtime/_signetum_runtime/findings.py"
+    target = source / ".agents/signetum/runtime/_signetum_runtime/findings.py"
     target.write_bytes(target.read_bytes() + b"\n# stale implementation\n")
     assert any("generated runtime" in problem for problem in validate_template(source).problems)
     with pytest.raises(ValueError, match="generated runtime"):
@@ -47,13 +53,17 @@ def test_template_validation_refuses_a_stale_shared_runtime(tmp_path):
 def test_interpreter_caches_do_not_enter_rendered_artifacts(tmp_path):
     source = tmp_path / "template"
     shutil.copytree(ROOT / "template", source)
-    cache = source / ".agents/repo-dev/runtime/__pycache__"
+    shutil.rmtree(source / RUNTIME_DIRECTORY)
+    assert validate_template(source).valid
+    cache = source / ".agents/signetum/runtime/__pycache__"
     cache.mkdir(exist_ok=True)
     (cache / "host.pyc").write_bytes(b"host-specific bytecode")
     target = tmp_path / "rendered"
     report = render_template(source, target)
     assert not any("__pycache__" in path or path.endswith(".pyc") for path in report.files)
     assert not list(target.rglob("*.pyc"))
+    assert not (source / RUNTIME_DIRECTORY).exists()
+    assert runtime_problems(target) == ()
 
 
 @pytest.mark.parametrize(
@@ -81,7 +91,7 @@ def test_flattened_import_order_preserves_implementation_statements():
 @pytest.mark.parametrize("polluted", [False, True])
 def test_generated_package_executes_without_engine_or_site_packages(tmp_path, polluted):
     generate_runtime(tmp_path)
-    runtime = tmp_path / ".agents/repo-dev/runtime"
+    runtime = tmp_path / ".agents/signetum/runtime"
     script = (
         "import sys,json; from pathlib import Path; "
         "sys.path.insert(0,sys.argv[1]); "
@@ -115,7 +125,7 @@ def test_metadata_verifies_raw_sources_and_generated_outputs():
 
 def test_generation_preserves_unmanaged_extensions(tmp_path):
     generate_runtime(tmp_path)
-    extra = tmp_path / ".agents/repo-dev/runtime/_signetum_runtime/local_extension.py"
+    extra = tmp_path / ".agents/signetum/runtime/_signetum_runtime/local_extension.py"
     extra.write_text("local extension")
     with pytest.raises(ValueError, match="unmanaged"):
         generate_runtime(tmp_path)

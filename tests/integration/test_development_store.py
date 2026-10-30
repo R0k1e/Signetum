@@ -21,7 +21,7 @@ def store(request, monkeypatch):
     if getattr(request, "param", "engine") == "engine":
         return importlib.import_module("signetum.development_store")
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
+        str(Path(__file__).parents[2] / "template/.agents/signetum/runtime")
     )
     return importlib.import_module("_signetum_runtime.development_store")
 
@@ -735,7 +735,7 @@ def _cli(repository, store, *arguments, isolated=None):
     engine = store.__name__.startswith("signetum.")
     if isolated is None:
         isolated = not engine
-    runtime = root / "src" if engine else root / "template/.agents/repo-dev/runtime"
+    runtime = root / "src" if engine else root / "template/.agents/signetum/runtime"
     script = (
         "import importlib,sys; sys.path.insert(0,sys.argv.pop(1)); "
         "module=importlib.import_module(sys.argv.pop(1)); "
