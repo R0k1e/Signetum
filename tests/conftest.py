@@ -91,7 +91,15 @@ def local_repository(tmp_path, monkeypatch):
             root, "worktree", "remove", *(("--force",) if "--force" in arguments else ()), str(path)
         )
         git_output(root, "branch", "-D", branch)
-        return {"kind": "worktree", "branch_outcome": "deleted"}
+        return [
+            {
+                "kind": "worktree",
+                "branch": branch,
+                "path": str(path),
+                "branch_outcome": "deleted",
+                "branch_checked_out_at": None,
+            }
+        ]
 
     def native_preparation(repository, command, **kwargs):
         result = subprocess.run(

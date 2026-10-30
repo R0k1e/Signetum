@@ -273,11 +273,7 @@ def remove_workspace(
         ),
         json_output=True,
     )
-    if not isinstance(result, dict) or result.get("branch_outcome") != "deleted":
-        raise InfrastructureError(
-            f"Worktrunk did not complete branch removal: {workspace.branch}",
-            expected="inspect retained Worktrunk state before retrying cleanup",
-        )
+    wt.require_removed_workspace(result, workspace)
 
 
 def cleanup(

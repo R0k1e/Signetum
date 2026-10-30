@@ -22,3 +22,7 @@ Publish only through explicit `batch-deliver` with the expected base and batch
 tip. A changed or missing review binding requires fresh final. Publication
 recovery confirms the exact remote identity before moving the local target;
 never substitute force-push, history rewriting or ad-hoc cleanup.
+
+Final keeps accepted stable decision filenames. Numeric allocation is only for
+explicit legacy proposals and cannot rewrite an approval-bound change or journal.
+It is not a required step for ordinary change decisions.
