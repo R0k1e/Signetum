@@ -17,7 +17,7 @@ repository:
         reference: .agents/repo-dev/references/python-uv.md
       - group: git-worktrunk
         intents: [planning, implementation, delivery, recovery]
-        paths: [changes, plans]
+        paths: [changes]
         reference: .agents/repo-dev/references/git-worktrunk.md
   authorities:
     records: changes/*/change.toml

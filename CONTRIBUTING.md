@@ -22,8 +22,8 @@ native acceptance tests, not Skill consumers. Run `mise trust mise.toml` after
 reviewing it, then `mise install` and `uv sync --locked --all-extras --dev`.
 Hosted CI uses the declared final gate on Linux and macOS through one reusable
 workflow, without private workspace records or lifecycle receipts. It enforces
-90% project coverage after requiring every platform target; local gates retain
-their existing threshold.
+90% project coverage after requiring every platform target. Local and selected
+runs collect partial evidence rather than judging the whole project.
 
 Never commit credentials, caches, validation receipts or editor state.
 
@@ -31,6 +31,5 @@ The repository enables the optional committed Python selector. `changed --explai
 shows the selected checks; unknown paths and dynamic reach conservatively retain
 the full member suite. Documentation changes require traceability and relevant
 static checks, rather than unconditional build and pytest. Final always executes
-the full host suite. Local or selected coverage is a fragment; the reusable hosted
-workflow requires every declared platform and enforces 90% combined coverage.
-Check that exact candidate run before delivery.
+the full host suite. Require the complete hosted result for that exact candidate
+before delivery.

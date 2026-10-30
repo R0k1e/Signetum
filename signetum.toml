@@ -130,7 +130,7 @@ inherit = true
 command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--", "-m", "not world"]
 workers = 4
 worker_memory_mb = 1024
-requires = ["engine:sync"]
+requires = ["engine:build"]
 
 [[validation.shards]]
 name = "engine:world-tests"
