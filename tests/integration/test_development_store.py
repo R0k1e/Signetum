@@ -12,6 +12,7 @@ import pytest
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output, run_git
 from signetum.serialization import contract_mapping
+from signetum.source_authority import authority_roots
 from signetum.workspaces import WorkspaceRecord, write_record
 
 
@@ -1464,3 +1465,32 @@ def test_source_review_requires_exact_approved_decisions_in_committed_history(
     else:
         with pytest.raises(ValueError, match="approved decision is absent"):
             store.review_inputs(repository, ("alpha",), commit=commit)
+
+
+def test_archived_manifest_locations_are_readable_but_cannot_authorize_new_writes(
+    repository, store
+):
+    current = (Path(__file__).parents[2] / "signetum.toml").read_text()
+    transaction = request(repository, store)
+    state = store.snapshot(repository)
+    archived = current.replace("schema_version = 3", "schema_version = 2", 1).replace(
+        'changes = "changes"',
+        'specifications = "archive/*/specs/*.toml"\nplans = "archive/*/plans/*.md"',
+    )
+    manifest = repository / "signetum.toml"
+    manifest.write_text(archived)
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", "retain a historical manifest location")
+    older = git_output(repository, "rev-parse", "HEAD")
+    with pytest.raises(ValueError, match="unsupported manifest schema"):
+        store.append_transaction(repository, transaction, expected_history=state.history_digest)
+    assert not (repository / "archive/alpha/events.jsonl").exists()
+    manifest.write_text(current)
+    git_output(repository, "commit", "-am", "use the current active manifest")
+    assert authority_roots(repository, commit=older, historical=True) == (
+        "archive",
+        "docs/decisions",
+    )
+    with pytest.raises(ValueError, match="unsupported manifest schema"):
+        authority_roots(repository, commit=older)
+    assert store.snapshot(repository).history_digest == state.history_digest

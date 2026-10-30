@@ -65,7 +65,7 @@ def parse_request(value: object) -> DevelopmentTransaction:
 def _authority(
     repository: Path, change_id: str, commit: str, *, approved: bool = True
 ) -> tuple[ChangeRecord, ApprovalProof]:
-    root, _ = authority_roots(repository, commit=commit)
+    root, _ = authority_roots(repository, commit=commit, historical=True)
     relative = f"{root}/{change_id}/change.toml"
     blob = committed_blob(repository, commit, relative)
     if blob is None:
@@ -97,11 +97,11 @@ def _validate_payload(
     for retirement in transaction.retirements:
         if retirements.get(retirement.id) != retirement:
             raise ValueError("evidence retirement differs from its exact approved proposal")
-    _, decision_root = authority_roots(repository, commit=commit)
+    _, decision_root = authority_roots(repository, commit=commit, historical=True)
     for decision in transaction.decisions:
         if approved.get(decision.id) != decision:
             raise ValueError("decision transaction differs from its exact approved proposal")
-        change_root, _ = authority_roots(repository, commit=commit)
+        change_root, _ = authority_roots(repository, commit=commit, historical=True)
         acceptance = f"{change_root}/{record.id}/change.toml#decisions/{decision.id}"
         if decision.authority == acceptance:
             continue
@@ -483,6 +483,7 @@ def append_transaction(
     """Validate the whole transaction before the single atomic source append."""
     repository = repository.resolve()
     validate_transaction(transaction)
+    authority_roots(repository)  # New writes require the current active manifest.
     with _writer(repository) as root:
         branch = git_output(repository, "symbolic-ref", "--quiet", "--short", "HEAD")
         workspace = read_record(root, branch)

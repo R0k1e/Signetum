@@ -1,6 +1,7 @@
 """One committed-source and repository-path boundary for development authorities."""
 
 import re
+import tomllib
 from pathlib import Path, PurePosixPath
 
 from signetum.change.models import (
@@ -15,7 +16,9 @@ from signetum.manifest import load_manifest, parse_manifest
 from signetum.traceability.loading import parse_decision
 
 
-def authority_roots(repository: Path, *, commit: str | None = None) -> tuple[str, str]:
+def authority_roots(
+    repository: Path, *, commit: str | None = None, historical: bool = False
+) -> tuple[str, str]:
     path = repository / "signetum.toml"
     if commit is None:
         if not path.exists():
@@ -25,6 +28,17 @@ def authority_roots(repository: Path, *, commit: str | None = None) -> tuple[str
         source = committed_blob(repository, commit, "signetum.toml")
         if source is None:
             return "changes", "docs/decisions"
+        if historical:
+            archived = tomllib.loads(source[1])
+            if type(archived.get("schema_version")) is int and archived["schema_version"] == 2:
+                # Decode only immutable approval locations, never executable settings.
+                bindings = archived["repository"]
+                pattern = PurePosixPath(bindings["specifications"])
+                if pattern.parts[-3:] != ("*", "specs", "*.toml"):
+                    raise ValueError("historical change binding has no exact package root")
+                root = str(require_relative_path(PurePosixPath(*pattern.parts[:-3]).as_posix()))
+                decisions = str(require_relative_path(bindings["decisions"]))
+                return root, decisions
         manifest = parse_manifest(source[1])
     return changes_root(manifest), manifest.repository.decisions
 
