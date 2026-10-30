@@ -16,7 +16,7 @@ def runner(request, monkeypatch):
     if getattr(request, "param", "engine") == "engine":
         return importlib.import_module("signetum.validation.process")
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[3] / "template/.agents/signetum/runtime")
+        str(Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime")
     )
     return importlib.import_module("_signetum_runtime.process")
 

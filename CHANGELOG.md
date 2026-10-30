@@ -5,6 +5,11 @@ their original release history. Git and accepted change records retain reasoning
 
 ## 0.3.0 - Unreleased
 
+- Focus the Skill on human decisions, parallel worktrees and reliable integration/delivery.
+- Retain project selection interfaces; remove bundled Python reach and its optional command.
+- Move private acceptance scaffolding to tests, remove future ADR numbering and simplify journal dispatch.
+- Unify adopted workflow pointers with the standard Skill and refresh the non-checkbox identity.
+
 - Use the standard `signetum` Skill for reviewed new/existing-project adoption;
   retain application tools and use a local portable runtime for daily work.
 - Use `.agents/signetum` consistently without a `repo-dev` runtime alias.

@@ -1,4 +1,4 @@
-"""Pure contracts for reach, ordering, group coverage and result identity."""
+"""Pure contracts for ordering, group coverage and result identity."""
 
 import json
 from dataclasses import replace
@@ -17,7 +17,6 @@ from signetum.ci_partitions import (
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceIdentity
 from signetum.pytest_scheduling import derive_weights, shared_file_groups
 from signetum.pytest_scheduling import main as schedule_main
-from signetum.python_selection import DynamicLoader, PythonSelection, dependent_units
 from signetum.test_scheduling import ordered_units, partition_units
 from signetum.validation import (
     GateDeclaration,
@@ -25,79 +24,6 @@ from signetum.validation import (
     ValidationShard,
     resolve_validation_graph,
 )
-
-CONFIG = PythonSelection(
-    schema_version=1, source_roots=("app",), unit_roots=("tests",), unit_shard="unit"
-)
-SOURCE = {
-    "app/feature.py": b"def value(): return 1\n",
-    "app/api.py": b"from feature import value\n",
-    "tests/test_api.py": b"from api import value\n",
-    "tests/test_other.py": b"import os\n",
-}
-
-
-@pytest.mark.parametrize("path", ["app/feature.py", "app/api.py", "tests/test_api.py"])
-def test_transitive_reach_is_pure_and_includes_changed_tests(path):
-    selected, reasons = dependent_units(SOURCE, (path,), CONFIG)
-    assert selected == ("tests/test_api.py",)
-    assert not reasons
-
-
-def test_deleted_source_relative_imports_and_conftest_preserve_reach():
-    files = {
-        "app/pkg/__init__.py": b"",
-        "app/pkg/use.py": b"from . import removed\n",
-        "tests/test_api.py": b"from pkg.use import removed\n",
-        "tests/conftest.py": b"",
-    }
-    assert dependent_units(files, ("app/pkg/removed.py",), CONFIG)[0] == ("tests/test_api.py",)
-    assert dependent_units(files, ("tests/conftest.py",), CONFIG)[0] == ("tests/test_api.py",)
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        b"import importlib\nimportlib.import_module(name)\n",
-        b"from importlib import import_module as load\nload(name)\n",
-        b"exec(code)\n",
-        b"import importlib\nimportlib.import_module('.feature', __package__)\n",
-        b"import importlib as il\ngetattr(il, key)(name)\n",
-        b"import importlib\nload=importlib.import_module\nload(name)\n",
-        b"import importlib\ngetattr(importlib, 'import_module')(name)\n",
-        b"broken(\n",
-    ],
-)
-def test_uncertain_reach_runs_the_whole_unit_corpus(source):
-    selected, reasons = dependent_units(
-        {**SOURCE, "app/dynamic.py": source}, ("app/feature.py",), CONFIG
-    )
-    assert selected == ("tests/test_api.py", "tests/test_other.py")
-    assert reasons
-
-
-def test_declared_dynamic_loader_and_literal_loader_are_edges():
-    files = {**SOURCE, "app/api.py": b"import importlib\nimportlib.import_module(name)\n"}
-    config = replace(CONFIG, dynamic_loaders=(DynamicLoader(module="api", imports=("feature",)),))
-    assert dependent_units(files, ("app/feature.py",), config) == (("tests/test_api.py",), ())
-    files["app/api.py"] = b'import importlib\nimportlib.import_module("feature")\n'
-    assert dependent_units(files, ("app/feature.py",), CONFIG) == (("tests/test_api.py",), ())
-    with pytest.raises(ValueError, match="absent module"):
-        dependent_units(
-            files,
-            ("app/feature.py",),
-            replace(
-                CONFIG, dynamic_loaders=(DynamicLoader(module="missing", imports=("feature",)),)
-            ),
-        )
-
-
-def test_ambiguous_names_are_not_guessed():
-    files = {**SOURCE, "other/feature.py": b""}
-    selected, reasons = dependent_units(
-        files, ("app/feature.py",), replace(CONFIG, source_roots=("app", "other"))
-    )
-    assert len(selected) == 2 and reasons
 
 
 @given(st.lists(st.integers(min_value=0, max_value=6), min_size=1, max_size=20))

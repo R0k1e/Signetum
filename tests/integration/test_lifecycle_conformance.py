@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _template_lifecycle() -> ModuleType:
-    directory = ROOT / "template/.agents/signetum/runtime"
+    directory = ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime"
     if str(directory) not in sys.path:
         sys.path.insert(0, str(directory))
     return importlib.import_module("_signetum_runtime.lifecycle")
@@ -211,7 +211,7 @@ def test_changed_contract_vectors_are_shared(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     (tmp_path / "signetum.toml").write_text(
-        (ROOT / "template" / "signetum.toml").read_text(encoding="utf-8"),
+        (ROOT / "tests/fixtures/portable-python" / "signetum.toml").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     vectors = json.loads(

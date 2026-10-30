@@ -4,40 +4,19 @@ Use only when requested or justified by a measured bottleneck. Keep the existing
 runner, allocator, retry and receipt owners. Preparing the environment/build is
 an explicit outer step. No option enables delivery or replaces full final checks.
 
-## Python fine selection
+## Project-owned selection
 
-`select-python --config <repo-relative.json>` reads the standard selection request
-from stdin and emits `signetum.selection@1`. Configure the existing provider with
-its entrypoint `.agents/signetum/runtime/protocol.py` and command:
+Use the existing `signetum.selection@1` provider interface for project algorithms.
+Bind its implementation, configuration and tools as declared inputs. Preserve
+modified tests and explain every changed path. Unknown inputs fall back to the
+full member gate; final always uses complete original commands. No provider
+means full member validation. Core validates identity and target boundaries;
+the project owns dependency semantics and its observed correctness.
 
-```json
-["python3", "{selector}", "select-python", "--config", "python-selection.json"]
-```
-
-The consumer configuration is:
-
-```json
-{
-  "schema_version": 1,
-  "source_roots": ["src"],
-  "unit_roots": ["tests/unit"],
-  "unit_shard": "repo:unit",
-  "dynamic_loaders": []
-}
-```
-
-A dynamic-loader entry is `{"module":"owner.module","imports":["loaded.module"]}`; use exact module
-names in the configured import namespaces. Declare configuration and implementation
-files as provider inputs and bind the interpreter identity. Configure the unit
-shard's target roots and command-tail index through the existing provider binding.
-Do not put integration import reach into this algorithm. Existing manifest
-`impact.rules` remain the single family map; do not create another mapping in
-selection configuration. Unknown inputs, uncertain dynamic reach or parsing fall back safely.
-Custom loaders and reflective or relative dynamic loading need explicit module
-edges or conservative fallback. Static import reach is not a proof of asserted
-behavior; compare real repository cases before adoption. Modified test/support
-files cannot disappear. No provider still means full member
-checks, and final always executes original complete commands.
+Retain an existing selector rather than copying it into Signetum or nesting a
+complete gate inside another. Compare representative source, test, data, dynamic
+loading and unknown-input cases before adoption. See the maintained
+[selection contract](https://github.com/R0k1e/Signetum/blob/main/docs/guides/structured-selection.md).
 
 ## Pytest scheduling
 

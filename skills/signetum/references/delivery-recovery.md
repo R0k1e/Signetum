@@ -10,7 +10,7 @@ retained findings with `status` and the journal tools. Final checks the
 frozen source and generates the delivery review; do not write a duplicate review
 file. Show the approved outcomes, standing answers, accepted decision changes,
 evidence, test changes and their effect on coverage, and unfinished work before
-explicit delivery. Source journals and
+explicitly authorized delivery. Source journals and
 admitted receipts remain bound to that exact review.
 
 On failure, inspect the structured result, retained diagnostics and exact local
@@ -26,9 +26,8 @@ never substitute force-push, history rewriting or ad-hoc cleanup. If delivery
 retains an `active_runtime` checkout, finish the operation, switch to the delivery
 checkout and use its declared cleanup utility to remove that now-unused checkout.
 
-Final keeps accepted stable decision filenames. Numeric allocation is only for
-explicit legacy proposals and cannot rewrite an approval-bound change or journal.
-It is not a required step for ordinary change decisions.
+Accepted decision filenames stay stable; final validates source without renaming
+authorities or rewriting their references.
 
 If an authorized review needs a remote branch, share a readable name. Its
 publisher owns ref cleanup after delivery: verify that the exact remote tip is

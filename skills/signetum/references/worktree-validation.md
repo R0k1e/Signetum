@@ -83,6 +83,21 @@ jobs and refuses successful commands that leave owned children behind.
 Preserve unrelated files and processes. Stop at a clean ready unless integration
 or delivery is authorized. Validation never appends its own success to source.
 
-For explicitly requested fine selection, weighted pytest scheduling or CI splitting,
+For explicitly requested project selection, weighted pytest scheduling or CI splitting,
 read [optional validation optimization](validation-optimization.md). Keep these
 opt-in; do not expand every repository adoption to include them.
+
+## Coordinating parallel members
+
+Before delegating, the coordinating Agent names each member's outcome, worktree,
+owned scope, dependencies and shared interfaces in the existing execution plan.
+Resolve shared contract choices before dependent implementation; synchronize through
+the declared owner instead of changing another member's worktree. Independent
+members can proceed while an affected choice is pending.
+
+Keep mutable dependencies, reports and scratch local. Bound concurrent gate runs
+at the caller; per-operation and nested limits are not a host-wide scheduler.
+The named integration owner admits exact ready tips, handles conflicts and runs
+complete final. A later member change needs fresh ready and admission. A clean
+Git merge does not establish semantic compatibility; validate the integrated
+behavior and reconcile conflicting decisions through the ordinary protocol.

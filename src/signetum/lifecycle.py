@@ -13,7 +13,6 @@ from pathlib import Path
 from shutil import which
 
 from signetum.change.member import qualify_member
-from signetum.change.paths import changes_root
 from signetum.change.scope import (
     delivered_plans,
 )
@@ -148,10 +147,7 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         proposals = _proposal_paths(repository)
         if proposals:
             raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
-        base = _recorded_base(repository)
-        numbered = _number_proposals(repository, base)
-        result = _validate_held(repository, kind)
-        return {**result, "numbered": numbered}
+        return _validate_held(repository, kind)
 
 
 def _validate_held(repository: Path, kind: str) -> dict[str, object]:
@@ -281,134 +277,6 @@ def _require_numbering_base(repository: Path, base: str | None, tip: str) -> Non
     numbering_bases = re.findall(r"^Signetum-Decision-Base:\s*(\S+)$", messages, re.MULTILINE)
     if numbering_bases and set(numbering_bases) != {base}:
         raise AdmissionError("decision numbering is bound to a different delivery base")
-
-
-def _record_supersession(batch: Path, formal_path: Path) -> None:
-    """Write the reciprocal entry into every decision this one replaces.
-
-    A supersession only the successor records leaves every reader of the
-    replaced decision believing it still stands.
-    """
-
-    decision = batch / formal_path
-    declared = re.search(
-        r"^Supersedes:\s*(.+)$", decision.read_text(encoding="utf-8"), re.MULTILINE
-    )
-    if declared is None:
-        return
-    for reference in (item.strip() for item in declared.group(1).split(",")):
-        if not reference or reference.lower() == "none":
-            continue
-        target = decision.parent / Path(reference).name
-        if not target.is_file():
-            raise AdmissionError(f"decision supersedes an absent decision: {reference}")
-        content = target.read_text(encoding="utf-8")
-        edge = re.search(r"^Superseded by:(.*)$", content, re.MULTILINE)
-        if edge is None:
-            raise AdmissionError(f"decision declares no supersession field: {reference}")
-        successors = tuple(
-            value.strip()
-            for value in edge.group(1).split(",")
-            if value.strip() and value.strip().lower() != "none"
-        )
-        successors = tuple(dict.fromkeys((*successors, formal_path.name)))
-        updated = (
-            content[: edge.start()]
-            + "Superseded by: "
-            + ", ".join(successors)
-            + content[edge.end() :]
-        )
-        target.write_text(updated, encoding="utf-8")
-
-
-def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
-    manifest = load_manifest(batch / "signetum.toml")
-    directory = manifest.repository.decisions.rstrip("/")
-    base_names = _git(batch, "ls-tree", "-r", "--name-only", base).splitlines()
-    proposals = tuple(
-        path
-        for path in _git(batch, "ls-files", f"{directory}/ADP-proposal-*.md").splitlines()
-        if not re.fullmatch(r"ADP-\d{4}-.+\.md", Path(path).name)
-        and re.search(
-            r"^Status:\s*Accepted\s*$",
-            (batch / path).read_text(encoding="utf-8"),
-            re.MULTILINE,
-        )
-        and not (
-            path in base_names
-            and re.search(
-                r"^Status:\s*Accepted\s*$",
-                _git(batch, "show", f"{base}:{path}"),
-                re.MULTILINE,
-            )
-        )
-    )
-    if not proposals:
-        return []
-    root = changes_root(manifest)
-    for relative in _git(
-        batch, "ls-files", f"{root}/*/change.toml", f"{root}/*/events.jsonl"
-    ).splitlines():
-        content = (batch / relative).read_text(encoding="utf-8")
-        if any(Path(proposal).name in content for proposal in proposals):
-            raise AdmissionError(
-                "numbering would rewrite approval-bound change or journal source; "
-                "choose a stable accepted authority before recording approval"
-            )
-    _, remote_tip = fresh_delivery(batch)
-    remote_names = _git(batch, "ls-tree", "-r", "--name-only", remote_tip).splitlines()
-    used = [
-        int(match.group(1))
-        for path in (*base_names, *remote_names, *_git(batch, "ls-files").splitlines())
-        if path.startswith(directory + "/")
-        if (match := re.search(r"(?:^|/)ADP-(\d{4})-[^/]+\.md$", path))
-    ]
-    next_number = max(used, default=0) + 1
-    rewrites: list[dict[str, str]] = []
-    for proposal in sorted(proposals):
-        proposal_path = Path(proposal)
-        slug = proposal_path.name.removeprefix("ADP-proposal-")
-        formal_path = proposal_path.with_name(f"ADP-{next_number:04d}-{slug}")
-        if (batch / formal_path).exists():
-            raise AdmissionError(f"formal decision already exists: {formal_path}")
-        _git(batch, "mv", proposal, formal_path.as_posix())
-        tracked = tuple(filter(None, _git(batch, "ls-files").splitlines()))
-        old_name = proposal_path.name
-        new_name = formal_path.name
-        for relative in tracked:
-            candidate = batch / relative
-            if not candidate.is_file():
-                continue
-            try:
-                content = candidate.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                continue
-            rewritten = content.replace(proposal, formal_path.as_posix()).replace(
-                old_name, new_name
-            )
-            if rewritten != content:
-                candidate.write_text(rewritten, encoding="utf-8")
-        _record_supersession(batch, formal_path)
-        rewrites.append({"proposal": proposal, "formal": formal_path.as_posix()})
-        next_number += 1
-    _git(batch, "add", "-u")
-    _git(
-        batch,
-        "commit",
-        "-m",
-        "signetum: allocate formal decision identities",
-        "-m",
-        "\n".join(
-            (
-                f"Signetum-Decision-Base: {base}",
-                *(
-                    "Signetum-Decision-Rename: " + json.dumps([item["proposal"], item["formal"]])
-                    for item in rewrites
-                ),
-            )
-        ),
-    )
-    return rewrites
 
 
 def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:

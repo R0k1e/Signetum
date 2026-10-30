@@ -8,11 +8,11 @@ from urllib.parse import quote
 
 import pytest
 from change_fixtures import commit_approval
+from fixture_rendering import TOP_LEVEL, render_template, validate_template
 
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.git import git_output
 from signetum.manifest import load_manifest
-from signetum.template import TOP_LEVEL, render_template, validate_template
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
@@ -20,17 +20,17 @@ ROOT = Path(__file__).parents[2]
 
 
 def test_template_is_minimal_and_clone_ready() -> None:
-    report = validate_template(ROOT / "template")
+    report = validate_template(ROOT / "tests/fixtures/portable-python")
 
     assert report.valid, report.problems
-    assert {path.name for path in (ROOT / "template").iterdir()} == TOP_LEVEL
+    assert {path.name for path in (ROOT / "tests/fixtures/portable-python").iterdir()} == TOP_LEVEL
     assert "README.md" in report.files
     assert "changes/.gitkeep" in report.files
     assert "signetum.yaml" not in report.files
 
 
 def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
-    lifecycle = loads((ROOT / "template/signetum.toml").read_text())
+    lifecycle = loads((ROOT / "tests/fixtures/portable-python/signetum.toml").read_text())
 
     shards = {item["name"]: item["command"] for item in lifecycle["validation"]["shards"]}
     gates = {item["name"]: item["shards"] for item in lifecycle["validation"]["gates"]}
@@ -47,7 +47,7 @@ def test_template_executes_the_python_default_at_lifecycle_boundaries() -> None:
 
 
 def test_template_render_has_identical_inventory(tmp_path: Path) -> None:
-    source = ROOT / "template"
+    source = ROOT / "tests/fixtures/portable-python"
     rendered = tmp_path / "repository"
 
     source_report = validate_template(source)
@@ -58,7 +58,7 @@ def test_template_render_has_identical_inventory(tmp_path: Path) -> None:
 
 
 def test_template_reports_missing_extra_forbidden_and_symlink(tmp_path: Path) -> None:
-    source = tmp_path / "template"
+    source = tmp_path / "tests/fixtures/portable-python"
     source.mkdir()
     for name in TOP_LEVEL - {"README.md"}:
         path = source / name
@@ -89,7 +89,7 @@ def test_render_refuses_invalid_source_and_existing_destination(tmp_path: Path) 
     destination = tmp_path / "existing"
     destination.mkdir()
     with pytest.raises(ValueError, match="destination already exists"):
-        render_template(ROOT / "template", destination)
+        render_template(ROOT / "tests/fixtures/portable-python", destination)
 
 
 @pytest.mark.parametrize("gate", ["member", pytest.param("final", marks=pytest.mark.world)])
@@ -109,7 +109,7 @@ def test_rendered_template_runs_without_the_engine_package(
     ):
         monkeypatch.delenv(name, raising=False)
     rendered = tmp_path / "repository"
-    render_template(ROOT / "template", rendered)
+    render_template(ROOT / "tests/fixtures/portable-python", rendered)
     for command in (
         ("git", "init", "-b", "main"),
         ("git", "config", "user.name", "Signetum test"),
@@ -283,7 +283,7 @@ def test_rendered_template_runs_without_the_engine_package(
 
 def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:
     rendered = tmp_path / "repository"
-    render_template(ROOT / "template", rendered)
+    render_template(ROOT / "tests/fixtures/portable-python", rendered)
     for args in (
         ("init", "-b", "main"),
         ("config", "user.name", "Author"),
