@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shlex
 from pathlib import Path
 from typing import Literal
@@ -19,12 +20,15 @@ from signetum.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
     branch_name,
+    exclude_workspaces,
     exclusive_batch,
     read_record,
     record_path,
     require_clean,
     require_no_merge,
+    retire_record,
     state_root,
+    workspace_destination,
     write_record,
 )
 
@@ -47,7 +51,8 @@ def open_workspace(
     members: tuple[str, ...] = (),
 ) -> dict[str, object]:
     root = Path(git_output(repository, "rev-parse", "--show-toplevel"))
-    source = git_output(root, "rev-parse", base)
+    source = git_output(root, "rev-parse", "--verify", f"{base}^{{commit}}")
+    destination = workspace_destination(root, branch)
     if branch == delivery_policy(root).branch:
         raise AdmissionError("workspace-open cannot adopt the delivery worktree")
     registered = tuple(item for item in wt.worktrees(root) if item.branch == branch)
@@ -56,6 +61,8 @@ def open_workspace(
         if len(registered) != 1:
             raise AdmissionError(f"workspace branch is registered more than once: {branch}")
         workspace = registered[0]
+        if workspace.path.resolve() != destination:
+            raise AdmissionError("registered workspace is outside its managed destination")
         if kind == "member" and branch == delivery_policy(workspace.path).branch:
             raise AdmissionError("workspace-open cannot adopt a delivery worktree")
         record_location = record_path(state_root(root), branch)
@@ -70,6 +77,9 @@ def open_workspace(
         if record.base != source or record.kind != kind:
             raise AdmissionError("existing workspace has a different recorded base or role")
     else:
+        if destination.exists():
+            raise AdmissionError("workspace destination already exists")
+        exclude_workspaces(root)
         if kind == "member":
             manifest = parse_manifest(git_output(root, "show", f"{source}:signetum.toml"))
             graph, _ = configured_validation(manifest)
@@ -77,6 +87,8 @@ def open_workspace(
         wt.worktrunk(
             root,
             (
+                "--config-set",
+                "worktree-path=" + json.dumps(str(destination)),
                 "switch",
                 "--create",
                 branch,
@@ -89,6 +101,8 @@ def open_workspace(
             json_output=True,
         )
         workspace = wt.registered_workspace(root, branch)
+        if workspace.path.resolve() != destination:
+            raise AdmissionError("Worktrunk created a workspace outside its managed destination")
         if workspace.head != source:
             raise AdmissionError("Worktrunk workspace does not match the exact approved base")
         write_record(
@@ -97,6 +111,8 @@ def open_workspace(
                 schema_version=1, branch=branch, base=source, kind=kind, members=members
             ),
         )
+    if state_root(workspace.path) != state_root(root):
+        raise AdmissionError("workspace belongs to a different Git common directory")
     if kind == "batch" and git_output(workspace.path, "rev-parse", "HEAD") == source:
         git_output(
             workspace.path,
@@ -260,6 +276,7 @@ def removal_reason(
 def remove_workspace(
     repository: Path, workspace: wt.WorkspaceIdentity, *, discard: bool = False
 ) -> None:
+    registry = state_root(repository)
     result = wt.worktrunk(
         repository,
         (
@@ -274,6 +291,7 @@ def remove_workspace(
         json_output=True,
     )
     wt.require_removed_workspace(result, workspace)
+    retire_record(registry, workspace.branch)
 
 
 def cleanup(

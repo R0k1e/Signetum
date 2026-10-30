@@ -6,12 +6,12 @@ from signetum.status.models import (
     EvidenceSnapshot,
     StatusProjection,
 )
-from signetum.status.projector import project_status
+from signetum.status.projector import project_record_status
 
 __all__ = [
     "ClauseProjection",
     "DerivedState",
     "EvidenceSnapshot",
     "StatusProjection",
-    "project_status",
+    "project_record_status",
 ]

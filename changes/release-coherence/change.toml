@@ -5,7 +5,7 @@ id = "release-coherence"
 kind = "human_direction"
 summary = "Iterate the repository until coherent, clear, concise and releasable, addressing the reviewed workflow, dependency, documentation and distribution gaps."
 [change.contract]
-version = 1
+version = 3
 approved_base = "93a9ccb2e0497327d7c9baf47bece2c730a23e4b"
 [[change.contract.requirements]]
 id = "REL-001"
@@ -14,7 +14,7 @@ acceptance = ["Extend the existing diagnostic command with mutually exclusive sh
 [[change.contract.requirements]]
 id = "REL-002"
 outcome = "Release prerequisites, identity and diagnostics are explicit."
-acceptance = ["CI and release share one tool preparation and validation action, declare the native Node/Rust acceptance dependencies, retain failed check output as an ordinary bounded-retention artifact, and keep publication separately authorized. Prepare unused version 5.0.0, current package metadata and release notes; build and inspect the exact wheel and sdist."]
+acceptance = ["CI and release share one reusable preparation and validation workflow, declare the native Node/Rust acceptance dependencies, retain failed check output as an ordinary bounded-retention artifact, and keep publication separately authorized. Prepare product version 0.3.0, current package metadata and release notes; build and inspect the exact wheel and sdist."]
 [[change.contract.requirements]]
 id = "REL-003"
 outcome = "Maintained documentation describes one current workflow."
@@ -23,12 +23,60 @@ acceptance = ["Correct contribution, parallel delivery, security and architectur
 id = "REL-004"
 outcome = "Prove the current product path and prepare exact delivery."
 acceptance = ["Extend existing public diagnostic behavior tests rather than duplicate lifecycle matrices; validate installed Skill and new/existing project cold starts, complete required member/final checks, and inspect hosted validation when an authorized review branch is available. Report any external publication configuration that cannot be proven without account authority, and present generated review before delivery."]
+[[change.contract.requirements]]
+id = "REL-005"
+outcome = "Protocol workspaces stay under the primary repository and have coherent lifecycle state."
+acceptance = ["Use an explicit contained .worktrees destination independent of caller and global defaults; reject escapes and collisions before preparation. Remove inspected unused linked trees and migrate required ones with Git while preserving user state. Registration uses stable member identity, retires removed workspaces and permits safe recreation without rewriting a live base. Exclude runtime trees from source discovery, checks and artifacts."]
+[[change.contract.requirements]]
+id = "REL-006"
+outcome = "Only the current change record and significant source journal authorize new development."
+acceptance = ["Retire executable legacy Review/Specification/Plan and ledger/migration command paths, retaining historical evidence and all unfinished commitments. Derive current clause decisions from preserved rationale rather than a second handwritten summary."]
+[[change.contract.requirements]]
+id = "REL-007"
+outcome = "One verdict core and scoped test evidence make daily development efficient without weakening complete validation."
+acceptance = ["Unify finding, waiver, first-failure and dependency verdicts across exact gates and diagnostics while keeping receipt authorization separate. Enable conservative self-selection, whole modified test files and unknown-input fallback. Enforce complete coverage on the complete collection, not a partial platform or selected subset. Correct parallel timing, consolidate duplicated pure matrices, clear stale build outputs and retain meaningful independent installed/native acceptance."]
 [change.contract.autonomy]
-allowed = ["Implement and verify the reviewed coherence fixes, prepare environment and build artifacts, and prepare reviewable delivery. A candidate branch may run read-only hosted validation; it cannot publish a package or mutate main."]
-requires_confirmation = ["Deliver to main, create or push a release tag, publish packages, change publishing account configuration, or modify Perdura."]
+allowed = ["Implement and verify the reviewed coherence fixes, prepare environment and build artifacts, and prepare reviewable delivery. Run hosted validation on candidate branches and deliver the reviewed exact candidate to main after presenting the generated delivery review. Remove verified unused worktrees; migrate required worktrees without losing user state."]
+requires_confirmation = ["Create or push a release tag, publish packages, change publishing account configuration, or modify Perdura."]
 [[change.contract.excluded]]
 statement = "Perdura adoption, RAM volumes, background deletion, legacy format compatibility and a new diagnostic/report subsystem."
 reason = "Keep the release focused on the current supported product and existing execution owners."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-perdura-adoption-boundaries-markdown-rule-boundary"
+target = "perdura-adoption-boundaries/markdown-rule-boundary"
+resolution_id = "perdura-adoption-boundaries/markdown-rule-verified"
+targets = ["tests/integration/test_migration_preview.py"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-perdura-adoption-boundaries-working-set-source-format"
+target = "perdura-adoption-boundaries/working-set-source-format"
+resolution_id = "perdura-adoption-boundaries/working-set-source-verified"
+targets = ["src/signetum/migration.py", "tests/integration/test_migration_preview.py"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-release-coherence-platform-coverage-is-partial-observation"
+target = "release-coherence/platform-coverage-is-partial/observation"
+resolution_id = "release-coherence/complete-platform-coverage/resolution"
+targets = [".github/actions/validate/action.yml"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-simplify-adoption-boundaries-retired-specialization"
+target = "simplify-adoption-boundaries/retired-specialization"
+resolution_id = "simplify-adoption-boundaries/specialization-retired"
+targets = ["src/signetum/migration.py", "tests/integration/test_migration_preview.py"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-streamline-development-operations-bootstrap-import-order-observation"
+target = "streamline-development-operations/bootstrap-import-order/observation"
+resolution_id = "streamline-development-operations/bootstrap-import-order-resolved/resolution"
+targets = ["tests/integration/test_migration_preview.py"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
 [[change.execution.steps]]
 id = "STEP-1"
 requirements = ["REL-001", "REL-002"]
@@ -42,8 +90,13 @@ id = "STEP-3"
 requirements = ["REL-004"]
 action = "Regenerate and inspect artifacts, run meaningful affected checks and cold starts, resolve discoveries and complete member/batch review."
 
+[[change.execution.steps]]
+id = "STEP-4"
+requirements = ["REL-005", "REL-006", "REL-007"]
+action = "Repair contained workspace identity and cleanup, retire superseded authoring paths, unify verdict execution and enable scoped efficient validation; reconcile responsible docs and verify the frozen candidate before delivery."
+
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-10-30
-source = "The owner set the goal: iterate the current repository until consistent, clear, concise and releasable, following the preceding concrete audit. This authorizes the scoped implementation; delivery and publication remain separately confirmed."
-contract_digest = "sha256:4696f32d07f40d22aa1c22c1560eb89dbc5f949265aae849887562a638060f8a"
+source = "The owner set the goal: iterate the current repository until consistent, clear, concise and releasable, following the preceding concrete audit. This authorizes the scoped implementation; The owner subsequently approved the comprehensive five-stage cleanup and instructed implementation through delivery. Unused worktrees may be deleted after inspection; publication remains excluded. This revision binds precise evidence retirement for the migration and single-caller action deletions already included in that cleanup; requirements and exclusions are unchanged."
+contract_digest = "sha256:5e85e9d575344e203d0de26c130225b5fc7eadf7d7c09d79a1f545c2c6ed1cba"

@@ -60,10 +60,6 @@ def main(arguments: list[str] | None = None) -> int:
     except (OSError, ValueError) as error:
         return utility_failure("runner", error)
     validation = contract_mapping(binding.validation)
-    # These legacy input fields cannot authorize recovered success and are not
-    # proposed as new configuration by an existing-runner adapter.
-    for retired in ("recovery_window", "recovery_threshold"):
-        validation.pop(retired)
     print(
         json.dumps(
             {

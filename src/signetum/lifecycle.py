@@ -594,7 +594,7 @@ def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]
         branch,
         approved_base,
         kind="batch",
-        members=tuple(str(member.resolve()) for member in members),
+        members=tuple(_branch(member.resolve()) for member in members),
     )
     batch = Path(str(opened["worktree"]))
     result = admit(batch, members)

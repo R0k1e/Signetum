@@ -6,8 +6,8 @@ Validation is check-only. Publishing and delivery require explicit authority.
 Unsupported schema and profile identities fail without fallback interpretation.
 
 Present the approved behavior and acceptance evidence before implementation.
-Record significant discoveries through `just protocol` for consolidated changes;
-legacy packages retain their declared deviation API. Do not keep findings only
+Record significant discoveries through `just protocol`; historical ledgers are
+read-only delivery evidence, not another authoring channel. Do not keep findings only
 in chat or edit JSON Lines state directly. A refused request has not entered
 history: commit changed authority bindings before retrying, and verify the
 returned applied transaction rather than continuing on an assumed write. Safe

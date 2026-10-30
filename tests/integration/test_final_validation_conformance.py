@@ -4,11 +4,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from change_fixtures import approve_change, commit_approval
+from change_fixtures import append_historical_event as append_event
+from change_fixtures import approve_legacy_change as approve_change
+from change_fixtures import commit_approval
 from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle, workspace_operations
-from signetum.deviations import DeviationClass, Discovered, append_event
+from signetum.deviations import DeviationClass, Discovered
 from signetum.git import git_output
 
 

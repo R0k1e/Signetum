@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from change_fixtures import approve_change, consolidated_approval
+from change_fixtures import approve_change, approve_legacy_change, consolidated_approval
 from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle
@@ -48,8 +48,8 @@ def implementation(member):
         "draft",
         "plan-only",
         "before-approval",
+        "historical-only",
         "wrong-role",
-        "decision",
         "implemented",
         "custom-root",
     ],
@@ -58,7 +58,7 @@ def test_ready_requires_own_approved_change_before_checks(authority, stage):
     runtime, root, marker, scratch = authority
     if stage == "custom-root":
         path = root / "signetum.toml"
-        path.write_text(path.read_text().replace("changes/*", "requests/*"))
+        path.write_text(path.read_text().replace('changes = "changes"', 'changes = "requests"'))
         commit(root, "declare custom change root")
     base = git_output(root, "rev-parse", "HEAD")
     member = scratch / "member"
@@ -71,31 +71,18 @@ def test_ready_requires_own_approved_change_before_checks(authority, stage):
     if stage == "before-approval":
         implementation(member)
     if stage != "missing":
-        approve_change(member)
+        if stage == "historical-only":
+            approve_legacy_change(member)
+        else:
+            approve_change(member)
         if stage == "custom-root":
             for path in (member / "changes").rglob("*"):
                 if path.is_file():
                     path.write_text(path.read_text().replace("changes/", "requests/"))
             (member / "changes").rename(member / "requests")
         elif stage == "draft":
-            path = member / "changes/example/specs/behavior.toml"
-            path.write_text(
-                path.read_text()
-                .replace('status = "approved"', 'status = "draft"')
-                .replace("implementation_authorized = true", "implementation_authorized = false")
-            )
-        elif stage == "decision":
-            decision = member / "docs/decisions/ADP-pending.md"
-            decision.parent.mkdir(parents=True)
-            decision.write_text(
-                "# Pending\nStatus: Proposed\nSupersedes: None\nSuperseded by: None\n"
-            )
-            path = member / "changes/example/specs/behavior.toml"
-            path.write_text(
-                path.read_text().replace(
-                    "plan = ", 'decisions = ["docs/decisions/ADP-pending.md"]\nplan = '
-                )
-            )
+            path = member / "changes/example/change.toml"
+            path.write_text(path.read_text().split("[change.approval]")[0])
         commit(member, "declare approval package")
     if stage not in {"plan-only", "before-approval"}:
         implementation(member)
@@ -147,10 +134,10 @@ def test_admission_uses_committed_package_plans_and_ignores_forged_trailer(autho
     git_output(root, "worktree", "add", "-b", "batch/admission", str(batch), base)
     write_record(state_root(root), WorkspaceRecord(1, "batch/admission", base, "batch"))
     result = runtime.admit(batch, (member,))
-    assert result["admitted"][0]["plan"] == ["changes/example/plans/behavior.md"]
+    assert result["admitted"][0]["plan"] == ["changes/example/change.toml"]
     tip = git_output(batch, "rev-parse", "HEAD")
     message = git_output(batch, "show", "-s", "--format=%B", tip)
-    assert "Signetum-Plan: changes/example/plans/behavior.md" in message
+    assert "Signetum-Plan: changes/example/change.toml" in message
     assert "Signetum-Plan: changes/forged/" not in message
 
 
@@ -167,7 +154,7 @@ def test_ready_uses_one_consolidated_record_without_legacy_files(authority, stag
         member, "0" * 40 if stage == "wrong-base" else base, approved=stage != "draft"
     )
     if stage == "dual":
-        approve_change(member)
+        approve_legacy_change(member)
     commit(member, "approve consolidated behavior")
     if stage != "plan-only":
         implementation(member)

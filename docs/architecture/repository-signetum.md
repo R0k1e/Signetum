@@ -49,7 +49,7 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `operation_cli`, `workflow_status` | Shared argument refusals and diagnostics; read-only workspace, change and recorded-evidence overview. |
 | `change_record`, `decision_clauses`, `decision_history`, `development_log`, `development_store` | Consolidated approval, targeted clause edits, significant source journals and their deterministic current decision projection. |
 | `contract_values`, `change.models`, `change.paths`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
-| `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and the locked append-only ledger. |
+| `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and read-only historical ledger evidence. |
 | `change.member`, `lifecycle_validation`, `provenance`, `execution_review`, `validation.review` | Member qualification, actual package Plans, exact validation and final review/receipt bindings through repository effect adapters. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
 | `impact`, `repository_selection`, `selection_contracts`, `selection_request`, `validation` | Explicit source-bound selection, dependency graphs and policy-bound execution identity. |
@@ -118,14 +118,17 @@ Raw `history` remains readable in that case, and the refused status view
 reports the history identity needed by the repair request.
 
 Evidence retirement requires an exact proposal in the approved contract and
-committed deletion of those targets since the registered base. It retains the
+committed deletion of those targets, which must exist at the registered base
+or the original resolution source. Evidence introduced and retired within one
+change follows the same exact approved retirement path. It retains the
 original resolution, its outcome, other evidence and the retiring contract's
 provenance; it does not claim a new implementation of the old finding.
 Mutation output contains the affected observations and decision identities,
 rather than repeating the entire current set or source history.
 
-Existing traceability and the common-Git deviation API remain available for
-historical and in-flight packages until explicitly migrated. The new command reports `authority_coverage = journal_only`;
+Historical documents and common-Git ledgers remain readable for inspection and
+source-bound delivery review. They cannot authorize new member development or
+receive new protocol writes. The new command reports `authority_coverage = journal_only`;
 its working set does not silently absorb or replace historical Markdown
 decisions. `current` also discovers committed accepted decision sources, their
 blob identities and declared supersession standing, so one entrypoint exposes
@@ -136,25 +139,8 @@ and decision process, preserving original sources and rationale for review.
 The engine does not parse constraint tables or assign semantic meaning to their
 rows. Source text and mapping previews never confer approval.
 
-`migration inventory` captures committed Review, Specification, Plan and
-decision sources by exact Git blob identity. It uses the same parsers and
-relationship validator as ordinary traceability. Single-clause specifications
-and unique exact-text matches expose structural acceptance mappings; other
-relations and unassigned acceptance entries remain explicit review issues.
-Legacy bases are retained rather than guessed from the current branch, and an
-old document that the current parser cannot interpret remains a named source
-with a diagnostic. Inventory never repairs or rewrites accepted history.
-
-`migration preview` requires an inventory identity, explicit source line spans,
-stable clause IDs and topic context. It displays original excerpts beside the
-proposed clauses. Changed authorities or uncommitted source edits refuse the
-preview, while independent code-only commits preserve unchanged source bindings.
-Partial supersession uses the same predicate as traceability and never revives
-a fully replaced rule. Every preview remains unapproved; selecting a few lines
-does not declare a legacy decision completely migrated or grant write authority.
-
 Member qualification reads a committed consolidated `change.toml` as its sole
-change authority when present. Competing Review, Specification or Plan files
+change authority. Competing Review, Specification or Plan files
 refuse qualification rather than supplying fallback approval. The record must
 be active, approved, identify the owning change and bind the registered workspace
 base. An implementation commit must follow approval of the exact current
@@ -163,8 +149,7 @@ contract; an earlier approved contract cannot qualify a revised outcome.
 For consolidated changes, delivery scope names `change.toml` as the actual
 execution-plan owner. Delivered intent, contract and approval remain protected,
 while execution-step refinements can preserve the same behavior approval.
-Legacy package readers remain available for unchanged historical and in-flight
-packages; they do not provide fallback approval for consolidated changes.
+Historical package sources remain protected; they provide no fallback approval.
 
 Repository approval queries use the safe consolidated-record loader and a
 version-two review projection: each requirement appears once with its stable
@@ -174,8 +159,9 @@ outcome or acceptance summaries and never creates approval. Competing legacy
 files, path identity mismatches, symlinks and stale approval bindings refuse.
 
 Traceability discovers consolidated records under the declared change root,
-checks exact active follow-up requirement ownership, and uses the same evidence
-progress algorithm as historical packages. A draft remains specified; an
+checks exact active follow-up requirement ownership and derives progress from
+source-bound evidence. Historical Review/Specification/Plan files are not active
+query or execution inputs. A draft remains specified; an
 approved record's execution plan is the record itself. Ready, integration and
 delivery require matching observations, and a completed record never implies
 human acceptance. Historical version-one review projections remain readable. Consolidated journals
@@ -193,12 +179,11 @@ and refusal of unadopted repositories.
 runtime. It requires a registered member, refuses the declared delivery branch
 and unsafe destinations, and creates one unapproved record bound to the recorded
 base. The protocol dispatcher routes authoring, concise proposal views, journal
-operations, migration previews and explicit test diagnostics to their existing
+operations and explicit test diagnostics to their existing
 owners. Test diagnostics delegate to the normal repository execution adapter;
 they do not own another runner or readiness store. Candidate views
 expose the exact base, approval digest and retirement proposals without recording
-confirmation. Consolidated records refuse legacy-ledger mutations, preserving
-one journal write channel. Agent instructions
+confirmation. The retired ledger has no writing API or command. Agent instructions
 use these commands, preserve relevant legacy authorities during `journal_only`
 coverage, and require significant journals rather than duplicate reports.
 
@@ -234,6 +219,7 @@ inputs; neither path grants approval.
 Product releases and the bundled standard Skill use one delivered source on the
 branch declared in repository policy (`main` here). `release.preflight` reads that
 same policy and checks clean exact source, delivered ancestry, component identities
-and a supplied tag. It grants no publication authority. Internal scaffold revision
-fields retained by the wire contract are not a separate product release.
+and a supplied tag. It grants no publication authority. Manifest schema 3 binds one `repository.changes` root. It has no template version
+or Specification/Plan configuration aliases; schema revisions follow wire changes
+and are independent of the shared package/Skill product version.
 [Releasing](../maintainers/releasing.md) owns the maintainer procedure.

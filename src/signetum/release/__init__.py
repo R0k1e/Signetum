@@ -81,6 +81,8 @@ def build_metadata(repository: Path, source: str) -> ReleaseMetadata:
     if package != __version__:
         raise ReleaseError("installed engine version differs from release source")
     skill_version, skill_digest = _skill_identity(repository)
+    if skill_version != package:
+        raise ReleaseError("Skill and package must share the product version")
     return ReleaseMetadata(
         source=source,
         components=(

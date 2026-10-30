@@ -267,7 +267,7 @@ def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     record = read_record(state_root(root), branch)
     assert record.kind == "batch"
     assert record.base == base
-    assert record.members == (str(root.resolve()),)
+    assert record.members == ("main",)
     owner = importlib.import_module("_signetum_runtime.workspaces")
     path = owner.record_path(owner.state_root(root), branch)
     before = path.read_bytes()

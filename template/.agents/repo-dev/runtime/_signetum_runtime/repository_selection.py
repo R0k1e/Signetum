@@ -134,7 +134,7 @@ def _select(
         shard = declarations.get(name)
         if shard is None or shard.evidence != "tree" or name not in final_names:
             raise SelectionError("target binding requires a declared final-covered tree shard")
-        if binding.argument_index >= len(shard.command) or shard.ratchet_command:
+        if binding.argument_index > len(shard.command) or shard.ratchet_command:
             raise SelectionError("target binding must replace a declared non-ratchet command tail")
     adapter = RepositoryValidationAdapter(repository)
     try:

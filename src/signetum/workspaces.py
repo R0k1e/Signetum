@@ -221,6 +221,55 @@ def state_root(repository: Path) -> Path:
     return root
 
 
+def primary_worktree(repository: Path) -> Path:
+    """Git lists the primary worktree first, regardless of the invoking member."""
+    inventory = git_output(repository, "worktree", "list", "--porcelain", "-z", strip=False)
+    first = inventory.split("\0", 1)[0]
+    if not first.startswith("worktree "):
+        raise WorkspaceError("primary Git worktree is unavailable")
+    root = Path(first.removeprefix("worktree ")).resolve()
+    if not root.is_dir():
+        raise WorkspaceError("primary Git worktree is unavailable")
+    return root
+
+
+def workspace_destination(repository: Path, branch: str) -> Path:
+    """Resolve a collision-free contained location before invoking any tool."""
+    git_output(repository, "check-ref-format", "--branch", branch)
+    primary = primary_worktree(repository)
+    managed = primary / ".worktrees"
+    if managed.is_symlink() or managed.resolve() != managed:
+        raise WorkspaceError("managed workspace root must not escape the primary repository")
+    target = managed / quote(branch, safe="")
+    if target.is_symlink() or target.resolve().parent != managed:
+        raise WorkspaceError("workspace destination must remain inside .worktrees")
+    return target
+
+
+def exclude_workspaces(repository: Path) -> None:
+    """Bootstrap ignored managed state even before the primary receives new source."""
+    common = state_root(repository).parent
+    exclude = common / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    with exclude.open("a+", encoding="utf-8") as stream:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+        stream.seek(0)
+        content = stream.read()
+        if "/.worktrees/" not in content.splitlines():
+            stream.write(
+                ("\n" if content and not content.endswith("\n") else "") + "/.worktrees/\n"
+            )
+
+
+def retire_record(root: Path, branch: str) -> None:
+    """Retire an absent checkout's active registration without rewriting its base."""
+    path = record_path(root, branch)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with (path.parent / "records.lock").open("a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        path.unlink(missing_ok=True)
+
+
 def recorded_base(repository: Path, branch: str | None = None) -> str:
     """Return the base this workspace was cut from.
 

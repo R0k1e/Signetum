@@ -36,7 +36,7 @@ class Adapter:
         return "b" * 40
 
     def read_file(self, path: str) -> bytes:
-        return {"signetum.toml": b"schema_version = 2\n", "uv.lock": b"lock"}[path]
+        return {"signetum.toml": b"schema_version = 3\n", "uv.lock": b"lock"}[path]
 
     def identify_tool(self, tool: ToolDeclaration) -> str:
         return "uv 0.8.14"
@@ -121,6 +121,23 @@ def test_gate_executes_dependencies_and_binds_every_declared_input() -> None:
     assert receipt.identity.configuration.path == "signetum.toml"
     assert tuple(lock.path for lock in receipt.identity.lockfiles) == ("uv.lock",)
     assert receipt.identity.tools[0].identity == "uv 0.8.14"
+    # Equal argv does not make distinct shard obligations interchangeable.
+    same_command = resolve_validation_graph(
+        (
+            GraphContribution(
+                "core",
+                shards=(
+                    ValidationShard("core:one", ("check",)),
+                    ValidationShard("core:two", ("check",)),
+                ),
+                gates=(GateDeclaration("final", ("core:one", "core:two")),),
+            ),
+        )
+    )
+    independent = Adapter()
+    both = execute_gate(same_command, "final", _inputs(), independent)
+    assert independent.executed == ["core:one", "core:two"]
+    assert both.execution.names == ("core:one", "core:two")
 
 
 def test_failed_shard_produces_no_gate_evidence() -> None:
@@ -152,6 +169,11 @@ def test_a_failed_shard_does_not_hide_independent_problems() -> None:
     assert "core:one" in str(failure.value)
     assert "core:after: skipped after core:one" in str(failure.value)
     assert adapter.executed == ["core:one", "core:two"]
+    diagnostic = Adapter(failed="core:one")
+    with pytest.raises(ValidationExecutionError) as diagnostic_failure:
+        execute_diagnostic_gate(graph, "final", diagnostic, inputs=_inputs())
+    assert str(diagnostic_failure.value) == str(failure.value)
+    assert diagnostic.executed == adapter.executed
 
 
 _WORLD_DOCUMENT = (
@@ -217,6 +239,20 @@ def test_a_live_waiver_records_a_world_shard_as_waived_rather_than_passed() -> N
     assert outcome.findings == ("GHSA-aaaa-bbbb-cccc",)
     assert outcome.observed_at is not None
     assert receipt.completeness.world_shards == ("core:audit",)
+    diagnostic = execute_diagnostic_gate(
+        _world_graph(),
+        "final",
+        Adapter(failed="core:audit", document=_WORLD_DOCUMENT),
+        inputs=_world_inputs(_waiver()),
+    )
+    assert diagnostic["outcomes"] == [
+        {
+            "name": "core:audit",
+            "status": "waived",
+            "waivers": ["audit-demo"],
+            "findings": ["GHSA-aaaa-bbbb-cccc"],
+        }
+    ]
 
 
 def test_a_passing_world_shard_is_not_waived() -> None:
@@ -268,6 +304,8 @@ def test_an_unexplained_world_failure_still_fails_its_gate(
 
     with pytest.raises(ValidationExecutionError, match=expected):
         execute_gate(_world_graph(), "final", _world_inputs(*waivers), adapter)
+    with pytest.raises(ValidationExecutionError, match=expected):
+        execute_diagnostic_gate(_world_graph(), "final", adapter, inputs=_world_inputs(*waivers))
 
 
 def test_a_world_shard_without_a_findings_command_cannot_be_waived() -> None:
