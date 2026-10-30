@@ -75,7 +75,7 @@ def test_invalid_arguments_are_a_json_precondition_refusal(capsys):
 
 def test_repository_catalog_matches_registered_lifecycle_commands():
     root = Path(__file__).resolve().parents[2]
-    policy = yaml.safe_load((root / ".agents/repo-dev/repo.yaml").read_text())
+    policy = yaml.safe_load((root / ".agents/signetum/repo.yaml").read_text())
     declared = policy["repository"]["lifecycle"]["public_operations"]
     parser = lifecycle._parser()
     registered = next(

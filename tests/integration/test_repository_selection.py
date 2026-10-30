@@ -21,7 +21,7 @@ def selection_runtime(request, monkeypatch):
     if getattr(request, "param", "engine") == "engine":
         return importlib.import_module("signetum.repository_selection")
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
+        str(Path(__file__).parents[2] / "tests/fixtures/portable-python/.agents/signetum/runtime")
     )
     return importlib.import_module("_signetum_runtime.repository_selection")
 

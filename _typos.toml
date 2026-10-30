@@ -1,2 +1,2 @@
 [files]
-extend-exclude = ["src/signetum/resources/vendor_yaml", "template/.agents/repo-dev/runtime/_signetum_runtime/vendor_yaml"]
+extend-exclude = ["src/signetum/resources/vendor_yaml", "tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime/vendor_yaml"]

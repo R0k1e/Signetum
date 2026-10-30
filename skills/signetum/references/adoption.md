@@ -44,7 +44,7 @@ readiness. Application tests and preparation stay explicitly owned by the projec
 
 ## Continue locally
 
-The launcher uses `.agents/repo-dev/run protocol`, or an existing `just protocol`
+The launcher uses `.agents/signetum/run protocol`, or an existing `just protocol`
 binding. Workspace and delivery use the repository's local lifecycle commands.
 No upstream clone, engine install or remote ledger is needed for daily work.
 

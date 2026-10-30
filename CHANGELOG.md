@@ -5,27 +5,29 @@ their original release history. Git and accepted change records retain reasoning
 
 ## 0.3.0 - Unreleased
 
-- Use manifest schema 3 with one `repository.changes` root; remove the separate
-  template version and Specification/Plan bindings. Old active fields are refused.
-- Remove ineffective retry-window settings; the original failed run remains a failure.
-- Keep new development on one approved change record and source journal; retire
-  historical workflow commands, qualification and duplicate teaching matrices.
-- Contain managed worktrees under the primary repository, retire removed
-  registrations, share gate verdicts and enable conservative local selection.
+- Focus the Skill on human decisions, parallel worktrees and reliable integration/delivery.
+- Retain project selection interfaces; remove bundled Python reach and its optional command.
+- Move private acceptance scaffolding to tests, remove future ADR numbering and simplify journal dispatch.
+- Unify adopted workflow pointers with the standard Skill and refresh the non-checkbox identity.
 
-- Make the standard `signetum` Skill the single entry for new and existing projects;
-  keep templates internal and use one main source and release path.
-- Adopt reviewed local bindings without changing application tools. Daily work
-  uses the project's portable runtime instead of an upstream checkout.
+- Use the standard `signetum` Skill for reviewed new/existing-project adoption;
+  retain application tools and use a local portable runtime for daily work.
+- Use `.agents/signetum` consistently without a `repo-dev` runtime alias.
 - Keep one approved change record, significant append history and a derived
-  current decision set, with targeted amendments and retained original rationale.
-- Unify supervised test diagnostics and declared gates across local and hosted
-  validation. Preserve first failures, owned-process cleanup and complete final
-  evidence while reducing unnecessary test preparation and duplicate checks.
-- Support optional source-bound selection, weighted scheduling and complete CI
-  partition aggregation without changing default full validation.
-- Publish wheel/sdist with the same standard Skill, source/component metadata
-  and checksums; PyPI publication is optional.
+  decision set. Retire the old active workflow and preserve original rationale.
+- Use manifest schema 3 with one `repository.changes` root and independent
+  schema/product versions; remove ineffective retry settings and old bindings.
+- Contain worktrees under the primary repository, retire removed registrations
+  and safely clean up after delivery without deleting the active executor.
+- Share supervised diagnostics and gate verdicts, preserving first failures,
+  owned-process settlement and complete final validation. Optional selection,
+  weighted scheduling and CI partitions remain source-bound optimizations.
+- Maintain the engine once and derive portable runtime artifacts. Consolidate
+  user guides, remove obsolete files and disclose test changes and evidence loss.
+- Replace the mascot variants with compact branding and a bilingual, accessible
+  static homepage with a direct Skill installation action.
+- Prepare one package/Skill release with wheel/sdist, component metadata and
+  checksums; hosted coverage requires all platforms and PyPI stays opt-in.
 
 ## 0.1.0 - 2026-08-30
 

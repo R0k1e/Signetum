@@ -14,7 +14,10 @@ from signetum import decision_history as history
 def backend(request, monkeypatch):
     if request.param == "template":
         monkeypatch.syspath_prepend(
-            str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
+            str(
+                Path(__file__).parents[2]
+                / "tests/fixtures/portable-python/.agents/signetum/runtime"
+            )
         )
         for name in ("clauses", "history"):
             monkeypatch.setitem(

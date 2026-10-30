@@ -21,8 +21,8 @@ The complete native acceptance suite needs Node/npm and Rust/Cargo as well as
 Git, Python, uv and Mise/Worktrunk. These are repository development dependencies,
 not additional application-language requirements for Skill users.
 
-Before delivery, update the package version and release notes, regenerate the
-portable runtime and complete the normal batch final review. Release preflight requires package and Skill versions to agree with
+Before delivery, update the package version and release notes, prepare the
+portable acceptance fixture and complete the normal batch final review. Release preflight requires package and Skill versions to agree with
 `pyproject.toml`; choose an unused `v<version>` tag. Historical
 RepoSeal tags remain unchanged. The 0.3.0 entry is a candidate until published.
 

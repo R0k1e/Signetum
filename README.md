@@ -1,14 +1,15 @@
 # Signetum
 
 <p align="center">
-  <img src="assets/brand/signetum-mark-256.png" width="180" alt="Signetum seal holding a verified repository">
+  <img src="assets/brand/signetum-mark.svg" width="80" alt="Signetum signet">
 </p>
 
-**Reliable agentic development and delivery, through one standard Skill.**
+**Shared decisions. Parallel agent development. Reliable delivery.**
 
-Signetum helps a coding agent retain decisions, implement approved changes,
-validate the exact source and prepare an inspectable delivery. It works with
-new projects and existing repositories, using their own application tools.
+Signetum helps people make key decisions and multiple coding agents work in
+isolated worktrees. Agree on the outcome, divide the work, integrate deliberately
+and deliver the exact source you reviewed. One standard Skill guides the process
+for new projects and existing repositories, using their own application tools.
 
 ## Install and start
 
@@ -27,26 +28,30 @@ minimal local bindings. You review the preview. After adoption, the Skill calls
 the repository's local runtime; normal development needs neither an upstream
 checkout nor repeated tool downloads. See [First use](QUICKSTART.md).
 
-For a development task, describe the behavior normally. The agent proposes the
-outcome and acceptance, keeps significant reasoning once, implements the change
-and reports the exact source that passed readiness. Delivery remains explicit.
+For a development task, describe the behavior normally. Discuss consequential
+choices with the agent, then approve the outcome and acceptance. For parallel
+work, agree on task boundaries, dependencies, shared interfaces and an integration
+owner. You or your coding-agent host organize the agents; each member develops
+in an isolated worktree. Qualified changes enter a named batch for complete
+validation and explicit delivery.
 
 ## What it gives you
 
-- One change record, significant append history and a derived current decision set.
-- Behavioral validation through existing application commands; optional selection
-  and scheduling preserve full final validation and original failures.
-- Isolated member workspaces and an explicit shared delivery boundary.
-- Reviewable evidence connecting recorded requirements, checked source and delivery.
+- Key decisions and their basis kept once, with a derived current decision set.
+- Clear ownership, dependencies and isolated worktrees for parallel agent changes.
+- Named integration, complete final checks and delivery of an exact reviewed source.
+- Behavioral tests through existing tools; optional project selectors and bounded
+  test scheduling can improve feedback without weakening final validation.
 
 The runtime is language-neutral and uses a host Python interpreter. It can retain
-Python, Node, Rust or other application runners. It provides no remote ledger,
-automatic consumer update or proof that software is defect-free.
+Python, Node, Rust or other application runners. Signetum is a development and
+delivery protocol, not an automatic global agent or machine-resource scheduler.
+It provides no remote ledger or automatic consumer updates.
 
 ## Maintained source
 
 `main` owns the Skill, setup/runtime implementation and documentation. The
-`template/` directory is internal scaffolding and runtime test material, not a
+`tests/fixtures/portable-python/` directory is internal runtime test material, not a
 second installation route or independently published product. The package bundles
 the same standard Skill folder; there is one source and release path.
 
