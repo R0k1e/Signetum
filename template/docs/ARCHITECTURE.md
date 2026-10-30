@@ -1,26 +1,8 @@
-# Architecture
+# Acceptance fixture architecture
 
-This file is the first discovery authority for every Agent. Replace the
-bracketed facts when the repository is created; keep the responsibility links
-stable as the product evolves.
-
-## Product boundary
-
-- Product: `[name and user-visible purpose]`
-- Public entry points: `[CLI, API, UI, jobs, or libraries]`
-- Production implementation roots: `[paths]`
-- Test roots: `[paths]`
-- Environment authority: `[mise, uv, npm, cargo, or another repository-owned tool]`
-
-## Responsibilities
-
-- [Development lifecycle](development-lifecycle.md)
-- [Agent-team delivery](agent-team-delivery.md)
-- [Customization](customizing.md)
-
-Search all production and test implementations before changing an authority.
-Extend one owner and remove superseded implementations and compatibility paths.
-
-Reconcile affected responsibilities and usage instructions in the same change as
-behavior, command or prerequisite updates. Preserve rationale in decision history;
-current architecture describes the implemented system.
+This internal Python fixture exercises a rendered Signetum runtime independently
+of the installed engine. `src/application` owns the toy application;
+`tests/unit` and `tests/integration` exercise its declared native runner.
+`signetum.toml` binds validation and `.agents/signetum/repo.yaml` binds policy.
+Generated runtime modules are derived from the engine during render or test setup.
+They are not a maintained copy of the product source.

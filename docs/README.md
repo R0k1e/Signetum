@@ -1,35 +1,12 @@
 # Documentation
 
-Start with [First use](../QUICKSTART.md): install, review adoption and complete one change.
+Start with [First use](../QUICKSTART.md). The agent handles setup syntax and uses
+the repository's existing application tools.
 
-## Evaluate
-
-- [Why Signetum](product/why-signetum.md)
-- [Minimal example and failure demonstrations](product/failure-demonstrations.md)
-- [Protocol in practice](product/protocol-in-practice.md)
-- [Frequently asked questions](product/frequently-asked-questions.md)
-- [Signetum and specification tools](product/signetum-and-specification-tools.md)
-- [Root product overview](../README.md)
-
-## Adopt
-
-- [Quickstart](../QUICKSTART.md)
-- [Adopt existing repository runners](guides/existing-runners.md)
-- [Preserve structured test selection](guides/structured-selection.md)
-- [Development lifecycle concepts](concepts/development-lifecycle.md)
-
-- [Optional validation optimization](../skills/signetum/references/validation-optimization.md)
-
-## Operate
-
-- [Agent Team batch delivery](workflows/agent-team-delivery.md)
-- [Repository bindings](guides/repository-bindings.md)
-- [Architecture](ARCHITECTURE.md)
-
-## Govern
-
-- [Contributing](../CONTRIBUTING.md)
-- [Security](../SECURITY.md)
-- [Changelog](../CHANGELOG.md)
-- [Retained decisions](decisions/README.md)
-- [Maintainer release guide](maintainers/releasing.md)
+- [Working with Signetum](guide.md): changes, decisions, tests, parallel delivery,
+  profiles and limitations.
+- [Existing runners](guides/existing-runners.md) and [repository bindings](guides/repository-bindings.md): explicit adoption/configuration contracts.
+- [Structured selection](guides/structured-selection.md): optional source-bound test selection.
+- [Architecture](ARCHITECTURE.md): maintained implementation and validation owners.
+- [Contributing](../CONTRIBUTING.md), [releasing](maintainers/releasing.md) and [security](../SECURITY.md): maintenance.
+- [Decision history](decisions/README.md): retained rationale; not required first-use reading.

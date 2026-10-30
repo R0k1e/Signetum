@@ -21,7 +21,7 @@ def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path, frontend):
         "    marker.touch()\n"
         "    assert not first, 'original execution defect'\n"
     )
-    runtime = Path(__file__).parents[2] / "template/.agents/repo-dev/runtime/_signetum_runtime"
+    runtime = Path(__file__).parents[2] / "template/.agents/signetum/runtime/_signetum_runtime"
     launcher = (
         ["-m", "signetum.validation.pytest_runner"]
         if frontend == "engine"

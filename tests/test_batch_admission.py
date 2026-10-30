@@ -94,7 +94,7 @@ def _repository(path: Path) -> Path:
     _git(path, "config", "user.email", "signetum@example.invalid")
     (path / "seed.txt").write_text("seed\n", encoding="utf-8")
     (path / "signetum.toml").write_text(MANIFEST, encoding="utf-8")
-    policy = path / ".agents/repo-dev/repo.yaml"
+    policy = path / ".agents/signetum/repo.yaml"
     policy.parent.mkdir(parents=True)
     policy.write_text("delivery:\n  branch: main\n")
     _git(path, "add", ".")
@@ -882,7 +882,7 @@ def lifecycle_frontend(request, monkeypatch):
     """The complete admission/final contract corpus also runs on the generated library."""
     if request.param == "template":
         monkeypatch.syspath_prepend(
-            str(Path(__file__).parents[1] / "template/.agents/repo-dev/runtime")
+            str(Path(__file__).parents[1] / "template/.agents/signetum/runtime")
         )
         monkeypatch.setitem(
             globals(), "lifecycle", importlib.import_module("_signetum_runtime.lifecycle")

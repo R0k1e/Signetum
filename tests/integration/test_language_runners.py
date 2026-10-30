@@ -174,7 +174,7 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     architecture.write_text("# Existing application architecture\n")
     request = AdoptionRequest(
         manifest=(root / "signetum.toml").read_text(),
-        policy=(root / ".agents/repo-dev/repo.yaml").read_text(),
+        policy=(root / ".agents/signetum/repo.yaml").read_text(),
         interpreter=(sys.executable, "-I", "-S"),
     )
     plan = preview(root, request)

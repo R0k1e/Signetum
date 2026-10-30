@@ -8,7 +8,7 @@ an explicit outer step. No option enables delivery or replaces full final checks
 
 `select-python --config <repo-relative.json>` reads the standard selection request
 from stdin and emits `signetum.selection@1`. Configure the existing provider with
-its entrypoint `.agents/repo-dev/runtime/protocol.py` and command:
+its entrypoint `.agents/signetum/runtime/protocol.py` and command:
 
 ```json
 ["python3", "{selector}", "select-python", "--config", "python-selection.json"]

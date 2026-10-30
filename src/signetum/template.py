@@ -6,7 +6,13 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from signetum.runtime_generation import is_runtime_cache, runtime_problems
+from signetum.runtime_generation import (
+    RUNTIME_DIRECTORY,
+    generate_runtime,
+    is_runtime_cache,
+    runtime_files,
+    runtime_problems,
+)
 
 TOP_LEVEL = frozenset(
     {
@@ -17,7 +23,6 @@ TOP_LEVEL = frozenset(
         "Justfile",
         "LICENSE",
         "README.md",
-        "README.zh-CN.md",
         "changes",
         "docs",
         "mise.toml",
@@ -67,7 +72,8 @@ def validate_template(source: Path) -> TemplateReport:
             problems.append(f"engine-only path is not allowed: {relative}")
         if path.is_file():
             files.append(relative.as_posix())
-    problems.extend(runtime_problems(root))
+    if (root / RUNTIME_DIRECTORY).exists():
+        problems.extend(runtime_problems(root))
     return TemplateReport(tuple(files), tuple(problems))
 
 
@@ -84,7 +90,11 @@ def render_template(source: Path, destination: Path) -> TemplateReport:
         symlinks=False,
         ignore=lambda directory, names: [name for name in names if is_runtime_cache(Path(name))],
     )
+    generate_runtime(destination)
     rendered = validate_template(destination)
-    if rendered.files != report.files or not rendered.valid:
+    expected = set(report.files) | {
+        (RUNTIME_DIRECTORY / name).as_posix() for name in runtime_files()
+    }
+    if set(rendered.files) != expected or not rendered.valid:
         raise ValueError("rendered Template differs from its source inventory")
     return rendered

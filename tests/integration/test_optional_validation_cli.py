@@ -36,7 +36,7 @@ def _commit(root, message):
 
 def _cli(root, *args, portable=False):
     prefix = (
-        [sys.executable, "-I", "-S", str(root / ".agents/repo-dev/runtime/protocol.py")]
+        [sys.executable, "-I", "-S", str(root / ".agents/signetum/runtime/protocol.py")]
         if portable
         else [sys.executable, "-m", "signetum.cli", "protocol"]
     )
@@ -58,7 +58,7 @@ def consumer(local_repository):
     (root / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
     request = AdoptionRequest(
         manifest=(root / "signetum.toml").read_text(),
-        policy=(root / ".agents/repo-dev/repo.yaml").read_text(),
+        policy=(root / ".agents/signetum/repo.yaml").read_text(),
         interpreter=(sys.executable, "-I", "-S"),
     )
     proposal = preview(root, request)
@@ -100,11 +100,11 @@ def test_generated_python_provider_selects_real_import_dependents_and_ready_uses
         """
 [impact.provider]
 protocol="signetum.selection@1"
-entrypoint=".agents/repo-dev/runtime/protocol.py"
+entrypoint=".agents/signetum/runtime/protocol.py"
 command=["""
         + json.dumps(sys.executable)
         + ""","-I","-S","{selector}","select-python","--config","python-selection.json"]
-inputs=["python-selection.json", ".agents/repo-dev/runtime/_signetum_runtime/python_selection.py"]
+inputs=["python-selection.json", ".agents/signetum/runtime/_signetum_runtime/python_selection.py"]
 tools=[{name="python-selector",identity_command=["""
         + json.dumps(sys.executable)
         + ""","--version"]}]

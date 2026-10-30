@@ -32,7 +32,7 @@ def document(*diagnostics):
 def runtime(request, monkeypatch):
     if request.param == "engine":
         return lifecycle
-    directory = Path(__file__).parents[1] / "template/.agents/repo-dev/runtime"
+    directory = Path(__file__).parents[1] / "template/.agents/signetum/runtime"
     monkeypatch.syspath_prepend(str(directory))
     return importlib.import_module("_signetum_runtime.lifecycle")
 
