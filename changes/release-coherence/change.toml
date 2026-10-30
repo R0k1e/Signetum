@@ -5,7 +5,7 @@ id = "release-coherence"
 kind = "human_direction"
 summary = "Iterate the repository until coherent, clear, concise and releasable, addressing the reviewed workflow, dependency, documentation and distribution gaps."
 [change.contract]
-version = 2
+version = 3
 approved_base = "93a9ccb2e0497327d7c9baf47bece2c730a23e4b"
 [[change.contract.requirements]]
 id = "REL-001"
@@ -41,6 +41,42 @@ requires_confirmation = ["Create or push a release tag, publish packages, change
 [[change.contract.excluded]]
 statement = "Perdura adoption, RAM volumes, background deletion, legacy format compatibility and a new diagnostic/report subsystem."
 reason = "Keep the release focused on the current supported product and existing execution owners."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-perdura-adoption-boundaries-markdown-rule-boundary"
+target = "perdura-adoption-boundaries/markdown-rule-boundary"
+resolution_id = "perdura-adoption-boundaries/markdown-rule-verified"
+targets = ["tests/integration/test_migration_preview.py"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-perdura-adoption-boundaries-working-set-source-format"
+target = "perdura-adoption-boundaries/working-set-source-format"
+resolution_id = "perdura-adoption-boundaries/working-set-source-verified"
+targets = ["src/signetum/migration.py", "tests/integration/test_migration_preview.py"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-release-coherence-platform-coverage-is-partial-observation"
+target = "release-coherence/platform-coverage-is-partial/observation"
+resolution_id = "release-coherence/complete-platform-coverage/resolution"
+targets = [".github/actions/validate/action.yml"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-simplify-adoption-boundaries-retired-specialization"
+target = "simplify-adoption-boundaries/retired-specialization"
+resolution_id = "simplify-adoption-boundaries/specialization-retired"
+targets = ["src/signetum/migration.py", "tests/integration/test_migration_preview.py"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
+[[change.contract.retirements]]
+id = "release-coherence/retire-streamline-development-operations-bootstrap-import-order-observation"
+target = "streamline-development-operations/bootstrap-import-order/observation"
+resolution_id = "streamline-development-operations/bootstrap-import-order-resolved/resolution"
+targets = ["tests/integration/test_migration_preview.py"]
+reason = "Retire exactly the legacy migration or single-caller action evidence removed by the owner-approved cleanup; preserve the original answer and all other evidence."
+
 [[change.execution.steps]]
 id = "STEP-1"
 requirements = ["REL-001", "REL-002"]
@@ -62,5 +98,5 @@ action = "Repair contained workspace identity and cleanup, retire superseded aut
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-10-30
-source = "The owner set the goal: iterate the current repository until consistent, clear, concise and releasable, following the preceding concrete audit. This authorizes the scoped implementation; The owner subsequently approved the comprehensive five-stage cleanup and instructed implementation through delivery. Unused worktrees may be deleted after inspection; publication remains excluded."
-contract_digest = "sha256:11876feb857ff68bf9d94498ac7694f1b228d3f8e937494ed1ff0707267f244d"
+source = "The owner set the goal: iterate the current repository until consistent, clear, concise and releasable, following the preceding concrete audit. This authorizes the scoped implementation; The owner subsequently approved the comprehensive five-stage cleanup and instructed implementation through delivery. Unused worktrees may be deleted after inspection; publication remains excluded. This revision binds precise evidence retirement for the migration and single-caller action deletions already included in that cleanup; requirements and exclusions are unchanged."
+contract_digest = "sha256:5e85e9d575344e203d0de26c130225b5fc7eadf7d7c09d79a1f545c2c6ed1cba"
