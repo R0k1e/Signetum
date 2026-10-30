@@ -36,7 +36,7 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
     assert "signetum/resources/profiles/python-default-v1.toml" in names
     assert "signetum/resources/schemas/validation-graph-v2.schema.json" in names
     assert "signetum/resources/schemas/validation-evidence-v3.schema.json" in names
-    assert "signetum/resources/schemas/contracts/release-metadata.schema.json" in names
+    assert "signetum/resources/schemas/release-metadata-v2.schema.json" in names
     assert "signetum/resources/skills/signetum/SKILL.md" in names
     assert "signetum/resources/vectors/validation-evidence-v3.json" in names
     # Absence is the contract here, so each value is bound to the reason it
@@ -237,7 +237,7 @@ def test_installed_skill_routes_to_existing_repository_commands_and_generates_on
     render_template(Path(__file__).parents[2] / "template", consumer)
     # This existing consumer binds its own host runner; the skill must preserve it.
     interpreter = shlex.quote(sys.executable)
-    protocol = shlex.quote(str(consumer / ".agents/repo-dev/runtime/protocol.py"))
+    protocol = shlex.quote(str(consumer / ".agents/signetum/runtime/protocol.py"))
     (consumer / "Justfile").write_text(
         "set positional-arguments\nprotocol *args:\n    "
         + interpreter
@@ -509,7 +509,7 @@ def test_installed_engine_previews_adopts_and_routes_skill_without_replacing_app
         json.dumps(
             {
                 "manifest": (consumer / "signetum.toml").read_text(),
-                "policy": (consumer / ".agents/repo-dev/repo.yaml").read_text(),
+                "policy": (consumer / ".agents/signetum/repo.yaml").read_text(),
                 "interpreter": [sys.executable, "-I", "-S"],
             }
         )
@@ -546,7 +546,7 @@ def test_installed_engine_previews_adopts_and_routes_skill_without_replacing_app
     assert result.returncode == 0, result.stdout + result.stderr
     proposal = json.loads(result.stdout)
     assert proposal["status"] == "proposal"
-    assert not (consumer / ".agents/repo-dev/run").exists()
+    assert not (consumer / ".agents/signetum/run").exists()
     result = subprocess.run(  # noqa: S603 -- apply the exact preview in the disposable consumer
         [
             *invoke,

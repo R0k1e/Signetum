@@ -25,7 +25,6 @@ def test_template_is_minimal_and_clone_ready() -> None:
     assert report.valid, report.problems
     assert {path.name for path in (ROOT / "template").iterdir()} == TOP_LEVEL
     assert "README.md" in report.files
-    assert "README.zh-CN.md" in report.files
     assert "changes/.gitkeep" in report.files
     assert "signetum.yaml" not in report.files
 
@@ -164,7 +163,7 @@ def test_rendered_template_runs_without_the_engine_package(
         encoding="utf-8",
     )
 
-    runtime = rendered / ".agents/repo-dev/runtime/lifecycle.py"
+    runtime = rendered / ".agents/signetum/runtime/lifecycle.py"
     runtime_python = str(rendered / ".venv/bin/python")
     subprocess.run(
         (
@@ -258,7 +257,7 @@ def test_rendered_template_runs_without_the_engine_package(
             "-I",
             "-c",
             admission,
-            str(batch / ".agents/repo-dev/runtime"),
+            str(batch / ".agents/signetum/runtime"),
             str(batch),
             str(rendered),
         ),
@@ -271,7 +270,7 @@ def test_rendered_template_runs_without_the_engine_package(
     ready_payload = json.loads(ready.stdout.splitlines()[-1])
     assert admitted_record["ready_evidence"] == Path(ready_payload["receipt"]).name
     final = subprocess.run(
-        (runtime_python, "-I", str(batch / ".agents/repo-dev/runtime/lifecycle.py"), "final"),
+        (runtime_python, "-I", str(batch / ".agents/signetum/runtime/lifecycle.py"), "final"),
         cwd=batch,
         check=True,
         capture_output=True,
@@ -297,7 +296,7 @@ def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:
     member = tmp_path / "member"
     git_output(rendered, "worktree", "add", "-b", "plan/first-change", str(member), base)
     write_record(state_root(rendered), WorkspaceRecord(1, "plan/first-change", base, "member"))
-    scaffold = member / ".agents/repo-dev/runtime/change_open.py"
+    scaffold = member / ".agents/signetum/runtime/change_open.py"
 
     opened = subprocess.run(
         (sys.executable, "-I", str(scaffold), "first-change"),

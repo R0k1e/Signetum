@@ -18,7 +18,7 @@ class DeliveryPolicy(FrozenContract):
 
 
 def delivery_policy(repository: Path) -> DeliveryPolicy:
-    path = repository / ".agents/repo-dev/repo.yaml"
+    path = repository / ".agents/signetum/repo.yaml"
     try:
         document = safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(document, dict):
