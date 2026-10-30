@@ -33,7 +33,7 @@ def test_runner_proposal_preserves_existing_argv_without_running_or_adopting_it(
             sys.executable,
             "-I",
             "-S",
-            str(ROOT / "template/.agents/repo-dev/runtime/protocol.py"),
+            str(ROOT / "template/.agents/signetum/runtime/protocol.py"),
         ]
     )
     result = subprocess.run(  # noqa: S603 -- the proposed command itself must remain unexecuted

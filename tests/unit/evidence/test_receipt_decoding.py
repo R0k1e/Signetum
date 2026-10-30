@@ -16,7 +16,7 @@ from signetum.evidence.receipts import EvidenceReceipt, ReceiptError
 def decode(request):
     if request.param == "engine":
         return lambda source: json.loads(EvidenceReceipt.from_json(source).to_json())
-    runtime = Path(__file__).parents[3] / "template/.agents/repo-dev/runtime"
+    runtime = Path(__file__).parents[3] / "template/.agents/signetum/runtime"
     script = """
 import sys
 sys.path.insert(0,sys.argv[1])

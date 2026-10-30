@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _template_lifecycle() -> ModuleType:
-    directory = ROOT / "template/.agents/repo-dev/runtime"
+    directory = ROOT / "template/.agents/signetum/runtime"
     if str(directory) not in sys.path:
         sys.path.insert(0, str(directory))
     return importlib.import_module("_signetum_runtime.lifecycle")

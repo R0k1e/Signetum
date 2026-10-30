@@ -68,7 +68,7 @@ def _skill_identity(repository: Path) -> tuple[str, str]:
 
 
 def build_metadata(repository: Path, source: str) -> ReleaseMetadata:
-    schema_path = repository / "schemas" / "release-metadata.schema.json"
+    schema_path = repository / "src/signetum/resources/schemas/release-metadata-v2.schema.json"
     try:
         package = tomllib.loads((repository / "pyproject.toml").read_text())["project"]["version"]
         schema_version = json.loads(schema_path.read_text())["properties"]["schema_version"][

@@ -21,7 +21,7 @@ from signetum.validation.receipt_store import ReceiptStore
 def runtime(request, monkeypatch):
     if getattr(request, "param", "engine") == "engine":
         return lifecycle
-    directory = Path(__file__).parents[1] / "template/.agents/repo-dev/runtime"
+    directory = Path(__file__).parents[1] / "template/.agents/signetum/runtime"
     monkeypatch.syspath_prepend(str(directory))
     return importlib.import_module("_signetum_runtime.lifecycle")
 

@@ -16,7 +16,7 @@ into an existing repository merely because this skill was invoked.
 
 Keep cwd in the user's repository. The local utility launcher is
 `sh <skill-base-dir>/scripts/signetum <command> [arguments]`; it delegates to
-the adopted `.agents/repo-dev/run protocol`, or the existing `just protocol`
+the adopted `.agents/signetum/run protocol`, or the existing `just protocol`
 binding. `adopt` delegates to an installed reviewed engine before local adoption.
 It does not download or update anything.
 Honor declared schema, profile and skill identities. A mismatch requires an
@@ -41,6 +41,7 @@ For changes introducing concurrency, background work or lazy initialization, rea
 [stability](references/stability.md).
 
 During implementation, read [work and validation](references/worktree-validation.md).
+Tell the user when tests change, why, and whether the evidence is reduced.
 Trace affected architecture, commands and usage instructions when a behavior,
 owner or prerequisite changes. Update those current authorities in the same
 change; history is the reason, not a substitute for current instructions.

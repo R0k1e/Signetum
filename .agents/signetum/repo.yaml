@@ -1,0 +1,43 @@
+repository:
+  schema_version: 1
+  product: signetum
+  architecture: docs/ARCHITECTURE.md
+  environment:
+    authority: uv
+    manifest: pyproject.toml
+    lock: uv.lock
+  policy:
+    mandatory:
+      - group: signetum
+        reference: .agents/signetum/references/signetum.md
+    selectors:
+      - group: python-uv
+        intents: [implementation, validation, bootstrap]
+        paths: [pyproject.toml, uv.lock, src, tests]
+        reference: .agents/signetum/references/python-uv.md
+      - group: git-worktrunk
+        intents: [planning, implementation, delivery, recovery]
+        paths: [changes]
+        reference: .agents/signetum/references/git-worktrunk.md
+  authorities:
+    records: changes/*/change.toml
+    journals: changes/*/events.jsonl
+    decisions: docs/decisions/*.md
+    manifest_schema: signetum.resources.schemas
+    profiles: signetum.resources.profiles
+  validation:
+    targeted: just test
+    complete: uv run signetum lifecycle final
+  lifecycle:
+    public_operations:
+      - workspace-open
+      - changed
+      - ready
+      - batch-open
+      - batch-admit
+      - batch-continue
+      - final
+      - batch-deliver
+
+delivery:
+  branch: main

@@ -20,7 +20,7 @@ from signetum.decision_clauses import (
 def authority(request, monkeypatch):
     if request.param == "template":
         monkeypatch.syspath_prepend(
-            str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
+            str(Path(__file__).parents[2] / "template/.agents/signetum/runtime")
         )
         generated = importlib.import_module("_signetum_runtime.decision_clauses")
         for name in (
