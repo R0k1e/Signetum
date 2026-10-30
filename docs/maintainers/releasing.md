@@ -20,8 +20,9 @@ RepoSeal tags remain unchanged. The 5.0.0 entry is a candidate until published.
 
 Deliver the reviewed source explicitly. Require successful CI for that exact
 commit and verify the public Skill path and Pages deployment. CI and release
-share the local validation action and declared final gate, including native
-acceptance and dependency audit. Hosted diagnostics issue no lifecycle receipt
+share one reusable validation workflow and the declared final gate, including
+native acceptance and dependency audit. All Linux/macOS targets must pass and
+combined project coverage must reach 90%; a partial host report is not a verdict. Hosted diagnostics issue no lifecycle receipt
 and do not grant publication permission. Failure output is retained for seven
 days; inspect the complete artifact when the bounded terminal preview is not enough.
 
@@ -44,8 +45,9 @@ Never bypass authentication or silently switch package names or indexes.
 Obtain explicit authorization naming the exact delivered source and version.
 Create an annotated tag for that commit and push only that tag. The release
 workflow checks out the triggering commit, prepares declared tools, verifies
-policy-bound source/tag eligibility and runs the complete diagnostic gate. It
-publishes the resulting wheel/sdist, source/component metadata and `SHA256SUMS`
+policy-bound source/tag eligibility and runs the complete diagnostic gate. After all targets and coverage pass, a separate publishing job verifies the
+primary target's artifact checksums and publishes its wheel/sdist, source/component
+metadata and `SHA256SUMS`
 to GitHub, with optional PyPI publication of the same package files.
 
 Download the public artifacts and verify checksums, tag/source and component

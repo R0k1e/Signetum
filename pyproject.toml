@@ -105,6 +105,7 @@ markers = ["world: observes mutable external state and belongs only to final val
 addopts = ["--cov=signetum", "--cov-report=term-missing", "--cov-fail-under=90"]
 
 [tool.coverage.run]
+relative_files = true
 branch = true
 source = ["signetum"]
 patch = ["subprocess", "execv"]

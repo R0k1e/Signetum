@@ -185,7 +185,10 @@ def _workflow_issues(repository: Path, inventory: RepositoryInventory) -> list[P
                         or any(level not in ("read", "none") for level in permissions.values())
                     ):
                         raise ValueError("CI permissions must remain explicitly read-only")
-                for step in job.get("steps", []):
+                steps = list(job.get("steps", []))
+                if "uses" in job:
+                    steps.append({"uses": job["uses"]})
+                for step in steps:
                     if not isinstance(step, dict):
                         raise ValueError("workflow step must be an object")
                     action = step.get("uses")

@@ -20,7 +20,9 @@ a diagnostic or ready result grants none of them.
 The repository's complete toolchain is in `mise.toml`; Node and Rust support
 native acceptance tests, not Skill consumers. Run `mise trust mise.toml` after
 reviewing it, then `mise install` and `uv sync --locked --all-extras --dev`.
-Hosted CI uses the same declared final gate through `protocol test --gate final`,
-without requiring private workspace records or issuing a lifecycle receipt.
+Hosted CI uses the declared final gate on Linux and macOS through one reusable
+workflow, without private workspace records or lifecycle receipts. It enforces
+90% project coverage after requiring every platform target; local gates retain
+their existing threshold.
 
 Never commit credentials, caches, validation receipts or editor state.

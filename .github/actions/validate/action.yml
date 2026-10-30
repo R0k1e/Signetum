@@ -7,6 +7,9 @@ inputs:
   release-tag:
     description: Optional release tag requiring delivered-source preflight
     default: ""
+  coverage-fragment:
+    description: Emit partial platform coverage; the calling workflow must aggregate all targets
+    default: "false"
 runs:
   using: composite
   steps:
@@ -35,6 +38,7 @@ runs:
       env:
         UV_PYTHON: ${{ inputs.python }}
         HYPOTHESIS_PROFILE: ci
+        PYTEST_ADDOPTS: ${{ inputs.coverage-fragment == 'true' && '--cov-fail-under=0' || '' }}
       run: |
         set +e
         uv run --no-sync signetum protocol test --gate final > "$RUNNER_TEMP/signetum-validation.log" 2>&1
@@ -54,7 +58,7 @@ runs:
       if: failure()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: validation-python-${{ inputs.python }}-${{ github.sha }}
+        name: validation-${{ runner.os }}-python-${{ inputs.python }}-${{ github.sha }}
         path: ${{ runner.temp }}/signetum-validation.log
         retention-days: 7
         compression-level: 9
