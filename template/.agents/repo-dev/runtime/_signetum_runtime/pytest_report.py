@@ -27,7 +27,10 @@ def _node_id(value: str) -> str:
 
 
 def pytest_configure(config):
-    global _configured, _weights
+    global _configured, _weights, _execution_started, _collection_seconds
+    global _worker_collection_seconds, _collection_started, _session_started
+    _execution_started = _collection_seconds = _worker_collection_seconds = 0.0
+    _collection_started = _session_started = 0.0
     _configured = time.perf_counter()
     _reports.clear()
     _phase_seconds.clear()
@@ -49,9 +52,14 @@ def pytest_collection(session):
 
 
 def pytest_collection_finish(session):
-    global _collection_seconds, _execution_started
+    global _collection_seconds
     _collection_seconds = time.perf_counter() - _collection_started
-    _execution_started = time.perf_counter()
+
+
+def pytest_runtest_logstart(nodeid, location):
+    global _execution_started
+    if not _execution_started:
+        _execution_started = time.perf_counter()
 
 
 def pytest_collection_modifyitems(items):
@@ -113,7 +121,11 @@ def pytest_sessionfinish(session, exitstatus):
                     "collection_seconds": _collection_seconds,
                     "worker_collection_seconds": _worker_collection_seconds,
                     "preparation_seconds": max(0.0, _session_started - _configured),
-                    "execution_seconds": max(0.0, time.perf_counter() - _execution_started),
+                    "execution_seconds": (
+                        max(0.0, time.perf_counter() - _execution_started)
+                        if _execution_started
+                        else 0.0
+                    ),
                 }
             ),
             encoding="utf-8",

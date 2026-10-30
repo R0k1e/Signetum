@@ -1,6 +1,6 @@
 # Public content identities generated from installed engine sources.
 schema_version = 1
-engine_version = "5.0.0"
+engine_version = "0.3.0"
 
 [sources]
 "signetum.change.authority" = "sha256:e2fcc2ec9635f3e8f85362369dc655e970ada9f32a481fae45fb26b2b47fe725" # pragma: allowlist secret
@@ -24,7 +24,7 @@ engine_version = "5.0.0"
 "signetum.findings" = "sha256:c6ccc2a4200bc9547d0904dcbacfaeff8baf2e06fe9624a2efa5d6c49c1e5bb2" # pragma: allowlist secret
 "signetum.git" = "sha256:424961285725435a786659a59d20bda8277612669d8a87fa6315016eca0b2bdb" # pragma: allowlist secret
 "signetum.impact" = "sha256:93a8414a6483db98f39905a650a5959ba0bc4356a46ccc0410d90badf929786c" # pragma: allowlist secret
-"signetum.lifecycle" = "sha256:2ae3a102d23e4d7fe76a86b37fef93c86465f0526ada2df88e73d80bce36a424" # pragma: allowlist secret
+"signetum.lifecycle" = "sha256:ce50f3e1f00d27ef95164f7781f761e7110e1684acdd718d16879c5b441a8317" # pragma: allowlist secret
 "signetum.lifecycle_validation" = "sha256:dfb0d45bfa1242e85ac4d3fdf7b7e156edc8b86d0696d341912ee4ed5bf38fbc" # pragma: allowlist secret
 "signetum.maintenance" = "sha256:ff1cc03df7873f2786fbc30143a8d90481fbe76b8f1df74e242945d077485638" # pragma: allowlist secret
 "signetum.manifest" = "sha256:20548c5d0a4bac59e7ffd38f6c3bac984e54f6acc60ed9930f92cc5fa50baa09" # pragma: allowlist secret
@@ -64,7 +64,7 @@ engine_version = "5.0.0"
 "signetum.validation.inheritance" = "sha256:7b4a99bdbfb76f7ddbc6ca188002e9df2aae8c310cbabc29fac61fb0c13010d7" # pragma: allowlist secret
 "signetum.validation.process" = "sha256:c4bcf09fef0efc6e0f7fe9564adb7ef4a958968a0abfe99fa8adcd5b46f69a9c" # pragma: allowlist secret
 "signetum.validation.process_observation" = "sha256:491eebdedf4fffa1a13e9bfaf4a669803f2a759427d3b616c7bcf0f4efd111ae" # pragma: allowlist secret
-"signetum.validation.pytest_report" = "sha256:99ba98b80a78a785dcbf22296443cdc6e6efdcf6ed355222e0893f70ae50499c" # pragma: allowlist secret
+"signetum.validation.pytest_report" = "sha256:a7401865230799f6579991cb0d6450be9f1d5b651801ada410807663c3f817c6" # pragma: allowlist secret
 "signetum.validation.pytest_runner" = "sha256:332bcdb66f55e3153685cf110623c18bfc2ade33113099ec589f5a1f98f1b8ba" # pragma: allowlist secret
 "signetum.validation.ratchet" = "sha256:d12c27bfba85559a32a3d1c4a647ee64ed4e7af4077db8e8cd9954d2ec1f3cab" # pragma: allowlist secret
 "signetum.validation.receipt_store" = "sha256:4b05e63eeca7e599ea60f7fb981ffe2aa4f637a243b8bd6a74b53e94e72b8273" # pragma: allowlist secret
@@ -74,8 +74,8 @@ engine_version = "5.0.0"
 "signetum.validation.review" = "sha256:6c48b1413e18bf1629590248226627abf9691535dd754f78faea0b00d9e06b84" # pragma: allowlist secret
 "signetum.waivers" = "sha256:a22506dfe4d295a5abb8762425da68b63ccc5f76ac0033f39cee0e9af5d82332" # pragma: allowlist secret
 "signetum.workflow_status" = "sha256:283f96ed3e671c1ac539e2b14894411f7f2a11f6fbe044c4e00c516f93c9ddcd" # pragma: allowlist secret
-"signetum.workspace_operations" = "sha256:558edc613fb3088ee1345650a8d1066902a3c745d72db9f8e62e5f2d3603e06f" # pragma: allowlist secret
-"signetum.workspaces" = "sha256:350e23d046e4491fcd53434407ada09c1c6e79622381ce773e41ae924e96c2a1" # pragma: allowlist secret
+"signetum.workspace_operations" = "sha256:dfaedceccd471a0d0db9ecaaf2e00b939c4427c4296bbd09fe4e5d8b669c914a" # pragma: allowlist secret
+"signetum.workspaces" = "sha256:ef0d12d891c22bfa5d302dbeb2ada3d62fce499c5c4bcf230ee65241e348a644" # pragma: allowlist secret
 "signetum.worktrunk" = "sha256:a36bdb20e11e6def6068577079bda2165aa5b0d9500e7fb6130bfa0e838695a3" # pragma: allowlist secret
 
 [files]
@@ -107,7 +107,7 @@ engine_version = "5.0.0"
 "git.py" = "sha256:226be83532d645b9ba883c871ff1cb8a9aadcccde6a5d62a87fe52d893892b07" # pragma: allowlist secret
 "impact.py" = "sha256:06b836a89cbf15fe0b99891b4b39254e26aaf43a5ce9a6e28344a2e8445587e8" # pragma: allowlist secret
 "inheritance.py" = "sha256:62bc84eb5c1616cf39b2496a87d92ee3968734746d148beb5b506867bbe05ce3" # pragma: allowlist secret
-"lifecycle.py" = "sha256:26132b0a26d482eecccbf0af674c0dd2fe1513049ab3ead8e23d091c38863405" # pragma: allowlist secret
+"lifecycle.py" = "sha256:63dc1907a5d67a27fb367373f0f846c76782882dd3383b19ef608431bb679858" # pragma: allowlist secret
 "lifecycle_validation.py" = "sha256:a08a3f960f79f5b75a4c5fbd4a20110ddeedf5992536acdcba4fbdbdd07c90d9" # pragma: allowlist secret
 "maintenance.py" = "sha256:8ee5421b707656b795cde4f9a7ad5a2352af19f004a9919eb8a2304518506f21" # pragma: allowlist secret
 "manifest.py" = "sha256:a2b18d3b0b7dae24753be6195b155b69aabff9bbbad6b0b7a3b83a0e9c838a57" # pragma: allowlist secret
@@ -129,7 +129,7 @@ engine_version = "5.0.0"
 "profiles.py" = "sha256:88025a709484e70e39a25857a7fd0a8246dcb17e2296b3ae74063e56178fe47c" # pragma: allowlist secret
 "protocol_cli.py" = "sha256:f4bbcc5052afd3d7b10802f1e2ab7b7f3ddf223988fa02f639a36541fd7f91a5" # pragma: allowlist secret
 "provenance.py" = "sha256:e983b18b5973f68348686911f1aa26e144083f0b54690f298f1b085d2646b704" # pragma: allowlist secret
-"pytest_report.py" = "sha256:4e34fb7ff4c9b37e7fd13001128e2c1469dd30e7342168da4d095df425966924" # pragma: allowlist secret
+"pytest_report.py" = "sha256:cd1300c69bc4a790bbea1089f86a5611cd703e5460bb147dde2612cc7a8768d4" # pragma: allowlist secret
 "pytest_runner.py" = "sha256:0fc2ff29df424759f0b2ece9ec6d1bfe03e0125490238a9fc7a2754533012295" # pragma: allowlist secret
 "pytest_scheduling.py" = "sha256:74d628aa843f2c4734f5ccb9f5432af6eb23fe9b08ad33f3552edabb6b05bbba" # pragma: allowlist secret
 "python_selection.py" = "sha256:a29d105429b60be2f08b94540b3230418fa83e9a45bad8c392b289a82e1ab62f" # pragma: allowlist secret
@@ -175,6 +175,6 @@ engine_version = "5.0.0"
 "vendor_yaml/tokens.py" = "sha256:953408cd2570f0c83dc2fe39f7e4e388e41eeb05738aa69196a5f6ffcf6ba79e" # pragma: allowlist secret
 "waivers.py" = "sha256:d2f9cc48e245c3cf90d60c0f76b56ecf0c19a04dca189c29a73821fe5336cd54" # pragma: allowlist secret
 "workflow_status.py" = "sha256:5565d9c80d4299d702591ca3cf4b40fe3d71e064ce92d90de39e9c72d9b5467f" # pragma: allowlist secret
-"workspace_operations.py" = "sha256:946b54e2de74a88a0a8a5e15ea18d00bd8160fd8cd03d4a7e5e764d528bfd616" # pragma: allowlist secret
-"workspaces.py" = "sha256:c6b522ef974d22b145cca910e9363df8f447efff58060e8d329ddc419e2bbafa" # pragma: allowlist secret
+"workspace_operations.py" = "sha256:555a4c76b447845efc77ea119b6e19e0616cf8e4f133e8e6078b31ab271bfb74" # pragma: allowlist secret
+"workspaces.py" = "sha256:1c6554336430d5c11e6be034f63daf05c5517e3736aee4c19f66f2fdb105e347" # pragma: allowlist secret
 "worktrunk.py" = "sha256:d201dbf67ec67eb361dddca2420a4ac7b8284150a52c84caf54b49f60dbf54af" # pragma: allowlist secret

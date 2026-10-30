@@ -291,6 +291,19 @@ share the same ledger and change ownership registry under Git common state.
 
 ## Workspace operations
 
+Protocol-created linked trees live under the primary Git worktree's ignored
+`.worktrees/` directory, independently of the invoking member or global Worktrunk
+settings. Creation explicitly binds a contained destination and refuses symbolic
+link escapes and occupied destinations before preparation. The common Git exclude
+bootstraps this managed runtime area before a delivery tree receives the tracked
+ignore rule. Ordinary operations may manage ignored runtime state; only delivery
+may mutate the delivery branch's tracked source, index or HEAD.
+
+Batch member registrations name branches rather than absolute checkout locations.
+Removing a checkout retires its active workspace registration; it never rewrites
+a live registered base. Historical evidence and admission provenance remain bound
+to their original commits.
+
 The repository owns the delivery branch in .agents/repo-dev/repo.yaml. Runtime
 commands remain in signetum.toml. The prepare gate owns dependency preparation;
 the batch gate owns admission's static checks. Preparation creates no readiness

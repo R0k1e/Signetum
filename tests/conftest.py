@@ -76,10 +76,16 @@ def local_repository(tmp_path, monkeypatch):
                     }
                 )
             return {"schema": 2, "items": items}
+        destination = None
+        if arguments[0] == "--config-set":
+            destination = Path(json.loads(arguments[1].split("=", 1)[1]))
+            arguments = arguments[2:]
         if arguments[0] == "switch":
             branch = arguments[arguments.index("--create") + 1]
             base = arguments[arguments.index("--base") + 1]
-            path = tmp_path / ("wt-" + branch.replace("/", "-"))
+            assert destination is not None
+            path = destination
+            path.parent.mkdir(parents=True, exist_ok=True)
             assert "--no-hooks" in arguments and "--no-cd" in arguments
             git_output(root, "worktree", "add", "-b", branch, str(path), base)
             return {}

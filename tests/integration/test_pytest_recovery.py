@@ -102,6 +102,13 @@ def test_collection_failure_is_not_retried(tmp_path, workers, runner_command):
     assert result.returncode == (1 if workers else 2)
     assert "collection failed" in result.stdout
     assert not report.exists()
+    metrics = [
+        json.loads(line)
+        for line in result.stderr.splitlines()
+        if line.startswith('{"event": "validation.pytest"')
+    ]
+    assert len(metrics) == 1
+    assert metrics[0]["execution_seconds"] == 0
 
 
 def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
@@ -138,6 +145,13 @@ def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "first parallel failure" in str(json.loads(report.read_text()))
+    metrics = [
+        json.loads(line)
+        for line in result.stderr.splitlines()
+        if line.startswith('{"event": "validation.pytest"')
+    ]
+    assert [item["attempt"] for item in metrics] == ["first", "retry"]
+    assert all(0 < item["execution_seconds"] <= item["wall_seconds"] for item in metrics)
 
 
 def test_failed_original_never_writes_success_even_with_a_one_run_window(tmp_path):
