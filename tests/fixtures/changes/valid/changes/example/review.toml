@@ -1,0 +1,26 @@
+[review]
+schema_version = 1
+id = "example"
+status = "active"
+
+[review.source]
+kind = "human_direction"
+summary = "Close both requirements."
+
+[[review.clauses]]
+id = "REQ-1"
+statement = "First observable requirement."
+disposition = "covered"
+specification = "example/first"
+
+[[review.clauses]]
+id = "REQ-2"
+statement = "Second observable requirement."
+disposition = "covered"
+specification = "example/second"
+
+[review.acceptance]
+result = "accepted"
+delivery_commit = "delivery-1"
+accepted_clauses = ["REQ-1", "REQ-2"]
+rejected_clauses = []

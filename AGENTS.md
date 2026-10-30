@@ -1,44 +1,27 @@
 # Repository Agent Contract
 
-Before planning, editing, or running repository commands:
+Before planning, editing, or running repository commands, read
+`docs/ARCHITECTURE.md`, `.agents/repo-dev/repo.yaml`, and every policy selected
+by task intent or affected paths. Report the selected policy groups and reasons
+before repository operations.
 
-1. Read `docs/ARCHITECTURE.md` and its linked responsibility documents.
-2. Read `.agents/repo-dev/repo.yaml`.
-3. Load every mandatory policy and every policy selected by intent or path.
-4. Emit a bounded routing manifest with each selected group and its reason.
+Use `uv` for Python commands. Keep active work in a plan-owned worktree.
+Validation is check-only; delivery requires an explicit request. Never use
+stash, destructive reset/restore/clean, force push, direct merge, or ad-hoc
+worktree deletion. Preserve unrelated changes and keep credentials, caches,
+receipts, and local paths out of Git.
 
-Behavior changes require a human-confirmed specification. Architecture,
-process, and security decisions require an accepted standalone decision.
-Develop in a plan-owned worktree; keep the delivery worktree clean. Preserve
-unrelated changes. Use the repository-declared environment authority and
-behavioral tests. Never hide a deferred requirement in prose: point it to an
-active specification. Delivery is explicit and is the only operation allowed
-to mutate the delivery worktree.
+Specifications own behavior, and Plans cannot narrow them. Accepted decision transactions
+must precede architecture, process, or security changes. Keep their basis once
+in the owning change; standalone ADRs are conditional cross-change authorities.
+Ordinary implementation and command output create no extra decision document. Use English for code
+and technical documents. Use Chinese for user discussion.
 
-Before implementation, present one concise approval view covering observable
-outcomes, included and excluded scope, acceptance evidence, and execution
-autonomy. Record every delivery-relevant execution discovery through
-`.agents/repo-dev/runtime/deviations.py`; never leave it only in chat or edit
-its JSON Lines ledger directly. Safe implementation clarifications may proceed.
-For a scope reduction, explicit non-goal change, incompatible accepted
-decision, destructive action, or irreversible choice, freeze only the affected
-work and continue independent work. Before `final`, resolve every retained
-deviation into the applicable specification, decision, architecture authority,
-behavior test, explicit follow-up change, justified rejection, or justified
-no-authority-change result. After `final`, present the generated delivery review
-before requesting explicit delivery.
-
-The public lifecycle has exactly eight operations:
-
-```text
-workspace-open <branch> <base>
-changed [--explain]
-ready
-batch-open --member <worktree-path> [--member <worktree-path> ...]
-batch-admit <batch> --member <worktree-path> [--member <worktree-path> ...]
-batch-continue <batch>
-final
-batch-deliver <source> <target> <expected-base> <expected-batch-tip>
-```
-
-Use English for repository artifacts and the user's language for discussion.
+For new work, use `just protocol current` for the decision working set, then
+`just protocol change-open <id>` in the registered member workspace. Maintain
+one `change.toml` and its significant source journal; use `just protocol view`
+for approval and `history` for rationale on demand. Record, resolve, retract,
+reconcile and retire through `just protocol`, never direct JSONL edits. Do not
+write duplicate execution or decision summaries. Until reviewed legacy adoption
+is complete, `journal_only` coverage requires relevant historical authorities;
+existing legacy changes retain their declared deviation API and accepted files.

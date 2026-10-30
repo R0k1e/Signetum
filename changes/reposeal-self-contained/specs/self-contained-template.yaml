@@ -1,0 +1,14 @@
+schema_version: 1
+specification: reposeal-self-contained/self-contained-template
+status: approved
+implementation_authorized: true
+covers_review_clauses: [SELF-001, SELF-002, SELF-003]
+behavior:
+  - The rendered Template invokes a repository-owned standard-library runtime.
+  - No Template command downloads or imports the RepoSeal distribution.
+  - Member and final gates execute explicit argv commands declared in reposeal.yaml.
+  - A clean-room copied Template can execute changed and final without engine files.
+acceptance:
+  - The Template contains no reposeal package pin or uvx invocation.
+  - The Template lifecycle smoke test passes with the engine package unavailable.
+  - The exact Template inventory and deterministic render checks pass.

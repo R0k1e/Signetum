@@ -1,0 +1,37 @@
+[review]
+schema_version = 1
+id = "signetum-is-the-product-identity"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "The previous identity collides with an existing project, as the identity before it did. Move the brand to a name whose availability was verified first, without moving the wire contract or rewriting the record."
+
+[[review.clauses]]
+id = "NAME-001"
+statement = "Every surface which presents the product carries the new identity: the distribution and import package, the command, the manifest file name, the machine-local state directory, the commit trailer prefix, the documents, and the brand assets."
+disposition = "covered"
+specification = "signetum-is-the-product-identity/product-identity"
+
+[[review.clauses]]
+id = "NAME-002"
+statement = "The evidence protocol identifier and the evidence schema, with its canonical digest, are unchanged, because a consumer pins them and a brand is not a reason to break one."
+disposition = "covered"
+specification = "signetum-is-the-product-identity/product-identity"
+
+[[review.clauses]]
+id = "NAME-003"
+statement = "Decisions, change package identities, and changelog entries naming a previous identity are left as written, because they state what was true when written and are cited by identity."
+disposition = "covered"
+specification = "signetum-is-the-product-identity/product-identity"
+
+[[review.clauses]]
+id = "NAME-004"
+statement = "Delivery writes the reciprocal supersession entry into the decision a numbered proposal replaces."
+disposition = "covered"
+specification = "signetum-is-the-product-identity/product-identity"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

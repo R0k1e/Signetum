@@ -1,0 +1,26 @@
+[specification]
+schema_version = 1
+id = "align-perdura-development-tooling/tooling"
+version = 1
+status = "approved"
+implementation_authorized = true
+approved_at = "2026-10-28"
+human_confirmed = "Owner: proceed according to the executable plan, in this conversation."
+plan = "changes/align-perdura-development-tooling/plans/tooling.md"
+decisions = ["docs/decisions/ADP-align-development-tooling-with-perdura.md"]
+acceptance = [
+  "Delivery confirms the remote before moving the local target and supports retry after rejection or interruption.",
+  "Operations share one versioned result and distinguish invalid, failed, infrastructure_error and conflict.",
+  "Admission requires exact member evidence bound to all declared inputs; requires_final never substitutes for member checks.",
+  "A change package, approval, implementation and ledger share one workspace; actual change paths determine review scope.",
+  "Synchronization, preparation, cleanup, discard and conflict continuation have public supported contracts.",
+  "Final numbers accepted proposals under the batch lock before validating the resulting tip and reviews first-delivered changes.",
+  "Changed executes selected checks without invoking final; changed and member consume one selection.",
+  "Validation supports scoped ratchets, valid evidence inheritance, bounded resources and deadlines, solo retry, first-failure evidence and repeated-recovery thresholds.",
+  "Engine and generated template share generic behavioral contracts and one maintained implementation source.",
+  "Technology-specific selection and tools live in profiles or adapters; existing world findings and expiring waivers remain supported.",
+]
+
+[specification.review]
+id = "align-perdura-development-tooling"
+clauses = ["ALIGN-001", "ALIGN-002", "ALIGN-003", "ALIGN-004", "ALIGN-005", "ALIGN-006", "ALIGN-007", "ALIGN-008", "ALIGN-009", "ALIGN-010"]

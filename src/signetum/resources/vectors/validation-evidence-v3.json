@@ -1,0 +1,367 @@
+{
+  "cases": [
+    {
+      "document": {
+        "completeness": {
+          "final": false,
+          "member": true,
+          "required_shards": [
+            "engine:ruff"
+          ],
+          "world_shards": []
+        },
+        "execution": {
+          "external_obligations": [],
+          "gates": [
+            "member"
+          ],
+          "shards": [
+            {
+              "command_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+              "evidence": "tree",
+              "findings": [],
+              "name": "engine:ruff",
+              "observed_at": null,
+              "status": "passed",
+              "waivers": []
+            }
+          ]
+        },
+        "extensions": {},
+        "identity": {
+          "base": "cccccccccccccccccccccccccccccccccccccccc",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "configuration": {
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "path": "reposeal.toml"
+          },
+          "graph": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "lockfiles": [
+            {
+              "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+              "path": "uv.lock"
+            }
+          ],
+          "profiles": [
+            "python-default@1"
+          ],
+          "tools": [],
+          "tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "protocol": "reposeal.validation-evidence@3",
+        "provenance": {
+          "stable_patch_id": null
+        },
+        "schema_digest": "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12",
+        "schema_version": 3,
+        "selection": null,
+        "valid": true
+      },
+      "name": "a tree shard which passed",
+      "valid": true
+    },
+    {
+      "document": {
+        "completeness": {
+          "final": true,
+          "member": false,
+          "required_shards": [
+            "engine:audit"
+          ],
+          "world_shards": [
+            "engine:audit"
+          ]
+        },
+        "execution": {
+          "external_obligations": [],
+          "gates": [
+            "final"
+          ],
+          "shards": [
+            {
+              "command_digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+              "evidence": "world",
+              "findings": [
+                "GHSA-aaaa-bbbb-cccc"
+              ],
+              "name": "engine:audit",
+              "observed_at": "2026-09-02T00:00:00+00:00",
+              "status": "waived",
+              "waivers": [
+                "audit-example"
+              ]
+            }
+          ]
+        },
+        "extensions": {},
+        "identity": {
+          "base": "cccccccccccccccccccccccccccccccccccccccc",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "configuration": {
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "path": "reposeal.toml"
+          },
+          "graph": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "lockfiles": [
+            {
+              "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+              "path": "uv.lock"
+            }
+          ],
+          "profiles": [
+            "python-default@1"
+          ],
+          "tools": [],
+          "tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "protocol": "reposeal.validation-evidence@3",
+        "provenance": {
+          "stable_patch_id": null
+        },
+        "schema_digest": "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12",
+        "schema_version": 3,
+        "selection": null,
+        "valid": true
+      },
+      "name": "a world shard covered by a waiver",
+      "valid": true
+    },
+    {
+      "document": {
+        "completeness": {
+          "final": false,
+          "member": true,
+          "required_shards": [
+            "engine:ruff"
+          ],
+          "world_shards": []
+        },
+        "execution": {
+          "external_obligations": [],
+          "gates": [
+            "member"
+          ],
+          "shards": [
+            {
+              "evidence": "tree",
+              "findings": [],
+              "name": "engine:ruff",
+              "observed_at": null,
+              "status": "passed",
+              "waivers": []
+            }
+          ]
+        },
+        "extensions": {},
+        "identity": {
+          "base": "cccccccccccccccccccccccccccccccccccccccc",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "configuration": {
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "path": "reposeal.toml"
+          },
+          "graph": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "lockfiles": [
+            {
+              "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+              "path": "uv.lock"
+            }
+          ],
+          "profiles": [
+            "python-default@1"
+          ],
+          "tools": [],
+          "tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "protocol": "reposeal.validation-evidence@3",
+        "provenance": {
+          "stable_patch_id": null
+        },
+        "schema_digest": "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12",
+        "schema_version": 3,
+        "selection": null,
+        "valid": true
+      },
+      "name": "a shard recorded without its command identity",
+      "reason": "execution.shards[].command_digest is required",
+      "valid": false
+    },
+    {
+      "document": {
+        "completeness": {
+          "final": false,
+          "member": true,
+          "required_shards": [
+            "engine:ruff"
+          ],
+          "world_shards": []
+        },
+        "execution": {
+          "external_obligations": [],
+          "gates": [
+            "member"
+          ],
+          "shards": [
+            "engine:ruff"
+          ]
+        },
+        "extensions": {},
+        "identity": {
+          "base": "cccccccccccccccccccccccccccccccccccccccc",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "configuration": {
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "path": "reposeal.toml"
+          },
+          "graph": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "lockfiles": [
+            {
+              "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+              "path": "uv.lock"
+            }
+          ],
+          "profiles": [
+            "python-default@1"
+          ],
+          "tools": [],
+          "tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "protocol": "reposeal.validation-evidence@3",
+        "provenance": {
+          "stable_patch_id": null
+        },
+        "schema_digest": "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12",
+        "schema_version": 3,
+        "selection": null,
+        "valid": true
+      },
+      "name": "a shard recorded as a bare name",
+      "reason": "execution.shards carries outcomes, not names",
+      "valid": false
+    },
+    {
+      "document": {
+        "completeness": {
+          "final": false,
+          "member": true,
+          "required_shards": [
+            "engine:ruff"
+          ]
+        },
+        "execution": {
+          "external_obligations": [],
+          "gates": [
+            "member"
+          ],
+          "shards": [
+            {
+              "command_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+              "evidence": "tree",
+              "findings": [],
+              "name": "engine:ruff",
+              "observed_at": null,
+              "status": "passed",
+              "waivers": []
+            }
+          ]
+        },
+        "extensions": {},
+        "identity": {
+          "base": "cccccccccccccccccccccccccccccccccccccccc",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "configuration": {
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "path": "reposeal.toml"
+          },
+          "graph": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "lockfiles": [
+            {
+              "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+              "path": "uv.lock"
+            }
+          ],
+          "profiles": [
+            "python-default@1"
+          ],
+          "tools": [],
+          "tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "protocol": "reposeal.validation-evidence@3",
+        "provenance": {
+          "stable_patch_id": null
+        },
+        "schema_digest": "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12",
+        "schema_version": 3,
+        "selection": null,
+        "valid": true
+      },
+      "name": "completeness without its world shard list",
+      "reason": "completeness.world_shards is required",
+      "valid": false
+    },
+    {
+      "document": {
+        "completeness": {
+          "final": false,
+          "member": true,
+          "required_shards": [
+            "engine:ruff"
+          ],
+          "world_shards": []
+        },
+        "execution": {
+          "external_obligations": [],
+          "gates": [
+            "member"
+          ],
+          "shards": [
+            {
+              "command_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+              "evidence": "tree",
+              "findings": [],
+              "name": "engine:ruff",
+              "observed_at": null,
+              "status": "skipped",
+              "waivers": []
+            }
+          ]
+        },
+        "extensions": {},
+        "identity": {
+          "base": "cccccccccccccccccccccccccccccccccccccccc",
+          "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "configuration": {
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "path": "reposeal.toml"
+          },
+          "graph": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "lockfiles": [
+            {
+              "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+              "path": "uv.lock"
+            }
+          ],
+          "profiles": [
+            "python-default@1"
+          ],
+          "tools": [],
+          "tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "protocol": "reposeal.validation-evidence@3",
+        "provenance": {
+          "stable_patch_id": null
+        },
+        "schema_digest": "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12",
+        "schema_version": 3,
+        "selection": null,
+        "valid": true
+      },
+      "name": "an unsupported shard status",
+      "reason": "status is passed or waived",
+      "valid": false
+    }
+  ],
+  "protocol": "reposeal.validation-evidence@3",
+  "schema_digest": "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12",
+  "schema_version": 1
+}

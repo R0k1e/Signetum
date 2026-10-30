@@ -1,0 +1,286 @@
+[change]
+schema_version = 1
+id = "align-validation-efficiency"
+
+[change.source]
+kind = "human_direction"
+summary = "Align the approved Perdura workflow optimizations and execute the concrete test-consolidation plan."
+
+[change.contract]
+version = 2
+approved_base = "bc67552612049b66e4383edd44a6f3a2003b630b"
+
+[[change.contract.requirements]]
+id = "EFF-001"
+outcome = "Observe validation cost through the existing runner and diagnostic logs."
+acceptance = [
+    "Report pytest setup, call and teardown cost, actual allocation and shard wall time without a committed test inventory or permanent timing/size gate.",
+    "Capture the existing full member corpus before consolidation and compare the final corpus on the same host and declared allocation; disclose measurement limits.",
+]
+
+[[change.contract.requirements]]
+id = "EFF-002"
+outcome = "Consolidate redundant test work while preserving distinct public contracts."
+acceptance = [
+    "Remove the four ordinary-intent text multiplier and mechanical generated-frontend matrix duplication; keep engine matrices, representative portable execution and installed isolation.",
+    "Retain real Git, authorization, stale evidence, locking, atomicity, process cleanup, failure verdict and complete-final traversals; preserve distinct codec rejection cases.",
+    "Classify affected assets as retain, extend, merge, replace, delete or new in this execution record; do not hide equivalent matrices in loops to reduce the count.",
+]
+
+[[change.contract.requirements]]
+id = "EFF-003"
+outcome = "Use one supervised resource-aware diagnostic execution boundary locally and in CI."
+acceptance = [
+    "Explicit test targets use the declared repository test shard and existing allocator without creating readiness receipts or requiring a registered implementation workspace.",
+    "Without explicit diagnostic targets, changed and ready keep complete member validation unless an optional selection provider is configured.",
+    "Nested jobs consume at most their enclosing allocation; CI and release validation delegate to the same test execution owner and retain failure diagnostics.",
+]
+
+[[change.contract.requirements]]
+id = "EFF-004"
+outcome = "Run admission and conflict continuation through preparation and static batch checks only."
+acceptance = [
+    "Remove the extra member-test pass from batch-continue; static failure retains the open merge and resolved index.",
+    "Complete final validation remains mandatory; member readiness, exact evidence binding and publication authorization remain unchanged.",
+]
+
+[[change.contract.requirements]]
+id = "EFF-005"
+outcome = "Avoid repeated static checks and unnecessary fixture preparation."
+acceptance = [
+    "Use locked Ruff commands as the single version authority and remove repeated Ruff execution inside pre-commit gate; nested prepared commands use --no-sync.",
+    "Prepare local repositories, remotes and worktrees only where needed; share successful read-only wheel installation inputs per worker while preserving separate mutable consumers.",
+]
+
+[[change.contract.requirements]]
+id = "EFF-006"
+outcome = "Teach the same low-maintenance workflow through repository policy, current documentation and the standard skill."
+acceptance = [
+    "Require existing-asset classification, public-boundary evidence, lower-layer matrices and resource-aware parallel execution.",
+    "Keep current architecture self-contained; significant decisions and evidence stay in the existing change record and append-only journal.",
+    "No new service, cross-machine state, handwritten performance inventory, RAM volume, background deletion subsystem, fixed node ceiling or speculative worker-width change.",
+]
+
+[[change.contract.requirements]]
+id = "EFF-007"
+outcome = "Verify generated and installed behavior and close a clean ready member."
+acceptance = [
+    "Required checks, build and installed-artifact acceptance pass; all retained observations reconcile.",
+    "Do not modify Perdura or delivery worktrees, assemble a real integration batch, deliver or publish.",
+]
+
+[[change.contract.requirements]]
+id = "EFF-008"
+outcome = "Record the owner-directed product foundations and reflect them in positioning and adoption guidance."
+acceptance = [
+    "Development usefulness, self-development through the shipped protocol, and verified Perdura lessons are independent current decision clauses.",
+    "README and product guidance explain the origin, self-use and intended large-scale agent collaboration positioning without claiming completed Perdura adoption or unmeasured scale outcomes.",
+    "Standard Skill packaging, literal argument forwarding, installation and first-use remain exercised through existing public acceptance; no service, automatic adoption or publication is introduced.",
+]
+
+[[change.contract.decisions]]
+id = "align-validation-efficiency/boundaries"
+change_id = "align-validation-efficiency"
+authority = "docs/decisions/ADP-validation-work-is-bounded-and-shared.md"
+reason = "The owner approved the reviewed Perdura alignment and concrete test-consolidation plan."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "validation-efficiency"
+version = 1
+summary = "Preserve behavioral confidence while reducing repeated validation work."
+boundaries = [
+    "Full validation remains the default.",
+    "First failure stays failed.",
+    "Measurement does not grant readiness.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "align-validation-efficiency/clauses"
+change_id = "align-validation-efficiency"
+action = "add"
+expected = [
+    { id = "EFFICIENCY-TEST-001", version = 0 },
+    { id = "EFFICIENCY-RUN-001", version = 0 },
+    { id = "EFFICIENCY-COST-001", version = 0 },
+]
+reason = "Keep confidence at public boundaries and execution under one owner."
+authority = "docs/decisions/ADP-validation-work-is-bounded-and-shared.md"
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-TEST-001"
+version = 1
+topic = "validation-efficiency"
+scope = [
+    "Product tests and agent testing instructions",
+]
+statement = "Each distinct public contract keeps necessary real traversal; core matrices execute once and portable and installed boundaries retain representative independent execution."
+rationale = "Repeated labels, frontend matrices and nested lifecycle setup multiply cost without proportionate confidence."
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-RUN-001"
+version = 1
+topic = "validation-efficiency"
+scope = [
+    "Validation execution, diagnostics and CI",
+]
+statement = "Explicit diagnostic targets, readiness and CI share supervised execution and resource allocation. Admission and conflict continuation prepare and run static checks only; final remains complete."
+rationale = "Independent runner commands and repeated member tests duplicate work and let execution policy drift."
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-COST-001"
+version = 1
+topic = "validation-efficiency"
+scope = [
+    "Measurement, preparation and documentation",
+]
+statement = "Observe actual phase and preparation cost, reuse only successful immutable preparation, and keep one locked static authority without permanent test-count or timing budgets."
+rationale = "Measured resource ownership and reduced work are more reliable than guessed worker widths or additional maintenance ledgers."
+
+[[change.contract.decisions]]
+id = "align-validation-efficiency/product-foundations"
+change_id = "align-validation-efficiency"
+authority = "docs/decisions/ADP-product-foundations-come-from-development.md"
+reason = "The owner explicitly established development usefulness, dogfooding and Perdura experience as the product foundations, with convenient distribution and evidence-led large-agent-team positioning."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "product-foundations"
+version = 1
+summary = "Development utility, self-use, originating application experience and easy distribution."
+boundaries = [
+    "Keep repository-specific policy outside the generic protocol.",
+    "Marketing claims retain their actual evidence boundary.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "align-validation-efficiency/product-foundation-clauses"
+change_id = "align-validation-efficiency"
+action = "add"
+expected = [
+    { id = "PRODUCT-PURPOSE-001", version = 0 },
+    { id = "PRODUCT-SELFUSE-001", version = 0 },
+    { id = "PRODUCT-EXPERIENCE-001", version = 0 },
+    { id = "PRODUCT-DISTRIBUTION-001", version = 0 },
+]
+reason = "Preserve the owner direction as individually amendable product principles."
+authority = "docs/decisions/ADP-product-foundations-come-from-development.md"
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-PURPOSE-001"
+version = 1
+topic = "product-foundations"
+scope = [
+    "Product direction and adoption",
+]
+statement = "Signetum exists to help development: workflow and review burden, including maintaining the protocol itself, count as product costs."
+rationale = "A protocol that creates more coordination than it removes fails its purpose."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-SELFUSE-001"
+version = 1
+topic = "product-foundations"
+scope = [
+    "Product direction and adoption",
+]
+statement = "Signetum develops itself through the shipped protocol and implementation owners; self-use friction is evidence for product repair rather than a reason for a private bypass."
+rationale = "Dogfooding exposes installation, command, evidence and maintenance problems that module-only tests can miss."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-EXPERIENCE-001"
+version = 1
+topic = "product-foundations"
+scope = [
+    "Product direction and adoption",
+]
+statement = "Perdura is an originating application and continuing source of verified development lessons. Absorb and generalize demonstrated problems and useful mechanisms while preserving repository-specific policy boundaries."
+rationale = "Actual development failures supply better product requirements than speculative process machinery."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-DISTRIBUTION-001"
+version = 1
+topic = "product-foundations"
+scope = [
+    "Product direction and adoption",
+]
+statement = "Keep installation, distribution and use simple through one standard Skill and repository-owned instructions and commands. Position for reliable development with large agent teams using concrete cases and accurately bounded evidence."
+rationale = "Users need a usable entrypoint and credible outcomes, not unsupported scale or reliability claims."
+
+[change.contract.autonomy]
+allowed = [
+    "Consolidate tests, refine safe fixture ownership, implement the approved execution and process changes, synchronize generated code, measure cost and run readiness.",
+    "Document the owner-directed product foundations and evidence-led positioning without publishing or inventing adoption or scale results.",
+]
+requires_confirmation = [
+    "Change product support or failure policy; add persistent infrastructure; modify Perdura; integrate, deliver or publish.",
+]
+
+[[change.contract.excluded]]
+statement = "Perdura edits, old-format or legacy-ledger retirement, automatic selection, service infrastructure, RAM volumes and background scratch deletion."
+reason = "The approved plan explicitly preserves these boundaries or requires evidence before considering additional mechanisms."
+
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = [
+    "EFF-001",
+]
+action = "Measure the existing corpus before consolidation and retain phase/allocation observations in disposable logs."
+
+[[change.execution.steps]]
+id = "STEP-2"
+requirements = [
+    "EFF-002",
+]
+action = "Replace the four text labels in tests/integration/test_consolidated_change_record.py with one neutral fixture; move retained pure matrices to tests/unit/test_change_record.py. Merge mechanical frontend duplication in development_store, repository_selection, migration_preview, preparation, member authority, final validation and evidence inheritance tests; retain their core matrices and representative independent portable paths. Retain receipt-decoding variants, real Git provenance, locks, rollback, failure and cleanup contracts. Replace tests/test_workflow_authority.py spelling inventories with structured safety validation in the existing product_surface owner; delete only obsolete history-name and teaching-prose pins. Extend protocol_cli acceptance for the newly shared diagnostic boundary."
+
+[[change.execution.steps]]
+id = "STEP-3"
+requirements = [
+    "EFF-003",
+]
+action = "Extend the protocol diagnostic utility and existing test execution owner; bind CI and release to it. Preserve the public eight-operation lifecycle and full-default policy."
+
+[[change.execution.steps]]
+id = "STEP-4"
+requirements = [
+    "EFF-004",
+]
+action = "Replace member repair-test execution during batch continuation with preparation plus static checks; extend existing real-conflict acceptance."
+
+[[change.execution.steps]]
+id = "STEP-5"
+requirements = [
+    "EFF-005",
+]
+action = "Separate tests/conftest.py local repositories from remote preparation; use local fixtures where no remote is read. Reuse successful wheel installations per worker by content identity, preserving separate consumer and generated-output roots. Keep locked Ruff hooks for local feedback, skip duplicate hook execution in the gate, and use --no-sync after outer preparation."
+
+[[change.execution.steps]]
+id = "STEP-6"
+requirements = [
+    "EFF-006",
+]
+action = "Extend existing policy and skill references; simplify current architecture and compare measured cost without committing derived inventories."
+
+[[change.execution.steps]]
+id = "STEP-7"
+requirements = [
+    "EFF-007",
+]
+action = "Build, regenerate, validate relevant boundaries, reconcile discoveries and run ordinary ready; stop before real integration or delivery."
+
+[[change.execution.steps]]
+id = "STEP-8"
+requirements = [
+    "EFF-008",
+]
+action = "Add the independently accepted product-foundation decision and current clauses; update README, why-signetum, first-use and adoption guidance using existing installation and launcher acceptance. Do not modify the public site or publish."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-29
+source = "The owner approved the preceding workflow and test-consolidation plan, then explicitly established development usefulness, dogfooding, Perdura experience and convenient installation/distribution/use as the product foundations and marketing basis."
+contract_digest = "sha256:0bb703ea28360a147456c751819a33c3ee68b601b3a8ac6ef34e85997764a1e2"

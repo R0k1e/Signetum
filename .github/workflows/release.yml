@@ -1,0 +1,52 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+  id-token: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
+        with:
+          version: "0.8.15"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-extras --dev
+      - name: Verify the delivered product release source
+        shell: bash
+        env:
+          RELEASE_SOURCE: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          SOURCE_BRANCH="$(uv run --no-sync python -c 'from pathlib import Path; from signetum.policy import delivery_policy; print(delivery_policy(Path.cwd()).branch)')"
+          git fetch --no-tags origin "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
+          uv run --no-sync signetum release preflight --source "$RELEASE_SOURCE" --tag "$RELEASE_TAG" | tee "$RUNNER_TEMP/signetum-release-source.json"
+      - run: uv build
+      - name: Validate the exact tagged tree
+        run: |
+          uv run --no-sync signetum protocol test --shard engine:pytest
+          uv run --no-sync signetum protocol test --shard engine:world-tests
+          uv run --no-sync ruff check .
+          uv run --no-sync ruff format --check .
+          uv run --no-sync ty check
+      - run: cp "$RUNNER_TEMP/signetum-release-source.json" dist/release-source.json
+      - run: shasum -a 256 dist/* > dist/SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: signetum-release-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+      - run: uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/*             --verify-tag --title "${{ github.ref_name }}" --generate-notes

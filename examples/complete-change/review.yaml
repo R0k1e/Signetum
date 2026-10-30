@@ -1,0 +1,16 @@
+review:
+  schema_version: 1
+  id: example-greeting
+  status: active
+  recorded_at: 2026-08-30
+  source:
+    kind: human_direction
+    summary: Add a public greeting command with a deterministic result.
+  clauses:
+    - id: EXAMPLE-001
+      statement: A caller can request a greeting for a validated display name.
+  acceptance:
+    result: pending
+    delivery_commit: null
+    accepted_clauses: []
+    rejected_clauses: []

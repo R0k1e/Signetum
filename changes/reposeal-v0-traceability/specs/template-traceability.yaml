@@ -1,0 +1,18 @@
+specification:
+  schema_version: 1
+  id: reposeal-v0-traceability/template-traceability
+  version: 1
+  status: approved
+  implementation_authorized: true
+  review:
+    id: reposeal-v0-traceability
+    clauses: [V0-001, V0-002, V0-003, V0-004]
+  decisions:
+    - docs/decisions/ADP-public-template-v0-uses-toml-traceability.md
+  plan: changes/reposeal-v0-traceability/plans/template-traceability.md
+  acceptance:
+    - change-open emits review.toml, specs/change.toml, and plans/change.md.
+    - The validator accepts the complete example and rejects missing, duplicate, unknown, and uncovered ownership.
+    - Default member and final gates execute the validator without third-party packages.
+    - The Template Agent manifest declares TOML authorities and main delivery.
+    - Historical v2.0.0 and v3.0.0 tags remain unchanged while v0.1.0 becomes Latest.

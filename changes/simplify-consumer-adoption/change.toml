@@ -1,0 +1,180 @@
+[change]
+schema_version = 1
+id = "simplify-consumer-adoption"
+
+[change.source]
+kind = "human_direction"
+summary = "Make Signetum usable by other people with low-friction installation, adoption, daily records and evidence; prepare Perdura as a real consumer."
+
+[change.contract]
+version = 1
+approved_base = "56c971f8d678c3e010013a1963da9d20e5a4e733"
+
+[[change.contract.requirements]]
+id = "USE-001"
+outcome = "Present user outcomes and one first-use path, keeping internal development principles in maintainer policy."
+acceptance = [
+    "Remove internal taxonomy and maintainer acceptance instructions from user-facing product pages; consolidate duplicated evaluation text and preserve working links.",
+]
+
+[[change.contract.requirements]]
+id = "USE-002"
+outcome = "Inspect, preview and explicitly apply a local adoption through one public utility."
+acceptance = [
+    "Installed engine prepares reviewed portable runtime and exact file differences without requiring a source checkout; refuse stale plans, unsafe paths and conflicting changes; preserve existing application files and runners and allow an unchanged retry.",
+]
+
+[[change.contract.requirements]]
+id = "USE-003"
+outcome = "Perform ordinary journal work without handwritten transaction plumbing."
+acceptance = [
+    "Infer the registered change and current approval/history bindings for explicit semantic operations; retain the existing locked append owner, stale-input checks, idempotence and refusal semantics; no fabricated approval.",
+]
+
+[[change.contract.requirements]]
+id = "USE-004"
+outcome = "Offer one discovery entry for current clauses and retained historical authority."
+acceptance = [
+    "Current view includes committed historical decision sources and their standing, without semantic parsing or invented migration approval; retain immutable historical evidence and do not silently drop unmigrated rules.",
+]
+
+[[change.contract.requirements]]
+id = "USE-005"
+outcome = "Absorb reusable Perdura stability lessons and prepare real downstream adoption."
+acceptance = [
+    "Conditional stability instructions cover deterministic overlap, ownership, cancellation, deadlines and first-failure diagnosis; one adoption guide covers preserving the downstream selector and replacing duplicate owners, with explicit evidence required before downstream retirement.",
+]
+
+[[change.contract.requirements]]
+id = "USE-006"
+outcome = "Verify the actual installed and generated user paths and stop at readiness."
+acceptance = [
+    "Exercise existing Python and non-Python application commands without changing metadata; reuse existing public tests and classify additions; reconcile significant discoveries and complete clean ready without downstream modifications, delivery or publication.",
+]
+
+[[change.contract.decisions]]
+id = "simplify-consumer-adoption/consumer-boundaries"
+change_id = "simplify-consumer-adoption"
+authority = "docs/decisions/ADP-consumer-adoption-has-one-reviewed-path.md"
+reason = "The owner approved the consumer-focused repair plan and authorized the changes in this repository, including readiness for actual Perdura adoption."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "consumer-adoption"
+version = 1
+summary = "Low-friction adoption and use without weakening repository authority."
+
+[[change.contract.decisions.clauses]]
+id = "simplify-consumer-adoption/clauses"
+change_id = "simplify-consumer-adoption"
+action = "add"
+expected = [
+    { id = "CONSUMER-UX-001", version = 0 },
+    { id = "CONSUMER-ADOPT-001", version = 0 },
+    { id = "CONSUMER-HISTORY-001", version = 0 },
+    { id = "CONSUMER-PERDURA-001", version = 0 },
+]
+reason = "Separate maintainer principles from user work and keep one implementation authority."
+authority = "docs/decisions/ADP-consumer-adoption-has-one-reviewed-path.md"
+
+[[change.contract.decisions.clauses.updates]]
+id = "CONSUMER-UX-001"
+version = 1
+topic = "consumer-adoption"
+scope = [
+    "Consumer documentation, local tools and downstream adoption",
+]
+statement = "Internal development principles belong in maintainer policy; user entrypoints explain outcomes, installation and tasks."
+rationale = "Internal taxonomy creates work for consumers without helping their task."
+
+[[change.contract.decisions.clauses.updates]]
+id = "CONSUMER-ADOPT-001"
+version = 1
+topic = "consumer-adoption"
+scope = [
+    "Consumer documentation, local tools and downstream adoption",
+]
+statement = "Adoption is an explicit reviewed local change with inspect, source-bound preview and guarded application; preserve existing application runners and use one runtime owner."
+rationale = "Installation alone cannot authorize repository policy changes, and manual runtime assembly is avoidable friction."
+
+[[change.contract.decisions.clauses.updates]]
+id = "CONSUMER-HISTORY-001"
+version = 1
+topic = "consumer-adoption"
+scope = [
+    "Consumer documentation, local tools and downstream adoption",
+]
+statement = "Tools bind routine journal operations to the current approved workspace; current discovery also exposes retained historical sources until separately reviewed migration replaces their authority."
+rationale = "Ergonomics must not weaken approval or hide effective history."
+
+[[change.contract.decisions.clauses.updates]]
+id = "CONSUMER-PERDURA-001"
+version = 1
+topic = "consumer-adoption"
+scope = [
+    "Consumer documentation, local tools and downstream adoption",
+]
+statement = "Perdura is both an experience source and an intended real consumer using the ordinary adoption path; remove downstream duplicate tools only after actual replacement evidence."
+rationale = "A one-way extraction does not validate the product in real downstream development."
+
+[change.contract.autonomy]
+allowed = [
+    "Implement the approved in-repository tools, documentation and Skill repairs, generate runtime, validate and stop at ready.",
+]
+requires_confirmation = [
+    "Modify Perdura, accept historical semantic mappings, integrate, deliver or publish.",
+]
+
+[[change.contract.excluded]]
+statement = "Actual Perdura edits and delivery, automatic historical semantic conversion, cross-machine services, automatic upgrades, speculative scheduling and CI splitting."
+reason = "This authorization covers this repository; scheduling and splitting depend on measured need and must not increase default adoption burden."
+
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = [
+    "USE-001",
+]
+action = "Remove internal taxonomy and maintainer acceptance instructions from user-facing product pages; consolidate duplicated evaluation text and preserve working links."
+
+[[change.execution.steps]]
+id = "STEP-2"
+requirements = [
+    "USE-002",
+]
+action = "Installed engine prepares reviewed portable runtime and exact file differences without requiring a source checkout; refuse stale plans, unsafe paths and conflicting changes; preserve existing application files and runners and allow an unchanged retry."
+
+[[change.execution.steps]]
+id = "STEP-3"
+requirements = [
+    "USE-003",
+]
+action = "Infer the registered change and current approval/history bindings for explicit semantic operations; retain the existing locked append owner, stale-input checks, idempotence and refusal semantics; no fabricated approval."
+
+[[change.execution.steps]]
+id = "STEP-4"
+requirements = [
+    "USE-004",
+]
+action = "Current view includes committed historical decision sources and their standing, without semantic parsing or invented migration approval; retain immutable historical evidence and do not silently drop unmigrated rules."
+
+[[change.execution.steps]]
+id = "STEP-5"
+requirements = [
+    "USE-005",
+]
+action = "Conditional stability instructions cover deterministic overlap, ownership, cancellation, deadlines and first-failure diagnosis; one adoption guide covers preserving the downstream selector and replacing duplicate owners, with explicit evidence required before downstream retirement."
+
+[[change.execution.steps]]
+id = "STEP-6"
+requirements = [
+    "USE-006",
+]
+action = "Retain existing Git, authorization, atomic journal, source identity, process and full-final cases. Extend tests/integration/test_protocol_cli.py for semantic writes and inspection, test_development_store.py for historical discovery, test_built_distribution.py for installed adoption, and existing test_language_runners.py for adoption before native traversal. Add tests/unit/test_adoption.py only for the new pure review/apply safety matrix. No prose pins or duplicated frontend matrices. Build, validate installed/generated boundaries, reconcile observations and stop at clean ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-29
+source = "The owner approved the detailed consumer-focused plan, added real Perdura adoption, then explicitly authorized completing the related changes in this repository."
+contract_digest = "sha256:77d3566eb4afa1590daea23df75bce9ec257de23de9dcbd85ee1e8d2ca1760d2"

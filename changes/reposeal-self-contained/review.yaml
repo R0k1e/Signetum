@@ -1,0 +1,19 @@
+schema_version: 1
+review: reposeal-self-contained
+status: active
+clauses:
+  - id: SELF-001
+    text: A cloned Template must run without installing the RepoSeal package.
+    disposition:
+      kind: covered
+      specification: reposeal-self-contained/self-contained-template
+  - id: SELF-002
+    text: The copied runtime must remain minimal and contain no engine governance or product source.
+    disposition:
+      kind: covered
+      specification: reposeal-self-contained/self-contained-template
+  - id: SELF-003
+    text: Clean-room validation must exercise the copied public lifecycle boundary.
+    disposition:
+      kind: covered
+      specification: reposeal-self-contained/self-contained-template

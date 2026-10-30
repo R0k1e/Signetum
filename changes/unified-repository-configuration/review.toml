@@ -1,0 +1,38 @@
+[review]
+schema_version = 1
+id = "unified-repository-configuration"
+status = "active"
+recorded_at = "2026-08-31"
+
+[review.source]
+kind = "human_direction"
+summary = "Remove the confusing split between reposeal.toml and reposeal.yaml so one repository configuration owns declarations and executable validation."
+
+[[review.clauses]]
+id = "CONFIG-001"
+statement = "RepoSeal repositories expose reposeal.toml as their only active product configuration file."
+disposition = "covered"
+specification = "unified-repository-configuration/single-toml-authority"
+
+[[review.clauses]]
+id = "CONFIG-002"
+statement = "Member and final argv commands move into strict versioned TOML fields and retain shell-free execution."
+disposition = "covered"
+specification = "unified-repository-configuration/single-toml-authority"
+
+[[review.clauses]]
+id = "CONFIG-003"
+statement = "The self-contained copied runtime reads the standard-library TOML authority without importing or installing the RepoSeal engine."
+disposition = "covered"
+specification = "unified-repository-configuration/single-toml-authority"
+
+[[review.clauses]]
+id = "CONFIG-004"
+statement = "The superseded YAML authority, parser, inventory entry, documentation, and compatibility behavior are deleted rather than retained as aliases."
+disposition = "covered"
+specification = "unified-repository-configuration/single-toml-authority"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

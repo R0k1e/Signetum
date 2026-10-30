@@ -1,0 +1,61 @@
+[review]
+schema_version = 1
+id = "reposeal-execution-foundation-v2"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "Evolve RepoSeal into a language-neutral, multi-profile execution foundation with a batteries-included Python default."
+
+[[review.clauses]]
+id = "EXEC-001"
+statement = "A Change's declared impact and the actual Git diff must jointly determine validation without making changed execute tests."
+disposition = "covered"
+specification = "reposeal-execution-foundation-v2/execution-foundation"
+
+[[review.clauses]]
+id = "EXEC-002"
+statement = "One repository must be able to compose zero, one, or multiple language profiles without language branches in the Core runtime."
+disposition = "covered"
+specification = "reposeal-execution-foundation-v2/execution-foundation"
+
+[[review.clauses]]
+id = "EXEC-003"
+statement = "The default Template must enable a Python profile with uv, Ruff, ty, behavioral tests, and security checks while allowing explicit replacement by other profiles."
+disposition = "covered"
+specification = "reposeal-execution-foundation-v2/python-default"
+
+[[review.clauses]]
+id = "EXEC-004"
+statement = "Named gates and shards must produce receipts bound to the exact code, configuration, lockfiles, tools, and validation graph."
+disposition = "covered"
+specification = "reposeal-execution-foundation-v2/validation-evidence"
+
+[[review.clauses]]
+id = "EXEC-005"
+statement = "Batch admission and delivery must preserve exact member provenance and allocate collision-free formal ADP numbers only after admission."
+disposition = "covered"
+specification = "reposeal-execution-foundation-v2/batch-and-decisions"
+
+[[review.clauses]]
+id = "EXEC-006"
+statement = "Mise must be the language-neutral tool authority and Worktrunk the single workspace backend without making RepoSeal a package dependency of copied repositories."
+disposition = "covered"
+specification = "reposeal-execution-foundation-v2/toolchain-and-workspaces"
+
+[[review.clauses]]
+id = "EXEC-007"
+statement = "Delivery and human acceptance must be distinct, and rejected or reopened clauses must continue through a new Change without rewriting delivered history."
+disposition = "covered"
+specification = "reposeal-execution-foundation-v2/execution-foundation"
+
+[[review.clauses]]
+id = "EXEC-008"
+statement = "The public English and Chinese surfaces must explain the product, multi-language composition, Python default, and v0.1 to v0.2 break cleanly."
+disposition = "covered"
+specification = "reposeal-execution-foundation-v2/product-surface"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

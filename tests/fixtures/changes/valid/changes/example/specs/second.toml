@@ -1,0 +1,13 @@
+[specification]
+schema_version = 1
+id = "example/second"
+version = 1
+status = "approved"
+implementation_authorized = true
+decisions = ["decisions/accepted.md"]
+plan = "changes/example/plans/second.md"
+intent = ["Implement the second requirement."]
+
+[specification.review]
+id = "example"
+clauses = ["REQ-2"]

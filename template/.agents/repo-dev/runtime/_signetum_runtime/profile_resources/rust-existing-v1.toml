@@ -1,0 +1,4 @@
+schema_version = 1
+identity = "rust-existing@1"
+authorities = ["rust-existing-runner"]
+requires = ["shared-core@1"]

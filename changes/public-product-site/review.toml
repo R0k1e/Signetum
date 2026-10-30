@@ -1,0 +1,44 @@
+[review]
+schema_version = 1
+id = "public-product-site"
+status = "active"
+recorded_at = "2026-08-31"
+
+[review.source]
+kind = "human_direction"
+summary = "Create a branded, crawlable RepoSeal product page without leaking marketing assets or site runtime into repositories created from the Template."
+
+[[review.clauses]]
+id = "SITE-001"
+statement = "RepoSeal has a responsive bilingual public page that explains the product, its six outcomes, workflow, boundaries, comparisons, and evidence."
+disposition = "covered"
+specification = "public-product-site/engine-owned-pages"
+
+[[review.clauses]]
+id = "SITE-002"
+statement = "The page uses the canonical RepoSeal brand assets and exposes accurate social and structured metadata for discovery."
+disposition = "covered"
+specification = "public-product-site/engine-owned-pages"
+
+[[review.clauses]]
+id = "SITE-003"
+statement = "Site source, deployment workflow, brand assets, and generated output remain outside template and rendered main inventory."
+disposition = "covered"
+specification = "public-product-site/engine-owned-pages"
+
+[[review.clauses]]
+id = "SITE-004"
+statement = "GitHub Pages deploys only an exact validated engine source through pinned read-only build actions and an explicit Pages deployment permission."
+disposition = "covered"
+specification = "public-product-site/engine-owned-pages"
+
+[[review.clauses]]
+id = "SITE-005"
+statement = "The GitHub repository Homepage points to the deployed page while main remains the clone-ready Template branch."
+disposition = "covered"
+specification = "public-product-site/engine-owned-pages"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

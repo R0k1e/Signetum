@@ -1,0 +1,124 @@
+[change]
+schema_version = 1
+id = "unify-distribution-and-current-authorities"
+
+[change.source]
+kind = "human_direction"
+summary = "Unify the public repository, publication source, current architecture and Skill cold-start path; remove duplication and distribution friction."
+
+[change.contract]
+version = 1
+approved_base = "b3e395807d8aedbb48db1d5069a5a7bb868f7b38"
+
+[[change.contract.requirements]]
+id = "DIST-001"
+outcome = "Unify the public repository identity and verify its reachable entrypoints."
+acceptance = [
+    "Rename the authorized public RepoSeal repository to Signetum, update its description and homepage, and verify canonical and redirected URLs without publishing source or artifacts.",
+]
+
+[[change.contract.requirements]]
+id = "DIST-002"
+outcome = "Use one exact engine source check for engine and bundled Skill releases."
+acceptance = [
+    "Replace the unused machine-local receipt prerequisite with an exact clean committed engine-source and version/tag check used by release CI; main remains the rendered Template, historical releases remain immutable, and no release is performed.",
+]
+
+[[change.contract.requirements]]
+id = "DIST-003"
+outcome = "Keep architecture current as part of implementation and Skill closure."
+acceptance = [
+    "Repair stale status and optimization ownership descriptions, add conditional current-authority reconciliation to policy and Skill, and use references instead of duplicate manuals or prose-pin tests.",
+]
+
+[[change.contract.requirements]]
+id = "DIST-004"
+outcome = "Make installation and first use precise without extra workflow layers."
+acceptance = [
+    "Explain Skill-only versus one-time reviewed engine adoption and local runtime prerequisites; simplify overlapping instructions, provide standard Skill UI metadata, verify the installed launcher and packaging, and stop at clean ready.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement the approved repository, documentation, Skill and release-check repairs; rename the explicitly authorized public repository and metadata; validate and stop at ready.",
+]
+requires_confirmation = [
+    "Deliver or push code, create release tags, publish packages, change Perdura, or change consumer workflow automatically.",
+]
+
+[[change.contract.excluded]]
+statement = "Source delivery, tagging, package or site publication, Perdura adoption, RAM volumes and background deletion."
+reason = "This request authorizes repository identity and in-repository repairs, not a release."
+
+[[change.contract.decisions]]
+id = "unify-distribution-and-current-authorities/boundaries"
+change_id = "unify-distribution-and-current-authorities"
+authority = "docs/decisions/ADP-engine-release-and-current-authorities.md"
+reason = "The owner explicitly requested unified publication and prompt current-architecture maintenance."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "distribution-authorities"
+version = 1
+summary = "One delivered engine release source and current consumer-facing authorities."
+
+[[change.contract.decisions.clauses]]
+id = "unify-distribution-and-current-authorities/clauses"
+change_id = "unify-distribution-and-current-authorities"
+action = "add"
+expected = [
+    { id = "DIST-SOURCE-001", version = 0 },
+    { id = "DIST-CURRENT-001", version = 0 },
+]
+reason = "Separate independently versioned runtime artifacts from current guidance while keeping a single release verifier."
+authority = "docs/decisions/ADP-engine-release-and-current-authorities.md"
+
+[[change.contract.decisions.clauses.updates]]
+id = "DIST-SOURCE-001"
+version = 1
+topic = "distribution-authorities"
+scope = [
+    "Engine publication and Skill distribution",
+]
+statement = "Publish engine and bundled Skill artifacts only from an exact clean delivered engine commit, with version and optional release-tag verification shared by local preflight and CI; main owns only the rendered Template."
+rationale = "A machine-local receipt is unavailable in hosted CI and the rendered Template is not engine source."
+
+[[change.contract.decisions.clauses.updates]]
+id = "DIST-CURRENT-001"
+version = 1
+topic = "distribution-authorities"
+scope = [
+    "Development policy and Skill",
+]
+statement = "When implementation changes an observable contract, responsibility, command or prerequisite, reconcile the affected current authorities in the same change and verify links and relevant behavior before closure."
+rationale = "Historical decisions preserve reasons but cannot substitute for accurate current guidance; unchanged documents need no edits."
+
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = [
+    "DIST-001",
+]
+action = "Inspect permission and preserve prior repository settings; rename and verify metadata and canonical URLs."
+
+[[change.execution.steps]]
+id = "STEP-2"
+requirements = [
+    "DIST-002",
+]
+action = "Replace the existing release preflight owner and extend its tests for real Git source, tag and component versions; wire the same owner in CI."
+
+[[change.execution.steps]]
+id = "STEP-3"
+requirements = [
+    "DIST-003",
+    "DIST-004",
+]
+action = "Repair architecture, policy, Skill and first-use guidance; retain existing installed/public-surface traversals and extend only changed packaging boundaries; build, reconcile and validate."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-30
+source = "The owner explicitly instructed changing the public repository, unifying publication, aligning architecture and reviewing and repairing Skill distribution friction."
+contract_digest = "sha256:b74df1fd7ca80ddd15dd1666c2ceb82a911c332b340292e2246e5604a2880b7d"
