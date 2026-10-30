@@ -1,0 +1,73 @@
+[review]
+schema_version = 1
+id = "align-perdura-development-tooling"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "The repository owner approved the executable migration plan in the conversation and instructed implementation on 2026-10-28. Perdura is the incubation source; RepoSeal is the independent product. No delivery or publication is authorized."
+
+[[review.clauses]]
+id = "ALIGN-001"
+statement = "Delivery confirms the remote before moving the local target and supports retry after rejection or interruption."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-002"
+statement = "Operations share one versioned result and distinguish invalid, failed, infrastructure_error and conflict."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-003"
+statement = "Admission requires exact member evidence bound to all declared inputs; requires_final never substitutes for member checks."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-004"
+statement = "A change package, approval, implementation and ledger share one workspace; actual change paths determine review scope."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-005"
+statement = "Synchronization, preparation, cleanup, discard and conflict continuation have public supported contracts."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-006"
+statement = "Final numbers accepted proposals under the batch lock before validating the resulting tip and reviews first-delivered changes."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-007"
+statement = "Changed executes selected checks without invoking final; changed and member consume one selection."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-008"
+statement = "Validation supports scoped ratchets, valid evidence inheritance, bounded resources and deadlines, solo retry, first-failure evidence and repeated-recovery thresholds."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-009"
+statement = "Engine and generated template share generic behavioral contracts and one maintained implementation source."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[[review.clauses]]
+id = "ALIGN-010"
+statement = "Technology-specific selection and tools live in profiles or adapters; existing world findings and expiring waivers remain supported."
+disposition = "covered"
+specification = "align-perdura-development-tooling/tooling"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

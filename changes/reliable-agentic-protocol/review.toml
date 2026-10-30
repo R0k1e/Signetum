@@ -1,0 +1,86 @@
+[review]
+schema_version = 1
+id = "reliable-agentic-protocol"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "The owner approved implementation of the six-part migration proposal in this conversation on 2026-10-29. Development stops at clean ready; delivery, publication, cross-machine capabilities and external outreach are excluded."
+
+[[review.clauses]]
+id = "RELIABLE-001"
+statement = "A first validation failure remains failed even if its diagnostic retry passes; fresh normal validation after a fix may pass. Original and retry evidence remain available, and infrastructure failures retain their category."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-002"
+statement = "Each change has one structured development record for intent, approved behavior, acceptance and necessary execution planning, with append-only significant development events rather than duplicate handwritten reports."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-003"
+statement = "Decisions have stable clause identities, versions, scopes and source events; amendments, retractions, splits and merges name exact affected clauses and expected prior versions while retaining unaffected clauses."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-004"
+statement = "A topic-organized current decision working set exposes context, effective choices, boundaries, relationships and provenance as a verified projection of accepted history, maintained through one update path."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-005"
+statement = "Local log tools support recording, resolving, retracting, atomic reconciliation, retiring stranded authority references and repository-wide status without erasing history or allowing independent manual edits of projections."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-006"
+statement = "Migration inventories historical records and produces reviewable clause mappings; ambiguous granularity is explicit and historical accepted records remain read-only rather than being guessed or bulk rewritten."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-007"
+statement = "Significant events needed by source review are captured before committing and validating the source. Validation and delivery do not mutate that frozen source to append their own success. Ordinary output remains in local receipts and logs."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-008"
+statement = "Every supported command job is checked for owned leftover processes on success, failure, timeout and cancellation; bounded cleanup reports ownership and turns a leaked successful job into failure without touching unrelated jobs."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-009"
+statement = "Protocol and execution are independent of application language. Minimal repository bindings and optional Python, Node and Rust adapters use existing repository runners and preserve their authorities."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-010"
+statement = "The product is one standard skill plus local commands and conditional instructions; no cross-machine synchronization, remote ledger, service platform, account system or automatic adoption is introduced."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-011"
+statement = "Agent entrypoints and skill references explicitly route through the current decision working set, create one change record, retrieve rationale on demand and generate approval and delivery views without duplicate summaries."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-012"
+statement = "Product material presents a reliable agentic development and delivery protocol with a minimal example, three reproducible failure demonstrations, a practice article and an existing-repository adoption example; claims distinguish measured mechanisms from unmeasured impact."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"
+
+[[review.clauses]]
+id = "RELIABLE-013"
+statement = "Behavioral acceptance covers four change types, partial decision amendments, concurrency and bad references, command process ownership, installed skill operations and Python, Node and Rust repositories, including negative and recovery cases."
+disposition = "covered"
+specification = "reliable-agentic-protocol/protocol"

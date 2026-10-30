@@ -1,0 +1,51 @@
+specification:
+  schema_version: 1
+  id: foundation-v2-bootstrap/immutable-release-and-ci
+  version: 1
+  status: approved
+  implementation_authorized: true
+  review:
+    id: foundation-v2-bootstrap
+    clauses: [FIND-006, FIND-007, FIND-008]
+  decisions:
+    - docs/decisions/ADP-template-becomes-versioned-development-foundation.md
+  plan: changes/foundation-v2-bootstrap/plans/immutable-release-and-ci-plan.md
+
+  intent:
+    - validate and release one exact foundation tree
+    - give downstream repositories immutable, reproducible adoption inputs
+
+  release_identity:
+    members:
+      - semantic package version
+      - source commit
+      - wheel and source-distribution digests
+      - repo-dev skill version and digest
+      - schema bundle version and digest
+      - manifest, change, and receipt schema majors
+
+  invariants:
+    - every validation job observes the same source commit
+    - ordinary CI has no contents-write permission
+    - CI never commits, merges, deletes, or force-updates a branch
+    - release starts only from exact successful final evidence for the tag commit
+    - a requested publication that cannot authenticate fails
+    - downstream adoption names an immutable version and digest
+    - latest, main, and other moving references are invalid foundation identities
+
+  scenarios:
+    - id: release-exact-final-tree
+      given: a tag whose exact commit has complete final evidence
+      when: an authorized release runs
+      then:
+        - package, schema, skill, checksums, and compatibility metadata are published together
+    - id: reject-mismatched-evidence
+      given: final evidence for another commit
+      when: release preflight runs
+      then:
+        - publication is refused
+
+  acceptance:
+    - workflow authority tests reject branch mutation permissions and moving checkouts
+    - release integration verifies artifact contents and digests
+    - a downstream fixture rejects main, latest, mismatched digest, and unsupported schema major

@@ -1,0 +1,1 @@
+"""Immutable package resources."""

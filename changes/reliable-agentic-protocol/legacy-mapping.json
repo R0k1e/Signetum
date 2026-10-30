@@ -1,0 +1,1085 @@
+{
+  "schema_version": 1,
+  "source_commit": "3ae325737941e9842ca4910a375d236cd85e4aef",
+  "inventory_digest": "sha256:88c2ea849ff548585ab76ddb7141bc4a6da886979688ac30183044ca14fe3651",
+  "topics": [
+    {
+      "id": "legacy-002",
+      "version": 1,
+      "summary": "Language-neutral Core with composable profiles",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-003",
+      "version": 1,
+      "summary": "Mise and Worktrunk are execution authorities",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-008",
+      "version": 1,
+      "summary": "A workspace owns its base and a batch is a workspace",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-009",
+      "version": 1,
+      "summary": "The evidence protocol is published in one direction",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-010",
+      "version": 1,
+      "summary": "A gate states what it checked, and a citation states what it obtained",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-011",
+      "version": 1,
+      "summary": "Signetum is the public product identity",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-012",
+      "version": 1,
+      "summary": "A tree which hosts no Change carries no Change identity",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-013",
+      "version": 1,
+      "summary": "A declared authority runs in a gate",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-015",
+      "version": 1,
+      "summary": "Change packages close requirements through human acceptance",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-017",
+      "version": 1,
+      "summary": "Foundation has one evidence-backed public product surface",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-020",
+      "version": 1,
+      "summary": "Public Template v0 uses TOML traceability",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    },
+    {
+      "id": "legacy-021",
+      "version": 1,
+      "summary": "Reliable agentic development and delivery protocol",
+      "boundaries": [
+        "Unapproved migration candidate. Original accepted authority remains controlling; this paragraph partition does not resolve conflicts with later decisions."
+      ],
+      "requires": []
+    }
+  ],
+  "clauses": [
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0002-language-neutral-composable-execution.md",
+          "start_line": 10,
+          "end_line": 14
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-002-001",
+        "version": 1,
+        "topic": "legacy-002",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "RepoSeal Core owns language-neutral change accounting, impact resolution,\nvalidation graphs, evidence, workspaces, batches, decisions, and delivery. A\nprofile is immutable declarative configuration that contributes namespaced\ntools, impacts, gates, and shards. Repositories may enable zero, one, or many\nprofiles; composition is a union and ambiguous ownership fails closed.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0002-language-neutral-composable-execution.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0002-language-neutral-composable-execution.md",
+          "start_line": 16,
+          "end_line": 19
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-002-002",
+        "version": 1,
+        "topic": "legacy-002",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The public Template enables `python-default`. Python tooling is not a Core\ndependency, and another repository may replace Python or compose additional\nlanguage profiles without changing the eight public lifecycle operations.\n`reposeal.toml` is the sole active configuration authority.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0002-language-neutral-composable-execution.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0003-mise-and-worktrunk-authorities.md",
+          "start_line": 10,
+          "end_line": 13
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-003-001",
+        "version": 1,
+        "topic": "legacy-003",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Mise owns external tool installation, versions, and command projection.\nLanguage ecosystems retain their own locked dependencies. Worktrunk is the\nsingle backend for workspace creation, discovery, and removal; RepoSeal owns\nthe policy deciding when those actions are allowed.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0003-mise-and-worktrunk-authorities.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0003-mise-and-worktrunk-authorities.md",
+          "start_line": 15,
+          "end_line": 16
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-003-002",
+        "version": 1,
+        "topic": "legacy-003",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The copied runtime remains self-contained and repository-owned. It invokes the\npinned authorities but never installs or imports the RepoSeal distribution.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0003-mise-and-worktrunk-authorities.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0008-a-workspace-owns-its-base.md",
+          "start_line": 38,
+          "end_line": 42
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-008-001",
+        "version": 1,
+        "topic": "legacy-008",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A workspace owns its base. `workspace-open` writes a workspace record under the\nexisting machine-local state root at `reposeal/workspaces/<branch>.json`,\nalongside `reposeal/validation`. The record states the branch, the resolved\nbase, whether the workspace is a member or a batch, and, for a batch, the\nmembers it declares. The base is written once and never changes.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0008-a-workspace-owns-its-base.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0008-a-workspace-owns-its-base.md",
+          "start_line": 44,
+          "end_line": 46
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-008-002",
+        "version": 1,
+        "topic": "legacy-008",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "`changed` and `ready` take no base argument. They read the workspace record.\nA workspace without a record is a precondition failure, not an invitation to\nderive one.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0008-a-workspace-owns-its-base.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0008-a-workspace-owns-its-base.md",
+          "start_line": 48,
+          "end_line": 51
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-008-003",
+        "version": 1,
+        "topic": "legacy-008",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A batch is a workspace that declares members. `batch-open` writes a workspace\nrecord of kind `batch` exactly as a member workspace does, and the batch's base\nis read from that record rather than parsed out of commit prose. The public\noperation count is unchanged.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0008-a-workspace-owns-its-base.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0008-a-workspace-owns-its-base.md",
+          "start_line": 53,
+          "end_line": 57
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-008-004",
+        "version": 1,
+        "topic": "legacy-008",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "`RepoSeal-Batch-Base` remains in the provenance commit as durable, auditable\nhistory, and delivery verifies that the trailer and the record agree. It is no\nlonger the mechanism by which an operation discovers its own base, so the\nfallback scan over every reachable merge commit is removed. One authority\nanswers the question; the trailer attests to the answer.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0008-a-workspace-owns-its-base.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0009-the-protocol-is-published-in-one-direction.md",
+          "start_line": 29,
+          "end_line": 31
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-009-001",
+        "version": 1,
+        "topic": "legacy-009",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Evidence v3 stands exactly as ADP-0007 defined it. Its required sections,\nextension rules, and the separation between Core, profiles, and adapters are\nunchanged and are not reopened.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0009-the-protocol-is-published-in-one-direction.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0009-the-protocol-is-published-in-one-direction.md",
+          "start_line": 33,
+          "end_line": 38
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-009-002",
+        "version": 1,
+        "topic": "legacy-009",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The protocol is published in one direction. RepoSeal defines it, ships its\nschema and its conformance vectors as release artifacts, and states the\ncanonical schema digest. A consumer pins a RepoSeal release and demonstrates\nconformance in its own repository, against those artifacts. RepoSeal makes no\nclaim about any consumer, names none, and carries no test which depends on one\nexisting.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0009-the-protocol-is-published-in-one-direction.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0009-the-protocol-is-published-in-one-direction.md",
+          "start_line": 40,
+          "end_line": 41
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-009-003",
+        "version": 1,
+        "topic": "legacy-009",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Conformance is therefore a downstream obligation with an upstream artifact to\ndischarge it against, rather than a shared aspiration recorded in two places.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0009-the-protocol-is-published-in-one-direction.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0010-a-gate-states-what-it-checked.md",
+          "start_line": 40,
+          "end_line": 47
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-010-001",
+        "version": 1,
+        "topic": "legacy-010",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A citation is checked for fulfilment, not resolution. A decision cited by a\nspecification must exist, must declare an accepted status, and must not be\nsuperseded. Supersession must be recorded on both sides: when one decision\ndeclares `Supersedes: B`, decision B must declare `Superseded by` that\ndecision, and delivery writes that reciprocal entry when it numbers a proposal\nwhich supersedes something. Decision content reaches the validator through the\nloading boundary, so the validator keeps validating closure without traversing\na filesystem.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0010-a-gate-states-what-it-checked.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0010-a-gate-states-what-it-checked.md",
+          "start_line": 49,
+          "end_line": 52
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-010-002",
+        "version": 1,
+        "topic": "legacy-010",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Every shard executes under a declared time bound. The repository declares a\ndefault and a shard may override it. A shard which exceeds its bound is a\ndistinct, reported outcome naming the shard and its bound, never an\nindistinguishable failure and never an unbounded wait.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0010-a-gate-states-what-it-checked.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0010-a-gate-states-what-it-checked.md",
+          "start_line": 54,
+          "end_line": 56
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-010-003",
+        "version": 1,
+        "topic": "legacy-010",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Batch mutation is exclusive. Admission and continuation hold an exclusive lock\non the batch for their duration and refuse, naming the holder, rather than\ninterleaving.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0010-a-gate-states-what-it-checked.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0010-a-gate-states-what-it-checked.md",
+          "start_line": 58,
+          "end_line": 60
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-010-004",
+        "version": 1,
+        "topic": "legacy-010",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The recovery path is stated where the operations are stated: a failed final is\nrepaired by closing the member again and re-admitting it, and re-admitting an\nunchanged member is a documented no-op.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0010-a-gate-states-what-it-checked.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0011-signetum-is-the-product-identity.md",
+          "start_line": 30,
+          "end_line": 33
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-011-001",
+        "version": 1,
+        "topic": "legacy-011",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The public product identity is **Signetum**, keeping the tagline \"Seal every\nchange with evidence\". Everything ADP-0004 decided about the engine owning a\nseparately deployed product site stands unchanged; only the name it deploys\nunder moves.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0011-signetum-is-the-product-identity.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0011-signetum-is-the-product-identity.md",
+          "start_line": 35,
+          "end_line": 37
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-011-002",
+        "version": 1,
+        "topic": "legacy-011",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The rename covers the brand: the distribution and import package, the command,\nthe repository manifest file name, the machine-local state directory, the commit\ntrailer prefix, and every document and asset which presents the product.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0011-signetum-is-the-product-identity.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0011-signetum-is-the-product-identity.md",
+          "start_line": 39,
+          "end_line": 43
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-011-003",
+        "version": 1,
+        "topic": "legacy-011",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "It does not cover the wire contract. The evidence protocol identifier and the\nevidence schema, together with its canonical digest, are stable identifiers\nwhich do not follow the product name. A consumer pins them; renaming a brand is\nnot a reason to break a consumer. They keep their current values, and a decision\nto move them is a separate decision with its own consumers to consider.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0011-signetum-is-the-product-identity.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0011-signetum-is-the-product-identity.md",
+          "start_line": 45,
+          "end_line": 51
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-011-004",
+        "version": 1,
+        "topic": "legacy-011",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "It does not cover the historical record. Decision files, change package\nidentities, and changelog entries which name DevLoom or RepoSeal state what was\ntrue when they were written. `ADP-devloom-is-the-public-product-identity.md`\nsurvived the previous rename unaltered and is the precedent: a superseded\ndecision keeps its name and its content, and a new decision replaces it.\nRewriting them would also break every citation to them, which the traceability\ngate now refuses.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0011-signetum-is-the-product-identity.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md",
+          "start_line": 32,
+          "end_line": 34
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-012-001",
+        "version": 1,
+        "topic": "legacy-012",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A Change identity is required only where a Change can exist. A repository whose\ndeclared specification authority matches nothing hosts no change packages, and\na delivery from it carries no Change identity to name or to reconcile.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md",
+          "start_line": 36,
+          "end_line": 39
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-012-002",
+        "version": 1,
+        "topic": "legacy-012",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Admission accepts a member commit without a Plan trailer when the member tree\nhosts no change package, and continues to refuse one otherwise. The final gate\nreconciles no Change identity for such a tree and reports the empty\nreconciliation explicitly rather than failing to find a Review.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md",
+          "start_line": 41,
+          "end_line": 43
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-012-003",
+        "version": 1,
+        "topic": "legacy-012",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A plan reference which is present is still required to resolve to\n`changes/<change-id>/plans/<file>`. This decision removes a demand that cannot\nbe met; it does not weaken one that can.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md",
+          "start_line": 45,
+          "end_line": 46
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-012-004",
+        "version": 1,
+        "topic": "legacy-012",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Correctness for such a delivery rests where it already rested: on the frozen\nfinal gate observing the exact tree.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0012-a-tree-without-changes-carries-none.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0013-a-declared-authority-runs-in-a-gate.md",
+          "start_line": 30,
+          "end_line": 35
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-013-001",
+        "version": 1,
+        "topic": "legacy-013",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The traceability authority runs in both gates as an ordinary shard. It accepts\nno path scope and reports no comparable finding set, so by the member gate's\nown admission rule it would belong to the final gate alone; but it is\nwhole-corpus by nature and cheap, and a member which breaks the requirement\nchain should learn so before a batch forms. It therefore runs in both, judging\nthe whole corpus in each.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0013-a-declared-authority-runs-in-a-gate.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-0013-a-declared-authority-runs-in-a-gate.md",
+          "start_line": 37,
+          "end_line": 38
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-013-002",
+        "version": 1,
+        "topic": "legacy-013",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A Review recording acceptance names the commit which delivered it. The one\nexisting record is completed from the delivery its own history shows.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-0013-a-declared-authority-runs-in-a-gate.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 22,
+          "end_line": 22
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-001",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Every new governed change lives at one stable path:",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 24,
+          "end_line": 29
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-002",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "```text\nchanges/<change-id>/\n  review.yaml\n  specs/<spec-id>.yaml\n  plans/<plan-id>.md\n```",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 31,
+          "end_line": 31
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-003",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The path never moves between draft, active, delivered, or archived directories.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 33,
+          "end_line": 35
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-004",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A Review records source requirements as stable atomic clauses, approved\nexclusions, delivery-linked acceptance, rejection, and reopening. It does not\ndefine technical behavior.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 37,
+          "end_line": 41
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-005",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A Specification owns observable behavior. Every active Review clause has\nexactly one current approved Specification owner. A Specification defines\ninputs, outputs, positive and negative contracts, invariants, boundaries,\ndeferrals, and supersession. It does not manually claim implementation,\nintegration, delivery, or acceptance.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 43,
+          "end_line": 46
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-006",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A Plan owns one implementation path from an approved base. Every clause owned\nby its Specification maps to explicit obligations and acceptance evidence. A\nPlan and a dispatch brief cannot narrow an approved Specification. Deferral\nfirst transfers the clause to another approved Specification.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 48,
+          "end_line": 50
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-007",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Member-ready, batch-integrated, delivered, and human-accepted are distinct\nstates derived from repository evidence and Review acceptance. The state of a\nparent item is the least-complete state of its clauses.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 52,
+          "end_line": 54
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-008",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "An active Plan stays outside the delivery branch. The same explicit delivery\nthat lands the implementation also lands its Specification and Plan as durable\nprovenance. Acceptance or reopening refers to that delivery.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-change-packages-close-requirements.md",
+          "start_line": 56,
+          "end_line": 57
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-015-009",
+        "version": 1,
+        "topic": "legacy-015",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Legacy roots may be declared read-only. Legacy documents remain valid historical\nauthorities and are not migrated; new files under those roots are rejected.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-change-packages-close-requirements.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-foundation-has-a-public-product-surface.md",
+          "start_line": 19,
+          "end_line": 22
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-017-001",
+        "version": 1,
+        "topic": "legacy-017",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The root README is the concise product entry. It links to one Quickstart, a\nsmall concepts map, workflow guides, customization guidance, and public\ngovernance files. One checked-in example demonstrates the complete\nReview-to-acceptance model without creating a second implementation authority.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-foundation-has-a-public-product-surface.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-foundation-has-a-public-product-surface.md",
+          "start_line": 24,
+          "end_line": 28
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-017-002",
+        "version": 1,
+        "topic": "legacy-017",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Product claims use bounded language. Foundation can enforce coverage for\nrecorded clauses, evidence that discovery and routing occurred, exact validation\nidentity, and delivery provenance. It cannot guarantee correct interpretation\nof requirements, defect-free software, or automatic adoption of later Template\nchanges.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-foundation-has-a-public-product-surface.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-foundation-has-a-public-product-surface.md",
+          "start_line": 30,
+          "end_line": 32
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-017-003",
+        "version": 1,
+        "topic": "legacy-017",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Repository validation checks the required public assets and local Markdown\nreferences through one check-only implementation. The check is part of the\nexisting validation graph and does not add a lifecycle operation.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-foundation-has-a-public-product-surface.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-public-template-v0-uses-toml-traceability.md",
+          "start_line": 10,
+          "end_line": 11
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-020-001",
+        "version": 1,
+        "topic": "legacy-020",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The first promoted public Template release is `v0.1.0`. Earlier `v2.0.0` and\n`v3.0.0` tags remain immutable records of pre-public architecture iterations.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-public-template-v0-uses-toml-traceability.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-public-template-v0-uses-toml-traceability.md",
+          "start_line": 13,
+          "end_line": 17
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-020-002",
+        "version": 1,
+        "topic": "legacy-020",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Rendered repositories use TOML for Review and Specification machine contracts\nand Markdown for Plans. A copied standard-library validator checks that every\nReview clause has one declared disposition, every covered or deferred clause\nresolves to one existing Specification, Specification ownership agrees with\nthe Review, and every covered clause is present in the referenced Plan.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-public-template-v0-uses-toml-traceability.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-public-template-v0-uses-toml-traceability.md",
+          "start_line": 19,
+          "end_line": 20
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-020-003",
+        "version": 1,
+        "topic": "legacy-020",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "The validator runs in both member and final gates. `main` is the default\ndelivery branch because it is the branch created by GitHub Template use.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-public-template-v0-uses-toml-traceability.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-reliable-agentic-protocol.md",
+          "start_line": 19,
+          "end_line": 23
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-021-001",
+        "version": 1,
+        "topic": "legacy-021",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A significant development event retains the approved source, rationale and\nexact affected decision clauses. Stable clause IDs, versions and expected prior\nvalues support targeted amendments, withdrawals, splits and merges. A current,\ntopic-organized working set is a verified projection of accepted history,\nincluding context and relationships; there is one mutation owner for both.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-reliable-agentic-protocol.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-reliable-agentic-protocol.md",
+          "start_line": 25,
+          "end_line": 29
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-021-002",
+        "version": 1,
+        "topic": "legacy-021",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Consolidate intent, approved behavior and necessary planning in one change\nrecord. Preserve approval boundaries and original accepted history. Migrate\nhistorical records through reviewed explicit mappings; do not guess granularity.\nCapture source-relevant events before validation freezes the source; validation\nsuccess remains evidence outside the source and never causes a self-edit.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-reliable-agentic-protocol.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-reliable-agentic-protocol.md",
+          "start_line": 31,
+          "end_line": 34
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-021-003",
+        "version": 1,
+        "topic": "legacy-021",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "A diagnostic retry cannot clear the first failure. Preserve both attempts and\nrequire a fresh normal successful run after a fix. Command settlement observes\nowned processes on every exit path and refuses a successful job that leaked.\nThe generic protocol does not impose an application language or runner.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-reliable-agentic-protocol.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    },
+    {
+      "sources": [
+        {
+          "path": "docs/decisions/ADP-reliable-agentic-protocol.md",
+          "start_line": 36,
+          "end_line": 40
+        }
+      ],
+      "clause": {
+        "id": "LEGACY-021-004",
+        "version": 1,
+        "topic": "legacy-021",
+        "scope": [
+          "Repository protocol; exact applicability remains as stated in the source paragraph."
+        ],
+        "statement": "Update actual Agent instructions alongside record formats. Market the product\nas a reliable agentic development and delivery protocol, with reproducible\nmechanism demonstrations and no invented impact measurements. Distribution is\none skill plus local commands; cross-machine systems and publication are out of\nscope. Existing public identities are retained unless separately approved.",
+        "rationale": "Verbatim paragraph from docs/decisions/ADP-reliable-agentic-protocol.md; consult the original context, consequences and supersession links before acceptance.",
+        "status": "active",
+        "requires": []
+      },
+      "reason": "Preserve this exact paragraph as a review candidate, not an inferred atomic requirement. Review granularity, cross-document conflicts and contextual dependencies before adoption."
+    }
+  ]
+}

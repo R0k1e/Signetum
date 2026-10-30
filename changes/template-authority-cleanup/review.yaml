@@ -1,0 +1,19 @@
+review:
+  schema_version: 1
+  id: template-authority-cleanup
+  status: active
+  source:
+    kind: human_direction
+    summary: Clarify configuration, documentation, examples, and active changes.
+  clauses:
+    - id: CLEAN-001
+      statement: Runtime configuration and Agent policy routing have distinct authorities.
+    - id: CLEAN-002
+      statement: The declared decisions authority exists in a fresh Template.
+    - id: CLEAN-003
+      statement: A user can safely initialize one active Change without copying the example manually.
+  acceptance:
+    result: pending
+    delivery_commit: null
+    accepted_clauses: []
+    rejected_clauses: []

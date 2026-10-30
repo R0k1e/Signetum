@@ -1,0 +1,226 @@
+[change]
+schema_version = 1
+id = "streamline-development-operations"
+
+[change.source]
+kind = "human_direction"
+summary = "Complete stages one to four of the approved next-step plan: operations, test efficiency, concise decision records and optional validation optimization."
+
+[change.contract]
+version = 2
+approved_base = "833b49cf8307ef589651bae9a3e9270911864ffb"
+
+[[change.contract.requirements]]
+id = "FLOW-001"
+outcome = "Provide a read-only workflow status and make changed selection-only."
+acceptance = [
+    "Status derives workspace, changes, outstanding findings, exact receipt validity and next action without running checks or storing another status; replace status-all and all maintained callers; changed no longer executes checks or accepts redundant validate-only input.",
+]
+
+[[change.contract.requirements]]
+id = "FLOW-002"
+outcome = "Use consistent structured failures across daily protocol and adoption utilities."
+acceptance = [
+    "Malformed arguments and operational refusals produce one versioned JSON result with cause and next action, preserving existing exit categories and applied-transaction details; do not introduce another execution or journal owner.",
+]
+
+[[change.contract.requirements]]
+id = "FLOW-003"
+outcome = "Make testing and decision records low-cost by structure and Skill instructions."
+acceptance = [
+    "Keep one record/journal and derived decisions; teach distinct-risk test placement, minimal sufficient rationale, relevant alternatives, reopening conditions, references instead of repeated prose, and stop redundant validation; no new document type, prose pins or fixed budgets.",
+]
+
+[[change.contract.requirements]]
+id = "FLOW-004"
+outcome = "Emit useful successful and failed execution cost diagnostics."
+acceptance = [
+    "Retain pytest preparation, collection, phase, execution and cleanup observations with actual workers; timing never changes a verdict, first failure or allocator; successful reports must actually emit their measurements.",
+]
+
+[[change.contract.requirements]]
+id = "FLOW-005"
+outcome = "Provide an optional committed-tree Python dependence provider."
+acceptance = [
+    "Reuse the existing structured selection boundary; select dependent unit tests, preserve modified tests and declared family rules; unknown paths, dynamic imports, deleted modules and syntax uncertainty conservatively fall back; never import the judged tree and final remains complete.",
+]
+
+[[change.contract.requirements]]
+id = "FLOW-006"
+outcome = "Provide optional duration-weighted scheduling without changing test membership."
+acceptance = [
+    "A common deterministic ordering/grouping core and pytest adapter preserve scheduling units and all collected tests; missing weights fall back safely and weights are hints, not pass criteria; reuse existing runner and source-bind declared configuration.",
+]
+
+[[change.contract.requirements]]
+id = "FLOW-007"
+outcome = "Provide source-bound CI partition planning, execution and complete aggregation."
+acceptance = [
+    "Plan files before test import, keep declared shared groups together, execute through the current supervised adapter, and refuse missing, duplicate, overlapping, failed, cancelled or mismatched partition results. Bind source, tools, commands and partition configuration. Aggregation is CI evidence and never grants lifecycle readiness or delivery permission.",
+]
+
+[[change.contract.requirements]]
+id = "FLOW-008"
+outcome = "Verify public, generated and installed paths and stop at clean readiness."
+acceptance = [
+    "Reuse affected integration assets and core matrices; installed optional utilities work outside the source checkout; reconcile discoveries. Do not modify Perdura, integrate or publish. RAM volumes and background deletion are excluded.",
+]
+
+[[change.contract.decisions]]
+id = "streamline-development-operations/boundaries"
+change_id = "streamline-development-operations"
+authority = "docs/decisions/ADP-development-feedback-is-bounded-and-derived.md"
+reason = "The owner approved implementing the first four stages and explicitly excluded RAM volumes and background deletion."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "development-feedback"
+version = 1
+summary = "Derived workflow state, economical evidence and optional validation optimization."
+
+[[change.contract.decisions.clauses]]
+id = "streamline-development-operations/clauses"
+change_id = "streamline-development-operations"
+action = "add"
+expected = [
+    { id = "FLOW-STATUS-001", version = 0 },
+    { id = "FLOW-RECORD-001", version = 0 },
+    { id = "FLOW-OPTIONAL-001", version = 0 },
+]
+reason = "Keep one source and execution authority while reducing user friction."
+authority = "docs/decisions/ADP-development-feedback-is-bounded-and-derived.md"
+
+[[change.contract.decisions.clauses.updates]]
+id = "FLOW-STATUS-001"
+version = 1
+topic = "development-feedback"
+scope = [
+    "Local commands, validation and agent instructions",
+]
+statement = "Status and change planning are read-only derived views; checks execute only through test, readiness or final owners."
+rationale = "Repeated diagnostic and readiness suites waste work; copied state becomes stale."
+
+[[change.contract.decisions.clauses.updates]]
+id = "FLOW-RECORD-001"
+version = 1
+topic = "development-feedback"
+scope = [
+    "Local commands, validation and agent instructions",
+]
+statement = "Keep the minimum record needed to reconstruct consequential choices, including material alternatives and reopening conditions, with original references instead of repeated summaries."
+rationale = "A conclusion alone loses reasoning, while transcripts burden review."
+
+[[change.contract.decisions.clauses.updates]]
+id = "FLOW-OPTIONAL-001"
+version = 1
+topic = "development-feedback"
+scope = [
+    "Local commands, validation and agent instructions",
+]
+statement = "Dependence selection, weighted scheduling and verified partitioning are optional capabilities with repository-owned inputs; neither heuristics nor timing can replace complete final validation."
+rationale = "These techniques generalize, but their language and grouping facts are not generic defaults."
+
+[[change.contract.decisions]]
+id = "streamline-development-operations/align-current-selection-clause"
+change_id = "streamline-development-operations"
+authority = "docs/decisions/ADP-development-feedback-is-bounded-and-derived.md"
+parents = [
+    "simplify-adoption-boundaries/boundaries",
+]
+reason = "Apply the owner-approved changed planning behavior to the existing affected clause rather than leave contradictory current rules."
+
+[[change.contract.decisions.clauses]]
+id = "streamline-development-operations/amend-selection-default"
+change_id = "streamline-development-operations"
+action = "amend"
+expected = [
+    { id = "ADOPTION-SEL-001", version = 2 },
+]
+authority = "docs/decisions/ADP-development-feedback-is-bounded-and-derived.md"
+reason = "Only changed stops executing checks; full readiness by default and complete final remain unchanged."
+
+[[change.contract.decisions.clauses.updates]]
+id = "ADOPTION-SEL-001"
+version = 3
+topic = "repository-adoption"
+scope = [
+    "Repository validation and evidence",
+]
+statement = "Structured repository selection is optional. Changed explains the planned member checks without executing shards. Without a provider, readiness executes the complete declared member-safe gate without impact narrowing or test inheritance; final always executes its complete declared gate."
+rationale = "Separate plan inspection from execution to avoid repeated complete member checks while preserving the simple safe default."
+
+[change.contract.autonomy]
+allowed = [
+    "Implement and remove superseded in-repository entrypoints, update policy and Skill, generate portable artifacts, validate installed behavior, reconcile and stop at ready.",
+]
+requires_confirmation = [
+    "Modify Perdura or delivery worktrees, integrate, publish, add RAM volumes or background deletion.",
+]
+
+[[change.contract.excluded]]
+statement = "Perdura-side adoption, actual delivery/publication, RAM volumes, background deletion, cross-machine persistent services and automatic history interpretation."
+reason = "The owner authorized only the first four stages in this repository and explicitly excluded these storage optimizations."
+
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = [
+    "FLOW-001",
+]
+action = "Status derives workspace, changes, outstanding findings, exact receipt validity and next action without running checks or storing another status; replace status-all and all maintained callers; changed no longer executes checks or accepts redundant validate-only input."
+
+[[change.execution.steps]]
+id = "STEP-2"
+requirements = [
+    "FLOW-002",
+]
+action = "Malformed arguments and operational refusals produce one versioned JSON result with cause and next action, preserving existing exit categories and applied-transaction details; do not introduce another execution or journal owner."
+
+[[change.execution.steps]]
+id = "STEP-3"
+requirements = [
+    "FLOW-003",
+]
+action = "Keep one record/journal and derived decisions; teach distinct-risk test placement, minimal sufficient rationale, relevant alternatives, reopening conditions, references instead of repeated prose, and stop redundant validation; no new document type, prose pins or fixed budgets."
+
+[[change.execution.steps]]
+id = "STEP-4"
+requirements = [
+    "FLOW-004",
+]
+action = "Retain pytest preparation, collection, phase, execution and cleanup observations with actual workers; timing never changes a verdict, first failure or allocator; successful reports must actually emit their measurements."
+
+[[change.execution.steps]]
+id = "STEP-5"
+requirements = [
+    "FLOW-005",
+]
+action = "Reuse the existing structured selection boundary; select dependent unit tests, preserve modified tests and declared family rules; unknown paths, dynamic imports, deleted modules and syntax uncertainty conservatively fall back; never import the judged tree and final remains complete."
+
+[[change.execution.steps]]
+id = "STEP-6"
+requirements = [
+    "FLOW-006",
+]
+action = "A common deterministic ordering/grouping core and pytest adapter preserve scheduling units and all collected tests; missing weights fall back safely and weights are hints, not pass criteria; reuse existing runner and source-bind declared configuration."
+
+[[change.execution.steps]]
+id = "STEP-7"
+requirements = [
+    "FLOW-007",
+]
+action = "Plan files before test import, keep declared shared groups together, execute through the current supervised adapter, and refuse missing, duplicate, overlapping, failed, cancelled or mismatched partition results. Bind source, tools, commands and partition configuration. Aggregation is CI evidence and never grants lifecycle readiness or delivery permission."
+
+[[change.execution.steps]]
+id = "STEP-8"
+requirements = [
+    "FLOW-008",
+]
+action = "Retain existing source, Git, journal, receipt, recovery and complete-final tests. Replace changed execution assertions with no-execution proofs and extend existing protocol/store/installed traversals for status and common errors. Add core tests in test_optimization_contracts.py for new reach, grouping and aggregation boundaries, one generated-provider/partition traversal in test_optional_validation_cli.py, and one weighted runner traversal; extend existing recovery and installed isolation evidence without repeating frontend matrices. Build, regenerate, reconcile and stop at clean ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-29
+source = "The owner explicitly approved completing stages one to four, including changed becoming selection-only. This approval binding names the corresponding targeted amendment to the existing current rule; scope and behavior are unchanged."
+contract_digest = "sha256:c4da9c52387e5f3614cdcca69c3e7db68347e5b809163a16585efc81505099a8"

@@ -1,0 +1,132 @@
+name: Validate source
+on:
+  workflow_call:
+    inputs:
+      release-tag:
+        type: string
+        default: ""
+      targets:
+        type: string
+        default: '[{"os":"ubuntu-latest","python":"3.12","artifact":"linux-3.12"},{"os":"ubuntu-latest","python":"3.13","artifact":"linux-3.13"},{"os":"macos-14","python":"3.13","artifact":"macos-3.13"}]'
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.targets) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: "2026.8.2"
+      - shell: bash
+        env:
+          UV_PYTHON: ${{ matrix.python }}
+        run: |
+          uv python install "$UV_PYTHON"
+          uv sync --locked --all-extras --dev
+      - name: Verify the delivered release source
+        if: inputs.release-tag != ''
+        shell: bash
+        env:
+          UV_PYTHON: ${{ matrix.python }}
+          RELEASE_SOURCE: ${{ github.sha }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          SOURCE_BRANCH="$(uv run --no-sync python -c 'from pathlib import Path; from signetum.policy import delivery_policy; print(delivery_policy(Path.cwd()).branch)')"
+          git fetch --no-tags origin "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
+          uv run --no-sync signetum release preflight --source "$RELEASE_SOURCE" --tag "$RELEASE_TAG" > "$RUNNER_TEMP/signetum-release-source.json"
+      - name: Validate the declared complete gate
+        shell: bash
+        env:
+          UV_PYTHON: ${{ matrix.python }}
+          HYPOTHESIS_PROFILE: ci
+          PYTEST_ADDOPTS: --cov-fail-under=0
+        run: |
+          set +e
+          uv run --no-sync signetum protocol test --gate final --exact-source > "$RUNNER_TEMP/signetum-validation.log" 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "Validation failed; full output is retained in the diagnostic artifact."
+            wc -c "$RUNNER_TEMP/signetum-validation.log"
+            head -c 8000 "$RUNNER_TEMP/signetum-validation.log"
+            printf '\n...\n'
+            tail -c 8000 "$RUNNER_TEMP/signetum-validation.log"
+          else
+            tail -n 1 "$RUNNER_TEMP/signetum-validation.log"
+          fi
+          exit "$status"
+      - name: Retain failed validation output
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: validation-${{ runner.os }}-python-${{ matrix.python }}-${{ github.sha }}
+          path: ${{ runner.temp }}/signetum-validation.log
+          retention-days: 7
+          compression-level: 9
+          if-no-files-found: ignore
+      - name: Retain this platform's coverage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-${{ matrix.artifact }}-${{ github.sha }}
+          path: .coverage
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Prepare the verified release artifact
+        if: inputs.release-tag != '' && matrix.artifact == fromJSON(inputs.targets)[0].artifact
+        shell: bash
+        run: |
+          cp "$RUNNER_TEMP/signetum-release-source.json" dist/release-source.json
+          sha256sum dist/*.whl dist/*.tar.gz dist/release-source.json > dist/SHA256SUMS
+      - name: Retain the verified release artifact
+        if: inputs.release-tag != '' && matrix.artifact == fromJSON(inputs.targets)[0].artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-candidate-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+  coverage:
+    needs: native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: "2026.8.2"
+          install_args: uv python
+      - run: uv sync --locked --all-extras --dev
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: coverage-*-${{ github.sha }}
+          path: coverage-inputs
+      - name: Require every target and enforce project coverage
+        shell: bash
+        env:
+          EXPECTED_TARGETS: ${{ inputs.targets }}
+          SOURCE: ${{ github.sha }}
+        run: |
+          uv run --no-sync python - <<'PYTHON'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          root = Path("coverage-inputs")
+          expected = {"coverage-" + item["artifact"] + "-" + os.environ["SOURCE"] for item in json.loads(os.environ["EXPECTED_TARGETS"])}
+          actual = {path.name for path in root.iterdir() if path.is_dir()}
+          if not expected or actual != expected:
+              raise SystemExit(f"Incomplete coverage: expected {sorted(expected)}, got {sorted(actual)}")
+          inputs = [str(root / name / ".coverage") for name in sorted(expected)]
+          if not all(Path(path).is_file() for path in inputs):
+              raise SystemExit("A coverage target has no data file")
+          subprocess.run([sys.executable, "-m", "coverage", "combine", *inputs], check=True)
+          subprocess.run([sys.executable, "-m", "coverage", "report", "--fail-under=90"], check=True)
+          PYTHON

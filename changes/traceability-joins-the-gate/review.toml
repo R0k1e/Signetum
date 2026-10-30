@@ -1,0 +1,25 @@
+[review]
+schema_version = 1
+id = "traceability-joins-the-gate"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "The traceability authority is declared and shipped but executed by no gate, so the requirement chain it protects has been broken twice without any run reporting it."
+
+[[review.clauses]]
+id = "GATE-001"
+statement = "The traceability authority runs as a shard in the member gate and in the final gate."
+disposition = "covered"
+specification = "traceability-joins-the-gate/authority-in-the-gate"
+
+[[review.clauses]]
+id = "GATE-002"
+statement = "A Review recording acceptance names the commit which delivered it, and the existing record is completed from its own delivery history."
+disposition = "covered"
+specification = "traceability-joins-the-gate/authority-in-the-gate"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []
