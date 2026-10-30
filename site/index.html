@@ -1,30 +1,50 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Signetum — Seal every change with evidence</title>
-  <meta name="description" content="A reliable agentic development and delivery protocol: one standard Skill and repository-owned local commands.">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Signetum — Reliable agentic development and delivery</title>
+  <meta name="description" content="One standard Skill for reliable agentic development and delivery. Keep decisions, checks and delivery attached to the exact change.">
   <link rel="canonical" href="https://r0k1e.github.io/Signetum/">
   <link rel="alternate" hreflang="en" href="https://r0k1e.github.io/Signetum/">
   <link rel="alternate" hreflang="zh-CN" href="https://r0k1e.github.io/Signetum/zh-CN/">
-  <link rel="stylesheet" href="styles.css"><link rel="icon" href="assets/signetum-mark.png">
-  <meta property="og:type" content="website"><meta property="og:title" content="Signetum">
-  <meta property="og:description" content="Seal every change with evidence.">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/svg+xml" href="assets/signetum-mark.svg">
+  <link rel="preload" href="fonts/InstrumentSerif-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Signetum">
+  <meta property="og:description" content="One standard Skill for reliable agentic development and delivery. Keep decisions, checks and delivery attached to the exact change.">
   <meta property="og:url" content="https://r0k1e.github.io/Signetum/">
   <meta property="og:image" content="https://r0k1e.github.io/Signetum/assets/signetum-social-preview.png">
   <meta name="twitter:card" content="summary_large_image">
   <script type="application/ld+json">{"@context":"https://schema.org","@type": "SoftwareApplication","name":"Signetum","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","url":"https://r0k1e.github.io/Signetum/","codeRepository":"https://github.com/r0k1e/Signetum","license":"https://www.apache.org/licenses/LICENSE-2.0"}</script>
 </head>
-<body><div class="wrap">
-  <nav><a class="brand" href="./"><img src="assets/signetum-mark.png" alt="">Signetum</a><a href="zh-CN/" lang="zh-CN">简体中文</a></nav>
-  <main>
-    <header class="hero"><div><h1>Seal every change with evidence.</h1><p class="lede">A reliable agentic development and delivery protocol. One standard Skill and local commands connect approved changes, current decisions, behavioral evidence, and explicit delivery.</p><div class="actions"><a class="button primary" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">Get the Skill</a><a class="button" href="https://github.com/r0k1e/Signetum/blob/main/docs/product/failure-demonstrations.md">Try the failure demos</a></div></div><img class="seal" src="assets/signetum-mark.png" alt="Signetum seal mascot holding an approved repository folder"></header>
-    <section><h2>What it closes</h2><p class="intro">A small set of repository authorities makes Agent work reviewable from the first request through acceptance.</p><div class="grid">
-      <article class="card"><strong>One change record</strong>Keep recorded requirements, acceptance, approval, and execution steps together. Generate the review view.</article><article class="card"><strong>Repository understanding</strong>Architecture and policy routing tell Agents what already exists before they change it.</article><article class="card"><strong>Current decisions</strong>Read a working set derived from accepted history. Retrieve original rationale when it matters.</article><article class="card"><strong>Parallel Agent teams</strong>Change-owned worktrees isolate members; explicit batches assemble only named work.</article><article class="card"><strong>Explainable delivery</strong>Receipts bind validation evidence to exact commits and expose what a delivery contains.</article><article class="card"><strong>Behavior-focused quality</strong>Unit and integration tests protect observable contracts instead of implementation details.</article>
-    </div></section>
-    <section><h2>One closed loop</h2><p class="intro">Human approval stays at the consequential boundaries. Everything else is explicit, repeatable, and repository-owned.</p><ol class="flow"><li>Member workspace</li><li>Approved change</li><li>Implementation</li><li>Ready</li><li>Named batch</li><li>Final validation</li><li>Explicit delivery</li><li>Human acceptance</li></ol></section>
-    <section><h2>Clear boundaries</h2><div class="compare"><div><h3>Beyond CI</h3><p>CI checks a commit. Signetum also closes requirements, governs parallel development, and records exact delivery evidence.</p></div><div><h3>Complements specs</h3><p>Specification tools describe intended behavior. Signetum connects that intent to plans, workspaces, validation, and delivery.</p></div><div><h3>Not an Agent runtime</h3><p>Use the coding Agent you prefer. Signetum is the durable development contract that lives with the repository.</p></div></div></section>
-    <section><h2>Start in your repository</h2><p class="intro">Keep your existing application runner. Optional Python, Node, and Rust bindings use repository-owned commands. Installing the Skill does not adopt the protocol or authorize delivery. New projects initialize their own files and use the same Skill adoption path.</p><div class="actions"><a class="button primary" href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">Read the adoption guide</a></div></section>
-  <section><h2>Evidence with limits</h2><p class="intro">The failure demos exercise missing requirement ownership, stale validation evidence, and interrupted publication in disposable repositories. They demonstrate protocol boundaries, not defect-free software or a measured reduction in review time. Historical decisions remain authoritative until explicitly migrated.</p><a href="https://github.com/r0k1e/Signetum/blob/main/docs/product/protocol-in-practice.md">Read the practice article</a></section>
-  </main><footer><strong>Signetum</strong><span>Apache-2.0 · Repository development, sealed.</span></footer>
-</div></body></html>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <nav class="site-nav wrap" aria-label="Primary navigation">
+    <a class="brand" rel="home" href="./"><img src="assets/signetum-mark.svg" width="34" height="34" alt="">Signetum</a>
+    <div class="nav-links"><a href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">Guide</a><a href="https://github.com/r0k1e/Signetum">GitHub</a><a href="zh-CN/" lang="zh-CN" hreflang="zh-CN">中文</a></div>
+  </nav>
+  <main id="main">
+    <div class="wrap">
+      <header class="hero">
+        <h1>Agent work.<br><span>Ready to deliver.</span></h1>
+        <p class="lede">Signetum is a standard Skill for reliable agentic development and delivery. Keep decisions, checks and delivery attached to the exact change.</p>
+        <div class="install-actions" id="install"><button class="button" id="copy-install" type="button" hidden data-copied="Copied. Paste it into your coding agent." data-failed="Copy unavailable. Open the prompt below to select and copy it.">Copy install prompt<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V4h12v14h-3M4 8h12v13H4z"/></svg></button><noscript><a class="button" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">View the Skill</a></noscript><a class="source-link" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">View the Skill</a></div>
+        <p class="copy-status" id="copy-status" role="status" aria-live="polite">Paste into your coding agent. Review setup before applying it.</p>
+        <details class="prompt-preview"><summary>Read the install prompt</summary><pre><code id="install-prompt">Install the Signetum Skill from https://github.com/R0k1e/Signetum/tree/main/skills/signetum at an exact reviewed commit. Use it to inspect this project and propose setup. Preserve existing tools and show the changes before applying them.</code></pre></details>
+      </header>
+      <figure class="proof">
+        <div class="proof-top"><code>change.toml</code><p>Example: make a retry policy explicit.</p></div>
+        <dl class="proof-chain"><div class="proof-stage"><dt>Approve</dt><dd><strong>Define the outcome.</strong>A change record keeps requirements, acceptance and actual approval together.</dd></div><div class="proof-stage"><dt>Check</dt><dd><strong>Verify the behavior.</strong>Repository-owned tests bind their evidence to the exact source. First failures stay visible.</dd></div><div class="proof-stage"><dt>Deliver</dt><dd><strong>Review before landing.</strong>Named members enter a batch. Final validation and explicit delivery preserve that source binding.</dd></div></dl>
+        <figcaption>Illustrative workflow, not a validation receipt. Ready, delivered and human acceptance are distinct states.</figcaption>
+      </figure>
+    </div>
+    <section class="essentials" aria-labelledby="essentials-title"><div class="essentials-inner wrap"><div><h2 id="essentials-title">Keep the reasoning.<br>Skip the paperwork.</h2><p class="lead">Enough context for the next agent and the next reviewer. Kept once, close to the work.</p></div><dl class="principles"><div class="principle"><dt>Decisions without the transcript.</dt><dd>One <code>change.toml</code> and significant append history preserve consequential choices. The current decision set is derived.</dd></div><div class="principle"><dt>Checks with a purpose.</dt><dd>Use the existing test runner. Optional selection can narrow daily feedback; final validation remains complete.</dd></div><div class="principle"><dt>Parallel work with a boundary.</dt><dd>Isolated worktrees keep member changes separate. A named batch makes the combined source reviewable before delivery.</dd></div></dl></div></section>
+    <section class="adoption wrap" aria-labelledby="adoption-title"><div><h2 id="adoption-title">Fits the repository<br>you already have.</h2><p class="intro">New project or existing codebase, the same Skill guides a reviewed setup. Daily work runs locally.</p><a href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">Read the setup guide</a></div><div class="faq"><details><summary>What gets installed?<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>The Skill provides agent instructions. An explicitly reviewed setup installs repository-local commands and bindings; it preserves application metadata and tools.</p></details><details><summary>Can I keep my test tools?<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>Yes. Application runners remain repository-owned. The protocol uses a host Python interpreter; current workspace operations need Git, Mise and Worktrunk. The guide names the prerequisites.</p></details><details><summary>What does the evidence prove?<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>It records what passed for the observed source, and what was approved for delivery. It does not promise defect-free software or replace human judgment.</p></details></div></section>
+    <div class="close wrap"><p>Your next change, with a clear trail.</p><a class="button" href="#install">Go to installation</a></div>
+  </main>
+  <footer class="site-footer wrap"><p>Signetum · Reliable agentic development and delivery.</p><p><a href="https://github.com/r0k1e/Signetum/blob/main/LICENSE">Apache-2.0</a></p></footer>
+  <script src="install.js" defer></script>
+</body>
+</html>
