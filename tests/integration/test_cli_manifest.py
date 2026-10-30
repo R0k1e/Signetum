@@ -8,7 +8,7 @@ from signetum import git as git_tools
 from signetum.cli import app
 from signetum.traceability.boundary import RepositoryInventory
 
-FIXTURE = Path(__file__).parents[2] / "template" / "signetum.toml"
+FIXTURE = Path(__file__).parents[2] / "tests/fixtures/portable-python" / "signetum.toml"
 
 
 def test_cli_validates_manifest_through_public_command() -> None:

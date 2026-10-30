@@ -25,7 +25,7 @@ def runner_command(request, monkeypatch):
     if request.param == "engine":
         return ["-m", "signetum.validation.pytest_runner"]
     runner = Path(__file__).parents[2] / (
-        "template/.agents/signetum/runtime/_signetum_runtime/pytest_runner.py"
+        "tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime/pytest_runner.py"
     )
     return [str(runner)]
 
@@ -212,7 +212,7 @@ def test_failed_original_never_writes_success_on_repeated_runs(tmp_path):
 
 def test_independent_template_retains_recovery_and_refuses_a_repeated_node(repository, tmp_path):
     root, _ = repository
-    runtime = Path(__file__).parents[2] / "template/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[2] / "tests/fixtures/portable-python/.agents/signetum/runtime"
     state = tmp_path / "template-attempts"
     (root / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
     (root / "test_retry.py").write_text(

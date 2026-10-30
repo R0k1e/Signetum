@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-label="Signetum">
-  <g fill="none" stroke="#183e2d" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M32.8 21.8A13 13 0 1 1 21.8 7.2"/>
-    <path d="m15 19 6 6L34 11"/>
+  <g fill="#183e2d">
+    <path d="M4 7h14v5H9v16h9v5H4z"/>
+    <path d="M22 7h14v26H22v-5h9V12h-9z"/>
+    <path d="M14 17.5h12v5H14z"/>
   </g>
 </svg>

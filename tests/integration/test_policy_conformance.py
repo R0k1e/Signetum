@@ -61,7 +61,7 @@ print(json.dumps(result))
             "-S",
             "-c",
             script,
-            str(ROOT / "template/.agents/signetum/runtime"),
+            str(ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime"),
             str(tmp_path),
         ],
         capture_output=True,

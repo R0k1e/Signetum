@@ -8,7 +8,10 @@ steps cover every owned requirement; routine steps can evolve without changing
 behavior approval.
 
 Run `view <record-path>` to generate a concise proposal. Show outcomes,
-acceptance, scope and autonomy together. This command never grants approval.
+acceptance, scope and autonomy together. Lead with what the person needs to
+decide, the recommended choice and material alternatives, their basis and impact.
+Keep routine implementation details in the agreed autonomy; do not ask people to
+review protocol syntax or repeated command output. This command never grants approval.
 After the owner confirms, record that actual confirmation in `change.approval`
 with actor, date, source and the generated contract digest. Do not invent a
 confirmation or reuse its digest after changing behavior, base or autonomy.
@@ -32,3 +35,8 @@ never confer acceptance. Preserve accepted historical records until an explicit
 reviewed migration replaces their authority. Current architecture states implemented
 rules; decision history preserves their formation. No word quota or second summary
 is required.
+
+Honor authorization already given in the conversation, including implementation,
+integration or delivery. Show the generated final review before using existing
+delivery authorization; request it only when missing. A scope change still needs
+its own approval. Do not create another review document or standing summary.

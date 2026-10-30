@@ -22,7 +22,7 @@ htmlcov/
 
 # Protocol-managed workspaces and derived portable validation material
 /.worktrees/
-/template/.agents/signetum/runtime/_signetum_runtime/
+/tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime/
 
 # Local design-tool context and rendered review output
 .impeccable/

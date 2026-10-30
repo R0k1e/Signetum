@@ -1,6 +1,0 @@
-{
-  "schema_version": 1,
-  "source_roots": ["src"],
-  "unit_roots": ["tests"],
-  "unit_shard": "engine:pytest"
-}

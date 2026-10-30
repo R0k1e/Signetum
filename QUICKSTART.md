@@ -34,14 +34,28 @@ repository process, commands use its local runtime. The upstream checkout and
 global setup engine are not daily dependencies. Updating is a later explicit
 preview, not a background synchronization.
 
-## Make a real change
+## Decide and build
 
 > Use $signetum to implement [behavior]. Show the intended outcome, scope and
 > acceptance first. Stop at ready.
 
-The agent opens a member workspace, prepares one change record, records your
-actual confirmation and implements it. Important discoveries and decisions stay
-in the existing source history; ordinary command output stays in local logs.
+Discuss consequential choices about behavior, architecture or delivery before
+implementation.
+The agent should explain the alternatives, consequences and recommendation; you
+confirm the intended outcome and acceptance. It opens an isolated member workspace
+and keeps significant decisions once in the change history. Ordinary command
+output stays in local logs.
+
+For parallel work, ask:
+
+> Use $signetum to divide [change] into independent tasks. Propose ownership,
+> shared interfaces, dependencies and an integration owner first. Give each
+> coding agent an isolated worktree and bring ready members into one named batch.
+
+You or your coding-agent host launch and coordinate the agents. Agree on shared
+interfaces before dependent edits, synchronize deliberately and let the named
+integration owner resolve overlaps. Signetum supplies the protocol and workspace
+boundaries; it does not automatically schedule agents or host resources.
 
 The result names the exact commit, checks, outstanding issues and readiness.
 A diagnostic retry does not clear an original failure. When you want to deliver,

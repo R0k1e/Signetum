@@ -21,7 +21,7 @@ def pytest_sessionstart(session):
     """Prepare one immutable portable fixture before xdist starts its workers."""
     if hasattr(session.config, "workerinput"):
         return
-    scaffold = Path(__file__).parents[1] / "template"
+    scaffold = Path(__file__).parents[1] / "tests/fixtures/portable-python"
     if runtime_problems(scaffold):
         generate_runtime(scaffold)
 
@@ -134,7 +134,7 @@ def local_repository(tmp_path, monkeypatch):
     monkeypatch.setattr(wt, "worktrunk", native_worktrunk)
     monkeypatch.setattr(wt, "run_tool", native_preparation)
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[1] / "template/.agents/signetum/runtime")
+        str(Path(__file__).parents[1] / "tests/fixtures/portable-python/.agents/signetum/runtime")
     )
     copied = importlib.import_module("_signetum_runtime.worktrunk")
     copied_errors = importlib.import_module("_signetum_runtime.operations")

@@ -21,7 +21,7 @@ def replace(text, original, candidate):
 @pytest.fixture
 def manifest_file(tmp_path):
     path = tmp_path / "signetum.toml"
-    path.write_text((ROOT / "template/signetum.toml").read_text())
+    path.write_text((ROOT / "tests/fixtures/portable-python/signetum.toml").read_text())
     return path
 
 
