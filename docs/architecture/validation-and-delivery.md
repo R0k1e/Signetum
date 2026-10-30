@@ -271,8 +271,8 @@ and diagnostics go to stderr. Missing tools and unavailable identity inputs
 are infrastructure failures; failed checks are validation failures. An open
 merge names batch-continue instead of printing a second result.
 
-Final numbers newly accepted, unnumbered decisions once under the batch lock.
-Accepted historical decisions already present at the base keep their identities.
+Final numbers only accepted `ADP-proposal-*` decisions under the batch lock.
+Accepted stable filenames and historical decision identities remain unchanged.
 Numbering preserves existing supersession edges and never changes approval
 status. Each numbering commit records exact `Signetum-Decision-Rename` pairs
 bound to its batch base. Review projects recorded resolution targets through
