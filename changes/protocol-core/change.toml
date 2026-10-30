@@ -1,0 +1,127 @@
+[change]
+schema_version = 1
+id = "protocol-core"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approves the reviewed Signetum core simplification, decision and parallel-work guidance, compatible project extensions and product packaging, through delivery to main."
+
+[change.contract]
+version = 1
+approved_base = "b036fc0d3e4b6cbc39ec57542891cad83360d16f"
+
+[[change.contract.requirements]]
+id = "CORE-001"
+outcome = "Signetum owns source-bound selector interfaces rather than a bundled Python dependency algorithm; self-use defaults to complete member validation."
+acceptance = [
+    "Remove python_selection, select-python and self-use provider/configuration; retain custom provider qualification, unknown-input fallback, modified-test coverage and complete final validation.",
+    "Retain scheduling and CI partition functionality and meaningful independent provider execution.",
+]
+
+[[change.contract.requirements]]
+id = "CORE-002"
+outcome = "The standard Skill helps people decide and coordinates isolated parallel Agent work with one maintained set of general instructions."
+acceptance = [
+    "Describe consequential choices, scope, dependencies, shared interfaces, synchronization and integration ownership without claiming automatic Agent or host-wide scheduling.",
+    "Adoption writes local bindings and a Skill pointer rather than copied general policy; disclose test changes and keep ordinary execution within approved autonomy.",
+]
+
+[[change.contract.requirements]]
+id = "CORE-003"
+outcome = "Internal acceptance fixtures and obsolete write paths no longer enlarge the product engine."
+acceptance = [
+    "Move internal template and rendering support under tests while retaining isolated portable execution and fixture lock reproducibility.",
+    "Remove future ADR numbering mutation and the unused Python-default helper; preserve historical identities and stable accepted decision sources.",
+    "Move development journal CLI parsing to the existing protocol entry while keeping locked atomic approval-bound storage and derived status/history behavior.",
+]
+
+[[change.contract.requirements]]
+id = "CORE-004"
+outcome = "The public product identity presents human decisions, parallel Agent work and reliable integration/delivery with a distinct non-checkbox brand."
+acceptance = [
+    "Update README, first use and EN/ZH static homepage; retain one standard Skill route and factual extension/prerequisite guidance.",
+    "Replace the rejected check mark and social image; inspect actual desktop/mobile and small-size use; keep design intermediates outside source.",
+]
+
+[[change.contract.requirements]]
+id = "CORE-005"
+outcome = "The corrected candidate is validated and delivered to main through the repository protocol."
+acceptance = [
+    "Update affected current architecture and release notes, reconcile source findings and generate the final delivery review.",
+    "Pass complete local final and hosted checks of the exact candidate, verify installed distribution and Skill usage, then perform exact remote-first batch delivery and inspect Pages.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement, commit, validate, integrate and deliver this approved scope with the existing admitted candidate to main; publish the exact review branch and allow the existing Pages workflow to deploy.",
+    "Remove own obsolete merged review refs and eligible delivered workspaces through supported cleanup after remote confirmation.",
+]
+requires_confirmation = [
+    "Release tags, package-index publication, new external accounts or service settings, Perdura source mutation, or unrelated scope changes.",
+]
+
+[[change.contract.excluded]]
+statement = "Full Perdura migration, copying its selector into core, a global Agent scheduler, new durable report formats and backward command aliases."
+reason = "Keep Signetum language-neutral, small and extensible; downstream uses the same supported interfaces."
+
+[[change.contract.retirements]]
+id = "protocol-core/retire-1"
+target = "minimal-product/fresh-generation-prerequisite/observation"
+resolution_id = "minimal-product/fresh-generation-prepared/resolution"
+targets = [
+    "src/signetum/template.py",
+]
+reason = "The owner approves removing the bundled algorithm and obsolete helpers and relocating internal fixtures; preserve the original history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "protocol-core/retire-2"
+target = "minimal-product/redundant-maintenance-surface/observation"
+resolution_id = "minimal-product/maintained-owners/resolution"
+targets = [
+    "src/signetum/template.py",
+]
+reason = "The owner approves removing the bundled algorithm and obsolete helpers and relocating internal fixtures; preserve the original history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "protocol-core/retire-3"
+target = "product-polish/audit/observation"
+resolution_id = "product-polish/audit-resolved/resolution"
+targets = [
+    "template/README.md",
+]
+reason = "The owner approves removing the bundled algorithm and obsolete helpers and relocating internal fixtures; preserve the original history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "protocol-core/retire-4"
+target = "streamline-development-operations/family-map-owner/observation"
+resolution_id = "streamline-development-operations/family-map-owner-resolved/resolution"
+targets = [
+    "src/signetum/python_selection.py",
+]
+reason = "The owner approves removing the bundled algorithm and obsolete helpers and relocating internal fixtures; preserve the original history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "protocol-core/retire-5"
+target = "streamline-development-operations/indirect-import-reach/observation"
+resolution_id = "streamline-development-operations/indirect-import-resolved/resolution"
+targets = [
+    "src/signetum/python_selection.py",
+]
+reason = "The owner approves removing the bundled algorithm and obsolete helpers and relocating internal fixtures; preserve the original history and remaining evidence."
+
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = [
+    "CORE-001",
+    "CORE-002",
+    "CORE-003",
+    "CORE-004",
+    "CORE-005",
+]
+action = "Remove obsolete owners, move internal fixtures, unify Skill guidance and journal dispatch, reconcile architecture and branding, validate exact artifacts and deliver through the existing batch."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-30
+source = "The owner replied: agreed, begin modifications through delivery, after the concrete core/packaging/selector-interface plan. This confirms these outcomes and main delivery; separate releases remain excluded."
+contract_digest = "sha256:2c8273e7e91d0c9bf3c7bb01facff9b8da5a11ed17511e6ff676dcfabdb23845"
