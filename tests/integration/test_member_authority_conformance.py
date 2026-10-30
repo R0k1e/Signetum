@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from change_fixtures import approve_change, consolidated_approval
+from change_fixtures import approve_legacy_change as approve_change
+from change_fixtures import consolidated_approval
 from test_lifecycle_conformance import _template_lifecycle
 
 from signetum import lifecycle

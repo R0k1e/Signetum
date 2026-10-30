@@ -9,7 +9,7 @@ from pathlib import Path
 from shutil import which
 
 import pytest
-from change_fixtures import approve_change
+from change_fixtures import approve_legacy_change as approve_change
 from test_batch_admission import MANIFEST
 
 from signetum.deviations import (

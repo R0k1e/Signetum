@@ -27,6 +27,9 @@ The last binding assumes the declared shard command is, for example,
 `["python", "-m", "pytest", "tests"]`. `argument_index` marks the beginning of
 the replaceable command tail; every prefix argument is retained exactly. Use
 the actual index of your existing supervised runner, including its flags.
+The index may equal the command length when the runner uses implicit discovery;
+selected files then append to the unchanged prefix. This keeps explicit local
+diagnostics from retaining a redundant full-suite positional target.
 Neither this declaration nor a profile selection invents a test framework.
 
 ## Producer input and output

@@ -443,9 +443,7 @@ def test_sync_does_not_claim_siblings_package_or_charge_its_unchanged_paths(repo
     assert isinstance(changed, tuple)
     assert set(changed) == {
         "own.txt",
-        "changes/dependent/review.toml",
-        "changes/dependent/specs/behavior.toml",
-        "changes/dependent/plans/behavior.md",
+        "changes/dependent/change.toml",
     }
 
 

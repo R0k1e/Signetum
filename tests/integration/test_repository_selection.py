@@ -114,6 +114,20 @@ def test_structured_selection_refines_only_the_declared_test_argument_tail(
     assert result.selection.shards == ("test:check",)
     assert not result.selection.unexplained
     assert not git_output(root, "status", "--porcelain")
+    # Runners may use implicit full-suite discovery, with no positional tail.
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            json.dumps([sys.executable, "-m", "unittest", "discover", "-s", "tests"]),
+            json.dumps([sys.executable, "-m", "unittest"]),
+        )
+    )
+    git_output(root, "commit", "-am", "bind an implicit discovery runner")
+    implicit = resolve(root, selection_runtime)
+    assert (
+        next(s for s in implicit.manifest.validation.shards if s.name == "test:check").command
+        == shard.command
+    )
 
 
 @pytest.mark.parametrize(
