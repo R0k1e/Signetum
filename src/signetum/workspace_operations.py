@@ -56,7 +56,7 @@ def open_workspace(
         if len(registered) != 1:
             raise AdmissionError(f"workspace branch is registered more than once: {branch}")
         workspace = registered[0]
-        if branch == delivery_policy(workspace.path).branch:
+        if kind == "member" and branch == delivery_policy(workspace.path).branch:
             raise AdmissionError("workspace-open cannot adopt a delivery worktree")
         record_location = record_path(state_root(root), branch)
         if not record_location.exists() and workspace.head == source:

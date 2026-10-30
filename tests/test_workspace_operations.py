@@ -560,6 +560,8 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
     old += '[[validation.gates]]\nname="member"\nshards=["test:check"]\n'
     old += '[[validation.gates]]\nname="final"\nshards=["test:check"]\n'
     manifest.write_text(old)
+    policy = root / ".agents/repo-dev/repo.yaml"
+    policy.write_text("delivery:\n  branch: main\n  state: .signetum/delivery\n")
     git_output(root, "commit", "-am", "retain an older delivery configuration")
     git_output(root, "push", "origin", "main")
     base = git_output(root, "rev-parse", "HEAD")
@@ -569,10 +571,16 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
         ops.state_root(root), ops.WorkspaceRecord(1, "plan/protocol-upgrade", base, "member")
     )
     (member / "signetum.toml").write_text(current)
+    (member / ".agents/repo-dev/repo.yaml").write_text("delivery:\n  branch: main\n")
     commit_approval(member)
     commit_file(member, "implementation.txt")
     lifecycle.validate(member, "member")
-    opened_batch = lifecycle.batch_open(root, (member,))
+    pending = ops.open_workspace(
+        member, f"batch/{base}", base, kind="batch", members=(str(member),)
+    )
+    preparation = pending["preparation"]
+    assert isinstance(preparation, dict) and preparation["status"] == "pending_admission"
+    opened_batch = lifecycle.batch_open(member, (member,))
     preparation = opened_batch["preparation"]
     static = opened_batch["static"]
     assert isinstance(preparation, dict) and preparation["status"] == "prepared"
