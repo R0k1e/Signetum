@@ -1,0 +1,29 @@
+[change]
+schema_version=1
+id="delivery-runtime"
+[change.source]
+kind="human_direction"
+summary="Finish the authorized release cleanup through delivery, repairing removal of the executing runtime."
+[change.contract]
+version=1
+approved_base="b36ffa826772d68343bc766eb6a9d6a0c2c490c3"
+[[change.contract.requirements]]
+id="CLEANUP-001"
+outcome="Delivery and maintenance preserve the active execution checkout and safely remove it from another checkout after completion."
+acceptance=["Extend the existing real delivery traversal in engine and generated runtime: retain the active runtime checkout with an explicit reason, remove other eligible residue, then remove the former runtime checkout from a safe caller.","Preserve exact-source delivery and unrelated state; qualify the member and frozen batch and deliver under the existing authorization."]
+[change.contract.autonomy]
+allowed=["Repair the demonstrated cleanup defect within approved REL-005 and delivery scope; verify, present generated review and deliver the exact candidate to main."]
+requires_confirmation=["Tags, package publication, unrelated scope or Perdura edits."]
+[[change.contract.excluded]]
+statement="Background deletion, new maintenance commands, publication and Perdura changes."
+reason="The existing cleanup owner remains sufficient."
+[[change.execution.steps]]
+id="STEP-1"
+requirements=["CLEANUP-001"]
+action="Extend the shared removal predicate, existing real traversal and conditional recovery guidance; regenerate and verify the frozen source."
+
+[change.approval]
+actor="Repository owner"
+recorded_at=2026-10-30
+source="The owner authorized the comprehensive cleanup through delivery and allowed unused worktree removal. This bounded follow-up repairs an execution discovery inside that approved outcome; no outcome or publication scope is expanded."
+contract_digest="sha256:97684c294710a81f6ea54ef2230a5081bbccd92180d45721d83b60e4ec9b2dfc"
