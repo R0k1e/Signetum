@@ -2,7 +2,9 @@
 
 Signetum is the public product identity. Within the product source,
 `signetum` owns generic parsing, package resources,
-profile composition, evidence protocols, and the check-only `signetum` CLI.
+profile composition, evidence protocols and the `signetum` CLI. Check and preview
+operations observe; authoring, adoption, workspace and delivery operations mutate
+only within their declared authority.
 It contains no downstream application path, branch, selector, or delivery
 policy.
 
@@ -16,8 +18,7 @@ independently; installation does not establish an automatic synchronization chan
 The product surface is rooted at `README.md` and the standard Signetum Skill.
 Internal scaffolding under `template/` is validated by inventory and deterministic
 render for runtime tests; it is not a public installation route. `QUICKSTART.md`, focused
-concept and workflow guides, the complete-change teaching artifact, and public
-governance files explain current contracts without becoming additional
+concept and workflow guides and public governance files explain current contracts without becoming additional
 execution authorities. Repository validation checks that required assets and
 local Markdown references remain present. The same public-surface authority
 checks structured workflow permissions, triggering-commit checkout and exact

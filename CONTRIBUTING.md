@@ -1,25 +1,28 @@
 # Contributing
 
-Contributions use the same governed lifecycle as product work. Before proposing
-a change, read `AGENTS.md`, `docs/ARCHITECTURE.md`, and
-`.agents/repo-dev/repo.yaml`. Search current production and test authorities,
-then record new work under `changes/<change-id>/` as a Review, approved
-Specification, and exhaustive Plan.
+Use the [Signetum Skill](skills/signetum/SKILL.md) and the repository's `AGENTS.md`,
+architecture entry and selected policies. Search existing production and test
+owners before proposing a change. New work uses one `changes/<id>/change.toml`
+and significant append history; generate its approval view and record actual
+confirmation before implementation. Routine work creates no extra report or ADR.
 
-Use `uv` for Python commands and a Plan-owned worktree. Test observable
-contracts, run targeted validation during development, and close a committed
-member with `just ready`.
+Use an isolated member workspace and the declared uv environment. For focused
+feedback, run `just test <affected-paths-or-pytest-options>`. Build with `uv build`
+before installed-artifact tests. `changed` explains selection without checks;
+`ready` validates a committed member. Extend or consolidate existing tests at the
+cheapest boundary that exposes the risk.
 
-A ready member is not permission to deliver. Batch assembly, final validation,
-remote delivery, acceptance, publication, and cleanup remain explicit maintainer
-actions. See [Agent Team batch delivery](docs/workflows/agent-team-delivery.md).
+The [validation responsibilities](docs/architecture/validation-and-delivery.md)
+own check semantics. [Batch delivery](docs/workflows/agent-team-delivery.md) owns
+parallel integration. Final review, delivery and release remain explicit;
+a diagnostic or ready result grants none of them.
 
-Never commit credentials, local paths, caches, validation receipts, or editor state.
+The repository's complete toolchain is in `mise.toml`; Node and Rust support
+native acceptance tests, not Skill consumers. Run `mise trust mise.toml` after
+reviewing it, then `mise install` and `uv sync --locked --all-extras --dev`.
+Hosted CI uses the declared final gate on Linux and macOS through one reusable
+workflow, without private workspace records or lifecycle receipts. It enforces
+90% project coverage after requiring every platform target; local gates retain
+their existing threshold.
 
-
-For explicit test feedback after `uv sync --locked --all-extras --dev`, run
-`just test tests/unit` or pass the affected test paths. Build once with `uv build`
-before installed-artifact tests. This diagnostic uses the configured test command
-and allocator without granting readiness. Run the ordinary member gate to close
-work. Before adding tests, extend or consolidate existing evidence; core matrices,
-real public traversals and portable/installed acceptance have distinct purposes.
+Never commit credentials, caches, validation receipts or editor state.

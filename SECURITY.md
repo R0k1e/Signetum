@@ -14,6 +14,6 @@ Reports may cover the packaged CLI, manifest and path validation, repository
 inventory boundaries, lifecycle commands, validation evidence, batch delivery,
 release artifacts, or GitHub workflows.
 
-The Template does not provide a hosted service and does not update repositories
-created from it. Those independent repositories own their deployed products,
+Signetum provides a Skill and local development tools, not a hosted service or
+automatic repository updates. Adopted repositories own their deployed products,
 credentials, and vulnerability response.

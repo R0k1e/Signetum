@@ -22,7 +22,9 @@ merge, replace, delete or new. Keep necessary real traversals for distinct publi
 contracts and put pure matrices in core tests. Generated/installed execution
 checks their own boundaries; it does not mechanically repeat every shared case.
 Do not pin teaching prose or private call order. Keep mutable test resources
-independent and reuse only successful immutable preparation.
+independent and reuse only successful immutable preparation. Independent consumer
+fixtures isolate caller-only test/interpreter configuration while retaining
+enclosing allocation and process-ownership markers.
 
 Use `status` for the current workspace, findings, recorded evidence and next step.
 `changed --explain` displays the check plan without executing it; it is optional,

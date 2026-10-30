@@ -43,10 +43,6 @@ REQUIRED_PRODUCT_PATHS = (
     "docs/workflows/agent-team-delivery.md",
     "docs/guides/repository-bindings.md",
     "docs/maintainers/releasing.md",
-    "examples/complete-change/README.md",
-    "examples/complete-change/review.yaml",
-    "examples/complete-change/specs/greeting.yaml",
-    "examples/complete-change/plans/greeting.md",
     ".github/ISSUE_TEMPLATE/bug_report.yml",
     ".github/ISSUE_TEMPLATE/feature_request.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
@@ -158,15 +154,28 @@ def _workflow_issues(repository: Path, inventory: RepositoryInventory) -> list[P
     """Existing public-surface checks own structured workflow safety constraints."""
     issues = []
     for relative in sorted(inventory.paths):
-        if not relative.startswith(".github/workflows/") or not relative.endswith(
-            (".yml", ".yaml")
+        composite = relative.startswith(".github/actions/") and PurePosixPath(relative).name in {
+            "action.yml",
+            "action.yaml",
+        }
+        if not composite and not (
+            relative.startswith(".github/workflows/") and relative.endswith((".yml", ".yaml"))
         ):
             continue
         try:
             document = safe_load((repository / relative).read_text())
-            if not isinstance(document, dict) or not isinstance(document.get("jobs"), dict):
-                raise ValueError("workflow must declare a jobs object")
-            for job in document["jobs"].values():
+            if not isinstance(document, dict):
+                raise ValueError("workflow or action must declare an object")
+            if composite:
+                runs = document.get("runs", {})
+                if not isinstance(runs, dict) or runs.get("using") != "composite":
+                    raise ValueError("local action must declare composite steps")
+                jobs = {"composite": runs}
+            else:
+                jobs = document.get("jobs")
+                if not isinstance(jobs, dict):
+                    raise ValueError("workflow must declare a jobs object")
+            for job in jobs.values():
                 if not isinstance(job, dict) or not isinstance(job.get("steps", []), list):
                     raise ValueError("workflow job and steps have invalid shapes")
                 if PurePosixPath(relative).name == "ci.yml":
@@ -176,7 +185,10 @@ def _workflow_issues(repository: Path, inventory: RepositoryInventory) -> list[P
                         or any(level not in ("read", "none") for level in permissions.values())
                     ):
                         raise ValueError("CI permissions must remain explicitly read-only")
-                for step in job.get("steps", []):
+                steps = list(job.get("steps", []))
+                if "uses" in job:
+                    steps.append({"uses": job["uses"]})
+                for step in steps:
                     if not isinstance(step, dict):
                         raise ValueError("workflow step must be an object")
                     action = step.get("uses")

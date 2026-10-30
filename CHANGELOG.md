@@ -1,7 +1,23 @@
 # Changelog
 
-This file records user-visible RepoSeal releases. Git history and delivered
-Plans retain detailed implementation provenance.
+This file records user-visible Signetum releases. Earlier RepoSeal entries retain
+their original release history. Git and accepted change records retain reasoning.
+
+## 5.0.0 - Unreleased
+
+- Make the standard `signetum` Skill the single entry for new and existing projects;
+  keep templates internal and use one main source and release path.
+- Adopt reviewed local bindings without changing application tools. Daily work
+  uses the project's portable runtime instead of an upstream checkout.
+- Keep one approved change record, significant append history and a derived
+  current decision set, with targeted amendments and retained original rationale.
+- Unify supervised test diagnostics and declared gates across local and hosted
+  validation. Preserve first failures, owned-process cleanup and complete final
+  evidence while reducing unnecessary test preparation and duplicate checks.
+- Support optional source-bound selection, weighted scheduling and complete CI
+  partition aggregation without changing default full validation.
+- Publish wheel/sdist with the same standard Skill, source/component metadata
+  and checksums; PyPI publication is optional.
 
 ## 0.1.0 - 2026-08-30
 
