@@ -55,13 +55,14 @@ def test_interpreter_caches_do_not_enter_rendered_artifacts(tmp_path):
     shutil.copytree(ROOT / "template", source)
     shutil.rmtree(source / RUNTIME_DIRECTORY)
     assert validate_template(source).valid
-    cache = source / ".agents/signetum/runtime/__pycache__"
-    cache.mkdir(exist_ok=True)
+    cache = source / ".agents/stale-host/__pycache__"
+    cache.mkdir(parents=True)
     (cache / "host.pyc").write_bytes(b"host-specific bytecode")
     target = tmp_path / "rendered"
     report = render_template(source, target)
     assert not any("__pycache__" in path or path.endswith(".pyc") for path in report.files)
     assert not list(target.rglob("*.pyc"))
+    assert not (target / ".agents/stale-host").exists()
     assert not (source / RUNTIME_DIRECTORY).exists()
     assert runtime_problems(target) == ()
 
