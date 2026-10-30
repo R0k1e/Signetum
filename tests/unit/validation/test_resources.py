@@ -27,7 +27,7 @@ from signetum.validation.resources import ResourceObservation, allocate_workers,
 def repository_adapter(request, monkeypatch):
     if request.param == "engine":
         return RepositoryValidationAdapter, resources, ("-m", "signetum.validation.pytest_runner")
-    runtime = Path(__file__).parents[3] / "template/.agents/repo-dev/runtime"
+    runtime = Path(__file__).parents[3] / "template/.agents/signetum/runtime"
     monkeypatch.syspath_prepend(str(runtime))
     module = importlib.import_module("_signetum_runtime.repository")
     runner = (str(runtime / "_signetum_runtime/pytest_runner.py"),)
@@ -227,7 +227,7 @@ def test_unavailable_native_memory_is_not_replaced_with_a_guess(platform, docume
 
 
 def test_generated_native_observation_runs_without_site_packages(tmp_path):
-    runtime = Path(__file__).parents[3] / "template/.agents/repo-dev/runtime"
+    runtime = Path(__file__).parents[3] / "template/.agents/signetum/runtime"
     script = (
         "import sys,json; from dataclasses import asdict; sys.path.insert(0,sys.argv[1]); "
         "from _signetum_runtime.resources import observe_resources; "

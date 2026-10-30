@@ -14,7 +14,7 @@ from signetum import __version__
 from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
 from signetum.vendor_resources import yaml_payload
 
-RUNTIME_DIRECTORY = Path(".agents/repo-dev/runtime/_signetum_runtime")
+RUNTIME_DIRECTORY = Path(".agents/signetum/runtime/_signetum_runtime")
 MODULES = {
     "signetum.pytest_scheduling": "pytest_scheduling.py",
     "signetum.ci_partitions": "ci_partitions.py",

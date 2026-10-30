@@ -60,7 +60,7 @@ print(json.dumps([asdict(item) for item in resolved]))
                 "-S",
                 "-c",
                 script,
-                str(ROOT / "template/.agents/repo-dev/runtime"),
+                str(ROOT / "template/.agents/signetum/runtime"),
             ],
             input=json.dumps({"documents": documents, "selected": selected}),
             capture_output=True,

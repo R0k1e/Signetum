@@ -70,7 +70,7 @@ command = ["git", "diff", "--check"]
 
 [[validation.shards]]
 name = "repository:traceability"
-command = ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"]
+command = ["uv", "run", "--no-project", "python", ".agents/signetum/runtime/traceability.py"]
 
 [[validation.shards]]
 name = "python:ruff"
@@ -89,12 +89,12 @@ requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:unit"
-command = ["uv", "run", "--no-sync", "python", ".agents/repo-dev/runtime/_signetum_runtime/pytest_runner.py", "--", "tests/unit"]
+command = ["uv", "run", "--no-sync", "python", ".agents/signetum/runtime/_signetum_runtime/pytest_runner.py", "--", "tests/unit"]
 requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:integration"
-command = ["uv", "run", "--no-sync", "python", ".agents/repo-dev/runtime/_signetum_runtime/pytest_runner.py", "--", "tests/integration"]
+command = ["uv", "run", "--no-sync", "python", ".agents/signetum/runtime/_signetum_runtime/pytest_runner.py", "--", "tests/integration"]
 requires = ["python:sync"]
 
 [[validation.shards]]
@@ -106,7 +106,7 @@ findings_command = [
   "run",
   "--no-project",
   "python",
-  ".agents/repo-dev/runtime/pip_audit_findings.py",
+  ".agents/signetum/runtime/pip_audit_findings.py",
 ]
 requires = ["python:sync"]
 

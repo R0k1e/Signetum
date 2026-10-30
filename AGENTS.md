@@ -1,7 +1,7 @@
 # Repository Agent Contract
 
 Before planning, editing, or running repository commands, read
-`docs/ARCHITECTURE.md`, `.agents/repo-dev/repo.yaml`, and every policy selected
+`docs/ARCHITECTURE.md`, `.agents/signetum/repo.yaml`, and every policy selected
 by task intent or affected paths. Report the selected policy groups and reasons
 before repository operations.
 

@@ -32,7 +32,7 @@ ROOT = Path(__file__).parents[2]
 )
 def test_native_policy_has_identical_safe_yaml_semantics(tmp_path, document, branch):
     git_output(tmp_path, "init", "-b", "main")
-    path = tmp_path / ".agents/repo-dev/repo.yaml"
+    path = tmp_path / ".agents/signetum/repo.yaml"
     path.parent.mkdir(parents=True)
     path.write_text(document)
     if branch is None:
@@ -61,7 +61,7 @@ print(json.dumps(result))
             "-S",
             "-c",
             script,
-            str(ROOT / "template/.agents/repo-dev/runtime"),
+            str(ROOT / "template/.agents/signetum/runtime"),
             str(tmp_path),
         ],
         capture_output=True,

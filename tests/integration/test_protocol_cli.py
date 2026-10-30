@@ -30,7 +30,7 @@ def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend
             sys.executable,
             "-I",
             "-S",
-            str(ROOT / "template/.agents/repo-dev/runtime/protocol.py"),
+            str(ROOT / "template/.agents/signetum/runtime/protocol.py"),
         ]
     )
     opened = subprocess.run(  # noqa: S603 -- owned public utilities in a disposable repository
@@ -96,7 +96,7 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
             sys.executable,
             "-I",
             "-S",
-            str(ROOT / "template/.agents/repo-dev/runtime/protocol.py"),
+            str(ROOT / "template/.agents/signetum/runtime/protocol.py"),
         ]
     )
 
@@ -218,7 +218,7 @@ def test_semantic_journal_binds_current_change_and_retains_retry_identity(
             sys.executable,
             "-I",
             "-S",
-            str(ROOT / "template/.agents/repo-dev/runtime/protocol.py"),
+            str(ROOT / "template/.agents/signetum/runtime/protocol.py"),
         ]
     )
     arguments = [
