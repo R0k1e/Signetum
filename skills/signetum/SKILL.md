@@ -1,8 +1,8 @@
 ---
-name: repo-dev
-description: Use a repository's reliable agentic development and delivery protocol to plan changes, retain decisions, validate implementation, or prepare delivery. Use for explicit adoption or repositories that declare this protocol; installation alone does not authorize mutation or publication.
+name: signetum
+description: Use Signetum's reliable agentic development and delivery protocol to plan changes, retain decisions, validate implementation, or prepare delivery. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
-  version: "4.0.0"
+  version: "5.0.0"
 ---
 
 # Reliable agentic development and delivery
@@ -15,18 +15,16 @@ is absent, report what is missing before mutation. Do not install a workflow
 into an existing repository merely because this skill was invoked.
 
 Keep cwd in the user's repository. The local utility launcher is
-`sh <skill-base-dir>/scripts/repo-dev <command> [arguments]`; it delegates to
+`sh <skill-base-dir>/scripts/signetum <command> [arguments]`; it delegates to
 the adopted `.agents/repo-dev/run protocol`, or the existing `just protocol`
 binding. `adopt` delegates to an installed reviewed engine before local adoption.
 It does not download or update anything.
 Honor declared schema, profile and skill identities. A mismatch requires an
 explicit adoption change; installing this folder does not change existing pins.
 Use the repository's declared lifecycle commands for workspace and delivery
-operations. Read [adoption](references/adoption.md) only when setting up or
-migrating a repository. Installing the Skill supplies instructions only: an
-existing repository also needs one reviewed engine for adoption, then a local
-host runtime and its declared workspace tools. Check these prerequisites before
-attempting commands; the adoption reference explains the two stages.
+operations. Read [adoption](references/adoption.md) only when initializing a project, adopting a repository or upgrading local bindings.
+It owns fixed-version setup-tool acquisition and prerequisites; daily work uses
+the project's local runtime.
 
 Use `status` to see workspace state, retained findings, source-bound receipts and
 the next action. It executes no checks and does not grant readiness. Before

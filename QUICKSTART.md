@@ -1,75 +1,51 @@
 # First use
 
-Start with one repository and one small real change. You need Git, a coding
-agent with the standard `repo-dev` Skill, and a host Python 3.12 or later.
-Workspace operations also use the repository's reviewed Mise and Worktrunk setup.
-Your application's language, package manager and test framework stay the same.
+Install the standard [Signetum Skill](https://github.com/R0k1e/Signetum/tree/main/skills/signetum)
+with your coding agent's Skill installer, choosing an exact reviewed release tag
+or commit. The Skill is named `signetum`; an earlier `repo-dev` installation is
+replaced explicitly. Installation supplies instructions, not a project workflow.
 
-## Install the Skill
+## Ask the agent to set up your project
 
-Ask your coding agent's standard skill installer to install `skills/repo-dev`
-from [Signetum](https://github.com/R0k1e/Signetum/tree/engine/skills/repo-dev).
-For reproducible use, choose an exact reviewed release tag or commit, not a moving
-branch. The installed skill is named `repo-dev` (displayed as Signetum).
-Installation adds instructions and a launcher; it does not install an engine or
-modify a project. Then ask:
+For a new project:
 
-> Use repo-dev to inspect this repository. Show what is needed for adoption;
-> do not change the project yet.
+> Use $signetum to initialize [project]. Use [our chosen tools], prepare the
+> local development protocol, and show the setup changes before applying them.
 
-For an existing repository, the agent needs the Signetum engine once to prepare
-its local runtime. Install a reviewed wheel with
-`uv tool install /path/to/signetum-<version>-py3-none-any.whl`, or install an exact
-reviewed source revision with
-`uv tool install 'git+https://github.com/R0k1e/Signetum.git@<reviewed-commit>'`.
-The agent can resolve the available artifact or source commit and prepare the
-literal command; you review that source. Use a commit actually present in the
-public repository, not an unpublished development worktree. Do not select an old
-RepoSeal artifact merely because it is the newest existing release. Until a
-Signetum release is available, use an exact reviewed Signetum source commit.
-The resulting `signetum adopt` command prepares local files; normal development
-then uses those repository-owned files, without an installed engine dependency.
+For an existing repository:
 
-For a new repository, use GitHub's **Use this template**, clone it and fill in its
-actual product and architecture facts. Inspect `mise.toml`, run `mise trust
-mise.toml`, `mise install` and `uv sync --locked`. The Template already carries
-its runtime and commands; it does not need the existing-repository installer.
+> Use $signetum to inspect and adopt this repository. Preserve our tools,
+> architecture and accepted decisions. Show the proposed changes first.
 
-Before running workspace operations, the agent checks Git, the host interpreter,
-and the repository-declared Mise and Worktrunk setup. If any is absent, it reports
-the missing prerequisite and setup step before trying the operation. Installing
-this Skill grants no permission to trust or replace tool configuration. After
-adoption, normal commands use the local runtime; the engine install is needed
-again only when preparing an explicitly reviewed update.
+The agent checks prerequisites and obtains one fixed-version Signetum setup tool.
+It initializes a new project's ordinary files or inspects existing authorities,
+then uses the same adoption preview. You review source, scope and changes; the
+agent handles request formats and commands. Missing tools or an unavailable source
+are reported with the next setup action. A source must actually be available;
+an unpublished development worktree is not an installable public revision.
 
-## Review adoption once
+Host execution needs Git and Python 3.12+. Current workspace operations use the
+repository-declared Mise and Worktrunk setup. Your application's language and test
+framework stay unchanged. The agent reports and resolves required setup before
+promising a usable workspace. You do not copy a template over the project.
 
-Ask the agent to preserve existing instructions, architecture, test commands,
-lockfiles and delivery settings. It prepares a preview showing exact file
-changes and missing prerequisites. Follow the [adoption guide](docs/guides/existing-runners.md)
-when inspecting those bindings. Confirm the preview when it matches your project.
-Applying it does not approve a development task, run project commands, or deliver
-anything. If a target changed, obtain a fresh preview rather than overwrite it.
+After the accepted adoption is applied and committed through the existing
+repository process, commands use its local runtime. The upstream checkout and
+global setup engine are not daily dependencies. Updating is a later explicit
+preview, not a background synchronization.
 
-## Make one change
+## Make a real change
 
-> Use repo-dev to implement [one small behavior]. Show me the intended outcome,
-> scope and how you will verify it before implementation. Stop at ready.
+> Use $signetum to implement [behavior]. Show the intended outcome, scope and
+> acceptance first. Stop at ready.
 
-The agent opens an isolated workspace, writes one change record and shows its
-approval view. You check the behavior and boundaries. The agent records your
-confirmation, implements the change and runs the repository checks.
-Significant discoveries go into its journal; routine command output stays in logs.
-The agent reads current decisions and relevant original sources before deciding
-again. You do not maintain a second decision summary or execution report.
+The agent opens a member workspace, prepares one change record, records your
+actual confirmation and implements it. Important discoveries and decisions stay
+in the existing source history; ordinary command output stays in local logs.
 
-## Check the result
+The result names the exact commit, checks, outstanding issues and readiness.
+A diagnostic retry does not clear an original failure. When you want to deliver,
+request integration and full validation, then review the generated delivery
+result before authorizing delivery.
 
-A useful result names what changed, the checks run, unresolved issues and the
-exact commit that passed `ready`. A failed test remains a failure after a narrow
-diagnostic retry; the source needs repair and fresh ordinary validation.
-
-When you want to ship, explicitly request batch integration and full validation.
-Inspect the generated delivery review before authorizing delivery. The
-[delivery guide](docs/workflows/agent-team-delivery.md) covers that separate step.
-Installation, readiness and delivery are distinct outcomes.
+The [documentation map](docs/README.md) routes configuration and operation details.

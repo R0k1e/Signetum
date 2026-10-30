@@ -1,7 +1,7 @@
-# Customizing the Template
+# Repository-owned customization
 
-A repository created from Signetum is an independent repository. Customize
-its copied authorities directly; do not add an upstream Template dependency.
+An adopted project owns its local authorities. Customize its actual product
+bindings and use an explicit preview for later runtime updates.
 
 ## Replace product facts first
 
@@ -66,4 +66,4 @@ carried and who approved it.
 5. Deliver it through the repository's own batch lifecycle.
 
 Another repository may manually implement the same idea as its own local
-change. It does not pull an update from this Template.
+change. It does not pull an update from the upstream project.

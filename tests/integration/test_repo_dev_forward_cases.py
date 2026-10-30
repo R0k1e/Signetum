@@ -1,4 +1,4 @@
-"""Forward cases for decisions the repo-dev skill must preserve."""
+"""Forward cases for decisions the Signetum Skill must preserve."""
 
 from dataclasses import dataclass
 from enum import Enum

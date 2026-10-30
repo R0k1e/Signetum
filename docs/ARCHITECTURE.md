@@ -1,29 +1,23 @@
 # Architecture
 
-This branch is the independently versioned engine source of Signetum. It owns
-the Python package, schemas, profiles, skill, tests, release automation, and
-the canonical clone-ready source under `template/`. The default branch is a
-deterministically rendered Template artifact; it does not contain this engine
-or its governance history.
+Signetum is a standard Skill for reliable agentic development and delivery.
+`skills/signetum` is the public entry for both project initialization and existing
+repository adoption. `main` owns the product source, runtime/setup package,
+schemas, Skill, tests and documentation. Existing consumers update explicitly.
 
-Signetum is the public product identity. Within this engine, the
-`signetum` distribution and `signetum` CLI validate immutable
-schema and profile identities and expose check-only repository
-contracts and lifecycle operations. Rendering copies the minimal reviewed
-portable lifecycle runtime into the Template. Existing repositories
-adopt later runtime changes only as explicit local changes.
+The agent obtains a fixed-version setup tool, prepares reviewed local bindings,
+and then calls the project's own portable runtime. Application tools, architecture
+and delivery policy remain project-owned. `template/` is internal scaffolding and
+portable-runtime evidence, not a second public product or default-branch artifact.
 
 Responsibility documents:
 
-- [Signetum engine](architecture/repository-signetum.md) defines the
-  package, manifest, profile, and adapter boundaries.
-- [Validation and delivery](architecture/validation-and-delivery.md) defines
-  check-only evidence and explicit delivery responsibilities.
+- [Implementation and distribution](architecture/repository-signetum.md) owns
+  package, Skill, setup, source and generation boundaries.
+- [Validation and delivery](architecture/validation-and-delivery.md) owns checks,
+  source-bound evidence and explicit delivery.
 
-Current responsibilities must match shipped code and commands. Update affected
-authorities in the same change when a boundary, behavior or prerequisite changes;
-leave unchanged pages alone. Historical decisions retain rationale rather than
-serving as current usage instructions.
-
-Approved architecture decisions live in `docs/decisions/`. Active work is
-governed by stable change packages under `changes/`.
+Current authorities describe actual behavior and owners. Reconcile affected pages
+in the implementing change; leave unaffected pages alone. New reasoning belongs
+once in the owning change and significant append history. Standalone decisions
+are conditional cross-change authorities; accepted historical sources are retained.

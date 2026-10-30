@@ -14,7 +14,9 @@ registered member workspace. It owns intent, requirements, acceptance, scope,
 autonomy, decision proposals and necessary execution steps. Generate the
 approval view with `just protocol view <record-path>`. Behavior requires actual
 human confirmation; durable architecture, process and security choices require
-an accepted, independently identified decision. Record confirmation accurately,
+an accepted, independently identified decision transaction in the owning record.
+Standalone ADRs are conditional cross-change authorities; keep their basis once.
+Routine implementation and command output create no extra decision document. Record confirmation accurately,
 commit it before implementation and preserve unrelated work.
 
 Use `just protocol record`, `resolve`, `retract`, `reconcile` and `retire` for

@@ -12,5 +12,6 @@ the Plan obligation that closes coverage.
 - [`specs/greeting.yaml`](specs/greeting.yaml) owns the public behavior.
 - [`plans/greeting.md`](plans/greeting.md) defines implementation and evidence.
 
-Copy the structure, not the example identities or behavior. Active work belongs
-under the repository's configured `changes/` authority.
+Preserve this historical example for legacy reading. For new work, generate one
+change record through the current tool rather than copying this multi-file
+structure. Active work belongs under the configured `changes/` authority.

@@ -13,6 +13,7 @@ from yaml import YAMLError, safe_load
 
 from signetum import __version__
 from signetum.git import GitError, GitInfrastructureError, git_output
+from signetum.policy import delivery_policy
 
 
 class ReleaseError(ValueError):
@@ -40,7 +41,7 @@ def digest_path(path: Path) -> str:
 
 
 def _skill_identity(repository: Path) -> tuple[str, str]:
-    root = repository / "skills" / "repo-dev"
+    root = repository / "skills" / "signetum"
     try:
         frontmatter = safe_load((root / "SKILL.md").read_text().split("---", 2)[1])
         version = frontmatter["metadata"]["version"]
@@ -79,7 +80,7 @@ def build_metadata(repository: Path, source: str) -> ReleaseMetadata:
             ReleaseComponent(
                 name="schemas", version=str(schema_version), digest=digest_path(schema_path)
             ),
-            ReleaseComponent(name="repo-dev", version=skill_version, digest=skill_digest),
+            ReleaseComponent(name="signetum-skill", version=skill_version, digest=skill_digest),
             ReleaseComponent(
                 name="package", version=package, digest=digest_path(repository / "pyproject.toml")
             ),
@@ -102,7 +103,8 @@ def preflight(repository: Path, source: str, *, tag: str | None = None) -> Relea
         raise ReleaseError("release source differs from HEAD")
     if observe("status", "--porcelain"):
         raise ReleaseError("release source worktree is dirty")
-    observe("merge-base", "--is-ancestor", source, "refs/remotes/origin/engine")
+    branch = delivery_policy(repository).branch
+    observe("merge-base", "--is-ancestor", source, f"refs/remotes/origin/{branch}")
     metadata = build_metadata(repository, source)
     if tag is not None:
         if tag != "v" + __version__:

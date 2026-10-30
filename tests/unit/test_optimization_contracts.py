@@ -7,13 +7,24 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from signetum.ci_partitions import PartitionPlan, PartitionResult, combine, create_plan
+from signetum.ci_partitions import (
+    PartitionConfiguration,
+    PartitionPlan,
+    PartitionResult,
+    combine,
+    partition_snapshot,
+)
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceIdentity
-from signetum.git import git_output
 from signetum.pytest_scheduling import derive_weights, shared_file_groups
 from signetum.pytest_scheduling import main as schedule_main
 from signetum.python_selection import DynamicLoader, PythonSelection, dependent_units
 from signetum.test_scheduling import ordered_units, partition_units
+from signetum.validation import (
+    GateDeclaration,
+    GraphContribution,
+    ValidationShard,
+    resolve_validation_graph,
+)
 
 CONFIG = PythonSelection(
     schema_version=1, source_roots=("app",), unit_roots=("tests",), unit_shard="unit"
@@ -247,106 +258,61 @@ def test_ci_job_conclusions_cannot_be_replaced_by_present_artifacts(plan, states
         combine(plan, results(plan), job_statuses=states)
 
 
-@pytest.fixture
-def configured_partition(local_repository):
-
-    root, _ = local_repository
-    (root / "checks").mkdir()
-    (root / "checks/test_a.py").write_text(
-        '@pytest.mark.xdist_group("shared")\ndef test_a():pass\n'
-    )
-    (root / "checks/test_b.py").write_text("def test_b():pass\n")
-    config = {
-        "schema_version": 1,
-        "shard": "test:check",
-        "roots": ["checks"],
-        "patterns": ["checks/test_*.py"],
-        "argument_index": 1,
-        "slices": 2,
-        "framework": "pytest",
-    }
-    path = root / "partitions.json"
-    path.write_text(json.dumps(config))
-    manifest = root / "signetum.toml"
-    manifest.write_text(
-        manifest.read_text().replace(
-            'decisions = "docs/decisions"',
-            'decisions = "docs/decisions"\nlockfiles=["partitions.json"]',
-        )
-    )
-    git_output(root, "add", ".")
-    git_output(root, "commit", "-m", "configure partitions")
-    return root, path, config
-
-
 @pytest.mark.parametrize(
     "damage",
-    [
-        None,
-        "input",
-        "index",
-        "shard",
-        "dirty",
-        "patterns",
-        "group",
-        "root",
-        "notfinal",
-        "world",
-        "ratchet",
-    ],
+    [None, "input", "index", "shard", "patterns", "group", "root", "notfinal", "world", "ratchet"],
 )
-def test_partition_planning_validates_bound_configuration_before_execution(
-    configured_partition, damage
-):
-
-    root, path, config = configured_partition
-    manifest = root / "signetum.toml"
+def test_partition_snapshot_validates_configuration_without_repository_effects(damage):
+    config = PartitionConfiguration(
+        schema_version=1,
+        shard="test:check",
+        roots=("checks",),
+        patterns=("checks/test_*.py",),
+        argument_index=1,
+        slices=2,
+        framework="pytest",
+    )
+    sources = {
+        "checks/test_a.py": b'@pytest.mark.xdist_group("shared")\ndef test_a():pass\n',
+        "checks/test_b.py": b"def test_b():pass\n",
+    }
+    shard = ValidationShard("test:check", ("runner", "checks"))
+    declared = ("partitions.json",)
     if damage == "input":
-        manifest.write_text(
-            manifest.read_text().replace('lockfiles=["partitions.json"]', "lockfiles=[]")
-        )
+        declared = ()
     elif damage == "index":
-        config["argument_index"] = 20
+        config = replace(config, argument_index=20)
     elif damage == "shard":
-        config["shard"] = "missing"
-    elif damage == "dirty":
-        (root / "uncommitted").touch()
+        config = replace(config, shard="test:missing")
     elif damage == "patterns":
-        config["patterns"] = ["does-not-exist"]
+        config = replace(config, patterns=("does-not-exist",))
     elif damage == "group":
-        (root / "checks/test_a.py").write_text(
-            "@pytest.mark.xdist_group(dynamic())\ndef test_a():pass\n"
-        )
-    elif damage == "root":
-        config["roots"] = ["../outside"]
-    elif damage == "notfinal":
-        config["shard"] = "test:prepare"
+        sources["checks/test_a.py"] = b"@pytest.mark.xdist_group(dynamic())\ndef test_a():pass\n"
     elif damage == "world":
-        config["shard"] = "world:check"
-        manifest.write_text(
-            manifest.read_text()
-            + '\n[[validation.shards]]\nname="world:check"\ncommand=["true"]\nevidence="world"\n'
-        )
+        shard = replace(shard, evidence="world")
     elif damage == "ratchet":
-        manifest.write_text(
-            manifest.read_text().replace(
-                'name = "test:check"\ncommand',
-                'name = "test:check"\nratchet_command=["true"]\ncommand',
-            )
+        shard = replace(shard, ratchet_command=("measure",))
+    graph = resolve_validation_graph(
+        (
+            GraphContribution(
+                "fixture",
+                (shard,),
+                (GateDeclaration("final", (shard.name,) if damage != "notfinal" else ()),),
+            ),
         )
-    path.write_text(json.dumps(config))
-    if damage != "dirty":
-        git_output(root, "add", ".")
-        git_output(root, "commit", "--allow-empty", "-m", "apply configuration variant")
+    )
+
+    def plan():
+        chosen = replace(config, roots=("../outside",)) if damage == "root" else config
+        return partition_snapshot(
+            chosen, graph, sources, configuration_path="partitions.json", declared_inputs=declared
+        )
+
     if damage is None:
-        plan = create_plan(root, path)
-        assert set(p for lane in plan.partitions for p in lane) == {
-            "checks/test_a.py",
-            "checks/test_b.py",
-        }
+        assert {p for lane in plan() for p in lane} == set(sources)
     else:
         with pytest.raises(ValueError):
-            create_plan(root, path)
+            plan()
 
 
 def test_duration_hints_reuse_logs_and_preserve_group_or_file_identity():

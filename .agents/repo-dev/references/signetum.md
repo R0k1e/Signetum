@@ -36,7 +36,7 @@ and outcomes. Perdura is both an experience source and an intended consumer.
 Validate downstream use through the normal adoption path, retaining its product
 policy and selector. Do not claim downstream adoption from engine tests alone.
 For changes introducing concurrent, lazy or background paths, load
-`skills/repo-dev/references/stability.md` and use its conditional evidence rules.
+`skills/signetum/references/stability.md` and use its conditional evidence rules.
 
 Preserve consequential reasoning with material alternatives, evidence and reopening
 conditions. Refer to original rationale rather than copy it across documents.
@@ -46,6 +46,6 @@ report or decision file. Status is derived; it never becomes another authority.
 When changing a contract, owner, command or prerequisite, trace the affected
 architecture and user/Skill instructions during planning and reconcile them in
 the same change before ready. Keep current pages factual and reasons in history;
-record a justified no-update result when the current authority still holds. Link
+unchanged authorities need no routine journal event. Link
 checks verify structure, not factual currency. Do not add another maintenance
 report or tests that pin teaching prose.

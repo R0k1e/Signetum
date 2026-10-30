@@ -1,6 +1,3 @@
-from pathlib import Path
-from shutil import copytree
-
 import pytest
 
 from signetum import git as git_tools
@@ -9,36 +6,67 @@ from signetum.git import GitInfrastructureError, git_output
 from signetum.release import ReleaseError, build_metadata, preflight
 
 
-def test_release_metadata_binds_actual_component_versions_and_complete_skill(tmp_path):
-    source = Path(__file__).resolve().parents[3]
-    for name in ("schemas", "skills"):
-        copytree(source / name, tmp_path / name)
-    (tmp_path / "pyproject.toml").write_bytes((source / "pyproject.toml").read_bytes())
-    before = build_metadata(tmp_path, "source-commit")
+@pytest.fixture
+def components(tmp_path):
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "schemas/release-metadata.schema.json").write_text(
+        '{"properties":{"schema_version":{"const":1}}}'
+    )
+    (tmp_path / "pyproject.toml").write_text(
+        f'[project]\nname="signetum"\nversion="{release.__version__}"\n'
+    )
+    skill = tmp_path / "skills/signetum"
+    (skill / "references").mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        '---\nname: signetum\ndescription: Fixture\nmetadata:\n  version: "4.0.0"\n---\n'
+    )
+    (skill / "references/adoption.md").write_text("Fixture adoption basis.\n")
+    policy = tmp_path / ".agents/repo-dev/repo.yaml"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("delivery:\n  branch: main\n")
+    return tmp_path
+
+
+def test_release_metadata_binds_versions_and_complete_skill(components):
+    before = build_metadata(components, "source-commit")
     versions = {item.name: item.version for item in before.components}
-    assert versions == {"package": release.__version__, "schemas": "1", "repo-dev": "4.0.0"}
-    reference = tmp_path / "skills/repo-dev/references/adoption.md"
-    reference.write_text(reference.read_text() + "\nA changed adoption instruction.\n")
-    after = build_metadata(tmp_path, "source-commit")
-    assert before.components[1:] != after.components[1:]
+    assert versions == {"package": release.__version__, "schemas": "1", "signetum-skill": "4.0.0"}
+    reference = components / "skills/signetum/references/adoption.md"
+    reference.write_text(reference.read_text() + "Changed adoption basis.\n")
+    after = build_metadata(components, "source-commit")
+    assert before.components[1] != after.components[1]
     assert before.components[0] == after.components[0]
+    assert before.components[2] == after.components[2]
+
+
+@pytest.mark.parametrize("damage", ["package-version", "skill-version", "skill-symlink", "schema"])
+def test_component_refusals_need_no_repository(components, damage):
+    if damage == "package-version":
+        p = components / "pyproject.toml"
+        p.write_text(p.read_text().replace(release.__version__, "999.0.0"))
+    elif damage == "skill-version":
+        p = components / "skills/signetum/SKILL.md"
+        p.write_text(p.read_text().replace('version: "4.0.0"', 'version: "unknown"'))
+    elif damage == "skill-symlink":
+        (components / "skills/signetum/linked").symlink_to("SKILL.md")
+    else:
+        (components / "schemas/release-metadata.schema.json").write_text("{}")
+    with pytest.raises(ReleaseError):
+        build_metadata(components, "source-commit")
 
 
 @pytest.fixture
-def candidate(tmp_path):
-    source = Path(__file__).resolve().parents[3]
-    for name in ("schemas", "skills"):
-        copytree(source / name, tmp_path / name)
-    (tmp_path / "pyproject.toml").write_bytes((source / "pyproject.toml").read_bytes())
-    git_output(tmp_path, "init", "-b", "engine")
-    git_output(tmp_path, "config", "user.name", "Release test")
-    git_output(tmp_path, "config", "user.email", "release@example.invalid")
-    git_output(tmp_path, "add", ".")
-    git_output(tmp_path, "commit", "-m", "delivered engine")
-    tip = git_output(tmp_path, "rev-parse", "HEAD")
-    git_output(tmp_path, "update-ref", "refs/remotes/origin/engine", tip)
-    git_output(tmp_path, "tag", "v" + release.__version__)
-    return tmp_path, tip
+def candidate(components):
+    root = components
+    git_output(root, "init", "-b", "main")
+    git_output(root, "config", "user.name", "Release test")
+    git_output(root, "config", "user.email", "release@example.invalid")
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "delivered product")
+    tip = git_output(root, "rev-parse", "HEAD")
+    git_output(root, "update-ref", "refs/remotes/origin/main", tip)
+    git_output(root, "tag", "v" + release.__version__)
+    return root, tip
 
 
 def test_preflight_accepts_exact_delivered_source_without_local_receipts(candidate):
@@ -47,26 +75,13 @@ def test_preflight_accepts_exact_delivered_source_without_local_receipts(candida
     (root / "later").touch()
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "later delivered source")
-    git_output(root, "update-ref", "refs/remotes/origin/engine", "HEAD")
+    git_output(root, "update-ref", "refs/remotes/origin/main", "HEAD")
     git_output(root, "checkout", "--detach", tip)
     assert preflight(root, tip).source == tip
 
 
-@pytest.mark.parametrize(
-    "damage",
-    [
-        "source",
-        "dirty",
-        "unreleased",
-        "tag",
-        "tag-source",
-        "version",
-        "skill-version",
-        "skill-symlink",
-        "schema",
-    ],
-)
-def test_preflight_refuses_source_or_version_mismatch(candidate, damage):
+@pytest.mark.parametrize("damage", ["source", "dirty", "unreleased", "tag", "tag-source"])
+def test_preflight_refuses_source_or_tag_mismatch(candidate, damage):
     root, tip = candidate
     tag = "v" + release.__version__
     if damage == "source":
@@ -76,25 +91,12 @@ def test_preflight_refuses_source_or_version_mismatch(candidate, damage):
     elif damage == "tag":
         tag = "v999.0.0"
     else:
-        if damage == "version":
-            p = root / "pyproject.toml"
-            p.write_text(p.read_text().replace('version = "3.0.0"', 'version = "999.0.0"', 1))
-        elif damage == "skill-version":
-            p = root / "skills/repo-dev/SKILL.md"
-            p.write_text(p.read_text().replace('version: "4.0.0"', 'version: "unknown"'))
-        elif damage == "skill-symlink":
-            (root / "skills/repo-dev/linked").symlink_to("SKILL.md")
-        elif damage == "schema":
-            (root / "schemas/release-metadata.schema.json").write_text("{}")
-        else:
-            (root / "new-source").touch()
+        (root / "new-source").touch()
         git_output(root, "add", ".")
-        git_output(root, "commit", "-m", "unreleased change")
+        git_output(root, "commit", "-m", "new source")
         tip = git_output(root, "rev-parse", "HEAD")
-        if damage != "unreleased":
-            git_output(root, "update-ref", "refs/remotes/origin/engine", tip)
-        if damage in {"version", "skill-version", "skill-symlink", "schema"}:
-            tag = None
+        if damage == "tag-source":
+            git_output(root, "update-ref", "refs/remotes/origin/main", tip)
     with pytest.raises(ReleaseError):
         preflight(root, tip, tag=tag)
 

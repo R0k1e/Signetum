@@ -37,7 +37,7 @@ packages = ["src/signetum"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "schemas" = "signetum/resources/schemas/contracts"
-"skills/repo-dev" = "signetum/resources/skills/repo-dev"
+"skills/signetum" = "signetum/resources/skills/signetum"
 
 [tool.hatch.build.targets.sdist]
 include = [

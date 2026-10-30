@@ -1,6 +1,6 @@
-# Signetum engine responsibilities
+# Signetum implementation responsibilities
 
-Signetum is the public product identity. Within the engine branch,
+Signetum is the public product identity. Within the product source,
 `signetum` owns generic parsing, package resources,
 profile composition, evidence protocols, and the check-only `signetum` CLI.
 It contains no downstream application path, branch, selector, or delivery
@@ -10,13 +10,12 @@ The repository specialization manifest owns local paths and selects exact
 profile identities. Profiles declare dependencies and authorities; composition
 rejects unsupported identities, missing dependencies, and duplicate authority
 ownership. Repository adapters implement evidence protocols, so generic
-mechanisms pass typed values without inferring repository facts. After GitHub
-creates another repository from this template, that repository owns its copy
-and evolves independently; this template supplies no synchronization channel.
+mechanisms pass typed values without inferring repository facts. After explicit adoption, each project owns its local runtime and evolves
+independently; installation does not establish an automatic synchronization channel.
 
-The engine product surface is rooted at `README.md`. The canonical public
-Template is rooted at `template/` and validated by an exact inventory and
-deterministic render. `QUICKSTART.md`, focused
+The product surface is rooted at `README.md` and the standard Signetum Skill.
+Internal scaffolding under `template/` is validated by inventory and deterministic
+render for runtime tests; it is not a public installation route. `QUICKSTART.md`, focused
 concept and workflow guides, the complete-change teaching artifact, and public
 governance files explain current contracts without becoming additional
 execution authorities. Repository validation checks that required assets and
@@ -181,7 +180,7 @@ delivery require matching observations, and a completed record never implies
 human acceptance. Historical version-one review projections remain readable. Consolidated journals
 and final-review reconciliation use the same committed source qualification.
 
-The standard `skills/repo-dev` folder contains one routing `SKILL.md`, conditional
+The standard `skills/signetum` folder contains one routing `SKILL.md`, conditional
 references and a local shell launcher. The launcher delegates to the consuming
 repository's adopted `.agents/repo-dev/run protocol`, or its existing `just protocol`; it does not fetch code, adopt policy or install
 an application runner. The wheel carries that same folder for ordinary skill
@@ -231,9 +230,9 @@ Semantic journal arguments infer only workspace/change identities and delegate
 to the existing append owner. Advanced atomic requests retain explicit identity
 inputs; neither path grants approval.
 
-Engine package releases and the bundled Skill use one delivered `engine` source.
-The rendered `main` Template has an independent revision. `release.preflight`
-checks clean exact source, delivered engine ancestry, actual component identities
-and a supplied release tag; it neither reads local final receipts nor grants
-publication. The release workflow calls this owner before building and validating
-artifacts. [Releasing](../maintainers/releasing.md) owns the maintainer procedure.
+Product releases and the bundled standard Skill use one delivered source on the
+branch declared in repository policy (`main` here). `release.preflight` reads that
+same policy and checks clean exact source, delivered ancestry, component identities
+and a supplied tag. It grants no publication authority. Internal scaffold revision
+fields retained by the wire contract are not a separate product release.
+[Releasing](../maintainers/releasing.md) owns the maintainer procedure.

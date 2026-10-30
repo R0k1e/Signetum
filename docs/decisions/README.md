@@ -1,15 +1,16 @@
-# Architecture and process decisions
+# Retained decisions
 
-Decision files explain why durable architecture, process, or security choices
-were accepted. They do not describe current implementation facts; the
-architecture map and responsibility pages own those facts.
+New decisions default to independently identified transactions in the owning
+change record and its significant append history. The current clause set is
+derived; it is not another handwritten summary. Ordinary implementation choices
+need no decision document or journal event.
 
-New proposals begin as unnumbered `ADP-<slug>.md` files declaring
-`Status: Proposed`, and must be accepted before implementation. The declared
-status, not the file name, says whether a decision is still a proposal: an
-accepted decision may stay unnumbered, and delivery numbers a proposal and
-records its acceptance in the same step. Supersession is explicit: a new decision names the old
-decision it replaces, while history remains intact.
+Use a standalone decision only for an independently maintained cross-change
+authority. Keep its reasoning there once and reference it from the change.
+Accepted historical files remain authoritative under their declared supersession;
+never rewrite their original acceptance or rationale to match a later decision.
+Current architecture describes implemented responsibilities, not debate history.
 
-Use repository search and the documentation validator to discover and verify
-decision references rather than maintaining a second handwritten decision index.
+Search source and use the documentation/decision tools for discovery; do not
+maintain a second topic index. A preview, generated view or filename grants no
+approval. Supersession and clause amendments require their exact accepted authority.
