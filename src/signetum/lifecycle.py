@@ -414,10 +414,6 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     record = read_record(_state_root(batch), batch_branch)
     if record.kind != "batch" or batch_branch == delivery_policy(batch).branch:
         raise AdmissionError(f"refusing batch admission outside a batch workspace: {batch_branch}")
-    graph, _ = _runtime_validation(load_manifest(batch / "signetum.toml"))
-    graph.gate("prepare")
-    graph.gate("batch")
-
     admitted: list[dict[str, object]] = []
     unchanged: list[dict[str, str]] = []
     for raw_member in members:

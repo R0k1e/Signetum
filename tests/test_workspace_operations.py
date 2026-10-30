@@ -550,3 +550,32 @@ def lifecycle_frontend(request, monkeypatch):
         "ValidationExecutionError",
         importlib.import_module("_signetum_runtime.execution").ValidationExecutionError,
     )
+
+
+def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(repository):
+    root, state = repository
+    manifest = root / "signetum.toml"
+    current = manifest.read_text()
+    old = current[: current.index("[[validation.gates]]")]
+    old += '[[validation.gates]]\nname="member"\nshards=["test:check"]\n'
+    old += '[[validation.gates]]\nname="final"\nshards=["test:check"]\n'
+    manifest.write_text(old)
+    git_output(root, "commit", "-am", "retain an older delivery configuration")
+    git_output(root, "push", "origin", "main")
+    base = git_output(root, "rev-parse", "HEAD")
+    member = root.parent / "protocol-member"
+    git_output(root, "worktree", "add", "-b", "plan/protocol-upgrade", str(member), base)
+    ops.write_record(
+        ops.state_root(root), ops.WorkspaceRecord(1, "plan/protocol-upgrade", base, "member")
+    )
+    (member / "signetum.toml").write_text(current)
+    commit_approval(member)
+    commit_file(member, "implementation.txt")
+    lifecycle.validate(member, "member")
+    opened_batch = lifecycle.batch_open(root, (member,))
+    preparation = opened_batch["preparation"]
+    static = opened_batch["static"]
+    assert isinstance(preparation, dict) and preparation["status"] == "prepared"
+    assert isinstance(static, dict) and static["executed"] == ["test:check"]
+    assert (state / "attempts").read_text() == "1"
+    assert git_output(root, "rev-parse", "HEAD") == base

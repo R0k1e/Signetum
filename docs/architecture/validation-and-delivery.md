@@ -301,7 +301,7 @@ same command again as a static dependency.
 | workspace-open branch base | Register the exact base before preparation. Retry the same branch/base after preparation failure; refuse a changed base or role. |
 | changed [--explain] | Explain the committed contribution and planned member checks without executing shards. It never invokes final or grants readiness evidence. |
 | ready | Close a clean implementation member using its recorded base and exact-tip evidence. |
-| batch-open --member path [...] | Reuse or create a named batch from the fresh configured delivery base and admit only named members. |
+| batch-open --member path [...] | Fix a named batch to the fresh configured delivery base, admit only qualified named members, then prepare and check the merged source. The old base need not already contain gates introduced by those members. |
 | batch-admit batch --member path [...] | Capture and merge ready tips, then prepare and run the batch gate. Failure retains the merged state for ordinary fixup/re-admission. |
 | batch-continue batch | Prepare the resolved index, run batch static checks, and commit only after success. |
 | final | Freeze under the batch lock, number newly accepted decisions above batch/base/fresh-remote holdings, reconcile, then validate that exact tip. |
