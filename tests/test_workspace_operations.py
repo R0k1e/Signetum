@@ -514,7 +514,9 @@ def test_failed_admission_preparation_keeps_merge_for_supported_retry(repository
     assert unchanged[0]["original"] == git_output(member, "rev-parse", "HEAD")
 
 
-def test_validated_delivery_uses_shared_cleanup_and_keeps_the_delivery_worktree(repository):
+def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_checkout(
+    repository, monkeypatch
+):
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")
     member = opened(root, "plan/example")
@@ -526,15 +528,22 @@ def test_validated_delivery_uses_shared_cleanup_and_keeps_the_delivery_worktree(
     final = lifecycle.validate(batch, "final")
     tip = final["source"]
     assert isinstance(tip, str)
-    result = lifecycle.batch_deliver(batch, root, base, tip)
+    with monkeypatch.context() as context:
+        context.setattr(ops, "__file__", str(member / "active-runtime.py"))
+        result = lifecycle.batch_deliver(batch, root, base, tip)
     delivered = git_output(root, "rev-parse", "HEAD")
     assert result["remote"] == delivered
     assert git_output(root, "show", "-s", "--format=%P", delivered).split() == [base, tip]
     assert (root / "own.txt").is_file()
-    assert not member.exists()
+    assert member.exists()
     assert not batch.exists()
     assert root.exists()
-    assert result["retained_worktrees"] == []
+    assert result["retained_worktrees"] == [
+        {"branch": "plan/example", "worktree": str(member), "reason": "active_runtime"}
+    ]
+    cleaned = ops.cleanup(root, worktree=member)
+    assert cleaned["removed"] == [str(member)]
+    assert not member.exists()
 
 
 @pytest.fixture(params=["engine", "template"], autouse=True)

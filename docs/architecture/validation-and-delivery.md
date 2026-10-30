@@ -331,11 +331,14 @@ commands retain their existing preconditions and authorization boundaries.
 | batch-discard batch | Remove only a clean unpublished and undelivered batch with no open Git operation. |
 
 Cleanup and delivery share one removal predicate: protect delivery/user-selected
-worktrees, keep fresh base-only workspaces, refuse unmerged or advanced tips and
+worktrees and the active runtime/interpreter/cwd checkout, keep fresh base-only
+workspaces, refuse unmerged or advanced tips and
 open Git operations, and ordinarily keep dirty state. Explicit cleanup --discard
 also permits unstaged and untracked state, but never a changed index. Worktrunk
 performs eligible removal in the foreground with hooks disabled; automatic
-member readiness never performs cleanup.
+member readiness never performs cleanup. An `active_runtime` residue is cleaned
+from another checkout after the invoking operation finishes; delivery never
+deletes the interpreter or support files needed to complete its own cleanup.
 
 A sync conflict remains ordinary member Git state: resolve and commit it,
 prepare the resulting environment, then run ready. A batch admission conflict
