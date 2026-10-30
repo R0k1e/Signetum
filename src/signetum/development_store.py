@@ -1,11 +1,9 @@
 """Approval-bound source journal mutations and read-only current decision views."""
 
-import argparse
 import fcntl
 import hashlib
 import json
 import os
-import sys
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -26,12 +24,10 @@ from signetum.development_log import (
     DevelopmentTransaction,
     project_development_history,
     resolution_index,
-    transaction_identities,
     validate_transaction,
     withdrawn_resolution_ids,
 )
 from signetum.git import git_output, run_git
-from signetum.operation_cli import OperationParser, utility_failure
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
 from signetum.source_authority import (
     authority_roots,
@@ -43,8 +39,7 @@ from signetum.source_authority import (
     source_path,
 )
 from signetum.traceability.loading import parse_decision
-from signetum.workflow_status import workflow_status
-from signetum.workspaces import claim_change, read_record, state_root
+from signetum.workspaces import claim_change, read_record
 
 
 def _digest(data: bytes) -> str:
@@ -61,7 +56,7 @@ def parse_request(value: object) -> DevelopmentTransaction:
     return transaction
 
 
-def _authority(
+def approved_authority(
     repository: Path, change_id: str, commit: str, *, approved: bool = True
 ) -> tuple[ChangeRecord, ApprovalProof]:
     root, _ = authority_roots(repository, commit=commit, historical=True)
@@ -137,7 +132,7 @@ def _read_journal(
         require_ancestor(repository, entry.approval.commit, head)
         key = change_id, entry.approval.commit
         if key not in authorities:
-            authorities[key] = _authority(repository, *key)
+            authorities[key] = approved_authority(repository, *key)
         record, proof = authorities[key]
         if proof != entry.approval:
             raise ValueError("journal historical approval blob does not match")
@@ -171,7 +166,7 @@ class _SourceHistory:
     authorities: dict[tuple[str, str], tuple[ChangeRecord, ApprovalProof]]
 
 
-def _read_sources(repository: Path) -> _SourceHistory:
+def read_sources(repository: Path) -> _SourceHistory:
     repository = repository.resolve()
     head = git_output(repository, "rev-parse", "HEAD")
     entries = []
@@ -186,7 +181,7 @@ def _read_sources(repository: Path) -> _SourceHistory:
     return _SourceHistory(head, _digest(_json(inputs)), tuple(entries), authorities)
 
 
-def _judge(repository: Path, sources: _SourceHistory) -> DevelopmentSnapshot:
+def judge_sources(repository: Path, sources: _SourceHistory) -> DevelopmentSnapshot:
     result = project_development_history(sources.entries, sources.history_digest)
     standing = frozenset(item.resolution.id for item in result.observations if item.resolution)
     for entry in sources.entries:
@@ -205,7 +200,7 @@ def _judge(repository: Path, sources: _SourceHistory) -> DevelopmentSnapshot:
 
 def snapshot(repository: Path) -> DevelopmentSnapshot:
     """Judge standing answers after withdrawals; reading never writes source."""
-    return _judge(repository, _read_sources(repository))
+    return judge_sources(repository, read_sources(repository))
 
 
 class DevelopmentReviewError(ValueError):
@@ -224,7 +219,7 @@ def _review_sources(
     repository: Path, change_ids: tuple[str, ...], commit: str
 ) -> tuple[SourceReviewInputs, DevelopmentSnapshot]:
     try:
-        sources = _read_sources(repository)
+        sources = read_sources(repository)
         if sources.head != commit:
             raise ValueError("source review commit differs from the current frozen source")
         require_committed_bindings(repository, commit)
@@ -238,7 +233,7 @@ def _review_sources(
             identities.append((relative, _digest(blob[1].encode())))
         if _digest(_json(identities)) != sources.history_digest:
             raise ValueError("source journals changed during review")
-        result = _judge(repository, sources)
+        result = judge_sources(repository, sources)
         recorded = {
             decision.id: decision
             for entry in result.entries
@@ -295,7 +290,7 @@ def decision_application_commits(
     root, _ = authority_roots(repository, commit=commit)
     candidates: dict[str, set[str]] = {}
     for change_id in inputs["changes"]:
-        record, _ = _authority(repository, change_id, commit)
+        record, _ = approved_authority(repository, change_id, commit)
         digest = contract_digest(record.contract)
         lines = {
             _json(contract_mapping(entry)).decode()
@@ -353,7 +348,7 @@ def reconciliation_summary(
                     )
             if state.resolution is not None and state.resolution.status == "deferred":
                 change, _, requirement = (state.resolution.followup or "").partition("#")
-                following, _ = _authority(repository, change, commit, approved=False)
+                following, _ = approved_authority(repository, change, commit, approved=False)
                 if requirement not in {item.id for item in following.contract.requirements}:
                     raise ValueError("standing deferral has no active follow-up requirement")
     except (OSError, ValueError) as error:
@@ -428,7 +423,7 @@ def _resolution_targets(
             change_id, separator, requirement = (resolution.followup or "").partition("#")
             if not separator or change_id == transaction.change_id:
                 raise ValueError("deferral requires another active follow-up change requirement")
-            following, _ = _authority(repository, change_id, commit, approved=False)
+            following, _ = approved_authority(repository, change_id, commit, approved=False)
             if requirement not in {item.id for item in following.contract.requirements}:
                 raise ValueError("follow-up requirement is absent")
             original = observed.get(resolution.target)
@@ -492,17 +487,17 @@ def append_transaction(
         workspace = read_record(root, branch)
         if workspace.kind != "member":
             raise ValueError("source history can only be written by a member workspace")
-        current = _read_sources(repository)
+        current = read_sources(repository)
         existing = [item for item in current.entries if item.transaction.id == transaction.id]
         if existing:
             if existing[0].transaction != transaction:
                 raise ValueError("development transaction identity has different content")
-            return _judge(repository, current)
+            return judge_sources(repository, current)
         if expected_history != current.history_digest:
             raise ValueError("development history changed; review the current working set again")
         commit = git_output(repository, "rev-parse", "HEAD")
         require_committed_bindings(repository, commit)
-        record, proof = _authority(repository, transaction.change_id, commit)
+        record, proof = approved_authority(repository, transaction.change_id, commit)
         if record.contract.approved_base != workspace.base:
             raise ValueError("approved change base differs from the registered workspace base")
         working = parse_change_record(source_path(repository, proof.path).read_text())
@@ -542,11 +537,11 @@ def append_transaction(
             (*current.entries, entry),
             {**current.authorities, (transaction.change_id, proof.commit): (record, proof)},
         )
-        _judge(repository, candidate)
+        judge_sources(repository, candidate)
         claim_change(root, transaction.change_id, branch)
         if git_output(repository, "rev-parse", "HEAD") != commit:
             raise ValueError("source commit changed during journal validation")
-        if _read_sources(repository).history_digest != current.history_digest:
+        if read_sources(repository).history_digest != current.history_digest:
             raise ValueError("development history changed during transaction validation")
         # Copy-on-write preserves the exact old prefix and exposes no partial
         # transaction. Current decisions are derived, so there is no second
@@ -555,7 +550,7 @@ def append_transaction(
         return snapshot(repository)
 
 
-def _historical_authorities(repository: Path, commit: str) -> list[dict[str, object]]:
+def historical_authorities(repository: Path, commit: str) -> list[dict[str, object]]:
     """Discover declared standing from committed sources, without interpreting prose."""
     _, root = authority_roots(repository, commit=commit)
     decisions = []
@@ -586,315 +581,3 @@ def _historical_authorities(repository: Path, commit: str) -> list[dict[str, obj
         }
         for decision, blob in decisions
     ]
-
-
-def _semantic_request(
-    repository: Path, options: argparse.Namespace
-) -> tuple[DevelopmentTransaction, str]:
-    """Bind semantic input once; the existing writer still judges every append."""
-    branch = git_output(repository, "branch", "--show-current")
-    workspace = read_record(state_root(repository), branch)
-    if workspace.kind != "member":
-        raise ValueError("journal requires a registered member workspace")
-    commit = git_output(repository, "rev-parse", "HEAD")
-    if options.change:
-        change = options.change
-    else:
-        root, _ = authority_roots(repository, commit=commit)
-        candidates = []
-        for name in git_output(
-            repository, "ls-tree", "-r", "--name-only", "-z", commit, "--", root
-        ).split("\0"):
-            if not name.endswith("/change.toml"):
-                continue
-            source = committed_blob(repository, commit, name)
-            if source is None:
-                continue
-            record = parse_change_record(source[1])
-            if (
-                record.status == "active"
-                and record.approval is not None
-                and record.contract.approved_base == workspace.base
-            ):
-                candidates.append(record.id)
-        if len(candidates) != 1:
-            raise ValueError("cannot infer one approved change; name --change explicitly")
-        change = candidates[0]
-    record, _ = _authority(repository, change, commit)
-    sources = _read_sources(repository)
-    if not options.id or not options.reason:
-        raise ValueError("semantic writes require --id and --reason")
-    identity = options.id if options.id.startswith(change + "/") else change + "/" + options.id
-    body = {
-        "id": identity,
-        "change_id": change,
-        "approval_digest": contract_digest(record.contract),
-        "operation": options.operation,
-        "reason": options.reason,
-    }
-    if options.operation != "resolve" and options.disposition != "resolved":
-        raise ValueError("only resolve accepts --disposition")
-    if options.operation == "record":
-        if (
-            not options.summary
-            or not options.requirement
-            or any((options.target, options.resolution, options.followup, options.accept_decisions))
-        ):
-            raise ValueError(
-                "record requires --summary and --requirement, without resolution inputs"
-            )
-        body["observations"] = [
-            {
-                "id": identity + "/observation",
-                "requirements": options.requirement,
-                "summary": options.summary,
-                "reason": options.reason,
-                "evidence": options.evidence,
-            }
-        ]
-    elif options.operation == "resolve":
-        if not options.target or any(
-            (options.summary, options.requirement, options.resolution, options.accept_decisions)
-        ):
-            raise ValueError("resolve requires --target, without observation or decision inputs")
-        body["resolutions"] = [
-            {
-                "id": identity + "/resolution",
-                "target": options.target,
-                "status": options.disposition,
-                "reason": options.reason,
-                "evidence": options.evidence,
-                "followup": options.followup,
-            }
-        ]
-    elif options.operation == "retract":
-        if (
-            not options.target
-            or not options.resolution
-            or any(
-                (
-                    options.summary,
-                    options.requirement,
-                    options.evidence,
-                    options.followup,
-                    options.accept_decisions,
-                )
-            )
-        ):
-            raise ValueError("retract requires --target and --resolution only")
-        body["retractions"] = [
-            {
-                "id": identity + "/retraction",
-                "target": options.target,
-                "resolution_id": options.resolution,
-                "reason": options.reason,
-            }
-        ]
-    elif options.operation == "reconcile" and options.accept_decisions:
-        if any(
-            (
-                options.target,
-                options.resolution,
-                options.summary,
-                options.requirement,
-                options.evidence,
-                options.followup,
-            )
-        ):
-            raise ValueError("accepted-decision application does not accept observation inputs")
-        observed = sources
-        previous = next(
-            (entry.transaction for entry in observed.entries if entry.transaction.id == identity),
-            None,
-        )
-        if previous is not None:
-            selected = previous.decisions
-        else:
-            applied = {
-                decision.id: decision
-                for entry in observed.entries
-                for decision in entry.transaction.decisions
-            }
-            selected = tuple(
-                decision for decision in record.contract.decisions if decision.id not in applied
-            )
-            if any(
-                decision.id in applied and applied[decision.id] != decision
-                for decision in record.contract.decisions
-            ):
-                raise ValueError("an accepted decision identity has changed content")
-            if not selected:
-                raise ValueError(
-                    "No unapplied approved decisions; inspect current "
-                    "or retry the original transaction ID."
-                )
-        body["decisions"] = [contract_mapping(item) for item in selected]
-
-    else:
-        raise ValueError("this operation needs its structured request")
-    return parse_request(body), options.expected_history or sources.history_digest
-
-
-def main(arguments: list[str] | None = None) -> int:
-    parser = OperationParser(description=__doc__)
-    parser.add_argument(
-        "operation",
-        choices=[
-            "record",
-            "resolve",
-            "retract",
-            "reconcile",
-            "retire",
-            "status",
-            "current",
-            "history",
-        ],
-    )
-    parser.add_argument("--repository", type=Path, default=Path.cwd())
-    parser.add_argument("--request", type=Path)
-    parser.add_argument("--expected-history")
-    parser.add_argument("--change")
-    parser.add_argument("--event")
-    parser.add_argument("--id")
-    parser.add_argument("--summary")
-    parser.add_argument("--reason")
-    parser.add_argument("--requirement", action="append", default=[])
-    parser.add_argument("--evidence", action="append", default=[])
-    parser.add_argument("--target")
-    parser.add_argument(
-        "--disposition", choices=["resolved", "rejected", "deferred"], default="resolved"
-    )
-    parser.add_argument("--followup")
-    parser.add_argument("--resolution")
-    parser.add_argument("--accept-decisions", action="store_true")
-    sources = None
-    try:
-        options = parser.parse_args(arguments)
-        if options.operation in {"status", "current", "history"}:
-            if (
-                any(
-                    (
-                        options.request,
-                        options.expected_history,
-                        options.id,
-                        options.summary,
-                        options.reason,
-                        options.requirement,
-                        options.evidence,
-                        options.target,
-                        options.followup,
-                        options.resolution,
-                        options.accept_decisions,
-                    )
-                )
-                or options.disposition != "resolved"
-            ):
-                raise ValueError("read-only views do not accept mutation inputs")
-            sources = _read_sources(options.repository)
-            if options.operation == "history":
-                if bool(options.change) == bool(options.event):
-                    raise ValueError("history requires exactly one change or event identity")
-                selected = [
-                    entry
-                    for entry in sources.entries
-                    if (options.change and entry.transaction.change_id == options.change)
-                    or (
-                        options.event and options.event in transaction_identities(entry.transaction)
-                    )
-                ]
-                if not selected:
-                    raise ValueError("no retained development event matches the history identity")
-                payload: dict[str, object] = {
-                    "schema_version": 1,
-                    "status": "passed",
-                    "history_digest": sources.history_digest,
-                    "authority_coverage": "journal_only",
-                    "entries": [contract_mapping(item) for item in selected],
-                }
-                print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-                return 0
-            result = _judge(options.repository, sources)
-        else:
-            if options.event is not None:
-                raise ValueError("mutation commands do not accept event filters")
-            if options.request is not None:
-                if (
-                    any(
-                        (
-                            options.change,
-                            options.id,
-                            options.summary,
-                            options.reason,
-                            options.requirement,
-                            options.evidence,
-                            options.target,
-                            options.followup,
-                            options.resolution,
-                            options.accept_decisions,
-                        )
-                    )
-                    or options.disposition != "resolved"
-                ):
-                    raise ValueError("structured requests cannot mix with semantic fields")
-                if options.expected_history is None:
-                    raise ValueError("structured requests require expected history identity")
-                transaction = parse_request(load_json(options.request.read_text()))
-                expected = options.expected_history
-            else:
-                transaction, expected = _semantic_request(options.repository, options)
-            if transaction.operation != options.operation:
-                raise ValueError("request operation differs from the selected command")
-            result = append_transaction(options.repository, transaction, expected_history=expected)
-        if options.operation in {"current", "status"} and (
-            options.change is not None or options.event is not None
-        ):
-            raise ValueError("history filters require the history command")
-        payload = {
-            "schema_version": 1,
-            "status": "passed",
-            "history_digest": result.history_digest,
-            "authority_coverage": "journal_only",
-        }
-        if options.operation == "current":
-            payload["working_set"] = contract_mapping(result.working_set)
-            payload["historical_authorities"] = _historical_authorities(
-                options.repository,
-                sources.head
-                if sources is not None
-                else git_output(options.repository, "rev-parse", "HEAD"),
-            )
-            payload["guidance"] = (
-                "Current clauses do not replace historical sources without an accepted migration; "
-                "consult relevant sources, not the whole log."
-            )
-        elif options.operation == "status":
-            payload.update(
-                workflow_status(
-                    options.repository,
-                    result,
-                    source=sources.head
-                    if sources is not None
-                    else git_output(options.repository, "rev-parse", "HEAD"),
-                )
-            )
-        else:
-            affected = {item.id for item in transaction.observations}
-            affected.update(item.target for item in transaction.resolutions)
-            affected.update(item.target for item in transaction.retractions)
-            affected.update(item.target for item in transaction.retirements)
-            payload["applied_transaction"] = transaction.id
-            payload["decision_transactions"] = [item.id for item in transaction.decisions]
-            payload["observations"] = [
-                contract_mapping(item)
-                for item in result.observations
-                if item.observation.id in affected
-            ]
-    except (OSError, ValueError, TypeError) as error:
-        extra = {"history_digest": sources.history_digest} if sources is not None else {}
-        return utility_failure((arguments or sys.argv[1:] or ["journal"])[0], error, **extra)
-    print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

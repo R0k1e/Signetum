@@ -219,7 +219,10 @@ print(json.dumps(result))
     results = []
     for path, module in (
         (root / "src", "signetum.waivers"),
-        (root / "template/.agents/signetum/runtime", "_signetum_runtime.waivers"),
+        (
+            root / "tests/fixtures/portable-python/.agents/signetum/runtime",
+            "_signetum_runtime.waivers",
+        ),
     ):
         completed = subprocess.run(  # noqa: S603 -- isolated fixed interpreter and fixture argv
             [sys.executable, "-I", "-S", "-c", script, str(path), module, str(tmp_path), day],

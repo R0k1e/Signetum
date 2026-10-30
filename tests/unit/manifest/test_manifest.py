@@ -4,7 +4,7 @@ import pytest
 
 from signetum.manifest import ManifestError, load_manifest
 
-FIXTURE = Path(__file__).parents[3] / "template" / "signetum.toml"
+FIXTURE = Path(__file__).parents[3] / "tests/fixtures/portable-python" / "signetum.toml"
 
 
 def test_load_manifest_preserves_language_neutral_repository_facts() -> None:

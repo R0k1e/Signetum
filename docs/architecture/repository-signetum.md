@@ -15,8 +15,8 @@ runners and delivery targets remain repository-owned. Updates are explicit.
 | `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `delivery`, `synchronization` | Isolated work, named integration and exact remote-first delivery. |
 | `validation/*`, `preparation`, `worktrunk`, `git` | One supervised execution/verdict owner, preparation, tool identities and Git effects. |
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
-| `repository_selection`, `selection_*`, `python_selection`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
-| `adoption`, `runtime_generation`, `vendor_resources`, `template` | Reviewed payloads, deterministic portability and internal acceptance material. |
+| `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
+| `adoption`, `runtime_generation`, `vendor_resources` | Reviewed payloads, deterministic portability and internal acceptance material. |
 | `release`, `resources/schemas`, `site`, `product_surface` | Component identities, installable schemas and public distribution assets. |
 
 ## One maintained implementation
@@ -27,7 +27,7 @@ PyYAML bytes; they do not import the installed engine or Pydantic. Refresh owned
 upstream YAML resources only with the locked vendor utility and verify their
 license and bytes.
 
-`template/` holds small internal acceptance inputs. Its generated runtime is
+`tests/fixtures/portable-python/` holds small internal acceptance inputs. Its generated runtime is
 ignored output, not a second committed implementation. Rendering builds the full
 runtime from installed source; tests prepare and reuse one immutable generated
 fixture before parallel workers start. The declared preparation graph also
@@ -81,8 +81,8 @@ owners; they are not an exhaustive algorithm catalogue or execution diary.
 `src/signetum` owns the setup engine and portable source modules. Its subpackages
 separate change accounting, validation, profiles and release boundaries; moving
 modules solely to shrink a directory would add import churn without removing an
-owner. `template.py` validates an internal acceptance fixture, not a public setup
-command. Adoption emits reviewed bindings into the existing project directly.
+owner. `tests/fixture_rendering.py` validates the internal fixture and is not packaged
+in the wheel. Adoption emits reviewed bindings into the existing project directly.
 
 Keep production HTML/CSS/JS, the SVG mark, social image, font and its license in
 source. Design-tool skills, context, concept variants, screenshots and review
@@ -91,8 +91,17 @@ them outside the tracked tree. Build exports, generated runtime copies, virtual
 environments and test reports are disposable output. Significant design choices
 still belong in the existing change history, rather than a second design diary.
 
-The internal `template/uv.lock` pins the Python acceptance fixture's own dev
+The internal `tests/fixtures/portable-python/uv.lock` pins the Python acceptance fixture's own dev
 tools. Independent tests run `uv sync --locked` there without the installed engine.
 It is neither a Skill installation requirement nor a file copied by adoption.
 Removing it requires replacing that isolated environment evidence first. The
 primary `uv.lock` separately pins development of Signetum itself.
+
+The selection interface is language-neutral. Projects own algorithms and family
+rules; no Python dependency selector is bundled. Self-use runs the complete
+member gate. Core verifies request/source/target identity and preserves full
+final validation, rather than claiming to prove a provider's dependency model.
+The standard Skill owns common instructions. Adoption emits local command
+bindings and a Skill pointer. Journal CLI parsing lives in `protocol_cli`;
+`development_store` owns locked storage and authority checks, `development_log`
+owns projection and `workflow_status` owns the derived workspace view.

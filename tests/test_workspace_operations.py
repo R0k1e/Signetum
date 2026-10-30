@@ -552,7 +552,7 @@ def lifecycle_frontend(request, monkeypatch):
     if request.param == "engine":
         return
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[1] / "template/.agents/signetum/runtime")
+        str(Path(__file__).parents[1] / "tests/fixtures/portable-python/.agents/signetum/runtime")
     )
     for name, module in {
         "lifecycle": "lifecycle",

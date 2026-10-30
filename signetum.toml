@@ -28,14 +28,14 @@ shards = ["engine:build", "engine:pytest"]
 
 [[impact.rules]]
 name = "engine.integration"
-paths = ["tests/**", "template/**"]
+paths = ["tests/**", "tests/fixtures/portable-python/**"]
 profiles = ["python-default@1"]
 shards = ["engine:build", "engine:pytest"]
 requires_final = true
 
 [[impact.rules]]
 name = "engine.toolchain"
-paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**", "signetum.toml", ".agents/signetum/repo.yaml", ".agents/signetum/select-tests.py", ".agents/signetum/python-selection.json"]
+paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**", "signetum.toml", ".agents/signetum/repo.yaml"]
 profiles = ["python-default@1"]
 shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
 requires_final = true
@@ -46,17 +46,6 @@ paths = ["changes/**", "docs/**", "README.md", "QUICKSTART.md", "CONTRIBUTING.md
 shards = ["engine:precommit"]
 requires_final = true
 
-[impact.provider]
-protocol = "signetum.selection@1"
-entrypoint = ".agents/signetum/select-tests.py"
-command = ["uv", "run", "--no-sync", "python", "{selector}"]
-inputs = [".agents/signetum/python-selection.json"]
-tools = [{name = "python-checks", identity_command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.tool_identity"]}]
-
-[[impact.provider.targets]]
-shard = "engine:pytest"
-roots = ["tests"]
-argument_index = 9
 
 [validation]
 member_required = ["engine:traceability"]
@@ -87,7 +76,7 @@ command = ["uv", "sync", "--locked", "--all-extras", "--dev"]
 
 [[validation.shards]]
 name = "engine:runtime"
-command = ["uv", "run", "--no-sync", "python", "-m", "signetum.runtime_generation", "template"]
+command = ["uv", "run", "--no-sync", "python", "-m", "signetum.runtime_generation", "tests/fixtures/portable-python"]
 requires = ["engine:sync"]
 
 [[validation.shards]]

@@ -117,7 +117,7 @@ def test_selection_boundary_refuses_missing_fields():
 
 @pytest.mark.parametrize("mismatched", [False, True])
 def test_generated_evidence_verifier_runs_without_engine_or_site_packages(mismatched) -> None:
-    runtime = Path(__file__).parents[3] / "template/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime"
     receipt = _gate(_identity(), "member", ("core:static",))
     script = """
 import sys

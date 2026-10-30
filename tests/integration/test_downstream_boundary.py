@@ -13,7 +13,7 @@ class FixtureAdapter(RepositoryAdapter):
 
 
 def test_repository_facts_reach_only_downstream_adapter() -> None:
-    manifest = load_manifest("template/signetum.toml")
+    manifest = load_manifest("tests/fixtures/portable-python/signetum.toml")
 
     result = run_check(manifest, FixtureAdapter())
 

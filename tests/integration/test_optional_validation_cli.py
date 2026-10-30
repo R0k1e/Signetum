@@ -67,7 +67,7 @@ def consumer(local_repository):
     return root
 
 
-def test_generated_python_provider_selects_real_import_dependents_and_ready_uses_it(consumer):
+def test_project_provider_runs_independently_and_ready_uses_its_bound_targets(consumer):
     root = consumer
     (root / "app").mkdir()
     (root / "tests/unit").mkdir(parents=True)
@@ -77,16 +77,19 @@ def test_generated_python_provider_selects_real_import_dependents_and_ready_uses
         "from feature import twice\ndef test_twice(): assert twice(2)==4\n"
     )
     (root / "tests/unit/test_other.py").write_text("def test_other(): assert False\n")
-    config = root / "python-selection.json"
-    config.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "source_roots": ["app"],
-                "unit_roots": ["tests/unit"],
-                "unit_shard": "test:check",
-            }
-        )
+    config = root / "project-selection.json"
+    config.write_text(json.dumps({"test": "tests/unit/test_feature.py"}))
+    provider = root / "project-select.py"
+    provider.write_text(
+        "import json,sys\nfrom pathlib import Path\n"
+        "q=json.load(sys.stdin)\n"
+        'p=json.loads(Path("project-selection.json").read_text())["test"]\n'
+        'coverage=[dict(path=f,status="covered" if f.startswith('
+        '("app/","tests/","changes/")) else "unexplained",'
+        'shards=["test:check"] if f.startswith(("app/","tests/")) else [],'
+        'reason="Project rule") for f in q["files"]]\n'
+        'print(json.dumps(dict(protocol=q["protocol"],request_digest=q["request_digest"],'
+        'coverage=coverage,targets=[dict(shard="test:check",tests=[dict(path=p,argument=p)])])))\n'
     )
     manifest = root / "signetum.toml"
     command = [sys.executable, "-m", "pytest", "--no-cov", "-q", "tests/unit"]
@@ -100,11 +103,11 @@ def test_generated_python_provider_selects_real_import_dependents_and_ready_uses
         """
 [impact.provider]
 protocol="signetum.selection@1"
-entrypoint=".agents/signetum/runtime/protocol.py"
+entrypoint="project-select.py"
 command=["""
         + json.dumps(sys.executable)
-        + ""","-I","-S","{selector}","select-python","--config","python-selection.json"]
-inputs=["python-selection.json", ".agents/signetum/runtime/_signetum_runtime/python_selection.py"]
+        + ""","-I","-S","{selector}"]
+inputs=["project-selection.json"]
 tools=[{name="python-selector",identity_command=["""
         + json.dumps(sys.executable)
         + ""","--version"]}]
@@ -137,20 +140,17 @@ argument_index=5
         tools=(),
         inputs=(
             SelectionInput(
-                artifact=ArtifactIdentity.from_bytes("python-selection.json", config.read_bytes()),
-                blob=git_output(root, "rev-parse", "HEAD:python-selection.json"),
+                artifact=ArtifactIdentity.from_bytes("project-selection.json", config.read_bytes()),
+                blob=git_output(root, "rev-parse", "HEAD:project-selection.json"),
             ),
         ),
     )
     produced = subprocess.run(  # noqa: S603 -- same wire contract through the engine, no judged-tree imports
         [
             sys.executable,
-            "-m",
-            "signetum.cli",
-            "protocol",
-            "select-python",
-            "--config",
-            str(config),
+            "-I",
+            "-S",
+            str(provider),
         ],
         input=json.dumps(contract_mapping(wire)),
         cwd=root,

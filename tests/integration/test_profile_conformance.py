@@ -19,7 +19,7 @@ ROOT = Path(__file__).parents[2]
 
 
 def configuration(selected, replacements):
-    text = (ROOT / "template/signetum.toml").read_text()
+    text = (ROOT / "tests/fixtures/portable-python/signetum.toml").read_text()
     text = re.sub(r"^enabled = .*", "enabled = " + json.dumps(selected), text, flags=re.MULTILINE)
     if replacements:
         text += "\n[profiles.replacements]\n" + "\n".join(

@@ -45,7 +45,7 @@ packages = ["src/signetum"]
 "skills/signetum" = "signetum/resources/skills/signetum"
 
 [tool.hatch.build.targets.sdist]
-exclude = ["/template/.agents/signetum/runtime/_signetum_runtime"]
+exclude = ["/tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime"]
 include = [
     "/.agents",
     "/.github",
@@ -61,7 +61,6 @@ include = [
     "/skills",
     "/src",
     "/tests",
-    "/template",
 ]
 
 [tool.ruff]
@@ -88,7 +87,7 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 "src/signetum/lifecycle.py" = ["S603"]
 # Security-boundary rationale: Worktrunk runs through resolved Mise with explicit argv.
 "src/signetum/worktrunk.py" = ["S603"]
-"template/.agents/signetum/runtime/lifecycle.py" = ["S603"]
+"tests/fixtures/portable-python/.agents/signetum/runtime/lifecycle.py" = ["S603"]
 # Security-boundary rationale: both adapters resolve Git to an absolute host
 # executable and pass validated tuple arguments without a shell.
 "src/signetum/release/__init__.py" = ["S603"]
@@ -98,6 +97,7 @@ select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
 "src/signetum/validation/repository.py" = ["S603"]
 
 [tool.pytest.ini_options]
+norecursedirs = ["fixtures"]
 testpaths = ["tests"]
 markers = ["world: observes mutable external state and belongs only to final validation"]
 addopts = ["--cov=signetum", "--cov-report=term-missing", "--cov-fail-under=0"]
@@ -117,7 +117,7 @@ precision = 2
 
 [tool.ty.environment]
 python-version = "3.12"
-extra-paths = ["template/.agents/signetum/runtime"]
+extra-paths = ["tests/fixtures/portable-python/.agents/signetum/runtime"]
 
 [tool.ty.src]
-exclude = ["template/.agents/signetum/runtime/_signetum_runtime/vendor_yaml"]
+exclude = ["tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime/vendor_yaml"]

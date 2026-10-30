@@ -13,7 +13,10 @@ ROOT = Path(__file__).parents[2]
     ("module", "source"),
     [
         ("signetum.workspaces", ROOT / "src"),
-        ("_signetum_runtime.workspaces", ROOT / "template/.agents/signetum/runtime"),
+        (
+            "_signetum_runtime.workspaces",
+            ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime",
+        ),
     ],
 )
 def test_workspace_storage_is_portable_and_immutable(tmp_path, module, source):
