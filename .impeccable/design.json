@@ -26,22 +26,5 @@
         "purpose": "Self-hosted Instrument Serif; native serif fallback for Chinese."
       }
     }
-  },
-  "components": [
-    {
-      "name": "Primary button",
-      "kind": "button",
-      "refersTo": "button-primary",
-      "description": "One clear action with visible keyboard focus.",
-      "html": "<button class=\"ds-button\">Copy install prompt</button>",
-      "css": ".ds-button{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:12px 20px;border:0;border-radius:4px;background:var(--forest,#183e2d);color:var(--paper,#f5f5ed);font:600 15px sans-serif;cursor:pointer}.ds-button:hover{background:var(--forest-hover,#24573e)}.ds-button:focus-visible{outline:3px solid var(--forest,#183e2d);outline-offset:5px}"
-    },
-    {
-      "name": "Navigation",
-      "kind": "nav",
-      "description": "Compact identity and direct destinations.",
-      "html": "<nav class=\"ds-nav\"><strong>Signetum</strong><a href=\"#\">Guide</a></nav>",
-      "css": ".ds-nav{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:24px 0;border-bottom:1px solid var(--rule,#c7cdc1);font:14px sans-serif;color:var(--ink,#202c24)}.ds-nav a{color:inherit;text-underline-offset:.24em}.ds-nav a:hover{color:var(--forest-hover,#24573e)}.ds-nav a:focus-visible{outline:3px solid var(--forest,#183e2d);outline-offset:5px}"
-    }
-  ]
+  }
 }

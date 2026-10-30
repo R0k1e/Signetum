@@ -72,6 +72,9 @@ The geometric signet is one SVG. Controls have modest corners; content remains s
 
 ## Components
 
+Component styling and responsive behavior are maintained only in `site/styles.css`;
+the sidecar carries extension metadata rather than a second CSS implementation.
+
 The primary button copies the setup request and announces its result. A denied
 clipboard opens the manual prompt. Without scripts, native source links and prompt
 remain available. Disclosures use native HTML; keyboard focus has a visible ring.
