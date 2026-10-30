@@ -14,7 +14,10 @@ from signetum.workspaces import WorkspaceRecord, state_root, write_record
 def author(request, monkeypatch):
     if request.param == "_signetum_runtime":
         monkeypatch.syspath_prepend(
-            str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
+            str(
+                Path(__file__).parents[2]
+                / "tests/fixtures/portable-python/.agents/signetum/runtime"
+            )
         )
     return importlib.import_module(request.param + ".change_open")
 

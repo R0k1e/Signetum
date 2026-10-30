@@ -8,6 +8,7 @@ from zipfile import ZipFile
 
 import yaml
 from change_fixtures import approve_change
+from fixture_rendering import render_template
 from test_batch_admission import MANIFEST
 from test_repository_selection import declare_provider
 
@@ -15,7 +16,6 @@ from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
 from signetum.manifest import load_manifest
 from signetum.runtime_generation import RUNTIME_DIRECTORY, runtime_files
-from signetum.template import render_template
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
@@ -36,7 +36,7 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
     assert "signetum/resources/profiles/python-default-v1.toml" in names
     assert "signetum/resources/schemas/validation-graph-v2.schema.json" in names
     assert "signetum/resources/schemas/validation-evidence-v3.schema.json" in names
-    assert "signetum/resources/schemas/contracts/release-metadata.schema.json" in names
+    assert "signetum/resources/schemas/release-metadata-v2.schema.json" in names
     assert "signetum/resources/skills/signetum/SKILL.md" in names
     assert "signetum/resources/vectors/validation-evidence-v3.json" in names
     # Absence is the contract here, so each value is bound to the reason it
@@ -50,7 +50,7 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
 
 def test_installed_wheel_generates_the_same_portable_runtime(tmp_path, installed_python):
     python = installed_python
-    output = tmp_path / "template"
+    output = tmp_path / "fixture"
     subprocess.run(  # noqa: S603 -- successful immutable payload; generated output belongs to this test
         [str(python), "-B", "-I", "-m", "signetum.runtime_generation", str(output)],
         check=True,
@@ -66,19 +66,15 @@ def test_installed_wheel_generates_the_same_portable_runtime(tmp_path, installed
     }
     assert actual == runtime_files()
     manifest_path = tmp_path / "signetum.toml"
-    source_manifest = Path(__file__).parents[2] / "template/signetum.toml"
+    source_manifest = Path(__file__).parents[2] / "tests/fixtures/portable-python/signetum.toml"
     manifest_path.write_bytes(source_manifest.read_bytes())
     catalog_probe = """
 import json,sys
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
 from _signetum_runtime.test_scheduling import partition_units
-from _signetum_runtime.python_selection import PythonSelection,dependent_units
 from _signetum_runtime.ci_partitions import combine
 assert partition_units(('a','b'),2,{}) == (('a',),('b',))
-cfg=PythonSelection(schema_version=1,source_roots=('app',),unit_roots=('tests',),unit_shard='unit')
-selected,_=dependent_units({'app/x.py':b'value=1','tests/test_x.py':b'import x'},('app/x.py',),cfg)
-assert selected == ('tests/test_x.py',)
 from _signetum_runtime.profile_catalog import load_catalog,resolve_profiles
 from _signetum_runtime.manifest import load_manifest
 from _signetum_runtime.configuration import configured_validation
@@ -140,7 +136,8 @@ sys.path.insert(0,sys.argv[1])
 from _signetum_runtime.traceability_cli import query
 from _signetum_runtime.traceability_boundary import TraceabilityManifest
 from _signetum_runtime.status_models import EvidenceSnapshot
-from _signetum_runtime.development_store import main,snapshot
+from _signetum_runtime.development_store import snapshot
+from _signetum_runtime.protocol_cli import main
 from _signetum_runtime.workspaces import WorkspaceRecord,state_root,write_record
 root=Path(sys.argv[2])
 write_record(state_root(root),WorkspaceRecord(1,'plan/installed',sys.argv[3],'member'))
@@ -234,10 +231,10 @@ def test_installed_skill_routes_to_existing_repository_commands_and_generates_on
     assert interface["display_name"] == "Signetum"
     assert "$signetum" in interface["default_prompt"]
     consumer = tmp_path / "existing repository"
-    render_template(Path(__file__).parents[2] / "template", consumer)
+    render_template(Path(__file__).parents[2] / "tests/fixtures/portable-python", consumer)
     # This existing consumer binds its own host runner; the skill must preserve it.
     interpreter = shlex.quote(sys.executable)
-    protocol = shlex.quote(str(consumer / ".agents/repo-dev/runtime/protocol.py"))
+    protocol = shlex.quote(str(consumer / ".agents/signetum/runtime/protocol.py"))
     (consumer / "Justfile").write_text(
         "set positional-arguments\nprotocol *args:\n    "
         + interpreter
@@ -509,7 +506,7 @@ def test_installed_engine_previews_adopts_and_routes_skill_without_replacing_app
         json.dumps(
             {
                 "manifest": (consumer / "signetum.toml").read_text(),
-                "policy": (consumer / ".agents/repo-dev/repo.yaml").read_text(),
+                "policy": (consumer / ".agents/signetum/repo.yaml").read_text(),
                 "interpreter": [sys.executable, "-I", "-S"],
             }
         )
@@ -546,7 +543,7 @@ def test_installed_engine_previews_adopts_and_routes_skill_without_replacing_app
     assert result.returncode == 0, result.stdout + result.stderr
     proposal = json.loads(result.stdout)
     assert proposal["status"] == "proposal"
-    assert not (consumer / ".agents/repo-dev/run").exists()
+    assert not (consumer / ".agents/signetum/run").exists()
     result = subprocess.run(  # noqa: S603 -- apply the exact preview in the disposable consumer
         [
             *invoke,

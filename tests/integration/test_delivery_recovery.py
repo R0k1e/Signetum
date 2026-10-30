@@ -47,7 +47,7 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     git(target, "config", "user.email", "delivery@example.invalid")
     (target / "content").write_text("base")
     (target / "signetum.toml").write_text(MANIFEST)
-    policy = target / ".agents/repo-dev/repo.yaml"
+    policy = target / ".agents/signetum/repo.yaml"
     policy.parent.mkdir(parents=True)
     policy.write_text("delivery:\n  branch: main\n")
     git(target, "add", ".")

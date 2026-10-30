@@ -1,11 +1,11 @@
 ---
 name: signetum
-description: Use Signetum's reliable agentic development and delivery protocol to plan changes, retain decisions, validate implementation, or prepare delivery. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
+description: Use Signetum to help people decide, coordinate parallel coding Agents in isolated worktrees, and validate and deliver approved changes. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
   version: "0.3.0"
 ---
 
-# Reliable agentic development and delivery
+# Human decisions, parallel development and reliable delivery
 
 Read the repository's Agent contract, architecture entry and declared development
 manifest. Load mandatory policies and only the groups selected by intent or
@@ -16,7 +16,7 @@ into an existing repository merely because this skill was invoked.
 
 Keep cwd in the user's repository. The local utility launcher is
 `sh <skill-base-dir>/scripts/signetum <command> [arguments]`; it delegates to
-the adopted `.agents/repo-dev/run protocol`, or the existing `just protocol`
+the adopted `.agents/signetum/run protocol`, or the existing `just protocol`
 binding. `adopt` delegates to an installed reviewed engine before local adoption.
 It does not download or update anything.
 Honor declared schema, profile and skill identities. A mismatch requires an
@@ -37,10 +37,16 @@ For new or changed behavior, read
 and generate its approval view. Read [change closure](references/change-closure.md)
 for scope, deferral or completion checks.
 
+For parallel development, follow the coordination guidance in
+[work and validation](references/worktree-validation.md). The coordinating Agent
+owns task scope, dependencies and named integration; Signetum does not schedule
+Agents or impose a global host allocation.
+
 For changes introducing concurrency, background work or lazy initialization, read
 [stability](references/stability.md).
 
 During implementation, read [work and validation](references/worktree-validation.md).
+Tell the user when tests change, why, and whether the evidence is reduced.
 Trace affected architecture, commands and usage instructions when a behavior,
 owner or prerequisite changes. Update those current authorities in the same
 change; history is the reason, not a substitute for current instructions.

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -14,15 +16,29 @@ ROOT = Path(__file__).resolve().parents[2]
 CANONICAL = "https://r0k1e.github.io/Signetum/"
 
 
+class HomeLinks(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.targets: list[str | None] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag == "a" and "home" in (attributes.get("rel") or "").split():
+            self.targets.append(attributes.get("href"))
+
+
 def test_site_build_emits_an_exact_public_artifact(tmp_path: Path) -> None:
     destination = tmp_path / "public"
 
     files = build_site(ROOT, destination)
 
     assert set(files) == {
-        "assets/signetum-mark.png",
+        "assets/signetum-mark.svg",
         "assets/signetum-social-preview.png",
+        "fonts/InstrumentSerif-Regular.ttf",
+        "fonts/OFL.txt",
         "index.html",
+        "install.js",
         "robots.txt",
         "sitemap.xml",
         "styles.css",
@@ -33,10 +49,17 @@ def test_site_build_emits_an_exact_public_artifact(tmp_path: Path) -> None:
         for path in destination.rglob("*")
         if path.is_file()
     } == set(files)
-    assert (
-        hashlib.sha256((destination / "assets/signetum-mark.png").read_bytes()).digest()
-        == hashlib.sha256((ROOT / "assets/brand/signetum-mark.png").read_bytes()).digest()
-    )
+    for source, output in (
+        ("assets/brand/signetum-mark.svg", "assets/signetum-mark.svg"),
+        ("assets/brand/signetum-social-preview.png", "assets/signetum-social-preview.png"),
+        ("site/fonts/InstrumentSerif-Regular.ttf", "fonts/InstrumentSerif-Regular.ttf"),
+        ("site/fonts/OFL.txt", "fonts/OFL.txt"),
+        ("site/install.js", "install.js"),
+    ):
+        assert (
+            hashlib.sha256((destination / output).read_bytes()).digest()
+            == hashlib.sha256((ROOT / source).read_bytes()).digest()
+        )
 
 
 @pytest.mark.parametrize(
@@ -53,6 +76,9 @@ def test_site_pages_expose_bilingual_discovery_metadata(
     build_site(ROOT, destination)
     html = (destination / page).read_text(encoding="utf-8")
 
+    home_links = HomeLinks()
+    home_links.feed(html)
+    assert home_links.targets == ["./"]
     assert f'<html lang="{language}">' in html
     assert f'<link rel="canonical" href="{canonical}">' in html
     assert f'hreflang="{language}"' in html
@@ -61,7 +87,8 @@ def test_site_pages_expose_bilingual_discovery_metadata(
     assert 'name="twitter:card" content="summary_large_image"' in html
     assert '"@type": "SoftwareApplication"' in html
     assert "https://github.com/r0k1e/Signetum" in html
-    assert "Seal every change with evidence" in html or "让每次变更都有证据" in html
+    assert re.search(r"<title>[^<]+</title>", html)
+    assert re.search(r'name="description" content="[^\"]+"', html)
 
 
 def test_site_build_rejects_an_existing_destination(tmp_path: Path) -> None:
@@ -83,10 +110,12 @@ def test_site_cli_reports_the_built_inventory(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["status"] == "built"
-    assert payload["files"] == 7
+    assert payload["files"] == 10
 
 
 def test_template_has_no_product_site_or_brand_payload() -> None:
     forbidden = {"site", "assets"}
-    assert forbidden.isdisjoint(path.name for path in (ROOT / "template").iterdir())
-    assert not (ROOT / "template/.github/workflows/pages.yml").exists()
+    assert forbidden.isdisjoint(
+        path.name for path in (ROOT / "tests/fixtures/portable-python").iterdir()
+    )
+    assert not (ROOT / "tests/fixtures/portable-python/.github/workflows/pages.yml").exists()

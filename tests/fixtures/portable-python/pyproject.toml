@@ -1,0 +1,35 @@
+[project]
+name = "signetum-python-template"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "detect-secrets==1.5.0",
+  "pip-audit==2.9.0",
+  "pytest==9.1.1",
+  "ruff==0.14.10",
+  "ty==0.0.1a33",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff]
+force-exclude = true
+extend-exclude = [".agents/signetum/runtime/_signetum_runtime/vendor_yaml"]
+cache-dir = "../.ruff_cache"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+".agents/signetum/runtime/lifecycle.py" = ["S603"]
+# Generated from the same reviewed fixed-Git boundary as the engine lifecycle.
+".agents/signetum/runtime/_signetum_runtime/lifecycle.py" = ["S603"]

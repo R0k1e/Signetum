@@ -9,7 +9,7 @@ import pytest
 @pytest.fixture(params=["signetum.profiles.existing_runner", "_signetum_runtime.existing_runner"])
 def adapter(request, monkeypatch):
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[3] / "template/.agents/repo-dev/runtime")
+        str(Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime")
     )
     return importlib.import_module(request.param)
 

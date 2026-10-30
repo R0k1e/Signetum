@@ -4,7 +4,7 @@ Status: Accepted
 Review date: 2026-10-29
 Supersedes: ADP-align-development-tooling-with-perdura.md
 Partially supersedes: ADP-align-development-tooling-with-perdura.md
-Superseded by: None
+Superseded by: ADP-protocol-core-and-project-extensions.md
 
 ## Context
 

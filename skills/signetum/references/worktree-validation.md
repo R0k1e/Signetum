@@ -17,10 +17,16 @@ for each pure rejection case. State the risk briefly in the existing execution p
 in another test inventory. A documentation rewrite alone needs link/static checks,
 not a new behavior suite.
 
-Before adding tests, classify existing affected evidence as retain, extend,
+Before changing tests, classify existing affected evidence as retain, extend,
 merge, replace, delete or new. Keep necessary real traversals for distinct public
 contracts and put pure matrices in core tests. Generated/installed execution
 checks their own boundaries; it does not mechanically repeat every shared case.
+Tell the user the affected test files, reason and retained or replacement evidence
+before modifying them. Explicitly disclose removed coverage, relaxed assertions,
+new skips and threshold reductions; a green result does not justify weakening an
+approved obligation. Summarize test changes and actual checks in the final user
+review without creating a separate test report.
+
 Do not pin teaching prose or private call order. Keep mutable test resources
 independent and reuse only successful immutable preparation. Independent consumer
 fixtures isolate caller-only test/interpreter configuration while retaining
@@ -77,6 +83,21 @@ jobs and refuses successful commands that leave owned children behind.
 Preserve unrelated files and processes. Stop at a clean ready unless integration
 or delivery is authorized. Validation never appends its own success to source.
 
-For explicitly requested fine selection, weighted pytest scheduling or CI splitting,
+For explicitly requested project selection, weighted pytest scheduling or CI splitting,
 read [optional validation optimization](validation-optimization.md). Keep these
 opt-in; do not expand every repository adoption to include them.
+
+## Coordinating parallel members
+
+Before delegating, the coordinating Agent names each member's outcome, worktree,
+owned scope, dependencies and shared interfaces in the existing execution plan.
+Resolve shared contract choices before dependent implementation; synchronize through
+the declared owner instead of changing another member's worktree. Independent
+members can proceed while an affected choice is pending.
+
+Keep mutable dependencies, reports and scratch local. Bound concurrent gate runs
+at the caller; per-operation and nested limits are not a host-wide scheduler.
+The named integration owner admits exact ready tips, handles conflicts and runs
+complete final. A later member change needs fresh ready and admission. A clean
+Git merge does not establish semantic compatibility; validate the integrated
+behavior and reconcile conflicting decisions through the ordinary protocol.

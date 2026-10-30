@@ -12,7 +12,18 @@ import pytest
 from signetum import worktrunk as wt
 from signetum.git import git_output
 from signetum.operations import InfrastructureError
+from signetum.runtime_generation import generate_runtime, runtime_problems
 from signetum.workspaces import branch_name
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_sessionstart(session):
+    """Prepare one immutable portable fixture before xdist starts its workers."""
+    if hasattr(session.config, "workerinput"):
+        return
+    scaffold = Path(__file__).parents[1] / "tests/fixtures/portable-python"
+    if runtime_problems(scaffold):
+        generate_runtime(scaffold)
 
 
 @pytest.fixture
@@ -46,7 +57,7 @@ def local_repository(tmp_path, monkeypatch):
         '[[validation.gates]]\nname = "final"\nshards = ["test:check"]\n'
         '[[validation.gates]]\nname = "batch"\nshards = ["test:check"]\n'
     )
-    policy = root / ".agents/repo-dev/repo.yaml"
+    policy = root / ".agents/signetum/repo.yaml"
     policy.parent.mkdir(parents=True)
     policy.write_text("delivery:\n  branch: main\n")
     (root / "seed.txt").write_text("base\n")
@@ -123,7 +134,7 @@ def local_repository(tmp_path, monkeypatch):
     monkeypatch.setattr(wt, "worktrunk", native_worktrunk)
     monkeypatch.setattr(wt, "run_tool", native_preparation)
     monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[1] / "template/.agents/repo-dev/runtime")
+        str(Path(__file__).parents[1] / "tests/fixtures/portable-python/.agents/signetum/runtime")
     )
     copied = importlib.import_module("_signetum_runtime.worktrunk")
     copied_errors = importlib.import_module("_signetum_runtime.operations")

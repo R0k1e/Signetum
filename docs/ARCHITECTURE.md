@@ -7,7 +7,7 @@ schemas, Skill, tests and documentation. Existing consumers update explicitly.
 
 The agent obtains a fixed-version setup tool, prepares reviewed local bindings,
 and then calls the project's own portable runtime. Application tools, architecture
-and delivery policy remain project-owned. `template/` is internal scaffolding and
+and delivery policy remain project-owned. `tests/fixtures/portable-python/` is internal scaffolding and
 portable-runtime evidence, not a second public product or default-branch artifact.
 
 Responsibility documents:

@@ -37,7 +37,7 @@ def test_inventory_cannot_be_redirected_to_a_foreign_repository(tmp_path, monkey
                 "-S",
                 "-c",
                 script,
-                str(ROOT / "template/.agents/repo-dev/runtime"),
+                str(ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime"),
                 str(root),
             ],
             capture_output=True,

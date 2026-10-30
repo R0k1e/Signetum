@@ -1,4 +1,0 @@
-schema_version = 1
-identity = "node-existing@1"
-authorities = ["node-existing-runner"]
-requires = ["shared-core@1"]
