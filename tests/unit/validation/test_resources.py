@@ -27,7 +27,7 @@ from signetum.validation.resources import ResourceObservation, allocate_workers,
 def repository_adapter(request, monkeypatch):
     if request.param == "engine":
         return RepositoryValidationAdapter, resources, ("-m", "signetum.validation.pytest_runner")
-    runtime = Path(__file__).parents[3] / "template/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime"
     monkeypatch.syspath_prepend(str(runtime))
     module = importlib.import_module("_signetum_runtime.repository")
     runner = (str(runtime / "_signetum_runtime/pytest_runner.py"),)
@@ -187,7 +187,7 @@ def test_membership_outside_resource_mount_is_refused(tmp_path):
 def test_profile_and_repository_budget_projections_agree():
     raw = {"name": "test:budget", "command": ["true"], "workers": 4, "worker_memory_mb": 512}
     profile = ValidationConfiguration.from_mapping("test", {"shards": [raw]}).contribution.shards[0]
-    text = (Path(__file__).parents[3] / "template/signetum.toml").read_text()
+    text = (Path(__file__).parents[3] / "tests/fixtures/portable-python/signetum.toml").read_text()
     text = text.replace(
         'name = "python:sync"\n', 'name = "python:sync"\nworkers = 4\nworker_memory_mb = 512\n', 1
     )
@@ -227,7 +227,7 @@ def test_unavailable_native_memory_is_not_replaced_with_a_guess(platform, docume
 
 
 def test_generated_native_observation_runs_without_site_packages(tmp_path):
-    runtime = Path(__file__).parents[3] / "template/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime"
     script = (
         "import sys,json; from dataclasses import asdict; sys.path.insert(0,sys.argv[1]); "
         "from _signetum_runtime.resources import observe_resources; "

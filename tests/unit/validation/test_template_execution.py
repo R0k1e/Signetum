@@ -58,7 +58,7 @@ shards = ["core:dependent", "core:independent"]
     )
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "declare execution fixture")
-    runtime = Path(__file__).parents[3] / "template/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime"
     script = """
 import json,sys
 from pathlib import Path
@@ -94,7 +94,7 @@ print(json.dumps(result))
 
 
 def test_template_shard_deadline_terminates_its_descendants(tmp_path):
-    runtime = Path(__file__).parents[3] / "template/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime"
     marker = tmp_path / "orphan"
     child = "import sys,time; from pathlib import Path; time.sleep(2); Path(sys.argv[1]).touch()"
     parent = "import subprocess,sys; subprocess.run([sys.executable,'-c',sys.argv[1],sys.argv[2]])"

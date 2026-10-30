@@ -26,7 +26,7 @@ from signetum.resources import schemas as schema_resources
 from signetum.resources.schemas import EVIDENCE_PROTOCOL, evidence_schema_digest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-MANIFESTS = ("signetum.toml", "template/signetum.toml")
+MANIFESTS = ("signetum.toml", "tests/fixtures/portable-python/signetum.toml")
 
 
 def _schema(name: str) -> Validator:

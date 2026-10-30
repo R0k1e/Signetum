@@ -22,8 +22,8 @@ The downstream owner approves and lands this change through its current process.
 
 Compare old and proposed selection on fixed source cases: new files, modified
 tests, dependency changes, dynamic imports and unknown paths. Explain every
-difference. Test normal failure and fresh ordinary success through the same
-runner. Verify named admission, static conflict continuation and complete final
+difference. Align first-failure semantics: retries diagnose but cannot clear a failed
+operation. Then test failure and fresh ordinary success through the same runner. Verify named admission, static conflict continuation and complete final
 against an exact frozen source. Delivery remains separately authorized.
 
 Have an agent organize current historical decisions into clause proposals with

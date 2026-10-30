@@ -9,7 +9,8 @@ Mise/Worktrunk workspace tools are protocol prerequisites.
 ## One change and its basis
 
 Ask the agent for the desired behavior. It reads architecture, selected policies
-and the current decision working set, then prepares `changes/<id>/change.toml`.
+and the current decision working set, then prepares `changes/<id>/change.toml`. The review highlights consequential
+choices, the recommendation, alternatives, evidence and effects on the outcome.
 Review outcomes, acceptance, excluded scope and execution autonomy. Approval binds
 that exact contract; it is not inferred from a preview, filename or green test.
 
@@ -35,7 +36,10 @@ outcome. Final review summarizes actual changes and checks, not a copied log.
 
 ## Parallel work and delivery
 
-Each member owns an isolated worktree and immutable base. Named ready members
+The coordinating Agent identifies member outcomes, owned scopes, dependencies
+and shared interfaces in the existing plan. Each member owns an isolated worktree
+and immutable base. Callers bound concurrent checks; there is no global Agent
+or host-resource scheduler. A named integration owner coordinates shared choices. Named ready members
 enter a batch through `batch-open` or `batch-admit`; conflicts use
 `batch-continue`. Admission prepares and checks integration without secretly
 repeating member suites. `final` validates the complete frozen batch and generates
@@ -48,7 +52,7 @@ such as an advisory audit, are fresh final obligations rather than reusable
 member evidence. Approved waivers are explicit and expire; they are not passes.
 
 Review approved outcomes, delivered behavior, test changes, evidence and unfinished
-work before delivery. The publisher confirms the remote identity before moving
+work before delivery, using authorization already given or requesting it when missing. The publisher confirms the remote identity before moving
 the local target. On interruption, inspect exact identities and retry through the
 same operation; never force-push or substitute an ad-hoc merge. Cleanup preserves
 unrelated state and the executing runtime, which can be removed from a safe

@@ -25,37 +25,22 @@ from signetum.serialization import contract_mapping, dataclass_from_mapping, loa
 from signetum.source_authority import source_path
 from signetum.validation.repository import configured_validation
 
-WORKFLOW = """# Repository development
+WORKFLOW = """# Local Signetum bindings
 
-Read the repository architecture and selected policies before planning. Use the
-existing application environment and runner. Start isolated work with
-`sh .agents/signetum/run workspace-open <branch> <exact-base>`; continue inside
-the returned worktree. The delivery worktree is changed only by explicit delivery.
+Load the standard `signetum` Skill compatible with this adopted runtime before
+planning or development. The Skill owns common decision, parallel-work,
+validation and delivery instructions; report a missing Skill before mutation.
+Read this project's architecture, Agent contract and selected repository policies.
+Application tools, preparation, checks and delivery targets remain project-owned.
 
-Run local utilities with `sh .agents/signetum/run protocol <command>`.
-Read `current` before planning and consult relevant historical sources listed
-there. Create one record with `change-open <name>`. Fill intent, observable
-requirements, acceptance, scope and autonomy, then show its generated `view`.
-Record actual owner confirmation of that exact contract before implementation.
-Important architecture, process and security choices require an accepted decision
-transaction in that contract. A standalone ADR is only for an independently
-maintained cross-change authority; keep its reasoning once and reference it.
-Ordinary implementation choices and command output create no extra document.
-
-The agent authors records; the owner reviews outcomes and consequential choices.
-Use `record`, `resolve` and `reconcile` for significant findings and accepted
-clause edits. Do not maintain duplicate reports or command-by-command journals.
-When behavior, responsibility, commands or prerequisites change, update affected
-current architecture and usage instructions in the same change. Preserve reasons
-in history; check the affected current authorities before ready.
-Ordinary test output stays in logs. Run the repository's existing targeted checks;
-`ready` binds the exact member tip. A diagnostic retry never clears first failure.
-
-Named batch admission and continuation prepare and run static checks. `final`
-checks the complete frozen batch. Show the generated review before requesting
-explicit delivery. Passing validation never authorizes publication or delivery.
-Preserve unrelated changes and original evidence. Do not hide deferred work.
+Use `sh .agents/signetum/run workspace-open <branch> <exact-base>` and continue
+inside the returned worktree. Local utilities use
+`sh .agents/signetum/run protocol <command>`; lifecycle operations use the same
+launcher without `protocol`. Separate local maintenance uses
+`sh .agents/signetum/run maintenance <command>`. Ordinary work downloads or updates
+nothing. Adoption and updates require an exact reviewed preview.
 """
+
 POINTER = "\nRead `.agents/signetum/WORKFLOW.md` for the adopted local development protocol.\n"
 
 

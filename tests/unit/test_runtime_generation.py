@@ -13,6 +13,7 @@ from importlib.resources import files
 from pathlib import Path
 
 import pytest
+from fixture_rendering import render_template, validate_template
 
 from signetum.profiles.catalog import PROFILE_RESOURCE_NAMES
 from signetum.runtime_generation import (
@@ -22,7 +23,6 @@ from signetum.runtime_generation import (
     runtime_files,
     runtime_problems,
 )
-from signetum.template import render_template, validate_template
 from signetum.vendor_resources import upstream_yaml_payload, yaml_payload
 
 ROOT = Path(__file__).parents[2]
@@ -41,8 +41,8 @@ def test_generation_is_deterministic_and_refuses_drift(tmp_path):
 
 
 def test_template_validation_refuses_a_stale_shared_runtime(tmp_path):
-    source = tmp_path / "template"
-    shutil.copytree(ROOT / "template", source)
+    source = tmp_path / "fixture"
+    shutil.copytree(ROOT / "tests/fixtures/portable-python", source)
     target = source / ".agents/signetum/runtime/_signetum_runtime/findings.py"
     target.write_bytes(target.read_bytes() + b"\n# stale implementation\n")
     assert any("generated runtime" in problem for problem in validate_template(source).problems)
@@ -51,8 +51,8 @@ def test_template_validation_refuses_a_stale_shared_runtime(tmp_path):
 
 
 def test_interpreter_caches_do_not_enter_rendered_artifacts(tmp_path):
-    source = tmp_path / "template"
-    shutil.copytree(ROOT / "template", source)
+    source = tmp_path / "fixture"
+    shutil.copytree(ROOT / "tests/fixtures/portable-python", source)
     shutil.rmtree(source / RUNTIME_DIRECTORY)
     assert validate_template(source).valid
     cache = source / ".agents/stale-host/__pycache__"
@@ -136,7 +136,7 @@ def test_generation_preserves_unmanaged_extensions(tmp_path):
 def test_generation_refuses_a_symlinked_parent(tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
-    target = tmp_path / "template"
+    target = tmp_path / "fixture"
     target.mkdir()
     (target / ".agents").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ValueError, match="symlink"):

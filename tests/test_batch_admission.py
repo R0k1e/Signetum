@@ -230,7 +230,7 @@ def test_delivery_provenance_uses_actual_package_plans_and_named_member(tmp_path
     assert members[0]["plan"] == plans[0]
 
 
-def test_admission_records_member_and_final_numbers_only_accepted_decisions(
+def test_admission_and_final_preserve_accepted_decision_identities(
     tmp_path: Path,
 ) -> None:
     repository = _repository(tmp_path / "repository")
@@ -248,11 +248,11 @@ def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     _record(member, "impl/member", base)
     _record(batch, "batch/test", base, "batch")
     commit_approval(member)
-    decision = member / "docs/decisions/ADP-proposal-zebra.md"
+    decision = member / "docs/decisions/ADP-zebra.md"
     decision.parent.mkdir(parents=True, exist_ok=True)
     decision.write_text(
         "# Zebra\n\nStatus: Accepted\nSupersedes: ADP-0001-yak.md\nSuperseded by: None\n"
-        "\nSee ADP-proposal-zebra.md.\n",
+        "\nSee ADP-zebra.md.\n",
         encoding="utf-8",
     )
     stable = member / "docs/decisions/ADP-kept-name.md"
@@ -263,7 +263,7 @@ def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     )
     plan = "changes/example/plans/member.md"
     (member / "reference.md").write_text(
-        "Decision: docs/decisions/ADP-proposal-zebra.md\n", encoding="utf-8"
+        "Decision: docs/decisions/ADP-zebra.md\n", encoding="utf-8"
     )
     _git(member, "add", ".")
     _git(member, "commit", "-m", f"deliver member\n\nDelivers: {plan}")
@@ -279,8 +279,8 @@ def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     result = lifecycle.admit(batch, (member,))
 
     assert result["status"] == "admitted"
-    assert (batch / "docs/decisions/ADP-proposal-zebra.md").is_file()
-    assert (member / "docs/decisions/ADP-proposal-zebra.md").is_file()
+    assert (batch / "docs/decisions/ADP-zebra.md").is_file()
+    assert (member / "docs/decisions/ADP-zebra.md").is_file()
     admitted_members = result["admitted"]
     assert isinstance(admitted_members, list)
     admitted = admitted_members[0]
@@ -296,25 +296,17 @@ def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     assert isinstance(workspace, dict) and workspace["kind"] == "batch"
     assert isinstance(receipts, list)
     assert any(isinstance(receipt, dict) and "final" in receipt["gates"] for receipt in receipts)
-    formal = batch / "docs/decisions/ADP-0002-zebra.md"
+    formal = batch / "docs/decisions/ADP-zebra.md"
     assert formal.is_file()
     assert (batch / stable.relative_to(member)).read_bytes() == stable.read_bytes()
     assert (batch / "docs/decisions/ADP-historical.md").read_text() == legacy.read_text()
     assert final["source"] == _git(batch, "rev-parse", "HEAD")
-    assert final["numbered"] == [
-        {
-            "proposal": "docs/decisions/ADP-proposal-zebra.md",
-            "formal": "docs/decisions/ADP-0002-zebra.md",
-        }
-    ]
-    assert (
-        "Superseded by: ADP-0002-zebra.md" in (batch / "docs/decisions/ADP-0001-yak.md").read_text()
-    )
-    assert "ADP-0002-zebra.md" in (batch / "reference.md").read_text()
-    numbered_tip = final["source"]
+    assert final["source"] == admitted["admission_commit"]
+    assert (batch / "docs/decisions/ADP-zebra.md").read_bytes() == decision.read_bytes()
+    assert (batch / "reference.md").read_bytes() == (member / "reference.md").read_bytes()
     repeated_final = lifecycle.validate(batch, "final")
-    assert repeated_final["numbered"] == []
-    assert repeated_final["source"] == numbered_tip
+    assert repeated_final["source"] == final["source"]
+
     repeated = lifecycle.admit(batch, (member,))
     assert repeated["admitted"] == []
     unchanged_members = repeated["unchanged"]
@@ -337,19 +329,6 @@ def test_admission_records_member_and_final_numbers_only_accepted_decisions(
     assert isinstance(incremental_members, list)
     assert incremental_members[0]["original"] == advanced_tip
     assert incremental_members[0]["admission_commit"] != admitted["admission_commit"]
-
-    protected = batch / "changes/frozen/change.toml"
-    protected.parent.mkdir(parents=True)
-    protected.write_text('authority="docs/decisions/ADP-proposal-bound.md"\n')
-    bound = batch / "docs/decisions/ADP-proposal-bound.md"
-    bound.write_text("# Bound proposal\nStatus: Accepted\n")
-    _git(batch, "add", ".")
-    _git(batch, "commit", "-m", "retain an approval-bound proposal reference")
-    before = _git(batch, "rev-parse", "HEAD")
-    with pytest.raises(lifecycle.AdmissionError, match="approval-bound"):
-        lifecycle.validate(batch, "final")
-    assert _git(batch, "rev-parse", "HEAD") == before
-    assert bound.is_file()
 
 
 def test_delivery_refuses_numbering_bound_to_another_base(
@@ -682,17 +661,6 @@ def test_admission_does_not_accept_a_proposed_decision(tmp_path):
     assert (batch / "docs/decisions/ADP-unapproved.md").read_text() == decision.read_text()
 
 
-def test_numbering_preserves_other_supersession_edges(tmp_path):
-    root = tmp_path / "decisions"
-    root.mkdir()
-    old = root / "old.md"
-    old.write_text("# Old\nSuperseded by: earlier.md\n")
-    new = root / "new.md"
-    new.write_text("# New\nSupersedes: old.md\n")
-    lifecycle._record_supersession(tmp_path, Path("decisions/new.md"))
-    assert old.read_text() == "# Old\nSuperseded by: earlier.md, new.md\n"
-
-
 def test_actual_change_paths_supply_review_and_plans_without_a_trailer(tmp_path):
     member, batch, _ = _member_and_batch(tmp_path)
     _approve_change(member)
@@ -820,7 +788,7 @@ def test_change_scope_uses_the_declared_package_root(tmp_path):
     assert result["approvals"][0]["change_id"] == "example"
 
 
-def test_final_cannot_number_or_validate_a_member_workspace(tmp_path):
+def test_final_cannot_validate_a_member_workspace(tmp_path):
     member, _, _ = _member_and_batch(tmp_path, approved=True)
     with pytest.raises(lifecycle.AdmissionError, match="requires a registered batch"):
         lifecycle.validate(member, "final")
@@ -833,31 +801,6 @@ def test_ready_cannot_close_an_integration_batch_as_a_member(tmp_path):
     _git(batch, "commit", "-m", "integration change")
     with pytest.raises(lifecycle.AdmissionError, match="requires a registered member"):
         lifecycle.validate(batch, "member")
-
-
-def test_final_allocates_above_fresh_remote_decision_numbers(tmp_path):
-    member, batch, _ = _member_and_batch(tmp_path, approved=True)
-    decision = member / "docs/decisions/ADP-proposal-new.md"
-    decision.parent.mkdir(parents=True)
-    decision.write_text("# New\nStatus: Accepted\nSupersedes: None\nSuperseded by: None\n")
-    _git(member, "add", ".")
-    _git(member, "commit", "-m", "accept a decision")
-    lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
-    root = tmp_path / "repository"
-    occupied = root / "docs/decisions/ADP-0099-published.md"
-    occupied.parent.mkdir(parents=True)
-    occupied.write_text("# Published\nStatus: Accepted\n")
-    _git(root, "add", ".")
-    _git(root, "commit", "-m", "publish a new decision identity")
-    _git(root, "push", "origin", "main")
-    final = lifecycle.validate(batch, "final")
-    assert final["numbered"] == [
-        {
-            "proposal": "docs/decisions/ADP-proposal-new.md",
-            "formal": "docs/decisions/ADP-0100-new.md",
-        }
-    ]
 
 
 def test_ready_and_admission_refuse_an_implementation_without_a_change_package(tmp_path):
@@ -882,7 +825,10 @@ def lifecycle_frontend(request, monkeypatch):
     """The complete admission/final contract corpus also runs on the generated library."""
     if request.param == "template":
         monkeypatch.syspath_prepend(
-            str(Path(__file__).parents[1] / "template/.agents/signetum/runtime")
+            str(
+                Path(__file__).parents[1]
+                / "tests/fixtures/portable-python/.agents/signetum/runtime"
+            )
         )
         monkeypatch.setitem(
             globals(), "lifecycle", importlib.import_module("_signetum_runtime.lifecycle")

@@ -81,9 +81,10 @@ append its own success to source.
 Review binds approvals, source journals, admitted receipts, recovered defects and
 remaining work. Recheck those inputs after validation and before publication;
 changes require fresh final. The agent shows outcomes, scope, decision changes,
-test modifications and evidence before explicitly authorized delivery. Human
-acceptance is a separate state. Optional legacy proposal numbering cannot rewrite
-approval-bound records or journals; stable accepted filenames remain stable.
+test modifications and evidence before explicitly authorized delivery. Existing
+authorization remains valid within its agreed scope. Human
+acceptance is a separate state. Final never allocates decision numbers or rewrites authority paths; stable
+accepted filenames remain stable.
 
 Publication recovery inspects exact local/remote holdings and resumes that same
 operation. Never force-push, reset or substitute a direct merge. Structured result

@@ -126,7 +126,7 @@ shards = ["test:unit", "test:web"]
         path.write_text("fixture\n")
     git("add", ".")
     git("commit", "--allow-empty", "-m", "implementation")
-    runtime = Path(__file__).parents[2] / "template/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[2] / "tests/fixtures/portable-python/.agents/signetum/runtime"
     script = (
         "import sys,json; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
         "from _signetum_runtime import lifecycle; "

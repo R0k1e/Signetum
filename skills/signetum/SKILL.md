@@ -1,11 +1,11 @@
 ---
 name: signetum
-description: Use Signetum's reliable agentic development and delivery protocol to plan changes, retain decisions, validate implementation, or prepare delivery. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
+description: Use Signetum to help people decide, coordinate parallel coding Agents in isolated worktrees, and validate and deliver approved changes. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
   version: "0.3.0"
 ---
 
-# Reliable agentic development and delivery
+# Human decisions, parallel development and reliable delivery
 
 Read the repository's Agent contract, architecture entry and declared development
 manifest. Load mandatory policies and only the groups selected by intent or
@@ -36,6 +36,11 @@ For new or changed behavior, read
 [change approval](references/spec-plan-decisions.md); create one change record
 and generate its approval view. Read [change closure](references/change-closure.md)
 for scope, deferral or completion checks.
+
+For parallel development, follow the coordination guidance in
+[work and validation](references/worktree-validation.md). The coordinating Agent
+owns task scope, dependencies and named integration; Signetum does not schedule
+Agents or impose a global host allocation.
 
 For changes introducing concurrency, background work or lazy initialization, read
 [stability](references/stability.md).

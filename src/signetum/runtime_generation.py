@@ -19,7 +19,6 @@ MODULES = {
     "signetum.pytest_scheduling": "pytest_scheduling.py",
     "signetum.ci_partitions": "ci_partitions.py",
     "signetum.test_scheduling": "test_scheduling.py",
-    "signetum.python_selection": "python_selection.py",
     "signetum.workflow_status": "workflow_status.py",
     "signetum.profiles.existing_runner": "existing_runner.py",
     "signetum.change_open": "change_open.py",
