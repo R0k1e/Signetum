@@ -32,7 +32,7 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
             if name.endswith((".py", ".toml", ".json"))
         )
 
-    assert "signetum/resources/schemas/signetum-v2.schema.json" in names
+    assert "signetum/resources/schemas/signetum-v3.schema.json" in names
     assert "signetum/resources/profiles/python-default-v1.toml" in names
     assert "signetum/resources/schemas/validation-graph-v2.schema.json" in names
     assert "signetum/resources/schemas/validation-evidence-v3.schema.json" in names

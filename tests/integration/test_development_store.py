@@ -999,10 +999,8 @@ def test_an_observation_identity_cannot_be_reused_in_a_later_transaction(reposit
 
 def test_repository_declared_change_root_is_the_only_source_journal_location(repository, store):
     source = (Path(__file__).parents[2] / "signetum.toml").read_text()
-    source = (
-        source.replace("changes/*/specs/*.toml", "work/*/specs/*.toml")
-        .replace("changes/*/plans/*.md", "work/*/plans/*.md")
-        .replace('decisions = "docs/decisions"', 'decisions = "authorities"')
+    source = source.replace('changes = "changes"', 'changes = "work"').replace(
+        'decisions = "docs/decisions"', 'decisions = "authorities"'
     )
     (repository / "signetum.toml").write_text(source)
     (repository / "changes").rename(repository / "work")
@@ -1297,9 +1295,7 @@ def test_uncommitted_repository_binding_cannot_redirect_journal_authority(reposi
     state = store.snapshot(repository)
     transaction = request(repository, store)
     source = (Path(__file__).parents[2] / "signetum.toml").read_text()
-    source = source.replace("changes/*/specs/*.toml", "archive/*/specs/*.toml").replace(
-        "changes/*/plans/*.md", "archive/*/plans/*.md"
-    )
+    source = source.replace('changes = "changes"', 'changes = "archive"')
     (repository / "signetum.toml").write_text(source)
     with pytest.raises(ValueError, match="committed"):
         store.append_transaction(repository, transaction, expected_history=state.history_digest)

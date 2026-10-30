@@ -33,9 +33,9 @@ def local_repository(tmp_path, monkeypatch):
         str(state),
     ]
     (root / "signetum.toml").write_text(
-        'schema_version = 2\n[signetum]\nprotocol = 2\ntemplate_version = "0.2.0"\n'
+        "schema_version = 3\n[signetum]\nprotocol = 2\n"
         '[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
-        'specifications = "changes/*/specs/*.toml"\nplans = "changes/*/plans/*.md"\n'
+        'changes = "changes"\n'
         'decisions = "docs/decisions"\n'
         '[[impact.rules]]\nname = "all"\npaths = ["**"]\nshards = ["test:check"]\n'
         '[validation]\nmember_required = ["test:check"]\n'

@@ -5,6 +5,11 @@ bindings and use an explicit preview for later runtime updates.
 
 ## Replace product facts first
 
+Current manifest schema 3 declares `repository.changes` for the change root,
+`repository.decisions` for retained standalone decisions and `repository.architecture`
+for the responsibility map. A change uses `change.toml` and its significant journal.
+There is no separately versioned template or old Specification/Plan path alias.
+
 Update the root README, architecture map, repository manifest, focused policy,
 fixtures, examples, package metadata, and release targets with product facts.
 Delete teaching artifacts that are not true for the new product; do not leave
@@ -48,7 +53,7 @@ findings = ["GHSA-aaaa-bbbb-cccc"]
 reason = "No fixed release exists and the affected path is unreachable."
 approved_by = "maintainer"
 expires = 2026-12-31
-follow_up = "changes/dependency-refresh/plans/upgrade.md"
+follow_up = "changes/dependency-refresh/change.toml"
 ```
 
 A waiver is ordinary reviewed repository content. It covers only the findings it

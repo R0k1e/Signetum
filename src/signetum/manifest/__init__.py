@@ -1,4 +1,4 @@
-"""Portable typed Signetum v2 repository configuration boundary."""
+"""Portable typed Signetum repository configuration boundary."""
 
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -6,13 +6,13 @@ from re import fullmatch
 from tomllib import loads
 
 from signetum.profiles.catalog import validate_selection
-from signetum.selection_contracts import SelectionProvider
+from signetum.selection_contracts import SelectionProvider, repository_file
 from signetum.serialization import dataclass_from_mapping
 from signetum.validation import GateDeclaration as ValidationGate
 from signetum.validation import ToolDeclaration as ValidationTool
 from signetum.validation import ValidationShard
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 class ManifestError(ValueError):
@@ -22,7 +22,6 @@ class ManifestError(ValueError):
 @dataclass(frozen=True, kw_only=True)
 class SignetumIdentity:
     protocol: int
-    template_version: str
     evidence_protocol: str = "reposeal.validation-evidence@3"
     evidence_schema_digest: str = (
         "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
@@ -31,11 +30,6 @@ class SignetumIdentity:
     def __post_init__(self) -> None:
         if self.protocol < 2:
             raise ManifestError("signetum.protocol must be at least 2")
-        if (
-            fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", self.template_version)
-            is None
-        ):
-            raise ManifestError("signetum.template_version must be semantic")
         if self.evidence_protocol != "reposeal.validation-evidence@3":
             raise ManifestError(f"unsupported evidence protocol: {self.evidence_protocol}")
         if fullmatch(r"sha256:[0-9a-f]{64}", self.evidence_schema_digest) is None:
@@ -54,12 +48,14 @@ class ProfileSelection:
 @dataclass(frozen=True, kw_only=True)
 class RepositoryBindings:
     architecture: str
-    specifications: str
-    plans: str
+    changes: str
     decisions: str
     lockfiles: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        repository_file(self.changes)
+        if self.changes == "." or any(character in self.changes for character in "*?[]"):
+            raise ManifestError("repository.changes must name an exact directory")
         for item in fields(self):
             value = getattr(self, item.name)
             for raw in value if isinstance(value, tuple) else (value,):
