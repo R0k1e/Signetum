@@ -438,8 +438,8 @@ documents do not become executable approval packages merely by occupying a
 change directory. Removing a current authority remains in scope; malformed
 current authorities still refuse qualification. No YAML approval fallback exists.
 
-Hosted CI and release call one reusable validation workflow, whose local action
-invokes `protocol test --gate final`. It runs strict declared dependency order without workspace
+Hosted CI and release call one reusable validation workflow, which owns setup and
+invokes `protocol test --gate final --exact-source`. It runs strict declared dependency order without workspace
 registration, member selection, inheritance or lifecycle receipts. Single-shard
 diagnostics retain native arguments; gate diagnostics reject them. `mise.toml`
 owns native acceptance tools. CI retains Linux Python 3.12/3.13 and native macOS Python 3.13 checks. Platform
@@ -450,3 +450,10 @@ targets cannot qualify the aggregate. Failed output is retained for seven days
 with a bounded terminal preview. Composite actions and reusable workflows share
 checks for exact external action identities and checkout source. Release publishes
 the primary target's verified artifact only after the complete workflow succeeds.
+
+Gate diagnostics and qualification use one shard verdict core: independent failures
+are collected, failed dependencies block descendants, findings require exact valid
+waivers, and diagnostic retries never clear first failures. Full gate diagnostics
+observe declared inputs before and after execution. `--exact-source` additionally
+requires a clean tree before and after checks, as hosted validation requires.
+Ordinary diagnostics may inspect dirty development work and never issue receipts.

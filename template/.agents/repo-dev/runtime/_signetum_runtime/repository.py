@@ -39,6 +39,7 @@ from .validation import (
     ValidationGraph,
     ValidationShard,
 )
+from .waivers import WaiverError, load_waivers
 
 
 class RepositoryValidationAdapter:
@@ -260,13 +261,29 @@ def run_diagnostic_gate(
     advisory_world: bool = False,
     member_base: str | None = None,
     tools: tuple[ToolDeclaration, ...] = (),
+    inputs: ValidationInputs | None = None,
+    exact_source: bool = False,
 ) -> dict[str, object]:
     """Execute checks without granting readiness or publishing delivery evidence."""
-    return execute_diagnostic_gate(
+    adapter = RepositoryValidationAdapter(repository, member_base=member_base)
+    if exact_source:
+        if inputs is None:
+            raise ValidationExecutionError("exact-source validation requires declared inputs")
+        adapter.require_clean()
+    if inputs is not None:
+        try:
+            inputs = replace(inputs, waivers=load_waivers(repository))
+        except WaiverError as error:
+            raise ValidationExecutionError(f"waiver authority is invalid: {error}") from error
+    result = execute_diagnostic_gate(
         graph,
         gate,
-        RepositoryValidationAdapter(repository, member_base=member_base),
+        adapter,
         executed=executed,
         advisory_world=advisory_world,
         tools=tools,
+        inputs=inputs,
     )
+    if exact_source:
+        adapter.require_clean()
+    return result

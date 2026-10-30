@@ -175,6 +175,15 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
         allocation = outcome["details"]["resource_allocation"]
         assert allocation["workers"] == allocation["enclosing_worker_limit"] == 1
 
+    exact = subprocess.run(  # noqa: S603 -- exact-source gate refuses dirty input before checks
+        [*prefix, "test", "--repository", str(root), "--gate", "member", "--exact-source"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert exact.returncode == 3, exact.stdout + exact.stderr
+    assert "not clean" in json.loads(exact.stdout)["cause"]
+
     assert not (state / "attempts").exists(), "single-shard diagnostics do not prepare"
     gated = subprocess.run(  # noqa: S603 -- same public diagnostic, declared dependency graph
         [*prefix, "test", "--repository", str(root), "--gate", "member"],
