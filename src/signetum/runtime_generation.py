@@ -29,7 +29,6 @@ MODULES = {
     "signetum.change.paths": "change_paths.py",
     "signetum.maintenance": "maintenance.py",
     "signetum.source_authority": "source_authority.py",
-    "signetum.migration": "migration.py",
     "signetum.selection_contracts": "selection_contracts.py",
     "signetum.selection_request": "selection_request.py",
     "signetum.repository_selection": "repository_selection.py",

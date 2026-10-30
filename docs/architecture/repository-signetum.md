@@ -136,23 +136,6 @@ and decision process, preserving original sources and rationale for review.
 The engine does not parse constraint tables or assign semantic meaning to their
 rows. Source text and mapping previews never confer approval.
 
-`migration inventory` captures committed Review, Specification, Plan and
-decision sources by exact Git blob identity. It uses the same parsers and
-relationship validator as ordinary traceability. Single-clause specifications
-and unique exact-text matches expose structural acceptance mappings; other
-relations and unassigned acceptance entries remain explicit review issues.
-Legacy bases are retained rather than guessed from the current branch, and an
-old document that the current parser cannot interpret remains a named source
-with a diagnostic. Inventory never repairs or rewrites accepted history.
-
-`migration preview` requires an inventory identity, explicit source line spans,
-stable clause IDs and topic context. It displays original excerpts beside the
-proposed clauses. Changed authorities or uncommitted source edits refuse the
-preview, while independent code-only commits preserve unchanged source bindings.
-Partial supersession uses the same predicate as traceability and never revives
-a fully replaced rule. Every preview remains unapproved; selecting a few lines
-does not declare a legacy decision completely migrated or grant write authority.
-
 Member qualification reads a committed consolidated `change.toml` as its sole
 change authority when present. Competing Review, Specification or Plan files
 refuse qualification rather than supplying fallback approval. The record must
@@ -193,7 +176,7 @@ and refusal of unadopted repositories.
 runtime. It requires a registered member, refuses the declared delivery branch
 and unsafe destinations, and creates one unapproved record bound to the recorded
 base. The protocol dispatcher routes authoring, concise proposal views, journal
-operations, migration previews and explicit test diagnostics to their existing
+operations and explicit test diagnostics to their existing
 owners. Test diagnostics delegate to the normal repository execution adapter;
 they do not own another runner or readiness store. Candidate views
 expose the exact base, approval digest and retirement proposals without recording
