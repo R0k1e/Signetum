@@ -34,3 +34,8 @@ retain 90%. A reusable hosted workflow owns the target set and completeness chec
 release publishes its verified artifact only after that entire workflow passes.
 This avoids artificial platform mocks, a lower project threshold or divergent
 release checks. Superseded CI runs may cancel; publication never does.
+
+The accepted contained-current-development cleanup removes the single-caller local
+action: the reusable workflow owns its steps directly. Qualified gates and gate
+diagnostics now share one verdict core; hosted calls additionally enforce exact
+clean source before and after execution without requiring private workspaces.
