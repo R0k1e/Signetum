@@ -453,12 +453,16 @@ def _resolution_targets(
             raise ValueError("retirement requires an exact standing resolution")
         if not historical and retirement.resolution_id in withdrawn:
             raise ValueError("a withdrawn resolution cannot have evidence retired")
+        original = next(
+            entry.approval.commit for entry in entries if previous in entry.transaction.resolutions
+        )
         for target in retirement.targets:
             source_path(repository, target)
-            if (
-                committed_blob_identity(repository, record.contract.approved_base, target) is None
-                or committed_blob_identity(repository, commit, target) is not None
-            ):
+            existed = any(
+                committed_blob_identity(repository, revision, target) is not None
+                for revision in (record.contract.approved_base, original)
+            )
+            if not existed or committed_blob_identity(repository, commit, target) is not None:
                 raise ValueError(
                     "retirement requires committed evidence deletion since the approved base"
                 )

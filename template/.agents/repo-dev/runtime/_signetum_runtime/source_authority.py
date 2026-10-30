@@ -31,13 +31,21 @@ def authority_roots(
             return "changes", "docs/decisions"
         if historical:
             archived = tomllib.loads(source[1])
-            if type(archived.get("schema_version")) is int and archived["schema_version"] == 2:
-                # Decode only immutable approval locations, never executable settings.
+            version = archived.get("schema_version")
+            if type(version) is int and version in {2, 3}:
+                # An approval location is immutable; old executable settings
+                # are neither reinterpreted nor accepted for current writes.
                 bindings = archived["repository"]
-                pattern = PurePosixPath(bindings["specifications"])
-                if pattern.parts[-3:] != ("*", "specs", "*.toml"):
+                if version == 2:
+                    pattern = PurePosixPath(bindings["specifications"])
+                    if pattern.parts[-3:] != ("*", "specs", "*.toml"):
+                        raise ValueError("historical change binding has no exact package root")
+                    raw_root = PurePosixPath(*pattern.parts[:-3]).as_posix()
+                else:
+                    raw_root = bindings["changes"]
+                root = str(require_relative_path(raw_root))
+                if any(character in root for character in "*?[]"):
                     raise ValueError("historical change binding has no exact package root")
-                root = str(require_relative_path(PurePosixPath(*pattern.parts[:-3]).as_posix()))
                 decisions = str(require_relative_path(bindings["decisions"]))
                 return root, decisions
         manifest = parse_manifest(source[1])
