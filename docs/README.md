@@ -10,3 +10,8 @@ the repository's existing application tools.
 - [Architecture](ARCHITECTURE.md): maintained implementation and validation owners.
 - [Contributing](../CONTRIBUTING.md), [releasing](maintainers/releasing.md) and [security](../SECURITY.md): maintenance.
 - [Decision history](decisions/README.md): retained rationale; not required first-use reading.
+
+Architecture describes owners and invariants; guides explain use and optional
+configuration. `maintainers/` serves development and release of Signetum itself.
+The separate `maintenance` command group handles local preparation, synchronization
+and cleanup; it is not another daily lifecycle.

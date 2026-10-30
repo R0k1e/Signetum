@@ -29,3 +29,8 @@ checkout and use its declared cleanup utility to remove that now-unused checkout
 Final keeps accepted stable decision filenames. Numeric allocation is only for
 explicit legacy proposals and cannot rewrite an approval-bound change or journal.
 It is not a required step for ordinary change decisions.
+
+If an authorized review needs a remote branch, share a readable name. Its
+publisher owns ref cleanup after delivery: verify that the exact remote tip is
+reachable from the delivery branch and refuse deletion if the tip has changed.
+Preserve unmerged work. Local workspace cleanup does not prune remote branches.
