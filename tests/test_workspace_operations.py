@@ -63,6 +63,9 @@ def test_open_recovers_creation_interruption_only_at_the_exact_base(repository):
     base = git_output(root, "rev-parse", "HEAD")
     exclude_workspaces(root)
     member = workspace_destination(root, "plan/recover-create")
+    assert member.parent == root / ".worktrees"
+    assert "%" not in member.name
+    assert member != workspace_destination(root, "plan%2Frecover-create")
     member.parent.mkdir(parents=True, exist_ok=True)
     git_output(root, "worktree", "add", "-b", "plan/recover-create", str(member), base)
     result = ops.workspace_open(root, "plan/recover-create", base)
