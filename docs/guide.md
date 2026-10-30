@@ -77,3 +77,18 @@ approved change remains the delivery authority. Optional selection, weighted
 scheduling and CI partitioning use repository-owned inputs and preserve complete
 final validation. See [selection](guides/structured-selection.md) and
 [validation optimization](../skills/signetum/references/validation-optimization.md).
+
+## Finding the right documentation
+
+[Architecture](ARCHITECTURE.md) describes implementation owners and invariants.
+This guide explains daily use; `guides/` holds optional configuration details.
+`maintainers/` is for developing and releasing Signetum itself, including the
+planned Perdura integration, rather than required reading for consumers.
+The `maintenance` command group is separate: it prepares or synchronizes local
+workspaces and safely cleans up completed work. It is not another daily lifecycle.
+
+After publishing a review branch, its publisher owns remote ref cleanup. Delete
+only its exact inspected tip once it is reachable from the delivery branch;
+refuse changed tips and preserve unmerged work. Local workspace cleanup does not
+implicitly remove remote refs. Use a readable review name when sharing a candidate;
+internal batch identifiers are implementation provenance, not user-facing names.
