@@ -1,74 +1,56 @@
 # Signetum
 
-[简体中文](README.zh-CN.md)
+<p align="center">
+  <img src="assets/brand/signetum-mark-256.png" width="180" alt="Signetum seal holding a verified repository">
+</p>
 
-**Keep every Agent change traceable, testable, parallel-safe, and explainable.**
+**Reliable agentic development and delivery, through one standard Skill.**
 
-Signetum is a language-neutral repository development foundation with a
-batteries-included Python default. It turns work around coding Agents into a
-repository-owned system, so delivery does not depend on chat history or one
-Agent remembering what happened.
+Signetum helps a coding agent retain decisions, implement approved changes,
+validate the exact source and prepare an inspectable delivery. It works with
+new projects and existing repositories, using their own application tools.
 
-It prevents requirements disappearing, Agents asking users to rediscover the
-repository, parallel work overwriting delivery branches, every member running
-the full suite, and green commits that cannot explain what they delivered.
+## Install and start
 
-## The workflow
+Install [`skills/signetum`](https://github.com/R0k1e/Signetum/tree/main/skills/signetum)
+with your agent's standard Skill installer. Select an exact reviewed release tag
+or commit for reproducibility. Replace an older `repo-dev` Skill explicitly;
+installing the new Skill does not update previously adopted repositories.
 
-```text
-Review → Specification → Plan → isolated worktree
-       → member ready → named batch → frozen final validation
-       → explicit delivery → human acceptance or reopening
-```
+Then ask:
 
-Signetum records stable requirement clauses, compares declared impact with the
-actual Git diff, selects named validation gates, isolates parallel work,
-validates one frozen batch, and binds delivery to exact Git identities.
+> Use $signetum to set up this new project, or inspect and adopt this existing
+> repository. Preserve its tools and show the proposed changes first.
 
-## Language profiles
+The agent obtains a fixed-version setup tool, inspects the project and prepares
+minimal local bindings. You review the preview. After adoption, the Skill calls
+the repository's local runtime; normal development needs neither an upstream
+checkout nor repeated tool downloads. See [First use](QUICKSTART.md).
 
-The lifecycle does not know what language your product uses. Profiles
-contribute namespaced tools, impact rules, gates, and test shards. A repository
-may enable one profile or compose several:
+For a development task, describe the behavior normally. The agent proposes the
+outcome and acceptance, keeps significant reasoning once, implements the change
+and reports the exact source that passed readiness. Delivery remains explicit.
 
-```toml
-[profiles]
-enabled = ["python-default@1", "typescript-local@1"]
-```
+## What it gives you
 
-The Template enables `python-default@1`, including uv, Ruff, ty, unit and
-integration test boundaries, dependency auditing, and secret detection. You
-can replace it or add TypeScript, Rust, or repository-local profiles without
-changing the eight lifecycle operations.
+- One change record, significant append history and a derived current decision set.
+- Behavioral validation through existing application commands; optional selection
+  and scheduling preserve full final validation and original failures.
+- Isolated member workspaces and an explicit shared delivery boundary.
+- Reviewable evidence connecting recorded requirements, checked source and delivery.
 
-## What is enforced
+The runtime is language-neutral and uses a host Python interpreter. It can retain
+Python, Node, Rust or other application runners. It provides no remote ledger,
+automatic consumer update or proof that software is defect-free.
 
-- Every requirement has a valid disposition and Specification owner.
-- Deferred work points to a real approved Specification.
-- Plans cover every owned clause.
-- Actual changes resolve to explainable profiles, gates, and shards.
-- Receipts bind code, configuration, lockfiles, tools, and executed checks.
-- Only explicitly named ready worktrees enter a delivery batch.
-- Parallel decision proposals receive formal ADP numbers inside the batch.
-- Delivery and human acceptance remain separate facts.
+## Maintained source
 
-Signetum guarantees the accounting and execution boundary. Your repository
-still owns its architecture, behavioral contracts, and test sufficiency.
+`main` owns the Skill, setup/runtime implementation and documentation. The
+`template/` directory is internal scaffolding and runtime test material, not a
+second installation route or independently published product. The package bundles
+the same standard Skill folder; there is one source and release path.
 
-## Start
-
-1. Create a repository with GitHub's **Use this template** action.
-2. Run `mise install`.
-3. Replace the product facts in `docs/ARCHITECTURE.md`.
-4. Run `just change-open <kebab-name>` and complete the generated Review.
-5. Confirm the Specification, then open isolated implementation with
-   `just workspace-open <branch> <base>`.
-
-See [`docs/development-lifecycle.md`](docs/development-lifecycle.md),
-[`docs/agent-team-delivery.md`](docs/agent-team-delivery.md), and
-[`docs/customizing.md`](docs/customizing.md).
-
-Signetum is not an Agent runtime, coding model, hosted CI service, or
-Specification generator. The copied runtime is repository-owned and does not
-install the Signetum package. Template revision: `v0.2.0`; it is independent
-from the Signetum engine package version.
+[Documentation](docs/README.md) covers usage and configuration.
+[Architecture](docs/ARCHITECTURE.md), [Contributing](CONTRIBUTING.md) and
+[releasing](docs/maintainers/releasing.md) describe maintenance.
+[Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Apache-2.0](LICENSE)

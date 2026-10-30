@@ -1,0 +1,49 @@
+[review]
+schema_version = 1
+id = "gates-and-citations-state-what-they-check"
+status = "approved"
+
+[review.source]
+kind = "human_direction"
+summary = "A lifecycle review found operations reporting results they did not establish: citations checked for spelling rather than acceptance, shards with no time bound, unguarded batch mutation, and an unstated recovery path."
+
+[[review.clauses]]
+id = "STATE-001"
+statement = "A decision cited by a specification must exist, declare an accepted status, and not be superseded."
+disposition = "covered"
+specification = "gates-and-citations-state-what-they-check/stated-checks"
+
+[[review.clauses]]
+id = "STATE-002"
+statement = "Supersession is recorded on both sides, and delivery writes the reciprocal entry when it numbers a proposal which supersedes a decision."
+disposition = "covered"
+specification = "gates-and-citations-state-what-they-check/stated-checks"
+
+[[review.clauses]]
+id = "STATE-003"
+statement = "Every shard executes under a declared time bound and a shard which exceeds it is a distinct reported outcome."
+disposition = "covered"
+specification = "gates-and-citations-state-what-they-check/stated-checks"
+
+[[review.clauses]]
+id = "STATE-004"
+statement = "Batch admission and continuation hold an exclusive lock on the batch and refuse while another holds it."
+disposition = "covered"
+specification = "gates-and-citations-state-what-they-check/stated-checks"
+
+[[review.clauses]]
+id = "STATE-005"
+statement = "The recovery path after a failed final is stated where the public operations are stated."
+disposition = "covered"
+specification = "gates-and-citations-state-what-they-check/stated-checks"
+
+[[review.clauses]]
+id = "STATE-006"
+statement = "A gate run in a freshly created worktree installs what its later shards execute, and a regression protects that property."
+disposition = "covered"
+specification = "gates-and-citations-state-what-they-check/stated-checks"
+
+[review.acceptance]
+result = "pending"
+accepted_clauses = []
+rejected_clauses = []

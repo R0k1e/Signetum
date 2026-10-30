@@ -17,110 +17,136 @@ decisions = "docs/decisions"
 lockfiles = ["uv.lock"]
 
 [[impact.rules]]
-name = "python.source"
+name = "engine.source"
 paths = ["src/**"]
 profiles = ["python-default@1"]
-shards = ["python:ruff", "python:format", "python:ty", "python:unit"]
+shards = ["engine:ruff", "engine:format", "engine:bandit", "engine:ty", "engine:pytest"]
 
 [[impact.rules]]
-name = "python.unit"
+name = "engine.unit"
 paths = ["tests/unit/**"]
 profiles = ["python-default@1"]
-shards = ["python:unit"]
+shards = ["engine:pytest"]
 
 [[impact.rules]]
-name = "python.integration"
-paths = ["tests/integration/**"]
+name = "engine.integration"
+paths = ["tests/**", "template/**"]
 profiles = ["python-default@1"]
-shards = ["python:integration"]
+shards = ["engine:pytest"]
 requires_final = true
 
 [[impact.rules]]
-name = "python.toolchain"
-paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".github/**"]
+name = "engine.toolchain"
+paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**"]
 profiles = ["python-default@1"]
-shards = [
-  "repository:diff",
-  "python:ruff",
-  "python:format",
-  "python:ty",
-  "python:unit",
-  "python:integration",
-  "python:audit",
-  "python:secrets",
-]
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+requires_final = true
+
+[[impact.rules]]
+name = "engine.governance"
+paths = ["changes/**", "docs/**", "README.md", "AGENTS.md", ".agents/**", "signetum.toml"]
+shards = ["engine:precommit"]
 requires_final = true
 
 [validation]
-member_required = ["repository:diff", "repository:traceability", "python:unit", "python:secrets"]
+member_required = ["engine:build", "engine:pytest", "engine:traceability", "engine:ty"]
+recovery_window = 20
+recovery_threshold = 3
 
 [[validation.tools]]
 name = "uv"
 identity_command = ["uv", "--version"]
 
 [[validation.tools]]
-name = "mise"
-identity_command = ["mise", "--version"]
+name = "python-checks"
+identity_command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.tool_identity"]
+
+[[validation.tools]]
+name = "ty"
+identity_command = ["uv", "run", "--no-sync", "ty", "--version"]
+
+[[validation.tools]]
+name = "ruff"
+identity_command = ["uv", "run", "--no-sync", "ruff", "--version"]
+
+[[validation.tools]]
+name = "bandit"
+identity_command = ["uv", "run", "--no-sync", "bandit", "--version"]
 
 [[validation.shards]]
-name = "python:sync"
-command = ["uv", "sync", "--locked"]
+name = "engine:sync"
+command = ["uv", "sync", "--locked", "--all-extras", "--dev"]
 
 [[validation.shards]]
-name = "repository:diff"
-command = ["git", "diff", "--check"]
+name = "engine:build"
+command = ["uv", "build"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
-name = "repository:traceability"
-command = ["uv", "run", "--no-project", "python", ".agents/repo-dev/runtime/traceability.py"]
+name = "engine:traceability"
+command = ["uv", "run", "--no-sync", "signetum", "check", "traceability", "--repository", "."]
+ratchet_command = ["uv", "run", "--active", "--no-project", "--no-sync", "python", "-m", "signetum.validation.diagnostics", "traceability"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
-name = "python:ruff"
+name = "engine:ty"
+command = ["uv", "run", "--no-sync", "ty", "check"]
+ratchet_command = ["uv", "run", "--active", "--no-project", "--no-sync", "python", "-m", "signetum.profiles.ty"]
+requires = ["engine:sync"]
+
+[[validation.shards]]
+name = "engine:precommit"
+command = ["env", "SKIP=ruff,ruff-format", "uv", "run", "--no-sync", "pre-commit", "run", "--all-files"]
+requires = ["engine:sync", "engine:ty"]
+
+[[validation.shards]]
+name = "engine:ruff"
 command = ["uv", "run", "--no-sync", "ruff", "check", "."]
-requires = ["python:sync"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
-name = "python:format"
+name = "engine:format"
 command = ["uv", "run", "--no-sync", "ruff", "format", "--check", "."]
-requires = ["python:sync"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
-name = "python:ty"
-command = ["uv", "run", "--no-sync", "ty", "check", "src"]
-requires = ["python:sync"]
+name = "engine:bandit"
+command = ["uv", "run", "--no-sync", "bandit", "-r", "src"]
+requires = ["engine:sync"]
 
 [[validation.shards]]
-name = "python:unit"
-command = ["uv", "run", "--no-sync", "pytest", "tests/unit"]
-requires = ["python:sync"]
+name = "engine:pytest"
+inherit = true
+command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--", "-m", "not world"]
+workers = 4
+worker_memory_mb = 1024
+requires = ["engine:sync"]
 
 [[validation.shards]]
-name = "python:integration"
-command = ["uv", "run", "--no-sync", "pytest", "tests/integration"]
-requires = ["python:sync"]
+name = "engine:world-tests"
+command = ["uv", "run", "--no-sync", "pytest", "-m", "world", "--no-cov"]
+evidence = "world"
+requires = ["engine:sync", "engine:build"]
 
 [[validation.shards]]
-name = "python:audit"
+name = "engine:audit"
 command = ["uv", "run", "--no-sync", "pip-audit"]
 evidence = "world"
-findings_command = [
-  "uv",
-  "run",
-  "--no-project",
-  "python",
-  ".agents/repo-dev/runtime/pip_audit_findings.py",
-]
-requires = ["python:sync"]
-
-[[validation.shards]]
-name = "python:secrets"
-command = ["mise", "run", "python:secrets"]
-requires = ["python:sync"]
+findings_command = ["uv", "run", "--no-sync", "signetum", "findings", "pip-audit"]
+requires = ["engine:sync"]
 
 [[validation.gates]]
 name = "member"
-shards = ["python:sync", "repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:secrets"]
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
 
 [[validation.gates]]
 name = "final"
-shards = ["python:sync", "repository:diff", "repository:traceability", "python:ruff", "python:format", "python:ty", "python:unit", "python:integration", "python:audit", "python:secrets"]
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit", "engine:world-tests"]
+
+[[validation.gates]]
+name = "prepare"
+shards = ["engine:sync"]
+
+[[validation.gates]]
+name = "batch"
+shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:ruff", "engine:format", "engine:bandit"]
