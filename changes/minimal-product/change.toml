@@ -1,0 +1,88 @@
+[change]
+schema_version=1
+id="minimal-product"
+[change.source]
+kind="human_direction"
+summary="Systematically minimize the repository, remove maintained repo-dev naming, explain profiles and explicitly disclose test modifications."
+[change.contract]
+version=1
+approved_base="72e968e4a9795c8b1dad4497a9a0a53a3d365f00"
+[[change.contract.requirements]]
+id="MIN-001"
+outcome="Maintained runtime, adoption, Skill, configuration and tests use .agents/signetum without a repo-dev compatibility alias."
+acceptance=["Trace and update every maintained producer and consumer; retain original historical approval/journal bytes and immutable location decoding.","Exercise generated and installed paths, including fresh adoption and current commands."]
+[[change.contract.requirements]]
+id="MIN-002"
+outcome="The maintained file set has one owner per concern, generated runtime copies are derived instead of committed, and dead legacy schemas/placeholders are removed."
+acceptance=["Classify every tracked file by actual product, validation, generation, history or legal responsibility; remove only proven redundancy without losing supported behavior.","Keep deterministic runtime generation and independent portable/installed execution; fresh source renders its complete runtime and detects tampering.","Keep the current release schema at its installable owner, shrink generic unused repository settings, and retire exact removed evidence under this approved contract."]
+[[change.contract.requirements]]
+id="MIN-003"
+outcome="Current user documentation is consolidated, architecture is concise and factual, and profile purpose is clear without a duplicate catalogue."
+acceptance=["Merge overlapping product/lifecycle/delivery explanations into one focused guide, reconcile all maintained links, and retain consequential decision rationale and active authorities.","Remove redundant internal scaffold manuals; explain optional capability composition and preserve existing runner behavior."]
+[[change.contract.requirements]]
+id="MIN-004"
+outcome="Skill instructions explicitly require disclosing changes to tests and their effect on evidence."
+acceptance=["Before changing tests identify affected files, rationale and replacement evidence; disclose removed coverage, relaxed assertions, skips and threshold changes separately.","Final user review summarizes actual test changes and checks without another tracked test report; retain the existing full validation and coverage requirements."]
+[change.contract.autonomy]
+allowed=["Implement, commit and verify the requested minimal useful source set in this workspace; refine implementation details while retaining supported outcomes; prepare ready members and a reviewable integration."]
+requires_confirmation=["Actual delivery/deployment, removing supported protocol behavior or irreplaceable user state, new external publication."]
+[[change.contract.excluded]]
+statement="Deleting original approval/journal history, weakening test or coverage obligations, removing supported runtime features, automatic consumer upgrades and publication."
+reason="Minimal maintenance surface must retain the protocol and its decision basis."
+
+[[change.contract.retirements]]
+id = "minimal-product/retire-01"
+target = "align-validation-efficiency/journal-binding-transition"
+resolution_id = "align-validation-efficiency/journal-binding-transition-resolved"
+targets = [".agents/repo-dev/references/signetum.md"]
+reason = "Retire exact removed paths under the owner-requested namespace/source-only/document consolidation; preserve the original answer, history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "minimal-product/retire-02"
+target = "release-coherence/self-selection/observation"
+resolution_id = "release-coherence/self-selection/resolution"
+targets = [".agents/repo-dev/select-tests.py"]
+reason = "Retire exact removed paths under the owner-requested namespace/source-only/document consolidation; preserve the original answer, history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "minimal-product/retire-03"
+target = "skill-first-and-lean-development/release-schema-identity/observation"
+resolution_id = "skill-first-and-lean-development/single-schema-contract-verified/resolution"
+targets = ["schemas/release-metadata.schema.json"]
+reason = "Retire exact removed paths under the owner-requested namespace/source-only/document consolidation; preserve the original answer, history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "minimal-product/retire-04"
+target = "skill-first-and-lean-development/remove-unneeded-compatibility/observation"
+resolution_id = "skill-first-and-lean-development/current-interface-only-verified/resolution"
+targets = ["schemas/release-metadata.schema.json"]
+reason = "Retire exact removed paths under the owner-requested namespace/source-only/document consolidation; preserve the original answer, history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "minimal-product/retire-05"
+target = "streamline-development-operations/bootstrap-import-order/observation"
+resolution_id = "streamline-development-operations/bootstrap-import-order-resolved/resolution"
+targets = ["template/.agents/repo-dev/runtime/protocol.py"]
+reason = "Retire exact removed paths under the owner-requested namespace/source-only/document consolidation; preserve the original answer, history and remaining evidence."
+
+[[change.contract.retirements]]
+id = "minimal-product/retire-06"
+target = "streamline-development-operations/runtime-cache/observation"
+resolution_id = "streamline-development-operations/runtime-cache-resolved/resolution"
+targets = ["template/.agents/repo-dev/runtime/protocol.py"]
+reason = "Retire exact removed paths under the owner-requested namespace/source-only/document consolidation; preserve the original answer, history and remaining evidence."
+
+[[change.execution.steps]]
+id="STEP-1"
+requirements=["MIN-001","MIN-002"]
+action="Rename maintained bindings, derive portable runtime outputs, remove obsolete schema/placeholder/config material and verify actual producer/consumer boundaries."
+[[change.execution.steps]]
+id="STEP-2"
+requirements=["MIN-003","MIN-004"]
+action="Consolidate documentation, explain profiles, add test-disclosure guidance and reconcile existing authorities and source discoveries."
+
+[change.approval]
+actor="Repository owner"
+recorded_at=2026-10-30
+source="The owner requested systematic repo-dev cleanup, an audit of every repository file retaining a minimal concise subset, explanation of profiles and fewer documents; the owner additionally requires informing the user about test modifications. This implements those observable outcomes without publication."
+contract_digest="sha256:3bb06c334165315ed4b13cbe08b393ce2567e97bcf01a3eedc57fb9acef2c743"
