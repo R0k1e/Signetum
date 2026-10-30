@@ -178,3 +178,18 @@ def test_structured_workflow_policy_checks_safety_without_pinning_commands(tmp_p
         required_content={},
     )
     assert result.valid is (damage not in {"checkout", "action"})
+
+    delegated = {
+        "permissions": {"contents": "read"},
+        "jobs": {
+            "test": {
+                "uses": "owner/repo/.github/workflows/check.yml@"
+                + ("main" if damage == "action" else "a" * 40)
+            }
+        },
+    }
+    path.write_text(yaml.safe_dump(delegated))
+    result = validate_product_surface(
+        tmp_path, _inventory(".github/workflows/ci.yml"), required_paths=(), required_content={}
+    )
+    assert result.valid is (damage != "action")

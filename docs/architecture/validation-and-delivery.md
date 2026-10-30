@@ -423,10 +423,15 @@ documents do not become executable approval packages merely by occupying a
 change directory. Removing a current authority remains in scope; malformed
 current authorities still refuse qualification. No YAML approval fallback exists.
 
-Hosted CI and release invoke `protocol test --gate final` through one local
-composite action. It runs strict declared dependency order without workspace
+Hosted CI and release call one reusable validation workflow, whose local action
+invokes `protocol test --gate final`. It runs strict declared dependency order without workspace
 registration, member selection, inheritance or lifecycle receipts. Single-shard
 diagnostics retain native arguments; gate diagnostics reject them. `mise.toml`
-owns native acceptance tools. CI covers host Python 3.12 and 3.13; failed output
-is retained for seven days with a bounded terminal preview. Composite actions
-share workflow checks for exact external action identities and checkout source.
+owns native acceptance tools. CI retains Linux Python 3.12/3.13 and native macOS Python 3.13 checks. Platform
+coverage is partial: the workflow requires every declared target from the current
+run and combines source-relative data before enforcing the project 90% threshold.
+Local ready/final retain their existing threshold. Missing, cancelled or failed
+targets cannot qualify the aggregate. Failed output is retained for seven days
+with a bounded terminal preview. Composite actions and reusable workflows share
+checks for exact external action identities and checkout source. Release publishes
+the primary target's verified artifact only after the complete workflow succeeds.

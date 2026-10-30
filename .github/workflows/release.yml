@@ -3,32 +3,35 @@ on:
   push:
     tags: ["v*"]
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 jobs:
-  release:
+  validate:
+    uses: ./.github/workflows/validate.yml
+    with:
+      release-tag: ${{ github.ref_name }}
+  publish:
+    needs: validate
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 0
           persist-credentials: false
-      - uses: ./.github/actions/validate
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          python: "3.12"
-          release-tag: ${{ github.ref_name }}
-      - run: cp "$RUNNER_TEMP/signetum-release-source.json" dist/release-source.json
-      - run: shasum -a 256 dist/* > dist/SHA256SUMS
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+          version: "2026.8.2"
+          install_args: uv
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: signetum-release-${{ github.sha }}
-          path: dist/
-          if-no-files-found: error
+          name: release-candidate-${{ github.sha }}
+          path: dist
+      - run: sha256sum --check dist/SHA256SUMS
       - name: Publish to the optional package index
         if: vars.PUBLISH_PYPI == 'true'
         run: uv publish --trusted-publishing always dist/*.whl dist/*.tar.gz
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${{ github.ref_name }}" dist/* --verify-tag --title "${{ github.ref_name }}" --generate-notes
+        run: gh release create "${{ github.ref_name }}" dist/* --verify-tag --title "${{ github.ref_name }}" --generate-notes
