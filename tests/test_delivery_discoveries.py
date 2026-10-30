@@ -33,7 +33,7 @@ def member_and_batch(tmp_path, *, historical=False):
     _git(batch, "commit", "--allow-empty", "-m", f"open batch\n\nSignetum-Batch-Base: {base}")
     if not historical:
         approve_change(member)
-        decision = member / "docs/decisions/ADP-new.md"
+        decision = member / "docs/decisions/ADP-proposal-new.md"
         decision.parent.mkdir(parents=True)
         decision.write_text("# New\n\nStatus: Accepted\n")
         _git(member, "add", ".")
@@ -103,7 +103,7 @@ def test_numbering_projects_targets_and_preserves_original_ledger(tmp_path):
     member, batch = member_and_batch(tmp_path)
     event = discovery(member)
     append_event(member, event)
-    resolve(member, event, target="docs/decisions/ADP-new.md")
+    resolve(member, event, target="docs/decisions/ADP-proposal-new.md")
     original = ledger_path(member, "example").read_bytes()
     lifecycle.validate(member, "member")
     lifecycle.admit(batch, (member,))
@@ -112,7 +112,7 @@ def test_numbering_projects_targets_and_preserves_original_ledger(tmp_path):
     assert isinstance(review, dict)
     row = review["reconciliation"]["changes"][0]["deviations"][0]
     assert row["targets"] == ["docs/decisions/ADP-0001-new.md"]
-    assert row["recorded_targets"] == ["docs/decisions/ADP-new.md"]
+    assert row["recorded_targets"] == ["docs/decisions/ADP-proposal-new.md"]
     assert ledger_path(member, "example").read_bytes() == original
     assert lifecycle.validate(batch, "final")["delivery_review"] == final["delivery_review"]
 
