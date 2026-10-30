@@ -64,7 +64,7 @@ def parse_request(value: object) -> DevelopmentTransaction:
 def _authority(
     repository: Path, change_id: str, commit: str, *, approved: bool = True
 ) -> tuple[ChangeRecord, ApprovalProof]:
-    root, _ = authority_roots(repository, commit=commit)
+    root, _ = authority_roots(repository, commit=commit, historical=True)
     relative = f"{root}/{change_id}/change.toml"
     blob = committed_blob(repository, commit, relative)
     if blob is None:
@@ -96,11 +96,11 @@ def _validate_payload(
     for retirement in transaction.retirements:
         if retirements.get(retirement.id) != retirement:
             raise ValueError("evidence retirement differs from its exact approved proposal")
-    _, decision_root = authority_roots(repository, commit=commit)
     for decision in transaction.decisions:
+        _, decision_root = authority_roots(repository, commit=commit, historical=True)
         if approved.get(decision.id) != decision:
             raise ValueError("decision transaction differs from its exact approved proposal")
-        change_root, _ = authority_roots(repository, commit=commit)
+        change_root, _ = authority_roots(repository, commit=commit, historical=True)
         acceptance = f"{change_root}/{record.id}/change.toml#decisions/{decision.id}"
         if decision.authority == acceptance:
             continue
@@ -453,12 +453,16 @@ def _resolution_targets(
             raise ValueError("retirement requires an exact standing resolution")
         if not historical and retirement.resolution_id in withdrawn:
             raise ValueError("a withdrawn resolution cannot have evidence retired")
+        original = next(
+            entry.approval.commit for entry in entries if previous in entry.transaction.resolutions
+        )
         for target in retirement.targets:
             source_path(repository, target)
-            if (
-                committed_blob_identity(repository, record.contract.approved_base, target) is None
-                or committed_blob_identity(repository, commit, target) is not None
-            ):
+            existed = any(
+                committed_blob_identity(repository, revision, target) is not None
+                for revision in (record.contract.approved_base, original)
+            )
+            if not existed or committed_blob_identity(repository, commit, target) is not None:
                 raise ValueError(
                     "retirement requires committed evidence deletion since the approved base"
                 )
@@ -482,6 +486,7 @@ def append_transaction(
     """Validate the whole transaction before the single atomic source append."""
     repository = repository.resolve()
     validate_transaction(transaction)
+    authority_roots(repository)  # New writes require the current active manifest.
     with _writer(repository) as root:
         branch = git_output(repository, "symbolic-ref", "--quiet", "--short", "HEAD")
         workspace = read_record(root, branch)

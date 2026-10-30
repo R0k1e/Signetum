@@ -6,13 +6,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from .change_models import (
-    DecisionStatus,
-    Review,
-    ReviewStatus,
-    Specification,
-    SpecificationStatus,
-)
 from .change_paths import changes_root
 from .change_record import (
     ChangeRecord,
@@ -27,7 +20,6 @@ from .manifest import RepositoryManifest
 from .operations import OperationError
 from .source_authority import committed_blob
 from .synchronization import member_contribution_paths
-from .traceability_loading import parse_decision, parse_review, parse_specification
 
 
 class ChangeError(OperationError):
@@ -78,6 +70,7 @@ def delivery_scope(
     # Raw history below the change root is not an executable approval package.
     # Inspect both snapshots so removing a current authority cannot hide its scope.
     authority_packages: set[str] = set()
+    current_packages: set[str] = set()
     for revision in (base, tip):
         for path in git_output(
             repository, "ls-tree", "-r", "--name-only", revision, "--", root
@@ -86,9 +79,13 @@ def delivery_scope(
             parts = candidate.parts
             if parts[: len(prefix)] != prefix or len(parts) <= len(prefix) + 1:
                 continue
-            if (
-                len(parts) == len(prefix) + 2 and candidate.name in {"change.toml", "review.toml"}
-            ) or candidate.match(manifest.repository.specifications):
+            if len(parts) == len(prefix) + 2 and candidate.name == "change.toml":
+                current_packages.add(parts[len(prefix)])
+                authority_packages.add(parts[len(prefix)])
+            elif (
+                len(parts) == len(prefix) + 2 and candidate.name == "review.toml"
+            ) or candidate.match(f"{root}/*/specs/*.toml"):
+                # Historical promises remain protected without authorizing new work.
                 authority_packages.add(parts[len(prefix)])
     first: list[str] = []
     previous: list[PreviousChange] = []
@@ -100,7 +97,7 @@ def delivery_scope(
         )
         if held:
             previous.append(PreviousChange(change_id, tuple(sorted(change_paths))))
-        else:
+        elif change_id in current_packages:
             first.append(change_id)
     return DeliveryScope(tuple(first), tuple(previous))
 
@@ -119,25 +116,8 @@ def delivered_plans(
     root = changes_root(manifest)
     result: list[str] = []
     for change_id in change_ids:
-        if git_output(
-            repository, "ls-tree", "--name-only", tip, "--", f"{root}/{change_id}/change.toml"
-        ):
-            read_package(repository, manifest, change_id, tip)
-            result.append(f"{root}/{change_id}/change.toml")
-        else:
-            result.extend(
-                path
-                for path in git_output(
-                    repository,
-                    "ls-tree",
-                    "-r",
-                    "--name-only",
-                    tip,
-                    "--",
-                    f"{root}/{change_id}/plans",
-                ).splitlines()
-                if path.endswith(".md")
-            )
+        read_package(repository, manifest, change_id, tip)
+        result.append(f"{root}/{change_id}/change.toml")
     return tuple(result)
 
 
@@ -194,27 +174,6 @@ def changed_commitments(
 
 
 @dataclass(frozen=True)
-class ChangePackage:
-    review: Review
-    specifications: tuple[tuple[str, Specification], ...]
-    unaccepted_decisions: tuple[str, ...] = ()
-
-    def require_approval(self) -> None:
-        if self.unaccepted_decisions:
-            raise ChangeError(
-                f"change {self.review.id} requires an accepted decision: "
-                + ", ".join(self.unaccepted_decisions)
-            )
-        if self.review.status != ReviewStatus.APPROVED or not self.specifications:
-            raise ChangeError(f"change {self.review.id} is not implementation-authorized")
-        if any(
-            spec.status != SpecificationStatus.APPROVED or not spec.implementation_authorized
-            for _, spec in self.specifications
-        ):
-            raise ChangeError(f"change {self.review.id} is not implementation-authorized")
-
-
-@dataclass(frozen=True)
 class ConsolidatedPackage:
     record: ChangeRecord
 
@@ -225,7 +184,7 @@ class ConsolidatedPackage:
 
 def read_package(
     repository: Path, manifest: RepositoryManifest, change_id: str, revision: str
-) -> ChangePackage | ConsolidatedPackage:
+) -> ConsolidatedPackage:
     root = f"{changes_root(manifest)}/{change_id}"
     try:
         source = committed_blob(repository, revision, f"{root}/change.toml")
@@ -247,36 +206,11 @@ def read_package(
             if record.id != change_id:
                 raise ValueError("consolidated record declares another change identity")
             return ConsolidatedPackage(record)
-        review = parse_review(git_output(repository, "show", f"{revision}:{root}/review.toml"))
-        specifications = tuple(
-            (path, parse_specification(git_output(repository, "show", f"{revision}:{path}")))
-            for path in git_output(
-                repository, "ls-tree", "-r", "--name-only", revision, "--", f"{root}/specs"
-            ).splitlines()
-            if path.endswith(".toml")
-        )
+        raise ValueError("approved change record is unavailable")
     except (GitError, ValueError, KeyError) as error:
         raise ChangeError(
             f"change {change_id} package is unavailable or invalid: {error}"
         ) from error
-    if review.id != change_id:
-        raise ChangeError(f"change {change_id} Review declares a different identity: {review.id}")
-    for _, specification in specifications:
-        if specification.review.id != change_id:
-            raise ChangeError(f"specification in {change_id} claims another Review")
-        if not specification.plan.startswith(f"{root}/plans/"):
-            raise ChangeError(f"specification in {change_id} names a Plan outside its package")
-        if run_git(repository, "cat-file", "-e", f"{revision}:{specification.plan}").returncode:
-            raise ChangeError(f"change {change_id} is missing its declared Plan")
-    unaccepted: list[str] = []
-    for _, specification in specifications:
-        for reference in specification.decisions:
-            content = run_git(repository, "show", f"{revision}:{reference}")
-            if content.returncode:
-                unaccepted.append(reference)
-            elif parse_decision(content.stdout, reference).status != DecisionStatus.ACCEPTED:
-                unaccepted.append(reference)
-    return ChangePackage(review, specifications, tuple(sorted(set(unaccepted))))
 
 
 def require_member_changes(
@@ -284,7 +218,6 @@ def require_member_changes(
     manifest: RepositoryManifest,
     base: str,
     tip: str,
-    ledger_changes: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     """Judge own implementation after approval in the package's one branch."""
 
@@ -294,8 +227,19 @@ def require_member_changes(
             set(
                 (
                     *scope.first_delivered,
-                    *(item.change_id for item in scope.previously_delivered),
-                    *ledger_changes,
+                    *(
+                        item.change_id
+                        for item in scope.previously_delivered
+                        if any(
+                            committed_blob(
+                                repository,
+                                revision,
+                                f"{changes_root(manifest)}/{item.change_id}/change.toml",
+                            )
+                            is not None
+                            for revision in (base, tip)
+                        )
+                    ),
                 )
             )
         )

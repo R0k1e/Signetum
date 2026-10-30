@@ -73,14 +73,12 @@ def test_independent_template_defaults_to_the_same_full_checks_as_the_engine(tmp
     git("init", "-b", "plan/example")
     git("config", "user.name", "Fixture")
     git("config", "user.email", "fixture@example.invalid")
-    (tmp_path / "signetum.toml").write_text("""schema_version = 2
+    (tmp_path / "signetum.toml").write_text("""schema_version = 3
 [signetum]
 protocol = 2
-template_version = "0.2.0"
 [repository]
 architecture = "architecture.md"
-specifications = "changes/*/specs/*.toml"
-plans = "changes/*/plans/*.md"
+changes = "changes"
 decisions = "decisions"
 [[impact.rules]]
 name = "python.source"

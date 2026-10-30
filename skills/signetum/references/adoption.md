@@ -48,8 +48,7 @@ The launcher uses `.agents/repo-dev/run protocol`, or an existing `just protocol
 binding. Workspace and delivery use the repository's local lifecycle commands.
 No upstream clone, engine install or remote ledger is needed for daily work.
 
-Read relevant retained decisions before new work. Optional `migration inventory`
-and explicit `migration preview` can help organize history; they neither infer
-approval nor declare an entire legacy document migrated. Keep accepted sources.
-For fine test selection, weights or CI partitions, load the optimization reference
-only when requested or justified by a measured bottleneck.
+Read relevant retained decisions before new work. Let the agent organize original
+sources and propose only consequential current decisions through the ordinary
+change process. Preserve evidence and rationale; source organization does not
+grant approval or require a dedicated migration command.

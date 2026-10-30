@@ -84,13 +84,8 @@ class ValidationInputs:
     schema_digest: str = "sha256:" + "0" * 64
     waivers: tuple[Waiver, ...] = field(default=())
     today: date | None = None
-    recovery_history: tuple[frozenset[str], ...] = ()
-    recovery_threshold: int = 3
-    recovery_window: int = 20
 
     def __post_init__(self) -> None:
-        if self.recovery_window < 1 or self.recovery_threshold < 1:
-            raise ValidationExecutionError("recovery window and threshold must be positive")
         if self.configuration_path != "signetum.toml":
             raise ValidationExecutionError("configuration path must be signetum.toml")
         if self.profiles != tuple(sorted(set(self.profiles))):
@@ -174,6 +169,78 @@ def _resolve_outcome(
     )
 
 
+@dataclass
+class _ExecutionResult:
+    outcomes: list[ShardOutcome] = field(default_factory=list)
+    names: list[str] = field(default_factory=list)
+    inherited: list[str] = field(default_factory=list)
+    recovered: list[dict[str, JsonValue]] = field(default_factory=list)
+    details: dict[str, JsonValue] = field(default_factory=dict)
+    advisories: list[dict[str, str]] = field(default_factory=list)
+
+
+def _execute_shards(
+    graph: ValidationGraph,
+    gate: str,
+    inputs: ValidationInputs,
+    adapter: ValidationAdapter,
+    *,
+    reusable: dict[str, ShardOutcome] | None = None,
+    executed: set[str] | None = None,
+    advisory_world: bool = False,
+) -> _ExecutionResult:
+    """One verdict owner for qualified execution and non-qualifying diagnostics."""
+    result = _ExecutionResult()
+    outcomes, names, inherited_names = result.outcomes, result.names, result.inherited
+    recovered, shard_details, advisories = result.recovered, result.details, result.advisories
+    reusable = reusable or {}
+    proven = executed if executed is not None else set()
+    shard_by_name = {shard.name: shard for shard in graph.shards}
+    today = inputs.today or datetime.now(UTC).date()
+    failures: list[str] = []
+    validation_failed = False
+    unproven: set[str] = set()
+    for name in graph.execution_order(gate):
+        shard = shard_by_name[name]
+        blocked = sorted(unproven.intersection(shard.requires))
+        if blocked:
+            unproven.add(name)
+            failures.append(f"{name}: skipped after {', '.join(blocked)}")
+            continue
+        if executed is not None and shard.evidence == "tree" and shard.digest in proven:
+            continue
+        names.append(name)
+        try:
+            if shard.inherit and name in reusable and reusable[name].command_digest == shard.digest:
+                outcome = reusable[name]
+                inherited_names.append(name)
+            else:
+                outcome = _resolve_outcome(
+                    shard, inputs, adapter, today=today, recovered=recovered, details=shard_details
+                )
+        except ValidationExecutionError as error:
+            if (
+                shard.evidence == "world"
+                and advisory_world
+                and not isinstance(error, ValidationInfrastructureError)
+            ):
+                advisories.append({"shard": name, "diagnostic": str(error)})
+                continue
+            unproven.add(name)
+            failures.append(str(error))
+            validation_failed |= not isinstance(error, ValidationInfrastructureError)
+            continue
+        outcomes.append(outcome)
+        if outcome.evidence == "tree":
+            proven.add(shard.digest)
+    if failures:
+        failure_type = (
+            ValidationExecutionError if validation_failed else ValidationInfrastructureError
+        )
+        raise failure_type("; ".join(failures))
+    return result
+
+
 def execute_gate(
     graph: ValidationGraph,
     gate: str,
@@ -189,15 +256,6 @@ def execute_gate(
     """
 
     identity = build_evidence_identity(graph, inputs, adapter)
-    today = inputs.today or datetime.now(UTC).date()
-    shard_by_name = {shard.name: shard for shard in graph.shards}
-    receipts: list[EvidenceReceipt] = []
-    failures: list[str] = []
-    validation_failed = False
-    unproven: set[str] = set()
-    recovered: list[dict[str, JsonValue]] = []
-    inherited_names: list[str] = []
-    shard_details: dict[str, JsonValue] = {}
     reusable: dict[str, ShardOutcome] = {}
     if inherited is not None and gate == "member":
         previous = inherited.receipt
@@ -214,40 +272,18 @@ def execute_gate(
                 and outcome.evidence == "tree"
                 and outcome.status == "passed"
             }
-    for name in graph.execution_order(gate):
-        shard = shard_by_name[name]
-        blocked = sorted(unproven.intersection(shard.requires))
-        if blocked:
-            unproven.add(name)
-            failures.append(f"{name}: skipped after {', '.join(blocked)}")
-            continue
-        try:
-            if shard.inherit and name in reusable and reusable[name].command_digest == shard.digest:
-                outcome = reusable[name]
-                inherited_names.append(name)
-            else:
-                outcome = _resolve_outcome(
-                    shard, inputs, adapter, today=today, recovered=recovered, details=shard_details
-                )
-        except ValidationExecutionError as error:
-            unproven.add(name)
-            failures.append(str(error))
-            validation_failed |= not isinstance(error, ValidationInfrastructureError)
-            continue
-        receipts.append(
-            EvidenceReceipt.shard(
-                identity=identity,
-                shard=outcome,
-                protocol="reposeal.validation-evidence@3",
-                schema_digest=inputs.schema_digest,
-                selection=inputs.selection,
-            )
+    result = _execute_shards(graph, gate, inputs, adapter, reusable=reusable)
+    inherited_names, recovered, shard_details = result.inherited, result.recovered, result.details
+    receipts = [
+        EvidenceReceipt.shard(
+            identity=identity,
+            shard=outcome,
+            protocol="reposeal.validation-evidence@3",
+            schema_digest=inputs.schema_digest,
+            selection=inputs.selection,
         )
-    if failures:
-        failure_type = (
-            ValidationExecutionError if validation_failed else ValidationInfrastructureError
-        )
-        raise failure_type("; ".join(failures))
+        for outcome in result.outcomes
+    ]
     if build_evidence_identity(graph, inputs, adapter) != identity:
         raise ValidationExecutionError("validation inputs changed during execution")
     receipt = combine_shard_evidence(
@@ -318,36 +354,33 @@ def execute_diagnostic_gate(
     executed: set[str] | None = None,
     advisory_world: bool = False,
     tools: tuple[ToolDeclaration, ...] = (),
+    inputs: ValidationInputs | None = None,
 ) -> dict[str, object]:
     """Execute diagnostics without granting or storing readiness evidence."""
-    proven = executed if executed is not None else set()
-    by_name = {shard.name: shard for shard in graph.shards}
-    names: list[str] = []
-    advisories: list[dict[str, str]] = []
-    recovered = []
-    for tool in tools:
-        adapter.identify_tool(tool)
-    details = {}
-    for name in graph.execution_order(gate):
-        shard = by_name[name]
-        if shard.evidence == "tree" and shard.digest in proven:
-            continue
-        result = adapter.run_shard(shard)
-        if result.details:
-            details[name] = result.details
-        recovered.extend({**defect, "shard": name} for defect in result.recovered)
-        names.append(name)
-        if not result.succeeded:
-            if shard.evidence == "world" and advisory_world:
-                advisories.append({"shard": name, "diagnostic": result.diagnostic})
-                continue
-            raise ValidationExecutionError(result.diagnostic or f"check failed: {name}")
-        require_original_success([{**defect, "shard": name} for defect in result.recovered])
-        if shard.evidence == "tree":
-            proven.add(shard.digest)
+    projected = inputs or ValidationInputs(
+        configuration_path="signetum.toml", profiles=(), lockfiles=(), tools=tools
+    )
+    identity = build_evidence_identity(graph, projected, adapter) if inputs is not None else None
+    if inputs is None:
+        for tool in tools:
+            adapter.identify_tool(tool)
+    result = _execute_shards(
+        graph, gate, projected, adapter, executed=executed, advisory_world=advisory_world
+    )
+    if identity is not None and build_evidence_identity(graph, projected, adapter) != identity:
+        raise ValidationExecutionError("validation inputs changed during execution")
     return {
-        "executed": names,
-        "advisories": advisories,
-        "recovered_flake_defects": recovered,
-        "shard_details": details,
+        "executed": result.names,
+        "advisories": result.advisories,
+        "recovered_flake_defects": result.recovered,
+        "shard_details": result.details,
+        "outcomes": [
+            {
+                "name": outcome.name,
+                "status": outcome.status,
+                "waivers": list(outcome.waivers),
+                "findings": list(outcome.findings),
+            }
+            for outcome in result.outcomes
+        ],
     }

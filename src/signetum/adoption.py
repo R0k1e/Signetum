@@ -152,7 +152,6 @@ def _payload(request: AdoptionRequest) -> dict[str, str]:
         ("lifecycle", "lifecycle"),
         ("maintenance", "maintenance"),
         ("traceability", "traceability_cli"),
-        ("deviations", "deviations"),
     ]:
         files[f"{runtime}/{name}.py"] = (
             '"""Run the repository-owned protocol implementation."""\n'

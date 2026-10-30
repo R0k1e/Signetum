@@ -40,6 +40,7 @@ def main(arguments: list[str] | None = None) -> int:
     selection = parser.add_mutually_exclusive_group(required=True)
     selection.add_argument("--shard")
     selection.add_argument("--gate")
+    parser.add_argument("--exact-source", action="store_true")
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     repository = Path.cwd()
 
@@ -54,8 +55,12 @@ def main(arguments: list[str] | None = None) -> int:
             if supplied:
                 raise AdmissionError("gate diagnostics do not accept native arguments")
             graph, inputs = configured_validation(load_manifest(repository / "signetum.toml"))
-            details = run_diagnostic_gate(repository, graph, options.gate, tools=inputs.tools)
+            details = run_diagnostic_gate(
+                repository, graph, options.gate, inputs=inputs, exact_source=options.exact_source
+            )
             return {"status": "diagnostic", "gate": options.gate, "details": details}
+        if options.exact_source:
+            raise AdmissionError("exact-source validation requires a gate")
         return run_test_diagnostic(repository, options.shard, tuple(supplied))
 
     return run_operation(repository, "test", invoke, state_root=lambda _: state_root(repository))

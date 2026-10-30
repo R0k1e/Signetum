@@ -60,7 +60,7 @@ summary = "TODO record the requested outcome and relevant basis; reference retai
 
 [change.contract]
 version = 1
-approved_base = "{base}"
+approved_base = "{base}" # pragma: allowlist secret
 
 [[change.contract.requirements]]
 id = "REQ-001"

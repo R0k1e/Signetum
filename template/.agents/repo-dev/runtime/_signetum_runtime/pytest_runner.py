@@ -48,8 +48,14 @@ def _run(
     # importing the engine. Only this temporary directory joins their search path.
     plugins = report.parent / "plugins"
     plugins.mkdir(exist_ok=True)
-    (plugins / "_signetum_pytest_report.py").write_bytes(
-        Path(__file__).with_name("pytest_report.py").read_bytes()
+    report_source = Path(__file__).with_name("pytest_report.py")
+    # Keep original source identity for tracebacks and coverage. __file__ stays
+    # temporary so sibling scheduling resources remain independently packaged.
+    module_name = f"{__package__ or '_signetum_runtime'}.pytest_report"
+    (plugins / "_signetum_pytest_report.py").write_text(
+        f"__name__ = {module_name!r}\n"
+        f"exec(compile({report_source.read_bytes()!r}, {str(report_source)!r}, 'exec'))\n",
+        encoding="utf-8",
     )
     scheduling = _schedule_source()
     (plugins / "_signetum_test_scheduling.py").write_bytes(scheduling.read_bytes())

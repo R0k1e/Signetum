@@ -1,7 +1,6 @@
 """Check-only public command line interface."""
 
 import json
-import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -21,9 +20,8 @@ from signetum.protocol_cli import main as protocol_main
 from signetum.release import preflight
 from signetum.serialization import json_value
 from signetum.site import build_site
-from signetum.status.models import EvidenceSnapshot
-from signetum.traceability.boundary import GitInventoryProvider, TraceabilityManifest
-from signetum.traceability.cli import query
+from signetum.traceability.boundary import GitInventoryProvider
+from signetum.traceability.cli import main as traceability_main
 
 app = typer.Typer(add_completion=False, help="Validate Signetum repository contracts.")
 check_app = typer.Typer(add_completion=False, help="Run read-only repository checks.")
@@ -125,7 +123,6 @@ def validate(manifest: Annotated[Path, typer.Option(exists=True, dir_okay=False)
         json.dumps(
             {
                 "protocol": loaded.signetum.protocol,
-                "template_version": loaded.signetum.template_version,
                 "manifest_schema": loaded.schema_version,
                 "profiles": [profile.identity for profile in profiles],
                 "status": "valid",
@@ -146,23 +143,16 @@ def check_manifest(
 @check_app.command("traceability")
 def check_traceability(
     repository: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("."),
-    changes_root: Annotated[str, typer.Option()] = "changes",
+    changes_root: Annotated[str | None, typer.Option()] = None,
     decision_root: Annotated[list[str] | None, typer.Option()] = None,
-    legacy_root: Annotated[list[str] | None, typer.Option()] = None,
 ) -> None:
-    """Validate Review, Specification, Plan, and decision relations."""
-    exit_code = query(
-        repository.resolve(),
-        TraceabilityManifest(
-            schema_version=1,
-            changes_root=changes_root,
-            decision_roots=tuple(decision_root or ("docs/decisions",)),
-            legacy_roots=tuple(legacy_root or ()),
-        ),
-        EvidenceSnapshot(),
-        sys.stdout,
-        sys.stderr,
-    )
+    """Validate current change records and retained decision relations."""
+    arguments = ["--repository", str(repository.resolve())]
+    if changes_root is not None:
+        arguments.extend(("--changes-root", changes_root))
+    for root in decision_root or ():
+        arguments.extend(("--decision-root", root))
+    exit_code = traceability_main(arguments)
     if exit_code:
         raise typer.Exit(code=int(exit_code))
 

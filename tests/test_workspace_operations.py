@@ -13,7 +13,13 @@ from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
-from signetum.workspaces import branch_name, read_record, state_root
+from signetum.workspaces import (
+    branch_name,
+    exclude_workspaces,
+    read_record,
+    state_root,
+    workspace_destination,
+)
 
 
 def opened(repository, branch):
@@ -55,7 +61,9 @@ def test_open_refuses_ambiguous_registered_branch_without_preparing(repository):
 def test_open_recovers_creation_interruption_only_at_the_exact_base(repository):
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")
-    member = root.parent / "unregistered"
+    exclude_workspaces(root)
+    member = workspace_destination(root, "plan/recover-create")
+    member.parent.mkdir(parents=True, exist_ok=True)
     git_output(root, "worktree", "add", "-b", "plan/recover-create", str(member), base)
     result = ops.workspace_open(root, "plan/recover-create", base)
     assert result["resumed"] is True
@@ -435,9 +443,7 @@ def test_sync_does_not_claim_siblings_package_or_charge_its_unchanged_paths(repo
     assert isinstance(changed, tuple)
     assert set(changed) == {
         "own.txt",
-        "changes/dependent/review.toml",
-        "changes/dependent/specs/behavior.toml",
-        "changes/dependent/plans/behavior.md",
+        "changes/dependent/change.toml",
     }
 
 
@@ -587,3 +593,27 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
     assert isinstance(static, dict) and static["executed"] == ["test:check"]
     assert (state / "attempts").read_text() == "1"
     assert git_output(root, "rev-parse", "HEAD") == base
+
+
+@pytest.mark.parametrize("obstruction", ["root-link", "target-link", "occupied"])
+def test_open_refuses_unsafe_managed_destinations_before_creation(repository, obstruction):
+    root, state = repository
+    target = workspace_destination(root, "plan/unsafe")
+    outside = root.parent / "outside-managed"
+    outside.mkdir()
+    if obstruction == "root-link":
+        target.parent.symlink_to(outside, target_is_directory=True)
+    else:
+        target.parent.mkdir(exist_ok=True)
+        if obstruction == "target-link":
+            target.symlink_to(outside, target_is_directory=True)
+        else:
+            target.mkdir()
+            (target / "user-file").write_text("retain")
+    before = git_output(root, "worktree", "list", "--porcelain")
+    with pytest.raises((AdmissionError, ops.WorkspaceError), match=r"escape|inside|exists"):
+        ops.workspace_open(root, "plan/unsafe", "HEAD")
+    assert git_output(root, "worktree", "list", "--porcelain") == before
+    assert not (state / "attempts").exists()
+    if obstruction == "occupied":
+        assert (target / "user-file").read_text() == "retain"

@@ -1,11 +1,16 @@
 # Validation and delivery responsibilities
 
-Ordinary validation is read-only and observes one exact commit. Evidence binds
+Qualified validation preserves tracked source and observes one exact commit;
+checks may write owned ignored runtime outputs. Dirty development diagnostics
+never grant qualification. Evidence binds
 Signetum, schema, profile, commit, and check identities. A successful member
 check is not batch integration, delivery, or human acceptance.
 
-The member and final gate build the source distribution and wheel before the
-repository check graph. Integration tests therefore consume release inputs
+The pytest gate dependency builds the source distribution and wheel before tests;
+final always includes it, while documentation-only members omit build and pytest.
+The declared `uv build --clear` replaces the owned
+output directory, so a version change cannot mix old and current payloads.
+Integration tests therefore consume release inputs
 created from the exact tree under validation, never a `dist/` directory left by
 an earlier command in one worktree. The same gate also invokes the locked Ruff
 check and format contracts, Bandit scan, and dependency audit used by CI; the
@@ -173,8 +178,8 @@ Gate execution, diagnostics and admission reject a success result carrying
 original failure metadata. Historical receipts remain decodable for inspection,
 but an ancestor containing recovered failures cannot replace fresh normal
 execution. Source-local failure logs retain both attempts, and successful
-receipts are not written for failed runs. Legacy recovery-window and threshold
-configuration cannot authorize a pass or weaken this first-failure rule.
+receipts are not written for failed runs. The active manifest and execution inputs expose no recovery-window or threshold
+knobs; first failure is unconditional.
 Each command carries a fresh local owner token while retaining enclosing job
 tokens. On normal exit the supervisor inventories its session and token-bearing
 detached processes, checks PID birth identity before each signal, and performs
@@ -227,24 +232,16 @@ significant discoveries and accepted clause edits in their source journal throug
 `just protocol`; the frozen review binds its committed history and dispositions.
 Validation does not append its own success to that source.
 
-Legacy packages retain approved Reviews and Specifications and their existing
-common-Git deviation authority at
-`signetum/changes/<change-id>/deviations.jsonl`. Linked members and the batch share
-that operational state without committing it to the product tree.
-
-The legacy ledger API validates each record or resolution before appending,
-under a nonblocking per-change writer lock. Invalid authority, a repeated ID or
-an already resolved discovery is refused without changing the ledger; a failed
-resolution remains pending and can be corrected through the same API.
-Specification resolutions require approved behavior, an approved linked Plan and
-accepted required decisions. A deferred target must be a valid specification in
-an active change, with its own Review and Plan; a completed Review, withdrawn
-specification or arbitrary existing file cannot carry unfinished work. Completed
-approved specifications remain usable as behavior authority. Declared change
-and decision roots own these checks.
+Historical Reviews, Specifications and common-Git ledgers are retained as read-only
+evidence. Their original resolutions and recorded targets remain inspectable
+and participate in exact final-review bindings. These are historical statements,
+not grants under current policy; an explicitly retired file need not remain in
+the current tree. Pending historical findings and any deferred obligation remain
+blocking. Current requirements and evidence are judged through the source journal. There is no legacy writer command
+or qualification fallback: current implementation requires an approved record.
 
 Before final validation, the Agent reconciles every retained discovery into
-the applicable Specification, accepted clarifying or superseding Decision,
+the applicable requirement, accepted clarifying or superseding decision,
 architecture authority, behavior test, explicit follow-up Change, justified
 rejection, or justified no-authority-change result. `final` numbers accepted proposals under the batch lock, then validates the
 frozen resulting tip. It refuses unapproved proposals and an unresolved ledger and places approval plus reconciliation data in
@@ -282,12 +279,24 @@ the same mapping rather than inferring moves from rename similarity. A successor
 edges whose unaffected clauses remain authoritative; complete replacements
 continue to invalidate current authority citations.
 
-Discoveries are written from the package-owning member branch. A resolution is
-written there while the branch is registered; once it has no registered workspace,
-a supported resolution may be written from another worktree. Linked worktrees
-share the same ledger and change ownership registry under Git common state.
+Current discoveries and resolutions use the owning member's approved source
+journal. Linked members share immutable change ownership under common Git state;
+historical ledgers are inspected without reopening their write channel.
 
 ## Workspace operations
+
+Protocol-created linked trees live under the primary Git worktree's ignored
+`.worktrees/` directory, independently of the invoking member or global Worktrunk
+settings. Creation explicitly binds a contained destination and refuses symbolic
+link escapes and occupied destinations before preparation. The common Git exclude
+bootstraps this managed runtime area before a delivery tree receives the tracked
+ignore rule. Ordinary operations may manage ignored runtime state; only delivery
+may mutate the delivery branch's tracked source, index or HEAD.
+
+Batch member registrations name branches rather than absolute checkout locations.
+Removing a checkout retires its active workspace registration; it never rewrites
+a live registered base. Historical evidence and admission provenance remain bound
+to their original commits.
 
 The repository owns the delivery branch in .agents/repo-dev/repo.yaml. Runtime
 commands remain in signetum.toml. The prepare gate owns dependency preparation;
@@ -344,8 +353,8 @@ The generated review reports the selected standing answers and provenance;
 ordinary validation output stays in receipts. Validation appends no success
 event to its source. Final rechecks source-journal bindings before writing its
 receipt, and delivery rechecks them before publication. Missing or altered
-bindings require fresh final validation. The historical local-ledger checks
-remain separate while legacy source adoption is still being migrated.
+bindings require fresh final validation. Read-only historical ledger bindings preserve original evidence without
+a second active workflow.
 
 ## Repository-owned selection providers
 
@@ -376,7 +385,8 @@ the gate, and writes no readiness receipt. It needs no registered workspace and
 can inspect uncommitted development work. The caller owns environment preparation
 and required build inputs; there is no hidden sync or build. The engine shortcut
 is `just test <paths-or-pytest-options>`; it disables whole-corpus coverage for
-explicit diagnostics. Ready and CI retain their full coverage requirement.
+explicit diagnostics. Ready retains its selected test obligations; final executes the full host suite.
+Hosted validation combines every declared platform before enforcing 90% project coverage.
 CI and release use the same utility for
 the tree and world test shards.
 
@@ -417,21 +427,31 @@ Final retains accepted stable decision filenames. Optional explicit proposal
 numbering refuses before mutation if it would rewrite a consolidated approval
 or source journal. Numeric allocation is not a routine development document step.
 
-Change scope is discovered from current change records, Reviews and the declared
-specification pattern at either the base or reviewed tip. Retained raw historical
+Current implementation scope is discovered from change records at either the base
+or reviewed tip. Previously delivered historical promises remain protected against
+rewriting without becoming implementation approval. Retained raw historical
 documents do not become executable approval packages merely by occupying a
 change directory. Removing a current authority remains in scope; malformed
 current authorities still refuse qualification. No YAML approval fallback exists.
 
-Hosted CI and release call one reusable validation workflow, whose local action
-invokes `protocol test --gate final`. It runs strict declared dependency order without workspace
+Hosted CI and release call one reusable validation workflow, which owns setup and
+invokes `protocol test --gate final --exact-source`. It runs strict declared dependency order without workspace
 registration, member selection, inheritance or lifecycle receipts. Single-shard
 diagnostics retain native arguments; gate diagnostics reject them. `mise.toml`
 owns native acceptance tools. CI retains Linux Python 3.12/3.13 and native macOS Python 3.13 checks. Platform
 coverage is partial: the workflow requires every declared target from the current
 run and combines source-relative data before enforcing the project 90% threshold.
-Local ready/final retain their existing threshold. Missing, cancelled or failed
+Local ready/final collect a host fragment without applying the whole-project threshold.
+The complete hosted platform collection owns the 90% project verdict; delivery
+review requires passing hosted validation of the exact candidate. Missing, cancelled or failed
 targets cannot qualify the aggregate. Failed output is retained for seven days
 with a bounded terminal preview. Composite actions and reusable workflows share
 checks for exact external action identities and checkout source. Release publishes
 the primary target's verified artifact only after the complete workflow succeeds.
+
+Gate diagnostics and qualification use one shard verdict core: independent failures
+are collected, failed dependencies block descendants, findings require exact valid
+waivers, and diagnostic retries never clear first failures. Full gate diagnostics
+observe declared inputs before and after execution. `--exact-source` additionally
+requires a clean tree before and after checks, as hosted validation requires.
+Ordinary diagnostics may inspect dirty development work and never issue receipts.

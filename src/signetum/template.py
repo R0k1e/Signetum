@@ -20,7 +20,6 @@ TOP_LEVEL = frozenset(
         "README.zh-CN.md",
         "changes",
         "docs",
-        "examples",
         "mise.toml",
         "pyproject.toml",
         "signetum.toml",

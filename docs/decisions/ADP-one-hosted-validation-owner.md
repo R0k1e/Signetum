@@ -30,7 +30,12 @@ passed every test but measured 89.73% whole-source coverage:
 Darwin native observation was not executable there. Retain native acceptance on
 both hosts and all Python targets, then combine complete source-relative coverage
 and enforce 90% once. Partial platform data is not a project verdict. Local gates
-retain 90%. A reusable hosted workflow owns the target set and completeness check;
+collect partial host evidence; the complete hosted collection owns the 90% verdict. A reusable hosted workflow owns the target set and completeness check;
 release publishes its verified artifact only after that entire workflow passes.
 This avoids artificial platform mocks, a lower project threshold or divergent
 release checks. Superseded CI runs may cancel; publication never does.
+
+The accepted contained-current-development cleanup removes the single-caller local
+action: the reusable workflow owns its steps directly. Qualified gates and gate
+diagnostics now share one verdict core; hosted calls additionally enforce exact
+clean source before and after execution without requiring private workspaces.

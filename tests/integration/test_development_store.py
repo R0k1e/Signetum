@@ -12,6 +12,7 @@ import pytest
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output, run_git
 from signetum.serialization import contract_mapping
+from signetum.source_authority import authority_roots
 from signetum.workspaces import WorkspaceRecord, write_record
 
 
@@ -999,10 +1000,8 @@ def test_an_observation_identity_cannot_be_reused_in_a_later_transaction(reposit
 
 def test_repository_declared_change_root_is_the_only_source_journal_location(repository, store):
     source = (Path(__file__).parents[2] / "signetum.toml").read_text()
-    source = (
-        source.replace("changes/*/specs/*.toml", "work/*/specs/*.toml")
-        .replace("changes/*/plans/*.md", "work/*/plans/*.md")
-        .replace('decisions = "docs/decisions"', 'decisions = "authorities"')
+    source = source.replace('changes = "changes"', 'changes = "work"').replace(
+        'decisions = "docs/decisions"', 'decisions = "authorities"'
     )
     (repository / "signetum.toml").write_text(source)
     (repository / "changes").rename(repository / "work")
@@ -1297,9 +1296,7 @@ def test_uncommitted_repository_binding_cannot_redirect_journal_authority(reposi
     state = store.snapshot(repository)
     transaction = request(repository, store)
     source = (Path(__file__).parents[2] / "signetum.toml").read_text()
-    source = source.replace("changes/*/specs/*.toml", "archive/*/specs/*.toml").replace(
-        "changes/*/plans/*.md", "archive/*/plans/*.md"
-    )
+    source = source.replace('changes = "changes"', 'changes = "archive"')
     (repository / "signetum.toml").write_text(source)
     with pytest.raises(ValueError, match="committed"):
         store.append_transaction(repository, transaction, expected_history=state.history_digest)
@@ -1468,3 +1465,99 @@ def test_source_review_requires_exact_approved_decisions_in_committed_history(
     else:
         with pytest.raises(ValueError, match="approved decision is absent"):
             store.review_inputs(repository, ("alpha",), commit=commit)
+
+
+def test_archived_manifest_locations_are_readable_but_cannot_authorize_new_writes(
+    repository, store
+):
+    current = (Path(__file__).parents[2] / "signetum.toml").read_text()
+    transaction = request(repository, store)
+    state = store.snapshot(repository)
+    archived = current.replace("schema_version = 3", "schema_version = 2", 1).replace(
+        'changes = "changes"',
+        'specifications = "archive/*/specs/*.toml"\nplans = "archive/*/plans/*.md"',
+    )
+    manifest = repository / "signetum.toml"
+    manifest.write_text(archived)
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", "retain a historical manifest location")
+    older = git_output(repository, "rev-parse", "HEAD")
+    with pytest.raises(ValueError, match="unsupported manifest schema"):
+        store.append_transaction(repository, transaction, expected_history=state.history_digest)
+    assert not (repository / "archive/alpha/events.jsonl").exists()
+    manifest.write_text(current)
+    git_output(repository, "commit", "-am", "use the current active manifest")
+    assert authority_roots(repository, commit=older, historical=True) == (
+        "archive",
+        "docs/decisions",
+    )
+    with pytest.raises(ValueError, match="unsupported manifest schema"):
+        authority_roots(repository, commit=older)
+    assert store.snapshot(repository).history_digest == state.history_digest
+    prior = current.replace("[validation]\n", "[validation]\nrecovery_window = 20\n")
+    manifest.write_text(prior)
+    git_output(repository, "commit", "-am", "retain a previous schema-three approval location")
+    previous = git_output(repository, "rev-parse", "HEAD")
+    assert authority_roots(repository, commit=previous, historical=True) == (
+        "changes",
+        "docs/decisions",
+    )
+    with pytest.raises(ValueError, match="unknown dataclass fields"):
+        store.append_transaction(repository, transaction, expected_history=state.history_digest)
+    manifest.write_text(current)
+    git_output(repository, "commit", "-am", "restore current executable settings")
+
+
+def test_evidence_created_after_the_workspace_base_can_be_retired(repository, store):
+    late = repository / "late.py"
+    late.write_text("assert True\n")
+    git_output(repository, "add", ".")
+    git_output(repository, "commit", "-m", "introduce evidence after the approved base")
+    first = request(repository, store)
+    state = store.append_transaction(
+        repository, first, expected_history=store.snapshot(repository).history_digest
+    )
+    answer = request(
+        repository,
+        store,
+        "alpha/late-answer",
+        operation="resolve",
+        observations=[],
+        resolutions=[
+            {
+                "id": "alpha/late-resolution",
+                "target": first.observations[0].id,
+                "status": "resolved",
+                "reason": "The committed late evidence proves the result.",
+                "evidence": ["late.py"],
+            }
+        ],
+    )
+    state = store.append_transaction(repository, answer, expected_history=state.history_digest)
+    retirement = {
+        "id": "alpha/retire-late",
+        "target": first.observations[0].id,
+        "resolution_id": "alpha/late-resolution",
+        "targets": ["late.py"],
+        "reason": "Owner approved removal of this superseded evidence.",
+    }
+    path = repository / "changes/alpha/change.toml"
+    source = path.read_text().replace(
+        "[change.contract]\n", "[change.contract]\nretirements=" + _inline([retirement]) + "\n"
+    )
+    _approve(repository, source)
+    git_output(repository, "rm", "late.py")
+    git_output(repository, "commit", "-m", "retire the approved late evidence")
+    transaction = request(
+        repository,
+        store,
+        "alpha/late-retired",
+        operation="retire",
+        observations=[],
+        retirements=[retirement],
+    )
+    result = store.append_transaction(
+        repository, transaction, expected_history=state.history_digest
+    )
+    assert result.observations[0].effective_evidence == ("changes/alpha/change.toml",)
+    assert result.observations[0].resolution == state.observations[0].resolution

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://signetum.invalid/schemas/signetum-v2.schema.json",
-  "title": "Signetum repository configuration v2",
+  "$id": "https://signetum.invalid/schemas/signetum-v3.schema.json",
+  "title": "Signetum repository configuration v3",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -12,14 +12,13 @@
   ],
   "properties": {
     "schema_version": {
-      "const": 2
+      "const": 3
     },
     "signetum": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "protocol",
-        "template_version",
         "evidence_protocol",
         "evidence_schema_digest"
       ],
@@ -27,9 +26,6 @@
         "protocol": {
           "type": "integer",
           "minimum": 2
-        },
-        "template_version": {
-          "type": "string"
         },
         "evidence_protocol": {
           "const": "reposeal.validation-evidence@3"
@@ -66,18 +62,11 @@
       "additionalProperties": false,
       "required": [
         "architecture",
-        "specifications",
-        "plans",
-        "decisions"
+        "decisions",
+        "changes"
       ],
       "properties": {
         "architecture": {
-          "$ref": "#/$defs/path"
-        },
-        "specifications": {
-          "$ref": "#/$defs/path"
-        },
-        "plans": {
           "$ref": "#/$defs/path"
         },
         "decisions": {
@@ -89,6 +78,9 @@
             "$ref": "#/$defs/path"
           },
           "uniqueItems": true
+        },
+        "changes": {
+          "$ref": "#/$defs/path"
         }
       }
     },
@@ -242,14 +234,6 @@
       "properties": {
         "member_required": {
           "$ref": "#/$defs/uniqueStrings"
-        },
-        "recovery_window": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "recovery_threshold": {
-          "type": "integer",
-          "minimum": 1
         },
         "tools": {
           "type": "array",

@@ -5,10 +5,6 @@ authorities:
   changes: changes
   records: changes/*/change.toml
   journals: changes/*/events.jsonl
-  legacy:
-    reviews: changes/*/review.toml
-    specifications: changes/*/specs/*.toml
-    plans: changes/*/plans/*.md
   decisions: docs/decisions
 policy:
   mandatory:

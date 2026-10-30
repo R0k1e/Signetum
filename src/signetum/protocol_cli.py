@@ -7,7 +7,6 @@ from signetum import (
     change_record,
     ci_partitions,
     development_store,
-    migration,
     pytest_scheduling,
     python_selection,
     test_diagnostic,
@@ -33,7 +32,7 @@ def main(arguments: list[str] | None = None) -> int:
         description="Daily: change-open, view, status, current, record, resolve, test.",
         epilog=(
             "History: history. Conditional decision/repair: reconcile, retract, retire. "
-            "Adoption: migration, runner. "
+            "Adoption: runner. "
             "Optional optimization: select-python, schedule, partition. "
             "Use <command> --help for that operation; lifecycle commands remain separate."
         ),
@@ -44,7 +43,6 @@ def main(arguments: list[str] | None = None) -> int:
         choices=[
             "change-open",
             "view",
-            "migration",
             "runner",
             "test",
             "select-python",
@@ -70,8 +68,6 @@ def main(arguments: list[str] | None = None) -> int:
             return ci_partitions.main(remaining)
         if parsed.command == "runner":
             return runner_main(remaining)
-        if parsed.command == "migration":
-            return migration.main(remaining)
         return development_store.main([parsed.command, *remaining])
     except (ValueError, OSError) as error:
         return utility_failure(supplied[0] if supplied else "protocol", error)

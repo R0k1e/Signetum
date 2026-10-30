@@ -54,8 +54,6 @@ def configured_validation(
             base=base,
             selection=selection,
             schema_digest=manifest.signetum.evidence_schema_digest,
-            recovery_threshold=manifest.validation.recovery_threshold,
-            recovery_window=manifest.validation.recovery_window,
         )
     except ValidationExecutionError as error:
         raise ManifestError(str(error)) from error

@@ -1,29 +1,5 @@
-"""Immutable change-package contracts."""
+"""Immutable identifiers, source context and decision standing."""
 
-from signetum.change.models import (
-    Acceptance,
-    Clause,
-    ClauseExclusion,
-    ClauseOwnership,
-    Deferral,
-    Plan,
-    PlanObligation,
-    Reopen,
-    Review,
-    Specification,
-    Supersession,
-)
+from signetum.change.models import Decision, DecisionStatus, ReviewSource
 
-__all__ = [
-    "Acceptance",
-    "Clause",
-    "ClauseExclusion",
-    "ClauseOwnership",
-    "Deferral",
-    "Plan",
-    "PlanObligation",
-    "Reopen",
-    "Review",
-    "Specification",
-    "Supersession",
-]
+__all__ = ["Decision", "DecisionStatus", "ReviewSource"]
