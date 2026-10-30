@@ -422,3 +422,11 @@ specification pattern at either the base or reviewed tip. Retained raw historica
 documents do not become executable approval packages merely by occupying a
 change directory. Removing a current authority remains in scope; malformed
 current authorities still refuse qualification. No YAML approval fallback exists.
+
+Hosted CI and release invoke `protocol test --gate final` through one local
+composite action. It runs strict declared dependency order without workspace
+registration, member selection, inheritance or lifecycle receipts. Single-shard
+diagnostics retain native arguments; gate diagnostics reject them. `mise.toml`
+owns native acceptance tools. CI covers host Python 3.12 and 3.13; failed output
+is retained for seven days with a bounded terminal preview. Composite actions
+share workflow checks for exact external action identities and checkout source.

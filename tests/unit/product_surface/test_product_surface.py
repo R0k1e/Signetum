@@ -165,3 +165,16 @@ def test_structured_workflow_policy_checks_safety_without_pinning_commands(tmp_p
     assert result.valid is (damage is None)
     if damage:
         assert result.issues[0].code == "invalid-workflow-policy"
+
+    composite = tmp_path / ".github/actions/check/action.yml"
+    composite.parent.mkdir(parents=True)
+    composite.write_text(
+        yaml.safe_dump({"runs": {"using": "composite", "steps": workflow["jobs"]["test"]["steps"]}})
+    )
+    result = validate_product_surface(
+        tmp_path,
+        _inventory(".github/actions/check/action.yml"),
+        required_paths=(),
+        required_content={},
+    )
+    assert result.valid is (damage not in {"checkout", "action"})
