@@ -304,7 +304,7 @@ same command again as a static dependency.
 | batch-open --member path [...] | Fix a named batch to the fresh configured delivery base, admit only qualified named members, then prepare and check the merged source. Immutable registration authorizes the batch role; current policy and gates are checked on merged source, not reinterpreted from an older base. |
 | batch-admit batch --member path [...] | Capture and merge ready tips, then prepare and run the batch gate. Failure retains the merged state for ordinary fixup/re-admission. |
 | batch-continue batch | Prepare the resolved index, run batch static checks, and commit only after success. |
-| final | Freeze under the batch lock, number newly accepted decisions above batch/base/fresh-remote holdings, reconcile, then validate that exact tip. |
+| final | Freeze under the batch lock, number only explicit accepted ADP-proposal identities above batch/base/fresh-remote holdings, reconcile, then validate that exact tip. |
 | batch-deliver source target expected-base expected-tip | Publish only the exact validated source, confirm remote identity before moving the target, and apply the shared residue rule. |
 
 The public lifecycle has exactly eight operations above. Explicit local maintenance
@@ -412,3 +412,7 @@ as validation inputs. Plans bind source, graph, commands and observed tools.
 Run uses the supervised adapter; combine requires exactly one passing result per
 partition and rejects overlap or stale identity. This is CI diagnostic evidence,
 not a lifecycle final receipt. Preparation stays explicit and final stays complete.
+
+Final retains accepted stable decision filenames. Optional explicit proposal
+numbering refuses before mutation if it would rewrite a consolidated approval
+or source journal. Numeric allocation is not a routine development document step.

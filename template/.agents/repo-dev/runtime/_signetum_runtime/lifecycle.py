@@ -15,6 +15,7 @@ from shutil import which
 
 from .admission import find_member_evidence
 from .change_member import qualify_member
+from .change_paths import changes_root
 from .change_scope import (
     delivered_plans,
 )
@@ -327,7 +328,7 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
     base_names = _git(batch, "ls-tree", "-r", "--name-only", base).splitlines()
     proposals = tuple(
         path
-        for path in _git(batch, "ls-files", f"{directory}/ADP-*.md").splitlines()
+        for path in _git(batch, "ls-files", f"{directory}/ADP-proposal-*.md").splitlines()
         if not re.fullmatch(r"ADP-\d{4}-.+\.md", Path(path).name)
         and re.search(
             r"^Status:\s*Accepted\s*$",
@@ -345,6 +346,16 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
     )
     if not proposals:
         return []
+    root = changes_root(manifest)
+    for relative in _git(
+        batch, "ls-files", f"{root}/*/change.toml", f"{root}/*/events.jsonl"
+    ).splitlines():
+        content = (batch / relative).read_text(encoding="utf-8")
+        if any(Path(proposal).name in content for proposal in proposals):
+            raise AdmissionError(
+                "numbering would rewrite approval-bound change or journal source; "
+                "choose a stable accepted authority before recording approval"
+            )
     _, remote_tip = fresh_delivery(batch)
     remote_names = _git(batch, "ls-tree", "-r", "--name-only", remote_tip).splitlines()
     used = [
@@ -357,7 +368,7 @@ def _number_proposals(batch: Path, base: str) -> list[dict[str, str]]:
     rewrites: list[dict[str, str]] = []
     for proposal in sorted(proposals):
         proposal_path = Path(proposal)
-        slug = proposal_path.name.removeprefix("ADP-")
+        slug = proposal_path.name.removeprefix("ADP-proposal-")
         formal_path = proposal_path.with_name(f"ADP-{next_number:04d}-{slug}")
         if (batch / formal_path).exists():
             raise AdmissionError(f"formal decision already exists: {formal_path}")

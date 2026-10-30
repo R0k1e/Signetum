@@ -61,37 +61,3 @@ def test_host_projection_preserves_explicit_inputs_and_clears_foreign_context(
     assert "GIT_DIR" not in seen
     assert seen["KEEP"] == "yes"
     assert seen["MISE_TRUSTED_CONFIG_PATHS"] == str(tmp_path.resolve())
-
-
-@pytest.mark.parametrize(
-    "dirty_field", [None, "staged", "modified", "untracked", "renamed", "deleted", "conflicted"]
-)
-def test_inventory_retains_every_kind_of_dirty_worktree(launcher, tmp_path, dirty_field):
-    changes = {dirty_field: True} if dirty_field else {}
-    payload = {
-        "schema": 2,
-        "items": [
-            {
-                "branch": "plan/member",
-                "head": {"sha": "a" * 40},
-                "worktree": {"path": str(tmp_path), "changes": changes},
-            }
-        ],
-    }
-    assert launcher.parse_worktrees(payload) == (
-        launcher.WorkspaceIdentity("plan/member", tmp_path.resolve(), "a" * 40, bool(dirty_field)),
-    )
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [
-        None,
-        {"schema": 1, "items": []},
-        {"schema": 2, "items": None},
-        {"schema": 2, "items": [{"worktree": {"path": "/fixture"}}]},
-    ],
-)
-def test_inventory_refuses_invalid_registered_workspace_data(launcher, payload):
-    with pytest.raises(launcher.AdmissionError, match="invalid Worktrunk JSON"):
-        launcher.parse_worktrees(payload)

@@ -14,3 +14,9 @@ Current architecture describes implemented responsibilities, not debate history.
 Search source and use the documentation/decision tools for discovery; do not
 maintain a second topic index. A preview, generated view or filename grants no
 approval. Supersession and clause amendments require their exact accepted authority.
+
+Accepted stable filenames remain stable through final. The legacy optional
+`ADP-proposal-<slug>.md` route requests numeric allocation after acceptance; it
+cannot rewrite approval-bound change records or journal history. Choose a stable
+authority before approval for consolidated changes. Unaccepted proposals still
+block final regardless of filename.

@@ -136,3 +136,22 @@ def registered_workspace(repository: Path, branch: str) -> WorkspaceIdentity:
     if len(matches) != 1:
         raise AdmissionError(f"Worktrunk did not report one registered workspace for {branch}")
     return matches[0]
+
+
+def require_removed_workspace(payload: object, workspace: WorkspaceIdentity) -> None:
+    """The pinned remove command returns one result per explicitly selected worktree."""
+    if not isinstance(payload, list) or len(payload) != 1 or not isinstance(payload[0], dict):
+        raise InfrastructureError("invalid Worktrunk removal result: expected one worktree result")
+    item = payload[0]
+    path = item.get("path")
+    if (
+        item.get("kind") != "worktree"
+        or item.get("branch") != workspace.branch
+        or not isinstance(path, str)
+        or Path(path).resolve() != workspace.path.resolve()
+        or item.get("branch_outcome") != "deleted"
+    ):
+        raise InfrastructureError(
+            f"Worktrunk did not confirm removal of the exact workspace: {workspace.branch}",
+            expected="inspect retained Worktrunk state before retrying cleanup",
+        )
