@@ -391,7 +391,8 @@ the gate, and writes no readiness receipt. It needs no registered workspace and
 can inspect uncommitted development work. The caller owns environment preparation
 and required build inputs; there is no hidden sync or build. The engine shortcut
 is `just test <paths-or-pytest-options>`; it disables whole-corpus coverage for
-explicit diagnostics. Ready and CI retain their full coverage requirement.
+explicit diagnostics. Ready retains its selected test obligations; final executes the full host suite.
+Hosted validation combines every declared platform before enforcing 90% project coverage.
 CI and release use the same utility for
 the tree and world test shards.
 
@@ -445,7 +446,9 @@ diagnostics retain native arguments; gate diagnostics reject them. `mise.toml`
 owns native acceptance tools. CI retains Linux Python 3.12/3.13 and native macOS Python 3.13 checks. Platform
 coverage is partial: the workflow requires every declared target from the current
 run and combines source-relative data before enforcing the project 90% threshold.
-Local ready/final retain their existing threshold. Missing, cancelled or failed
+Local ready/final collect a host fragment without applying the whole-project threshold.
+The complete hosted platform collection owns the 90% project verdict; delivery
+review requires passing hosted validation of the exact candidate. Missing, cancelled or failed
 targets cannot qualify the aggregate. Failed output is retained for seven days
 with a bounded terminal preview. Composite actions and reusable workflows share
 checks for exact external action identities and checkout source. Release publishes
