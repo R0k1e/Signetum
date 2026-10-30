@@ -287,7 +287,9 @@ historical ledgers are inspected without reopening their write channel.
 
 Protocol-created linked trees live under the primary Git worktree's ignored
 `.worktrees/` directory, independently of the invoking member or global Worktrunk
-settings. Creation explicitly binds a contained destination and refuses symbolic
+settings. Directory escaping avoids percent signs, which ELF linkers interpret
+as temporary-file patterns, while keeping distinct valid branch identities.
+Creation explicitly binds a contained destination and refuses symbolic
 link escapes and occupied destinations before preparation. The common Git exclude
 bootstraps this managed runtime area before a delivery tree receives the tracked
 ignore rule. Ordinary operations may manage ignored runtime state; only delivery

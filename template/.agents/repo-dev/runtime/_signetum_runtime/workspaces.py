@@ -241,7 +241,9 @@ def workspace_destination(repository: Path, branch: str) -> Path:
     managed = primary / ".worktrees"
     if managed.is_symlink() or managed.resolve() != managed:
         raise WorkspaceError("managed workspace root must not escape the primary repository")
-    target = managed / quote(branch, safe="")
+    # ELF linkers treat percent signs in output paths as temporary-file patterns.
+    # Git forbids literal tildes in refs, so this escape remains injective.
+    target = managed / quote(branch, safe="").replace("%", "~")
     if target.is_symlink() or target.resolve().parent != managed:
         raise WorkspaceError("workspace destination must remain inside .worktrees")
     return target
