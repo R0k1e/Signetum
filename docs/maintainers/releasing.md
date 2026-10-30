@@ -1,12 +1,18 @@
 # Release Signetum
 
 `main` is the product source declared by repository delivery policy. One tag
-identifies the standard Skill, package and schemas. Component versions may differ;
-release metadata binds their actual versions and digests to the exact source.
+identifies the standard Skill, package and schemas. Package and Skill share the
+product version; schemas change only with their formats.
+Release metadata binds their actual versions and digests to the exact source.
 Only the current metadata format is supported. Internal scaffolding has no
 independent release. Never move a published tag or replace its artifacts.
 
 ## Prepare
+
+Use semantic product versions: major for incompatible public contracts, minor for
+normal feature releases, patch for compatible fixes. Do not advance the major
+number for an internal cleanup or each development batch. Internal schema
+revisions follow actual serialized format changes rather than product releases.
 
 Use the toolchain in `mise.toml` and the setup in [Contributing](../../CONTRIBUTING.md).
 The complete native acceptance suite needs Node/npm and Rust/Cargo as well as
@@ -16,7 +22,7 @@ not additional application-language requirements for Skill users.
 Before delivery, update the package version and release notes, regenerate the
 portable runtime and complete the normal batch final review. The release version
 must agree with `pyproject.toml`; choose an unused `v<version>` tag. Historical
-RepoSeal tags remain unchanged. The 5.0.0 entry is a candidate until published.
+RepoSeal tags remain unchanged. The 0.3.0 entry is a candidate until published.
 
 Deliver the reviewed source explicitly. Require successful CI for that exact
 commit and verify the public Skill path and Pages deployment. CI and release

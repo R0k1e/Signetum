@@ -2,7 +2,7 @@
 name: signetum
 description: Use Signetum's reliable agentic development and delivery protocol to plan changes, retain decisions, validate implementation, or prepare delivery. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
-  version: "5.0.0"
+  version: "0.3.0"
 ---
 
 # Reliable agentic development and delivery

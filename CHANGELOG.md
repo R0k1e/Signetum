@@ -3,7 +3,7 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## 5.0.0 - Unreleased
+## 0.3.0 - Unreleased
 
 - Make the standard `signetum` Skill the single entry for new and existing projects;
   keep templates internal and use one main source and release path.

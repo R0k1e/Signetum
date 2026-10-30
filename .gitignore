@@ -210,3 +210,6 @@ output/
 
 # Claude Code — local permissions and personal settings (not shared)
 .claude/settings.local.json
+
+# Managed linked Git worktrees
+/.worktrees/
