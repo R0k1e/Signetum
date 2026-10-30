@@ -62,7 +62,7 @@ carried and who approved it.
 1. Record the need as Review clauses.
 2. Approve observable process behavior in a Specification.
 3. Accept a standalone decision explaining the new authority and removed path.
-4. Implement it in a Plan-owned worktree with behavior tests.
+4. Implement it in a change-owned worktree with behavior tests.
 5. Deliver it through the repository's own batch lifecycle.
 
 Another repository may manually implement the same idea as its own local

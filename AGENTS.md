@@ -5,13 +5,13 @@ Before planning, editing, or running repository commands, read
 by task intent or affected paths. Report the selected policy groups and reasons
 before repository operations.
 
-Use `uv` for Python commands. Keep active work in a plan-owned worktree.
+Use `uv` for Python commands. Keep active work in a change-owned worktree.
 Validation is check-only; delivery requires an explicit request. Never use
 stash, destructive reset/restore/clean, force push, direct merge, or ad-hoc
 worktree deletion. Preserve unrelated changes and keep credentials, caches,
 receipts, and local paths out of Git.
 
-Specifications own behavior, and Plans cannot narrow them. Accepted decision transactions
+Approved change contracts own outcomes; execution steps cannot narrow them. Accepted decisions
 must precede architecture, process, or security changes. Keep their basis once
 in the owning change; standalone ADRs are conditional cross-change authorities.
 Ordinary implementation and command output create no extra decision document. Use English for code

@@ -9,7 +9,7 @@ isolated work, behavioral evidence and explicit delivery. New and existing proje
 ## Is Signetum another CI template?
 
 No. CI is one validation consumer. Signetum also governs requirement capture,
-behavior specifications, implementation Plans, repository discovery, isolated
+approved outcomes, execution steps, repository discovery, isolated
 Agent work, batch composition, exact validation evidence, delivery provenance,
 acceptance, and recovery.
 
@@ -56,14 +56,14 @@ complete gate runs once on the frozen batch that will be delivered.
 
 ## Can several coding Agents work at the same time?
 
-Yes. Each member has an isolated Plan-owned worktree and branch. Members do not
+Yes. Each member has an isolated change-owned worktree and branch. Members do not
 mutate the delivery worktree or merge themselves. Batch admission preserves
 their histories and handles conflicts at the combined boundary.
 
 ## What does a delivery contain?
 
 Its structured result identifies the approved base, member branches and
-commits, integrated commits, Plan paths, validated batch tip, final receipt,
+commits, integrated commits, execution-owner paths, validated batch tip, final receipt,
 delivery commit, remote commit, and controlled cleanup.
 
 ## Does a repository update automatically?
