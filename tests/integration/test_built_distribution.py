@@ -140,26 +140,29 @@ sys.path.insert(0,sys.argv[1])
 from _signetum_runtime.traceability_cli import query
 from _signetum_runtime.traceability_boundary import TraceabilityManifest
 from _signetum_runtime.status_models import EvidenceSnapshot
-from _signetum_runtime.deviations import main
+from _signetum_runtime.development_store import main,snapshot
+from _signetum_runtime.workspaces import WorkspaceRecord,state_root,write_record
 root=Path(sys.argv[2])
+write_record(state_root(root),WorkspaceRecord(1,'plan/installed',sys.argv[3],'member'))
 output,errors=io.StringIO(),io.StringIO()
 status=query(root,TraceabilityManifest(schema_version=1),EvidenceSnapshot(),output,errors)
 assert status==0,errors.getvalue()
 assert json.loads(output.getvalue())['valid'] is True
 commands=[
- ['record','--change','example','--id','installed','--member','plan/installed',
-  '--class','implementation_clarification','--summary','Installed authority',
-  '--commitment','Keep behavior','--action','Reuse owner','--impact','None'],
- ['resolve','--change','example','--id','installed','--member','plan/installed',
-  '--resolution','no_authority_change','--reason','Authority retained'],
- ['status','--change','example'],
+ ['record','--change','example','--id','installed','--summary','Installed authority',
+  '--requirement','REQ-1','--reason','Preserve installed source evidence'],
+ ['resolve','--change','example','--id','installed-resolution',
+  '--target','example/installed/observation','--reason','Existing behavior is sufficient',
+  '--evidence','implementation.txt'],
+ ['status'],
 ]
 for command in commands:
  stream=io.StringIO()
  with redirect_stdout(stream):
-  status=main(['--repository',str(root),*command])
+  status=main([*command,'--repository',str(root)])
  assert status==0,stream.getvalue()
-assert json.loads(stream.getvalue())['deviation_count']==1
+assert len(snapshot(root).observations)==1
+assert snapshot(root).observations[0].status=='resolved'
 from _signetum_runtime.configuration import configured_validation
 from _signetum_runtime.profile_catalog import load_catalog
 from _signetum_runtime.manifest import load_manifest
@@ -168,7 +171,8 @@ from _signetum_runtime.lifecycle_validation import validate_workspace
 from _signetum_runtime.execution import ShardExecution
 from _signetum_runtime.process import run_command
 from _signetum_runtime.workspaces import WorkspaceRecord,state_root,write_record
-write_record(state_root(root),WorkspaceRecord(1,'plan/installed',sys.argv[3],'member'))
+git_output(root,'add','changes/example/events.jsonl')
+git_output(root,'commit','-m','retain installed journal evidence')
 catalog_root=Path(sys.argv[1])/'_signetum_runtime/profile_resources'
 catalog=load_catalog(lambda name:(catalog_root/name).read_text())
 def configure(manifest,*,member_shards=None):

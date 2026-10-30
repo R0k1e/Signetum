@@ -76,7 +76,7 @@ kind = "human_direction"
 summary = "Implement the confirmed outcome."
 [change.contract]
 version = 1
-approved_base = "{base}"
+approved_base = "{base}" # pragma: allowlist secret
 [[change.contract.requirements]]
 id = "REQ-1"
 outcome = "{outcome}"
