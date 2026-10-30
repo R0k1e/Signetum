@@ -3,7 +3,7 @@
 Status: Accepted
 Review date: 2026-10-30
 Supersedes: None
-Superseded by: None
+Superseded by: ADP-skill-first-development.md
 
 ## Context
 

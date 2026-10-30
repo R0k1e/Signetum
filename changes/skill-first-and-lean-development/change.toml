@@ -1,0 +1,181 @@
+[change]
+schema_version = 1
+id = "skill-first-and-lean-development"
+
+[change.source]
+kind = "human_direction"
+summary = "Implement the approved single Signetum Skill entry, internal scaffold, lean test preparation and compressed future decision records."
+
+[change.contract]
+version = 1
+approved_base = "b9fcd680fa3cb5613665a89704d56a8dce28652d"
+
+[[change.contract.requirements]]
+id = "SKILL-001"
+outcome = "Distribute the standard Skill under the Signetum identity."
+acceptance = [
+    "Rename the maintained folder, frontmatter, launcher, UI metadata and packaged resources to signetum; update maintained callers and representative installed verification, preserving immutable historical identities and consumer runtime paths.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-002"
+outcome = "Use one public Skill entry for new and existing projects."
+acceptance = [
+    "Remove the public Template product route and parallel publication/version story; retain internal scaffold and runtime evidence. Both new and existing repositories use the same reviewed adoption and local runtime, with a pinned tool acquisition path and an installed cold-start traversal through a real approved change and readiness.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-003"
+outcome = "Compress future development decisions at their authoring source."
+acceptance = [
+    "Default to one change record and significant append journal with derived current decisions; routine choices create no decision document, important decisions preserve their basis once, clause amendments are targeted, and standalone ADRs are conditional cross-change authorities rather than mandatory duplicates. Update authoring guidance, scaffold and closure while preserving accepted history.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-004"
+outcome = "Move pure test matrices out of repository preparation."
+acceptance = [
+    "Extract the existing partition owner pure snapshot planning, keep its configuration matrix without Git and retain necessary source bindings. Move component refusal cases out of Git fixtures and use minimal release materials. Retain core, generated and installed distinct risks, remove obsolete public-template pins, and compare preparation and duration without new permanent budgets.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-005"
+outcome = "Prepare a single main source and release authority."
+acceptance = [
+    "Configure source delivery and release qualification for main through repository authority, update workflows and maintained links, and prepare reviewable source migration without force pushes or rewriting historical tags. Actual delivery remains subject to the existing explicit delivery review.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-006"
+outcome = "Reconcile current guidance and verify the complete product path."
+acceptance = [
+    "Consolidate user onboarding, Agent adoption procedure and configuration references; regenerate portable code, validate standard and installed Skill behavior, run full member checks, resolve retained discoveries and report exact source and pending delivery state.",
+]
+
+[[change.contract.decisions]]
+id = "skill-first-and-lean-development/boundaries"
+change_id = "skill-first-and-lean-development"
+authority = "docs/decisions/ADP-skill-first-development.md"
+parents = [
+    "unify-distribution-and-current-authorities/boundaries",
+]
+reason = "The owner approved the Skill-only product and concrete test and decision compression plan. The cross-change product migration rationale is retained at the named authority."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "skill-first-development"
+version = 1
+summary = "One Skill entry, source authority and inexpensive retained development evidence."
+
+[[change.contract.decisions.clauses]]
+id = "skill-first-and-lean-development/new-clauses"
+change_id = "skill-first-and-lean-development"
+action = "add"
+expected = [
+    { id = "SKILL-ENTRY-001", version = 0 },
+    { id = "SKILL-DECISION-001", version = 0 },
+    { id = "SKILL-TEST-001", version = 0 },
+]
+authority = "docs/decisions/ADP-skill-first-development.md"
+reason = "Apply the approved entry, record and test boundaries."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-ENTRY-001"
+version = 1
+topic = "skill-first-development"
+scope = [
+    "Signetum product and development",
+]
+statement = "Signetum is distributed through the standard signetum Skill; new and existing projects share one explicit local adoption path. Internal scaffold materials are not a second public product."
+rationale = "See the cross-change product decision and the exact approved outcomes."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-DECISION-001"
+version = 1
+topic = "skill-first-development"
+scope = [
+    "Signetum product and development",
+]
+statement = "Keep consequential reasoning once in its accepted change or independently necessary cross-change decision, preserve significant append history, and derive current clauses; routine implementation and command narration create no duplicate document."
+rationale = "See the cross-change product decision and the exact approved outcomes."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-TEST-001"
+version = 1
+topic = "skill-first-development"
+scope = [
+    "Signetum product and development",
+]
+statement = "Pure configuration and component matrices run without Git or installed environments; repository, portable and installed traversals protect only their own binding and execution risks."
+rationale = "See the cross-change product decision and the exact approved outcomes."
+
+[[change.contract.decisions.clauses]]
+id = "skill-first-and-lean-development/source-clause"
+change_id = "skill-first-and-lean-development"
+action = "amend"
+expected = [
+    { id = "DIST-SOURCE-001", version = 1 },
+]
+authority = "docs/decisions/ADP-skill-first-development.md"
+reason = "Replace the former engine/main product split without weakening source or publication checks."
+
+[[change.contract.decisions.clauses.updates]]
+id = "DIST-SOURCE-001"
+version = 2
+topic = "distribution-authorities"
+scope = [
+    "Product source and Skill publication",
+]
+statement = "One delivered main source owns the package, standard Signetum Skill and internal scaffolding; release preflight derives the delivered branch from repository policy and verifies exact source, versions and tag. Skill installation and preflight grant no publication authority."
+rationale = "A single product entry should have a single source and release contract."
+
+[change.contract.autonomy]
+allowed = [
+    "Implement the confirmed Skill rename, product routing, test and document refactors, verify installed cold-start behavior, and prepare exact source migration and delivery review.",
+]
+requires_confirmation = [
+    "Mutate the delivery worktree or remote source branch through actual delivery, publish tags or packages, or modify Perdura.",
+]
+
+[[change.contract.excluded]]
+statement = "New template repository, automatic consumer updates, new persistent bootstrap service, RAM volumes and background deletion."
+reason = "The approved plan removes public entry and maintenance layers rather than adding them."
+
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = [
+    "SKILL-001",
+    "SKILL-002",
+]
+action = "Rename maintained Skill identities and package paths; extend the installed adoption traversal instead of adding a parallel lifecycle matrix; preserve host and application boundaries."
+
+[[change.execution.steps]]
+id = "STEP-2"
+requirements = [
+    "SKILL-003",
+    "SKILL-006",
+]
+action = "Keep decision rationale in the cross-change authority or owning change once; consolidate Skill, user and binding instructions and update current architecture without rewriting accepted history."
+
+[[change.execution.steps]]
+id = "STEP-3"
+requirements = [
+    "SKILL-004",
+]
+action = "Retain pure matrices, extend the existing planning owner with pure snapshot inputs, replace expensive per-case Git setup, reuse source-binding integration and installed evidence, delete only public-template prose pins."
+
+[[change.execution.steps]]
+id = "STEP-4"
+requirements = [
+    "SKILL-005",
+    "SKILL-006",
+]
+action = "Bind release to repository delivery policy, prepare main source migration and review, regenerate and build, compare targeted costs, reconcile and run complete member validation."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-30
+source = "The owner set the active goal to implement the immediately preceding confirmed plan, including the signetum name, single Skill entry, concrete test refactors and compressed future decisions."
+contract_digest = "sha256:6ef161e23219bc8e46e5a0fc445f321993fdf28655f3f5ba2b16957c58414711"
