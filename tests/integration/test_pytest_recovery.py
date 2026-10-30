@@ -4,7 +4,6 @@ import json
 import os
 import subprocess
 import sys
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -154,7 +153,7 @@ def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
     assert all(0 < item["execution_seconds"] <= item["wall_seconds"] for item in metrics)
 
 
-def test_failed_original_never_writes_success_even_with_a_one_run_window(tmp_path):
+def test_failed_original_never_writes_success_on_repeated_runs(tmp_path):
     repository = tmp_path / "repository"
     repository.mkdir()
     (repository / ".gitignore").write_text("__pycache__/\n")
@@ -203,11 +202,11 @@ def test_failed_original_never_writes_success_even_with_a_one_run_window(tmp_pat
             ),
         )
     )
-    inputs = ValidationInputs("signetum.toml", (), (), (), recovery_threshold=2)
+    inputs = ValidationInputs("signetum.toml", (), (), ())
     receipts = tmp_path / "receipts"
-    for policy in (inputs, replace(inputs, recovery_window=1)):
+    for _ in range(2):
         with pytest.raises(ValidationExecutionError, match="recurring contention failure"):
-            run_repository_gate(repository, graph, "member", policy, receipts)
+            run_repository_gate(repository, graph, "member", inputs, receipts)
         assert not tuple(receipts.glob("member-*.json"))
 
 
@@ -242,7 +241,7 @@ def test_independent_template_retains_recovery_and_refuses_a_repeated_node(repos
         '[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
         'changes = "changes"\n'
         'decisions = "docs/decisions"\n'
-        "[validation]\nrecovery_threshold = 2\nrecovery_window = 20\n"
+        "[validation]\n"
         '[[validation.shards]]\nname = "test:pytest"\ncommand = ' + json.dumps(command) + "\n"
         '[[validation.gates]]\nname = "member"\nshards = ["test:pytest"]\n'
         '[[validation.gates]]\nname = "final"\nshards = ["test:pytest"]\n'
@@ -279,9 +278,6 @@ print(receipt.to_json(),end='')
     assert first.returncode == 3, first.stdout + first.stderr
     assert "recurring template failure" in first.stdout
     assert "diagnostic retry passed" in first.stdout
-    manifest.write_text(manifest.read_text().replace("recovery_window = 20", "recovery_window = 1"))
-    git_output(root, "add", ".")
-    git_output(root, "commit", "-m", "bound recovery history to the current observation")
     bounded = run()
     assert bounded.returncode == 3, bounded.stdout + bounded.stderr
 

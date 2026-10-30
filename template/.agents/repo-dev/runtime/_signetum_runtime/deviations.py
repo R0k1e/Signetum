@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -13,13 +12,10 @@ from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Literal, TypedDict
 
-from .change_authority import validate_specification_authority
-from .change_models import DecisionStatus, Identifier
-from .change_paths import changes_root
+from .change_models import Identifier
 from .change_record import load_repository_record, review_view
 from .contract_values import FrozenContract
 from .git import GitError, git_output, run_git
-from .manifest import load_manifest
 from .serialization import (
     Constraints,
     ValueDecodeError,
@@ -28,7 +24,6 @@ from .serialization import (
     load_json,
     validate_value,
 )
-from .traceability_loading import load_decision
 
 
 class DeviationError(ValueError):
@@ -290,6 +285,7 @@ def reconciliation_summary(
                     ),
                     "targets": list(state.resolution.targets) if state.resolution else [],
                     "recorded_targets": list(recorded_targets),
+                    "historical": True,
                     "reason": state.resolution.reason if state.resolution else "",
                 }
             )
@@ -308,67 +304,10 @@ def reconciliation_summary(
 def approval_view(repository: Path, change_id: str, *, root: str = "changes") -> dict[str, object]:
     """Project the tracked Review and Specification into a concise approval payload."""
     _validate_identity(change_id)
-    change = repository.resolve() / root / change_id
-    consolidated = change / "change.toml"
-    if consolidated.exists() or consolidated.is_symlink():
-        try:
-            return review_view(
-                load_repository_record(repository, f"{root}/{change_id}/change.toml")
-            )
-        except (OSError, ValueError) as error:
-            raise DeviationError(f"consolidated approval is unavailable: {error}") from error
     try:
-        review = tomllib.loads((change / "review.toml").read_text(encoding="utf-8"))["review"]
-    except (OSError, KeyError, tomllib.TOMLDecodeError) as error:
-        raise DeviationError(f"approved Review is unavailable: {error}") from error
-    clauses = review.get("clauses")
-    if not isinstance(clauses, list):
-        raise DeviationError("Review clauses are unavailable")
-    commitments = [
-        item.get("statement")
-        for item in clauses
-        if isinstance(item, dict) and item.get("disposition") == "covered"
-    ]
-    non_goals = [
-        {"statement": item.get("statement"), "reason": item.get("reason")}
-        for item in clauses
-        if isinstance(item, dict) and item.get("disposition") == "out_of_scope"
-    ]
-    deferred = [
-        item.get("statement")
-        for item in clauses
-        if isinstance(item, dict) and item.get("disposition") == "deferred"
-    ]
-    if not commitments or not all(isinstance(item, str) and item for item in commitments):
-        raise DeviationError("Review commitments are invalid")
-    specs = sorted((change / "specs").glob("*.toml"))
-    evidence: list[str] = []
-    for path in specs:
-        try:
-            specification = tomllib.loads(path.read_text(encoding="utf-8"))["specification"]
-        except (OSError, KeyError, tomllib.TOMLDecodeError) as error:
-            raise DeviationError(f"Specification is unavailable: {error}") from error
-        if (
-            specification.get("status") != "approved"
-            or specification.get("implementation_authorized") is not True
-        ):
-            raise DeviationError(f"Specification is not implementation-authorized: {path}")
-        raw_acceptance = specification.get("acceptance", ())
-        if isinstance(raw_acceptance, list):
-            evidence.extend(str(item) for item in raw_acceptance)
-    return {
-        "schema_version": 1,
-        "status": "approval",
-        "change_id": change_id,
-        "outcomes": commitments,
-        "non_goals": non_goals,
-        "deferred": deferred,
-        "acceptance": evidence,
-        "autonomy": {
-            "continue": ["implementation_clarification", "safe_supporting_change"],
-            "freeze_affected_work": ["decision_required"],
-        },
-    }
+        return review_view(load_repository_record(repository, f"{root}/{change_id}/change.toml"))
+    except (OSError, ValueError) as error:
+        raise DeviationError(f"current approval is unavailable: {error}") from error
 
 
 def _validate_resolution(repository: Path, state: DeviationState) -> None:
@@ -384,40 +323,14 @@ def _validate_resolution(repository: Path, state: DeviationState) -> None:
     }
     if target_required and not resolution.targets:
         raise DeviationError(f"resolution requires an authority target: {resolution.id}")
-    manifest_path = repository / "signetum.toml"
-    manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
-    root = changes_root(manifest) if manifest is not None else "changes"
-    decisions = manifest.repository.decisions if manifest is not None else "docs/decisions"
+    if resolution.resolution == ResolutionKind.DEFERRED:
+        raise DeviationError("historical deferral requires explicit current-change reconciliation")
     for raw_target in resolution.targets:
         target = PurePosixPath(raw_target)
         if target.is_absolute() or ".." in target.parts or str(target) in {"", "."}:
-            raise DeviationError(f"resolution target is not repository-relative: {raw_target}")
-        path = repository.resolve() / target
-        if not path.resolve().is_relative_to(repository.resolve()):
-            raise DeviationError(f"resolution target escapes the repository: {raw_target}")
-        if not path.is_file():
-            raise DeviationError(f"resolution target is absent or not a file: {raw_target}")
-        if resolution.resolution in {
-            ResolutionKind.DEFERRED,
-            ResolutionKind.RESOLVED_IN_SPECIFICATION,
-        }:
-            try:
-                validate_specification_authority(
-                    repository,
-                    target,
-                    root=root,
-                    decisions=decisions,
-                    approved=resolution.resolution == ResolutionKind.RESOLVED_IN_SPECIFICATION,
-                )
-            except (OSError, ValueError) as error:
-                raise DeviationError(f"invalid resolution specification: {error}") from error
-        if resolution.resolution == ResolutionKind.RESOLVED_IN_DECISION:
-            if not target.is_relative_to(PurePosixPath(decisions)):
-                raise DeviationError(
-                    f"decision resolution target is outside decisions: {raw_target}"
-                )
-            if load_decision(path, raw_target).status != DecisionStatus.ACCEPTED:
-                raise DeviationError(f"decision resolution target is not accepted: {raw_target}")
+            raise DeviationError(f"historical target is not repository-relative: {raw_target}")
+    # These are preserved historical claims, not new grants under current policy.
+    # Retired evidence remains named even when an approved change removed the file.
     if (
         state.discovered.classification == DeviationClass.DECISION_REQUIRED
         and resolution.implemented

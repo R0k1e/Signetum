@@ -7,6 +7,7 @@ their original release history. Git and accepted change records retain reasoning
 
 - Use manifest schema 3 with one `repository.changes` root; remove the separate
   template version and Specification/Plan bindings. Old active fields are refused.
+- Remove ineffective retry-window settings; the original failed run remains a failure.
 - Keep new development on one approved change record and source journal; retire
   historical workflow commands, qualification and duplicate teaching matrices.
 - Contain managed worktrees under the primary repository, retire removed

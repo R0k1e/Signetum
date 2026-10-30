@@ -49,7 +49,7 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `operation_cli`, `workflow_status` | Shared argument refusals and diagnostics; read-only workspace, change and recorded-evidence overview. |
 | `change_record`, `decision_clauses`, `decision_history`, `development_log`, `development_store` | Consolidated approval, targeted clause edits, significant source journals and their deterministic current decision projection. |
 | `contract_values`, `change.models`, `change.paths`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
-| `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and read-only historical ledger evidence. |
+| `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and read-only historical ledger evidence. |
 | `change.member`, `lifecycle_validation`, `provenance`, `execution_review`, `validation.review` | Member qualification, actual package Plans, exact validation and final review/receipt bindings through repository effect adapters. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
 | `impact`, `repository_selection`, `selection_contracts`, `selection_request`, `validation` | Explicit source-bound selection, dependency graphs and policy-bound execution identity. |

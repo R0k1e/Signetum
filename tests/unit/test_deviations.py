@@ -16,7 +16,6 @@ from signetum.deviations import (
     Discovered,
     ResolutionKind,
     Resolved,
-    approval_view,
     event_json,
     ledger_path,
     read_states,
@@ -129,33 +128,6 @@ def test_malformed_event_is_not_ignored(repository: Path) -> None:
 
     with pytest.raises(DeviationError, match="invalid deviation event at line 1"):
         read_states(repository, "example")
-
-
-def test_approval_view_projects_approved_change(repository: Path) -> None:
-    change = repository / "changes" / "example"
-    (change / "specs").mkdir(parents=True)
-    (change / "review.toml").write_text(
-        """[review]
-[[review.clauses]]
-id = "REQ-001"
-statement = "The user receives one review."
-disposition = "covered"
-""",
-        encoding="utf-8",
-    )
-    (change / "specs" / "example.toml").write_text(
-        """[specification]
-status = "approved"
-implementation_authorized = true
-acceptance = ["The review names the delivered behavior."]
-""",
-        encoding="utf-8",
-    )
-
-    projected = approval_view(repository, "example")
-
-    assert projected["outcomes"] == ["The user receives one review."]
-    assert projected["acceptance"] == ["The review names the delivered behavior."]
 
 
 def test_unbound_legacy_discovery_is_not_silently_excluded(repository):

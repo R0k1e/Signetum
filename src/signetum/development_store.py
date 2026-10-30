@@ -96,8 +96,8 @@ def _validate_payload(
     for retirement in transaction.retirements:
         if retirements.get(retirement.id) != retirement:
             raise ValueError("evidence retirement differs from its exact approved proposal")
-    _, decision_root = authority_roots(repository, commit=commit, historical=True)
     for decision in transaction.decisions:
+        _, decision_root = authority_roots(repository, commit=commit, historical=True)
         if approved.get(decision.id) != decision:
             raise ValueError("decision transaction differs from its exact approved proposal")
         change_root, _ = authority_roots(repository, commit=commit, historical=True)
