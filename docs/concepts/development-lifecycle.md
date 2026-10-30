@@ -10,7 +10,7 @@ unrecorded requirement or silently redefine requested behavior.
 | Current decision view | Effective topic context and clause choices derived from accepted history | Independent handwritten authority |
 | Member receipt | Validation of one exact member commit | Batch integration, delivery, or human acceptance |
 | Final receipt | Complete validation of one exact frozen batch tip | Permission to deliver |
-| Delivery result | Members, Plans, batch identity, target identity, remote confirmation, cleanup | Human acceptance |
+| Delivery result | Members, execution owners, batch identity, target identity, remote confirmation, cleanup | Human acceptance |
 | Architecture | How the currently delivered system works | Pending behavior or historical rationale |
 
 ## Requirement coverage
