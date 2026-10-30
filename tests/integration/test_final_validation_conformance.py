@@ -61,6 +61,12 @@ def test_final_reviews_first_delivered_change_and_lists_historical_plan_edit(
     repository, final_runtime
 ):
     _, batch, _ = assembled(repository, historical=True)
+    archive = batch / "changes/archived-yaml"
+    (archive / "plans").mkdir(parents=True)
+    (archive / "review.yaml").write_text("review:\n  status: historical\n")
+    (archive / "plans/original.md").write_text("# Retained original rationale\n")
+    git_output(batch, "add", ".")
+    git_output(batch, "commit", "-m", "retain raw historical documents")
     result = final_runtime.validate(batch, "final")
     review = result["delivery_review"]
     assert [item["change_id"] for item in review["approvals"]] == ["current"]
