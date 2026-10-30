@@ -118,7 +118,9 @@ Raw `history` remains readable in that case, and the refused status view
 reports the history identity needed by the repair request.
 
 Evidence retirement requires an exact proposal in the approved contract and
-committed deletion of those targets since the registered base. It retains the
+committed deletion of those targets, which must exist at the registered base
+or the original resolution source. Evidence introduced and retired within one
+change follows the same exact approved retirement path. It retains the
 original resolution, its outcome, other evidence and the retiring contract's
 provenance; it does not claim a new implementation of the old finding.
 Mutation output contains the affected observations and decision identities,
