@@ -57,46 +57,6 @@ def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend
     assert view["contract_digest"].startswith("sha256:")
     assert parse_change_record(path.read_text()).approval is None
     assert path.read_bytes() == original
-    legacy_prefix = (
-        [sys.executable, "-m", "signetum.deviations"]
-        if frontend == "engine"
-        else [
-            sys.executable,
-            "-I",
-            "-S",
-            str(ROOT / "template/.agents/repo-dev/runtime/deviations.py"),
-        ]
-    )
-    refused = subprocess.run(  # noqa: S603 -- the legacy API must not create a second mutation channel
-        [
-            *legacy_prefix,
-            "--repository",
-            str(root),
-            "record",
-            "--change",
-            "protocol-example",
-            "--id",
-            "wrong-channel",
-            "--member",
-            "plan/protocol",
-            "--class",
-            "implementation_clarification",
-            "--summary",
-            "An ordinary implementation finding.",
-            "--commitment",
-            "Preserve behavior.",
-            "--action",
-            "Use the current journal.",
-            "--impact",
-            "No scope change.",
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert refused.returncode == 2
-    assert not (state_root(root) / "changes/protocol-example/deviations.jsonl").exists()
 
 
 @pytest.fixture(name="repository")

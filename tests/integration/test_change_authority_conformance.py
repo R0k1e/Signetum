@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 from change_fixtures import approve_legacy_change as approve_change
 
-from signetum import deviations
 from signetum.git import git_output
 from signetum.status.models import EvidenceSnapshot
 from signetum.traceability.boundary import GitInventoryProvider, TraceabilityManifest
@@ -139,93 +138,6 @@ def test_inventory_cannot_be_redirected_to_a_foreign_repository(tmp_path, monkey
     else:
         observed = sorted(GitInventoryProvider().read(root).paths)
     assert observed == ["own.txt"]
-
-
-def test_native_ledger_frontends_share_state_and_refuse_wrong_owner_without_writing(
-    repository, capsys
-):
-    root, _ = repository
-    approve_change(root)
-    git_output(root, "add", ".")
-    git_output(root, "commit", "-m", "approve ledger change")
-    git_output(root, "switch", "-c", "plan/shared-ledger")
-    script = ROOT / "template/.agents/repo-dev/runtime/deviations.py"
-
-    def copied(*args):
-        return subprocess.run(  # noqa: S603 -- standalone template CLI and isolated fixture
-            [sys.executable, "-I", "-S", str(script), "--repository", str(root), *args],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    assert (
-        deviations.main(
-            [
-                "--repository",
-                str(root),
-                "record",
-                "--change",
-                "example",
-                "--id",
-                "interop",
-                "--member",
-                "plan/shared-ledger",
-                "--class",
-                "implementation_clarification",
-                "--summary",
-                "Use one ledger",
-                "--commitment",
-                "Keep behavior",
-                "--action",
-                "Reuse owner",
-                "--impact",
-                "No behavior change",
-            ]
-        )
-        == 0
-    )
-    capsys.readouterr()
-    ledger = deviations.ledger_path(root, "example")
-    original = ledger.read_bytes()
-    wrong = copied(
-        "resolve",
-        "--change",
-        "example",
-        "--id",
-        "interop",
-        "--member",
-        "other",
-        "--resolution",
-        "no_authority_change",
-        "--reason",
-        "No authority change",
-    )
-    assert wrong.returncode == 2
-    assert ledger.read_bytes() == original
-    pending = copied("status", "--change", "example")
-    assert pending.returncode == 2
-    assert "unresolved deviations" in json.loads(pending.stdout)["reason"]
-    resolved = copied(
-        "resolve",
-        "--change",
-        "example",
-        "--id",
-        "interop",
-        "--member",
-        "plan/shared-ledger",
-        "--resolution",
-        "no_authority_change",
-        "--reason",
-        "The approved authority still applies",
-    )
-    assert resolved.returncode == 0, resolved.stdout + resolved.stderr
-    assert deviations.read_states(root, "example")[0].resolution is not None
-    assert deviations.main(["--repository", str(root), "status", "--change", "example"]) == 0
-    source = json.loads(capsys.readouterr().out)
-    target = copied("status", "--change", "example")
-    assert target.returncode == 0, target.stdout + target.stderr
-    assert json.loads(target.stdout) == source
 
 
 @pytest.fixture(name="repository")

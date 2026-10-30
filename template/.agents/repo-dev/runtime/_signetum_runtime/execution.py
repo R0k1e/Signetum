@@ -213,7 +213,7 @@ def _execute_shards(
             unproven.add(name)
             failures.append(f"{name}: skipped after {', '.join(blocked)}")
             continue
-        if shard.evidence == "tree" and shard.digest in proven:
+        if executed is not None and shard.evidence == "tree" and shard.digest in proven:
             continue
         names.append(name)
         try:
