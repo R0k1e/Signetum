@@ -412,7 +412,7 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     _require_clean(batch)
     batch_branch = _branch(batch)
     record = read_record(_state_root(batch), batch_branch)
-    if record.kind != "batch" or batch_branch == delivery_policy(batch).branch:
+    if record.kind != "batch":
         raise AdmissionError(f"refusing batch admission outside a batch workspace: {batch_branch}")
     admitted: list[dict[str, object]] = []
     unchanged: list[dict[str, str]] = []
@@ -489,6 +489,8 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             }
         )
 
+    if batch_branch == delivery_policy(batch).branch:
+        raise AdmissionError("batch source declares its own branch as the delivery target")
     try:
         preparation = worktree_prepare(batch)
     except InfrastructureError as error:
