@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import shlex
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -243,8 +244,12 @@ def removal_reason(
 ) -> str | None:
     """One eligibility predicate for cleanup and delivery's residue removal."""
 
-    if workspace.path.resolve() in protected:
+    path = workspace.path.resolve()
+    if path in protected:
         return "protected"
+    runtime_paths = (Path.cwd(), Path(__file__), Path(sys.executable), Path(sys.prefix))
+    if any(location.absolute().is_relative_to(path) for location in runtime_paths):
+        return "active_runtime"
     if _has_git_operation(workspace.path):
         return "git_operation"
     head = git_output(workspace.path, "rev-parse", "HEAD")
