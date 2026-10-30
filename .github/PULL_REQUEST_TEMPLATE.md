@@ -4,9 +4,8 @@ Describe the durable observable outcome.
 
 ## Governed change
 
-- Review:
-- Specification:
-- Plan:
+- Change record:
+- Approved outcomes and scope:
 - Approved base:
 
 ## Behavior evidence

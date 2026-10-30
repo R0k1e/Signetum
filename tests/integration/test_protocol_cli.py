@@ -123,8 +123,8 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
     manifest.write_text(
         manifest.read_text().replace(
             'name = "test:check"\ncommand = ["true"]',
-            'name = "test:check"\nworkers = 8\nworker_memory_mb = 1\ncommand = '
-            + json.dumps(command),
+            'name = "test:check"\nrequires = ["test:prepare"]\n'
+            "workers = 8\nworker_memory_mb = 1\ncommand = " + json.dumps(command),
         )
     )
     (root / "uncommitted-user-work").write_text("preserved")
@@ -175,6 +175,23 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
         allocation = outcome["details"]["resource_allocation"]
         assert allocation["workers"] == allocation["enclosing_worker_limit"] == 1
 
+    assert not (state / "attempts").exists(), "single-shard diagnostics do not prepare"
+    gated = subprocess.run(  # noqa: S603 -- same public diagnostic, declared dependency graph
+        [*prefix, "test", "--repository", str(root), "--gate", "member"],
+        env=dict(
+            os.environ, SIGNETUM_VALIDATION_WORKERS="4", PYTEST_XDIST_WORKER="enclosing-worker"
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert gated.returncode == (3 if fails else 0), gated.stdout + gated.stderr
+    assert json.loads(gated.stdout)["status"] == ("failed" if fails else "passed")
+    assert json.loads(observed.read_text()) == {"workers": "1", "arguments": []}
+    assert (state / "attempts").read_text() == "1"
+    assert git_output(root, "status", "--porcelain") == before
+    assert not list((state_root(root) / "validation").glob("*.json"))
+
 
 @pytest.mark.parametrize("damage", ["unknown-shard", "ratchet"])
 def test_diagnostic_refuses_unsupported_execution_before_launch(local_repository, damage):
@@ -188,6 +205,14 @@ def test_diagnostic_refuses_unsupported_execution_before_launch(local_repository
             )
         )
     assert diagnostic_main(["--repository", str(root), "--shard", shard]) == 2
+    for options in (
+        ["--gate", "missing"],
+        ["--gate", "member", "--", "--literal"],
+        ["--gate", "member", "--shard", "test:check"],
+    ):
+        assert diagnostic_main(["--repository", str(root), *options]) == 2
+    if damage == "ratchet":
+        assert diagnostic_main(["--repository", str(root), "--gate", "member"]) == 0
     assert not list((state_root(root) / "validation").glob("*.json"))
     assert not (state / "attempts").exists()
 

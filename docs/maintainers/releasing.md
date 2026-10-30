@@ -1,43 +1,63 @@
 # Release Signetum
 
-The product source is `main`, declared by `delivery.branch` in repository policy.
-The package bundles the same `skills/signetum` folder users install through their
-agent. Skill, package and schema versions may differ; release metadata binds their
-actual identities to one exact delivered source through metadata schema v2.
-Only the current metadata schema is shipped and supported. Internal scaffolding has no
-independent public release. Historical tags and artifacts remain immutable.
+`main` is the product source declared by repository delivery policy. One tag
+identifies the standard Skill, package and schemas. Component versions may differ;
+release metadata binds their actual versions and digests to the exact source.
+Only the current metadata format is supported. Internal scaffolding has no
+independent release. Never move a published tag or replace its artifacts.
 
-## Prepare the exact source
+## Prepare
 
-Deliver the reviewed change through the normal batch protocol. Confirm ordinary
-CI passed for that exact source, versions and `CHANGELOG.md` describe the intended
-release, and PyPI trusted publishing and repository metadata are configured.
-Readiness or preflight alone never authorizes publication.
+Use the toolchain in `mise.toml` and the setup in [Contributing](../../CONTRIBUTING.md).
+The complete native acceptance suite needs Node/npm and Rust/Cargo as well as
+Git, Python, uv and Mise/Worktrunk. These are repository development dependencies,
+not additional application-language requirements for Skill users.
 
-From a clean checkout with the locked environment:
+Before delivery, update the package version and release notes, regenerate the
+portable runtime and complete the normal batch final review. The release version
+must agree with `pyproject.toml`; choose an unused `v<version>` tag. Historical
+RepoSeal tags remain unchanged. The 5.0.0 entry is a candidate until published.
 
-```sh
-uv sync --locked --all-extras --dev
-SOURCE_BRANCH="$(uv run python -c 'from pathlib import Path; from signetum.policy import delivery_policy; print(delivery_policy(Path.cwd()).branch)')"
-git fetch --no-tags origin "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
-uv run signetum release preflight --source "$(git rev-parse HEAD)"
-```
+Deliver the reviewed source explicitly. Require successful CI for that exact
+commit and verify the public Skill path and Pages deployment. CI and release
+share one reusable validation workflow and the declared final gate, including
+native acceptance and dependency audit. All Linux/macOS targets must pass and
+combined project coverage must reach 90%; a partial host report is not a verdict. Hosted diagnostics issue no lifecycle receipt
+and do not grant publication permission. Failure output is retained for seven
+days; inspect the complete artifact when the bounded terminal preview is not enough.
 
-The same preflight runs in release CI and additionally checks `--tag`. It verifies
-source eligibility and component identity; it does not substitute for final,
-CI or publication approval and reads no machine-local final receipt.
+## Distribution and optional PyPI setup
 
-## Publish when explicitly authorized
+The primary route is the standard `skills/signetum` folder at an exact GitHub tag
+plus wheel/sdist in that tag's GitHub Release. The Skill guides fixed-version
+tool acquisition and reviewed local adoption. No PyPI account is needed for this
+route, and consumers need not clone the upstream repository for daily work.
 
-The maintainer names exact source and version. Create an annotated `v<version>`
-tag for that source and push only that tag. The workflow checks out the triggering
-commit, fetches the policy-declared source branch, preflights, builds and runs the
-declared checks, then publishes exact wheel/sdist and GitHub Release artifacts.
-Source/component metadata and checksums accompany the artifacts. Never move a
-published tag, reuse another source's build or skip failed authentication.
+PyPI is opt-in through repository variable `PUBLISH_PYPI=true`. Before enabling
+it, register the `signetum` project or pending trusted publisher on PyPI for
+owner `R0k1e`, repository `Signetum`, workflow `release.yml`, without an environment
+binding. Verify account ownership and publisher settings there; repository source
+cannot prove that configuration. Keep the variable unset for GitHub-only releases.
+Never bypass authentication or silently switch package names or indexes.
 
-Verify downloaded hashes, tag/source and package-index identity. Install the
-standard Skill and fixed-version setup tool in an isolated project, adopt it and
-complete a real change through ready. No template promotion or separate Skill
-release pipeline is needed. Source delivery, site deployment and package
-publication remain distinct authorized actions.
+## Publish and verify
+
+Obtain explicit authorization naming the exact delivered source and version.
+Create an annotated tag for that commit and push only that tag. The release
+workflow checks out the triggering commit, prepares declared tools, verifies
+policy-bound source/tag eligibility and runs the complete diagnostic gate. After all targets and coverage pass, a separate publishing job verifies the
+primary target's artifact checksums and publishes its wheel/sdist, source/component
+metadata and `SHA256SUMS`
+to GitHub, with optional PyPI publication of the same package files.
+
+Download the public artifacts and verify checksums, tag/source and component
+identities. Install the standard Skill from that tag and the exact wheel in an
+isolated environment. Complete reviewed adoption and a small authorized change
+through ready in both a new project and an existing repository; preserve its
+application metadata and runner. If PyPI was enabled, also check index identity.
+Do not claim public installation from a local build or a successful preflight.
+
+If publication stops partway, inspect existing tag and artifact identities before
+retrying. Do not rerun a successful publication or rebuild under the same released
+version. Complete only the missing authorized destination using the verified
+artifacts, or prepare a new version when their identity cannot be established.

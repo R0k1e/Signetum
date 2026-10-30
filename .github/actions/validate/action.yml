@@ -1,0 +1,65 @@
+name: Validate declared checks
+description: Prepare the toolchain and execute the repository's complete diagnostic gate.
+inputs:
+  python:
+    description: Host Python version under validation
+    required: true
+  release-tag:
+    description: Optional release tag requiring delivered-source preflight
+    default: ""
+  coverage-fragment:
+    description: Emit partial platform coverage; the calling workflow must aggregate all targets
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      with:
+        version: "2026.8.2"
+    - shell: bash
+      env:
+        UV_PYTHON: ${{ inputs.python }}
+      run: |
+        uv python install "$UV_PYTHON"
+        uv sync --locked --all-extras --dev
+    - name: Verify the delivered release source
+      if: inputs.release-tag != ''
+      shell: bash
+      env:
+        UV_PYTHON: ${{ inputs.python }}
+        RELEASE_SOURCE: ${{ github.sha }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+      run: |
+        SOURCE_BRANCH="$(uv run --no-sync python -c 'from pathlib import Path; from signetum.policy import delivery_policy; print(delivery_policy(Path.cwd()).branch)')"
+        git fetch --no-tags origin "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
+        uv run --no-sync signetum release preflight --source "$RELEASE_SOURCE" --tag "$RELEASE_TAG" > "$RUNNER_TEMP/signetum-release-source.json"
+    - name: Validate the declared complete gate
+      shell: bash
+      env:
+        UV_PYTHON: ${{ inputs.python }}
+        HYPOTHESIS_PROFILE: ci
+        PYTEST_ADDOPTS: ${{ inputs.coverage-fragment == 'true' && '--cov-fail-under=0' || '' }}
+      run: |
+        set +e
+        uv run --no-sync signetum protocol test --gate final > "$RUNNER_TEMP/signetum-validation.log" 2>&1
+        status=$?
+        set -e
+        if [ "$status" -ne 0 ]; then
+          echo "Validation failed; full output is retained in the diagnostic artifact."
+          wc -c "$RUNNER_TEMP/signetum-validation.log"
+          head -c 8000 "$RUNNER_TEMP/signetum-validation.log"
+          printf '\n...\n'
+          tail -c 8000 "$RUNNER_TEMP/signetum-validation.log"
+        else
+          tail -n 1 "$RUNNER_TEMP/signetum-validation.log"
+        fi
+        exit "$status"
+    - name: Retain failed validation output
+      if: failure()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: validation-${{ runner.os }}-python-${{ inputs.python }}-${{ github.sha }}
+        path: ${{ runner.temp }}/signetum-validation.log
+        retention-days: 7
+        compression-level: 9
+        if-no-files-found: ignore

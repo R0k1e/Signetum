@@ -94,7 +94,21 @@ def test_render_refuses_invalid_source_and_existing_destination(tmp_path: Path) 
 
 
 @pytest.mark.parametrize("gate", ["member", pytest.param("final", marks=pytest.mark.world)])
-def test_rendered_template_runs_without_the_engine_package(tmp_path: Path, gate: str) -> None:
+def test_rendered_template_runs_without_the_engine_package(
+    tmp_path: Path, gate: str, monkeypatch
+) -> None:
+    # The consumer owns its tools and pytest configuration. Enclosing allocation
+    # and process-ownership markers still bound its nested work.
+    for name in (
+        "PYTEST_ADDOPTS",
+        "PYTEST_PLUGINS",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "VIRTUAL_ENV",
+        "UV_PYTHON",
+        "UV_PROJECT_ENVIRONMENT",
+    ):
+        monkeypatch.delenv(name, raising=False)
     rendered = tmp_path / "repository"
     render_template(ROOT / "template", rendered)
     for command in (

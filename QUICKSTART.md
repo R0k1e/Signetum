@@ -2,8 +2,8 @@
 
 Install the standard [Signetum Skill](https://github.com/R0k1e/Signetum/tree/main/skills/signetum)
 with your coding agent's Skill installer, choosing an exact reviewed release tag
-or commit. The Skill is named `signetum`; an earlier `repo-dev` installation is
-replaced explicitly. Installation supplies instructions, not a project workflow.
+or commit. The Skill is named `signetum`. Installation supplies instructions,
+not a project workflow.
 
 ## Ask the agent to set up your project
 

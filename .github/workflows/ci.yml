@@ -4,80 +4,12 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    # Mutable advisory state changes without any repository change, so audit it
-    # on a clock as well as on a diff.
     - cron: "17 3 * * *"
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12", "3.13"]
-    env:
-      UV_PYTHON: ${{ matrix.python-version }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          install: false
-      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
-        with:
-          version: "0.8.15"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-      - run: uv python install "${{ matrix.python-version }}"
-      - run: uv sync --locked --all-extras --dev
-      - run: uv build
-      - run: uv run --no-sync signetum protocol test --shard engine:pytest
-        env:
-          HYPOTHESIS_PROFILE: ci
-      - run: uv run --no-sync signetum protocol test --shard engine:world-tests
-        env:
-          HYPOTHESIS_PROFILE: ci
-  static:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          install: false
-      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
-        with:
-          version: "0.8.15"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-      - run: uv python install 3.12
-      - run: uv sync --locked --all-extras --dev
-      - run: uv run --no-sync ruff check .
-      - run: uv run --no-sync ruff format --check .
-      - run: uv run --no-sync ty check
-      - run: uv run --no-sync pre-commit run typos --all-files
-      - run: uv run --no-sync signetum check product-surface --repository .
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          install: false
-      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6.7.0
-        with:
-          version: "0.8.15"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-      - run: uv python install 3.12
-      - run: uv sync --locked --all-extras --dev
-      - run: uv run --no-sync pip-audit
-      - run: uv run --no-sync bandit -r src
+  validate:
+    uses: ./.github/workflows/validate.yml

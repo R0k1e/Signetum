@@ -1,6 +1,6 @@
 # Public content identities generated from installed engine sources.
 schema_version = 1
-engine_version = "3.0.0"
+engine_version = "5.0.0"
 
 [sources]
 "signetum.change.authority" = "sha256:e2fcc2ec9635f3e8f85362369dc655e970ada9f32a481fae45fb26b2b47fe725" # pragma: allowlist secret
@@ -49,7 +49,7 @@ engine_version = "3.0.0"
 "signetum.status.models" = "sha256:384d7fd6df3c374a28e614700097430634afd58883af43c04fb92f00b7c0f8c3" # pragma: allowlist secret
 "signetum.status.projector" = "sha256:488febe09bab6d01e80be11df2f439907f74ae312437f1c10be727045ff8b403" # pragma: allowlist secret
 "signetum.synchronization" = "sha256:dcc5df15623282aa369d8ebcf293b3b996db655381c70be28b6e29f669a04038" # pragma: allowlist secret
-"signetum.test_diagnostic" = "sha256:d784a26efb2d2695d08f9ab592948ce9f0066337d996b8a46c05cb5d6010aac0" # pragma: allowlist secret
+"signetum.test_diagnostic" = "sha256:9a156afe5401dde42faa42b584e651d865e36ec43efac3e07d4ce584abeb65b0" # pragma: allowlist secret
 "signetum.test_scheduling" = "sha256:7f3befbb758e3d3792d67092201b444ef30cd07f2515df803d22f4179dbb35be" # pragma: allowlist secret
 "signetum.traceability.boundary" = "sha256:82dcbe8ed36a42573dd24ea21ae806ee07e4de98ed2ee69e3fefc6e19a023184" # pragma: allowlist secret
 "signetum.traceability.cli" = "sha256:b5f85c0d245a8dd0dce05c11ed4d9902f0379f1a210a8b5c0c4177dbb8af177f" # pragma: allowlist secret
@@ -146,7 +146,7 @@ engine_version = "3.0.0"
 "status_models.py" = "sha256:540c329d0e1809fe32aadcb0ad7fd8233eead0a6f28173c5d64a1e5263d717ef" # pragma: allowlist secret
 "status_projector.py" = "sha256:758778020e881850ef09d029dfd08256adbcf720533c19d880a84addb2c67046" # pragma: allowlist secret
 "synchronization.py" = "sha256:68a0cb155fba753ac699fe1436de3da74adc825b07dba7f845eaa23f24806bbf" # pragma: allowlist secret
-"test_diagnostic.py" = "sha256:e660bc0c423a28eaf982b753b7c87666e7b56f2df8ae50cb8e34e37534db6133" # pragma: allowlist secret
+"test_diagnostic.py" = "sha256:78f03fc0755118a75d69064b0e1f4fe074bfe3765bcbe61066c4614115b5269c" # pragma: allowlist secret
 "test_scheduling.py" = "sha256:60a21a967b6d9d512a4d730ef8024378d6cb5b6ff77b71e7357e87f4b1a706d6" # pragma: allowlist secret
 "traceability_boundary.py" = "sha256:00d9562c38eada5fe6e868a7e619e9fbab2a8548845580ea26b5fd3e1931c15f" # pragma: allowlist secret
 "traceability_cli.py" = "sha256:15965c09fbecbe07b6c6eb1f5f0ae1a943e759ef06569502df961354c49ff8df" # pragma: allowlist secret

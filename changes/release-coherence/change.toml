@@ -1,0 +1,49 @@
+[change]
+schema_version = 1
+id = "release-coherence"
+[change.source]
+kind = "human_direction"
+summary = "Iterate the repository until coherent, clear, concise and releasable, addressing the reviewed workflow, dependency, documentation and distribution gaps."
+[change.contract]
+version = 1
+approved_base = "93a9ccb2e0497327d7c9baf47bece2c730a23e4b"
+[[change.contract.requirements]]
+id = "REL-001"
+outcome = "Hosted and local validation use one declared check graph."
+acceptance = ["Extend the existing diagnostic command with mutually exclusive shard or gate selection; gate execution uses strict declared dependency order, rejects native argument forwarding, requires no workspace or approval, propagates failures and emits no readiness receipt. CI and release invoke that owner with the final gate."]
+[[change.contract.requirements]]
+id = "REL-002"
+outcome = "Release prerequisites, identity and diagnostics are explicit."
+acceptance = ["CI and release share one tool preparation and validation action, declare the native Node/Rust acceptance dependencies, retain failed check output as an ordinary bounded-retention artifact, and keep publication separately authorized. Prepare unused version 5.0.0, current package metadata and release notes; build and inspect the exact wheel and sdist."]
+[[change.contract.requirements]]
+id = "REL-003"
+outcome = "Maintained documentation describes one current workflow."
+acceptance = ["Correct contribution, parallel delivery, security and architecture descriptions; remove the obsolete public upgrade guide and old Skill replacement instructions; document actual prerequisites and release steps once, link their owners, preserve significant history and avoid a new review/report document."]
+[[change.contract.requirements]]
+id = "REL-004"
+outcome = "Prove the current product path and prepare exact delivery."
+acceptance = ["Extend existing public diagnostic behavior tests rather than duplicate lifecycle matrices; validate installed Skill and new/existing project cold starts, complete required member/final checks, and inspect hosted validation when an authorized review branch is available. Report any external publication configuration that cannot be proven without account authority, and present generated review before delivery."]
+[change.contract.autonomy]
+allowed = ["Implement and verify the reviewed coherence fixes, prepare environment and build artifacts, and prepare reviewable delivery. A candidate branch may run read-only hosted validation; it cannot publish a package or mutate main."]
+requires_confirmation = ["Deliver to main, create or push a release tag, publish packages, change publishing account configuration, or modify Perdura."]
+[[change.contract.excluded]]
+statement = "Perdura adoption, RAM volumes, background deletion, legacy format compatibility and a new diagnostic/report subsystem."
+reason = "Keep the release focused on the current supported product and existing execution owners."
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = ["REL-001", "REL-002"]
+action = "Extend existing gate execution and diagnostic traversals; share hosted setup and use declared checks with retained failure output."
+[[change.execution.steps]]
+id = "STEP-2"
+requirements = ["REL-002", "REL-003"]
+action = "Prepare release identity and metadata; reconcile current user, maintainer, Skill and architecture instructions at their existing owners."
+[[change.execution.steps]]
+id = "STEP-3"
+requirements = ["REL-004"]
+action = "Regenerate and inspect artifacts, run meaningful affected checks and cold starts, resolve discoveries and complete member/batch review."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-30
+source = "The owner set the goal: iterate the current repository until consistent, clear, concise and releasable, following the preceding concrete audit. This authorizes the scoped implementation; delivery and publication remain separately confirmed."
+contract_digest = "sha256:4696f32d07f40d22aa1c22c1560eb89dbc5f949265aae849887562a638060f8a"
