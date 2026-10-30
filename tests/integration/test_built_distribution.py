@@ -37,7 +37,6 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
     assert "signetum/resources/schemas/validation-graph-v2.schema.json" in names
     assert "signetum/resources/schemas/validation-evidence-v3.schema.json" in names
     assert "signetum/resources/schemas/contracts/release-metadata.schema.json" in names
-    assert "signetum/resources/schemas/contracts/release-metadata-v2.schema.json" in names
     assert "signetum/resources/skills/signetum/SKILL.md" in names
     assert "signetum/resources/vectors/validation-evidence-v3.json" in names
     # Absence is the contract here, so each value is bound to the reason it

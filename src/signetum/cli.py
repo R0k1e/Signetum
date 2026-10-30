@@ -22,7 +22,6 @@ from signetum.release import preflight
 from signetum.serialization import json_value
 from signetum.site import build_site
 from signetum.status.models import EvidenceSnapshot
-from signetum.template import render_template, validate_template
 from signetum.traceability.boundary import GitInventoryProvider, TraceabilityManifest
 from signetum.traceability.cli import query
 
@@ -31,8 +30,6 @@ check_app = typer.Typer(add_completion=False, help="Run read-only repository che
 app.add_typer(check_app, name="check")
 release_app = typer.Typer(add_completion=False, help="Verify immutable release candidates.")
 app.add_typer(release_app, name="release")
-template_app = typer.Typer(add_completion=False, help="Maintain internal scaffold material.")
-app.add_typer(template_app, name="template", hidden=True)
 site_app = typer.Typer(add_completion=False, help="Build the engine-owned product site.")
 app.add_typer(site_app, name="site")
 findings_app = typer.Typer(
@@ -93,33 +90,6 @@ def protocol(ctx: typer.Context) -> None:
 def adopt(ctx: typer.Context) -> None:
     """Inspect, preview or explicitly apply local repository adoption."""
     raise typer.Exit(code=adoption_main(list(ctx.args)))
-
-
-@template_app.command("check")
-def template_check(
-    source: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("template"),
-) -> None:
-    """Validate the internal scaffold inventory."""
-    report = validate_template(source)
-    typer.echo(
-        json.dumps({"files": report.files, "problems": report.problems, "valid": report.valid})
-    )
-    if not report.valid:
-        raise typer.Exit(code=3)
-
-
-@template_app.command("render")
-def template_render(
-    source: Annotated[Path, typer.Option(exists=True, file_okay=False)],
-    destination: Annotated[Path, typer.Option()],
-) -> None:
-    """Render a checked Template into a new empty destination."""
-    try:
-        report = render_template(source, destination)
-    except ValueError as error:
-        typer.echo(json.dumps({"error": str(error), "valid": False}, sort_keys=True))
-        raise typer.Exit(code=3) from error
-    typer.echo(json.dumps({"files": report.files, "valid": True}, sort_keys=True))
 
 
 @findings_app.command("pip-audit")

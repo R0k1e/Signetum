@@ -13,7 +13,7 @@ from signetum.release import ReleaseError, build_metadata, preflight
 @pytest.fixture
 def components(tmp_path):
     (tmp_path / "schemas").mkdir()
-    (tmp_path / "schemas/release-metadata-v2.schema.json").write_text(
+    (tmp_path / "schemas/release-metadata.schema.json").write_text(
         '{"properties":{"schema_version":{"const":2}}}'
     )
     (tmp_path / "pyproject.toml").write_text(
@@ -33,7 +33,7 @@ def components(tmp_path):
 
 def test_release_metadata_binds_versions_and_complete_skill(components):
     source = Path(__file__).resolve().parents[3]
-    schema = json.loads((source / "schemas/release-metadata-v2.schema.json").read_text())
+    schema = json.loads((source / "schemas/release-metadata.schema.json").read_text())
     validate(build_metadata(source, "source-commit").model_dump(mode="json"), schema)
     duplicated = build_metadata(source, "source-commit").model_dump(mode="json")
     duplicated["components"] = [duplicated["components"][0]] * 3
@@ -61,7 +61,7 @@ def test_component_refusals_need_no_repository(components, damage):
     elif damage == "skill-symlink":
         (components / "skills/signetum/linked").symlink_to("SKILL.md")
     else:
-        (components / "schemas/release-metadata-v2.schema.json").write_text("{}")
+        (components / "schemas/release-metadata.schema.json").write_text("{}")
     with pytest.raises(ReleaseError):
         build_metadata(components, "source-commit")
 

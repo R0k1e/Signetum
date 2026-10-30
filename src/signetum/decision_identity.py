@@ -36,7 +36,7 @@ def numbered_targets(repository: Path, base: str, tip: str, directory: str) -> d
                     or ".." in old.parts
                     or old.is_absolute()
                     or numbered is None
-                    or old.name not in {f"ADP-{numbered[1]}.md", f"ADP-proposal-{numbered[1]}.md"}
+                    or old.name != f"ADP-proposal-{numbered[1]}.md"
                     or str(old) in moves
                 ):
                     raise ValueError("invalid or repeated numbering identity")

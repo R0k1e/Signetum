@@ -8,9 +8,7 @@ from urllib.parse import quote
 
 import pytest
 from change_fixtures import approve_change, commit_approval
-from typer.testing import CliRunner
 
-from signetum.cli import app
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.git import git_output
 from signetum.manifest import load_manifest
@@ -93,27 +91,6 @@ def test_render_refuses_invalid_source_and_existing_destination(tmp_path: Path) 
     destination.mkdir()
     with pytest.raises(ValueError, match="destination already exists"):
         render_template(ROOT / "template", destination)
-
-
-def test_template_cli_checks_and_renders(tmp_path: Path) -> None:
-    runner = CliRunner()
-    checked = runner.invoke(app, ["template", "check", "--source", str(ROOT / "template")])
-    rendered = runner.invoke(
-        app,
-        [
-            "template",
-            "render",
-            "--source",
-            str(ROOT / "template"),
-            "--destination",
-            str(tmp_path / "rendered"),
-        ],
-    )
-
-    assert checked.exit_code == 0
-    assert rendered.exit_code == 0
-    assert '"valid": true' in checked.stdout
-    assert (tmp_path / "rendered" / "README.zh-CN.md").is_file()
 
 
 @pytest.mark.parametrize("gate", ["member", pytest.param("final", marks=pytest.mark.world)])

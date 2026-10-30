@@ -23,7 +23,7 @@ from signetum.operations import AdmissionError
 )
 def test_invalid_numbering_provenance_is_refused(repository, case):
     root, _ = repository
-    old = "docs/decisions/ADP-new.md"
+    old = "docs/decisions/ADP-proposal-new.md"
     new = "docs/decisions/ADP-0001-new.md"
     (root / old).parent.mkdir(parents=True)
     (root / old).write_text("# New\nStatus: Accepted\n")
@@ -40,7 +40,7 @@ def test_invalid_numbering_provenance_is_refused(repository, case):
     elif case == "different_slug":
         entry = json.dumps([old, "docs/decisions/ADP-0001-other.md"])
     elif case == "outside":
-        entry = json.dumps(["../ADP-new.md", "../ADP-0001-new.md"])
+        entry = json.dumps(["../ADP-proposal-new.md", "../ADP-0001-new.md"])
     declared = "f" * 40 if case == "wrong_base" else base
     body = f"Signetum-Decision-Base: {declared}\nSignetum-Decision-Rename: {entry}"
     if case == "repeated":
