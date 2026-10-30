@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-30T09:49:52.904202+00:00",
+  "title": "Design System: Signetum",
+  "extensions": {
+    "motion": [
+      {
+        "name": "control-state",
+        "value": "background-color 180ms ease-out",
+        "purpose": "Primary control feedback; disabled for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrative-stack",
+        "value": "800px"
+      },
+      {
+        "name": "proof-rows",
+        "value": "540px"
+      }
+    ],
+    "typographyMeta": {
+      "display": {
+        "displayName": "Proof specimen",
+        "purpose": "Self-hosted Instrument Serif; native serif fallback for Chinese."
+      }
+    }
+  }
+}

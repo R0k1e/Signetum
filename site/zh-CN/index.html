@@ -1,30 +1,50 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Signetum — 让每次变更都有证据</title>
-  <meta name="description" content="可靠的 agentic 开发与交付协议：一个标准 Skill，加一组仓库拥有的本地命令。">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Signetum — 可靠的 agentic 开发与交付</title>
+  <meta name="description" content="一个标准 Skill，连接开发决策、行为验证与精确交付。保留现有应用工具，让每次变更都有可核验的依据。">
   <link rel="canonical" href="https://r0k1e.github.io/Signetum/zh-CN/">
   <link rel="alternate" hreflang="zh-CN" href="https://r0k1e.github.io/Signetum/zh-CN/">
   <link rel="alternate" hreflang="en" href="https://r0k1e.github.io/Signetum/">
-  <link rel="stylesheet" href="../styles.css"><link rel="icon" href="../assets/signetum-mark.png">
-  <meta property="og:type" content="website"><meta property="og:title" content="Signetum">
-  <meta property="og:description" content="让每次变更都有证据。">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="icon" type="image/svg+xml" href="../assets/signetum-mark.svg">
+  <link rel="preload" href="../fonts/InstrumentSerif-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Signetum">
+  <meta property="og:description" content="一个标准 Skill，连接开发决策、行为验证与精确交付。保留现有应用工具，让每次变更都有可核验的依据。">
   <meta property="og:url" content="https://r0k1e.github.io/Signetum/zh-CN/">
   <meta property="og:image" content="https://r0k1e.github.io/Signetum/assets/signetum-social-preview.png">
   <meta name="twitter:card" content="summary_large_image">
   <script type="application/ld+json">{"@context":"https://schema.org","@type": "SoftwareApplication","name":"Signetum","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","url":"https://r0k1e.github.io/Signetum/zh-CN/","codeRepository":"https://github.com/r0k1e/Signetum","license":"https://www.apache.org/licenses/LICENSE-2.0"}</script>
 </head>
-<body><div class="wrap">
-  <nav><a class="brand" href="./"><img src="../assets/signetum-mark.png" alt="">Signetum</a><a href="../" lang="en">English</a></nav>
-  <main>
-    <header class="hero"><div><h1>让每次变更都有证据。</h1><p class="lede">可靠的 agentic 开发与交付协议。一个标准 Skill 加本地命令，连接已批准的变更、当前决策、行为证据和显式交付。</p><div class="actions"><a class="button primary" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">获取 Skill</a><a class="button" href="https://github.com/r0k1e/Signetum/blob/main/docs/product/failure-demonstrations.md">运行失败演示</a></div></div><img class="seal" src="../assets/signetum-mark.png" alt="Signetum 海豹抱着已验证的仓库文件夹"></header>
-    <section><h2>它解决什么</h2><p class="intro">用少量、明确的仓库权威，让 Agent 工作从第一条诉求到最终验收都可审查。</p><div class="grid">
-      <article class="card"><strong>一份变更记录</strong>集中维护已记录的需求、验收、审批和执行步骤，由工具生成审阅视图。</article><article class="card"><strong>理解现有实现</strong>架构入口和策略路由要求 Agent 先查清已有权威再修改。</article><article class="card"><strong>当前决策</strong>从已接受的历史派生工作集，需要时再读取原始决策依据。</article><article class="card"><strong>Agent Team 并行</strong>计划拥有独立 worktree，batch 只组装明确点名的成员。</article><article class="card"><strong>交付可解释</strong>验证收据绑定精确提交，清楚说明每次交付包含什么。</article><article class="card"><strong>质量面向行为</strong>单元与集成测试保护可观察契约，而不是锁死内部实现。</article>
-    </div></section>
-    <section><h2>一条闭合链路</h2><p class="intro">人的确认保留在关键边界，其余步骤明确、可重复，并由仓库自身定义。</p><ol class="flow"><li>成员工作区</li><li>已批准的变更</li><li>实现</li><li>Ready</li><li>点名组装批次</li><li>最终验证</li><li>显式交付</li><li>人工验收</li></ol></section>
-    <section><h2>边界清楚</h2><div class="compare"><div><h3>不只是 CI</h3><p>CI 检查一个提交；Signetum 还负责需求闭环、并行开发治理和精确交付证据。</p></div><div><h3>补全规格工具</h3><p>规格工具描述期望行为；Signetum 把它连接到计划、工作区、验证与交付。</p></div><div><h3>不是 Agent Runtime</h3><p>你可以使用任何编码 Agent。Signetum 是随仓库长期存在的开发契约。</p></div></div></section>
-    <section><h2>从现有仓库开始</h2><p class="intro">保留应用已有的测试方式。Python、Node 和 Rust 可选绑定使用仓库自己的命令。安装 Skill 不会自动采用协议，也不授权交付。新项目初始化自身文件后，也使用同一个 Skill 接入流程。</p><div class="actions"><a class="button primary" href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">阅读迁移指南</a></div></section>
-  <section><h2>证据的边界</h2><p class="intro">失败演示在临时仓库中验证需求归属遗漏、过期验证证据和发布中断。它们证明协议边界，不承诺软件没有缺陷，也不声称已测得审阅时间下降。历史决策在显式迁移前继续有效。</p><a href="https://github.com/r0k1e/Signetum/blob/main/docs/product/protocol-in-practice.md">阅读实践文章</a></section>
-  </main><footer><strong>Signetum</strong><span>Apache-2.0 · 每次开发，证据封存。</span></footer>
-</div></body></html>
+<body>
+  <a class="skip" href="#main">跳转到正文</a>
+  <nav class="site-nav wrap" aria-label="主导航">
+    <a class="brand" rel="home" href="./"><img src="../assets/signetum-mark.svg" width="34" height="34" alt="">Signetum</a>
+    <div class="nav-links"><a href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">指南</a><a href="https://github.com/r0k1e/Signetum">GitHub</a><a href="../" lang="en" hreflang="en">English</a></div>
+  </nav>
+  <main id="main">
+    <div class="wrap">
+      <header class="hero">
+        <h1>让 Agent 开发，<br><span>有据可交付。</span></h1>
+        <p class="lede">Signetum 是可靠的 agentic 开发与交付协议。通过一个标准 Skill，让决策、验证与交付始终对应同一次变更。</p>
+        <div class="install-actions" id="install"><button class="button" id="copy-install" type="button" hidden data-copied="已复制，粘贴给你的编码 Agent 即可。" data-failed="暂时无法复制，请展开下方提示后手动复制。">复制安装提示<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V4h12v14h-3M4 8h12v13H4z"/></svg></button><noscript><a class="button" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">查看 Skill</a></noscript><a class="source-link" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">查看 Skill</a></div>
+        <p class="copy-status" id="copy-status" role="status" aria-live="polite">粘贴给编码 Agent，先审阅接入方案再应用。</p>
+        <details class="prompt-preview"><summary>阅读安装提示</summary><pre><code id="install-prompt">请从 https://github.com/R0k1e/Signetum/tree/main/skills/signetum 安装 Signetum Skill，选择一个明确审阅过的提交。用它检查当前项目并提出接入方案，保留现有工具，在应用前展示改动。</code></pre></details>
+      </header>
+      <figure class="proof">
+        <div class="proof-top"><code>change.toml</code><p>示例：让重试策略变得明确。</p></div>
+        <dl class="proof-chain"><div class="proof-stage"><dt>确认</dt><dd><strong>先说明要改变什么。</strong>一份变更记录集中保存需求、验收和实际确认，避免意图在开发中丢失。</dd></div><div class="proof-stage"><dt>验证</dt><dd><strong>再检查可观察的行为。</strong>沿用仓库的测试命令，证据绑定精确源码；诊断重试不会抹掉首次失败。</dd></div><div class="proof-stage"><dt>交付</dt><dd><strong>合并之前，审清边界。</strong>只组装点名的成员，完整验证最终批次，再显式交付同一份源码。</dd></div></dl>
+        <figcaption>流程示意，不是验证收据。Ready、已交付和人工验收是不同状态。</figcaption>
+      </figure>
+    </div>
+    <section class="essentials" aria-labelledby="essentials-title"><div class="essentials-inner wrap"><div><h2 id="essentials-title">保留决策依据，<br>少写重复文档。</h2><p class="lead">让下一位 Agent 和审阅者得到真正有用的上下文。重要内容只记一次，留在变更旁边。</p></div><dl class="principles"><div class="principle"><dt>记录选择，不抄写对话。</dt><dd>用一份 <code>change.toml</code> 和重要追加日志保留关键选择，从历史派生当前决策集合。</dd></div><div class="principle"><dt>测试要能说明风险。</dt><dd>沿用已有测试方式。可选的选择机制缩小日常反馈范围，最终验证仍保持完整。</dd></div><div class="principle"><dt>并行开发，显式汇合。</dt><dd>独立 worktree 隔离成员改动，点名的 batch 让合并后的源码在交付前可检查。</dd></div></dl></div></section>
+    <section class="adoption wrap" aria-labelledby="adoption-title"><div><h2 id="adoption-title">接入你已有的仓库，<br>保留熟悉的工具。</h2><p class="intro">新项目或现有代码，都走同一个 Skill 接入流程。审阅配置后，日常开发在本地运行。</p><a href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">阅读接入指南</a></div><div class="faq"><details><summary>安装之后，仓库会改变什么？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>Skill 提供 Agent 指令。经明确审阅的接入方案才会添加仓库本地命令和绑定，保留应用的元数据与已有工具。</p></details><details><summary>还可以使用原来的测试工具吗？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>可以，应用测试方式仍由仓库自己定义。协议需要宿主 Python；当前工作区操作还需要 Git、Mise 和 Worktrunk。接入指南列出了这些前置条件。</p></details><details><summary>这些证据能证明什么？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>它记录当前源码实际通过了哪些检查，以及哪些交付得到了批准。它不承诺软件没有缺陷，也不替代人的判断。</p></details></div></section>
+    <div class="close wrap"><p>让下一次变更，留下清楚的依据。</p><a class="button" href="#install">前往安装入口</a></div>
+  </main>
+  <footer class="site-footer wrap"><p>Signetum · 可靠的 agentic 开发与交付。</p><p><a href="https://github.com/r0k1e/Signetum/blob/main/LICENSE">Apache-2.0</a></p></footer>
+  <script src="../install.js" defer></script>
+</body>
+</html>

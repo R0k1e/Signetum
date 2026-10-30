@@ -1,0 +1,33 @@
+[change]
+schema_version=1
+id="homepage-redesign"
+[change.source]
+kind="human_direction"
+summary="The owner requests an Impeccable agent reconstruct the homepage, evaluate the logo and retain a minimal useful product surface."
+[change.contract]
+version=1
+approved_base="72e968e4a9795c8b1dad4497a9a0a53a3d365f00"
+[[change.contract.requirements]]
+id="WEB-001"
+outcome="The English and Chinese homepage clearly presents the standard Skill, practical workflow and one primary installation action with a coherent new visual identity."
+acceptance=["Use Impeccable and inspect actual rendered desktop and mobile before and after; preserve product facts and accessible navigation.","Use static HTML/CSS without a frontend framework or new runtime dependency; examples remain illustrative and no new claims or testimonials are invented."]
+[[change.contract.requirements]]
+id="WEB-002"
+outcome="One scalable signet mark and one usable social image replace redundant mascot variants across maintained brand consumers."
+acceptance=["Provide a code-native SVG mark that works at small size and a single PNG social preview; update site build, required asset checks and README image reference.","Remove unused old mark PNG variants; inspect rendered usage and retain meaningful existing asset/package checks."]
+[change.contract.autonomy]
+allowed=["Implement, commit and validate the requested reviewable redesign in this workspace; use an isolated browser for visual verification; stop at ready."]
+requires_confirmation=["Actual delivery or deployment, release tags, new product claims or unrelated scope."]
+[[change.contract.excluded]]
+statement="Framework migration, new runtime dependencies, fabricated metrics, protocol behavior changes and publication."
+reason="Keep this change focused on the requested homepage and compact branding."
+[[change.execution.steps]]
+id="STEP-1"
+requirements=["WEB-001","WEB-002"]
+action="Capture minimal product/design context required by Impeccable, replace the visual world and brand assets, update their consumers and visually verify desktop/mobile and existing static contracts."
+
+[change.approval]
+actor="Repository owner"
+recorded_at=2026-10-30
+source="The owner explicitly requested an agent use Impeccable to reconstruct the homepage, questioned the current logo and required a minimal repository surface. This approval covers the requested reviewable redesign; publication remains separate."
+contract_digest="sha256:870a25416cfef90a5903b50e246cbb943fdb7f1997153f9e5f2fec9f023a5ffa"
