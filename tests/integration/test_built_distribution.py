@@ -50,7 +50,7 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts() 
 
 def test_installed_wheel_generates_the_same_portable_runtime(tmp_path, installed_python):
     python = installed_python
-    output = tmp_path / "tests/fixtures/portable-python"
+    output = tmp_path / "fixture"
     subprocess.run(  # noqa: S603 -- successful immutable payload; generated output belongs to this test
         [str(python), "-B", "-I", "-m", "signetum.runtime_generation", str(output)],
         check=True,
@@ -136,7 +136,8 @@ sys.path.insert(0,sys.argv[1])
 from _signetum_runtime.traceability_cli import query
 from _signetum_runtime.traceability_boundary import TraceabilityManifest
 from _signetum_runtime.status_models import EvidenceSnapshot
-from _signetum_runtime.development_store import main,snapshot
+from _signetum_runtime.development_store import snapshot
+from _signetum_runtime.protocol_cli import main
 from _signetum_runtime.workspaces import WorkspaceRecord,state_root,write_record
 root=Path(sys.argv[2])
 write_record(state_root(root),WorkspaceRecord(1,'plan/installed',sys.argv[3],'member'))
