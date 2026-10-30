@@ -1,7 +1,7 @@
 # Signetum
 
 <p align="center">
-  <img src="assets/brand/signetum-mark-256.png" width="180" alt="Signetum seal holding a verified repository">
+  <img src="assets/brand/signetum-mark.svg" width="80" alt="Signetum signet">
 </p>
 
 **Reliable agentic development and delivery, through one standard Skill.**

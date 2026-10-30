@@ -5,9 +5,18 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-SITE_FILES = ("index.html", "robots.txt", "sitemap.xml", "styles.css", "zh-CN/index.html")
+SITE_FILES = (
+    "index.html",
+    "install.js",
+    "robots.txt",
+    "sitemap.xml",
+    "styles.css",
+    "zh-CN/index.html",
+    "fonts/InstrumentSerif-Regular.ttf",
+    "fonts/OFL.txt",
+)
 BRAND_FILES = (
-    ("assets/brand/signetum-mark.png", "assets/signetum-mark.png"),
+    ("assets/brand/signetum-mark.svg", "assets/signetum-mark.svg"),
     ("assets/brand/signetum-social-preview.png", "assets/signetum-social-preview.png"),
 )
 
