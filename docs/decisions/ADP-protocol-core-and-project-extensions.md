@@ -2,7 +2,8 @@
 
 Status: Accepted
 Review date: 2026-10-30
-Supersedes: None
+Supersedes: ADP-development-feedback-is-bounded-and-derived.md, ADP-reliable-agentic-protocol.md
+Partially supersedes: ADP-development-feedback-is-bounded-and-derived.md, ADP-reliable-agentic-protocol.md
 Superseded by: None
 
 The owner approves a smaller Signetum that helps people decide and supports
@@ -34,3 +35,12 @@ Do not copy Perdura's whole runner into the engine. Its application checks and
 preparation stay local behind compatible bindings. First failures remain failures;
 a retry supplies diagnosis. Complete a real downstream adoption before claiming
 Perdura operates on this protocol.
+
+## Supersession boundary
+
+Replace only the bundled Python dependency-selection requirement in
+ADP-development-feedback-is-bounded-and-derived.md and the future automatic
+numbering path retained by ADP-reliable-agentic-protocol.md and its predecessors.
+Project providers, complete default readiness, full final, scheduling, partitions,
+immutable bases, frozen-source evidence and all other rules remain effective.
+This updates declared standing, not the original basis of earlier decisions.

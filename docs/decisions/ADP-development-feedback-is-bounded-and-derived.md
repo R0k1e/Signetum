@@ -4,7 +4,7 @@ Status: Accepted
 Review date: 2026-10-29
 Supersedes: ADP-optional-selection-and-agent-history.md
 Partially supersedes: ADP-optional-selection-and-agent-history.md
-Superseded by: None
+Superseded by: ADP-protocol-core-and-project-extensions.md
 
 ## Context
 
