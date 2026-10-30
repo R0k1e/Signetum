@@ -20,36 +20,48 @@ lockfiles = ["uv.lock"]
 name = "engine.source"
 paths = ["src/**"]
 profiles = ["python-default@1"]
-shards = ["engine:ruff", "engine:format", "engine:bandit", "engine:ty", "engine:pytest"]
+shards = ["engine:build", "engine:ruff", "engine:format", "engine:bandit", "engine:ty", "engine:pytest"]
 
 [[impact.rules]]
 name = "engine.unit"
 paths = ["tests/unit/**"]
 profiles = ["python-default@1"]
-shards = ["engine:pytest"]
+shards = ["engine:build", "engine:pytest"]
 
 [[impact.rules]]
 name = "engine.integration"
 paths = ["tests/**", "template/**"]
 profiles = ["python-default@1"]
-shards = ["engine:pytest"]
+shards = ["engine:build", "engine:pytest"]
 requires_final = true
 
 [[impact.rules]]
 name = "engine.toolchain"
-paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**"]
+paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**", "signetum.toml", ".agents/repo-dev/repo.yaml", ".agents/repo-dev/select-tests.py", ".agents/repo-dev/python-selection.json"]
 profiles = ["python-default@1"]
 shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
 requires_final = true
 
 [[impact.rules]]
 name = "engine.governance"
-paths = ["changes/**", "docs/**", "README.md", "AGENTS.md", ".agents/**", "signetum.toml"]
+paths = ["changes/**", "docs/**", "README.md", "QUICKSTART.md", "CONTRIBUTING.md", "CHANGELOG.md", "SECURITY.md", "LICENSE", "AGENTS.md", ".agents/**", "signetum.toml"]
 shards = ["engine:precommit"]
 requires_final = true
 
+[impact.provider]
+protocol = "signetum.selection@1"
+entrypoint = ".agents/repo-dev/select-tests.py"
+command = ["uv", "run", "--no-sync", "python", "{selector}"]
+inputs = [".agents/repo-dev/python-selection.json"]
+tools = [{name = "python-checks", identity_command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.tool_identity"]}]
+
+[[impact.provider.targets]]
+shard = "engine:pytest"
+roots = ["tests"]
+argument_index = 9
+
 [validation]
-member_required = ["engine:build", "engine:pytest", "engine:traceability", "engine:ty"]
+member_required = ["engine:traceability"]
 recovery_window = 20
 recovery_threshold = 3
 
@@ -117,7 +129,7 @@ requires = ["engine:sync"]
 [[validation.shards]]
 name = "engine:pytest"
 inherit = true
-command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--", "-m", "not world"]
+command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--", "-m", "not world", "tests"]
 workers = 4
 worker_memory_mb = 1024
 requires = ["engine:sync"]

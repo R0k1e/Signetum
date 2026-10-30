@@ -26,3 +26,11 @@ workflow, without private workspace records or lifecycle receipts. It enforces
 their existing threshold.
 
 Never commit credentials, caches, validation receipts or editor state.
+
+The repository enables the optional committed Python selector. `changed --explain`
+shows the selected checks; unknown paths and dynamic reach conservatively retain
+the full member suite. Documentation changes require traceability and relevant
+static checks, rather than unconditional build and pytest. Final always executes
+the full host suite. Local or selected coverage is a fragment; the reusable hosted
+workflow requires every declared platform and enforces 90% combined coverage.
+Check that exact candidate run before delivery.
