@@ -1,105 +1,16 @@
 """Independent template queries use the engine's complete change authority."""
 
-import io
 import json
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from change_fixtures import approve_legacy_change as approve_change
 
 from signetum.git import git_output
-from signetum.status.models import EvidenceSnapshot
-from signetum.traceability.boundary import GitInventoryProvider, TraceabilityManifest
-from signetum.traceability.cli import query
+from signetum.traceability.boundary import GitInventoryProvider
 
 ROOT = Path(__file__).parents[2]
-
-
-@pytest.mark.parametrize(
-    "damage",
-    [
-        "valid",
-        "schema",
-        "duplicate",
-        "missing-plan",
-        "wrong-owner",
-        "clause-type",
-        "date",
-        "decision",
-        "custom-roots",
-    ],
-)
-def test_native_traceability_documents_and_verdicts_match(repository, damage):
-    root, _ = repository
-    approve_change(root)
-    review = root / "changes/example/review.toml"
-    spec = root / "changes/example/specs/behavior.toml"
-    changes, decisions = "changes", "docs/decisions"
-    if damage == "schema":
-        review.write_text(review.read_text().replace("schema_version = 1", "schema_version = 2"))
-    elif damage == "duplicate":
-        clause = review.read_text().split("[[review.clauses]]")[1]
-        review.write_text(review.read_text() + "\n[[review.clauses]]" + clause)
-    elif damage == "missing-plan":
-        (root / "changes/example/plans/behavior.md").unlink()
-    elif damage == "wrong-owner":
-        spec.write_text(
-            spec.read_text().replace('id = "example/behavior"', 'id = "other/behavior"')
-        )
-    elif damage == "clause-type":
-        review.write_text(review.read_text().replace('id = "REQ-001"', "id = 12"))
-    elif damage == "date":
-        review.write_text(
-            review.read_text().replace(
-                'status = "approved"', 'status = "approved"\nrecorded_at = 2026-10-29'
-            )
-        )
-    elif damage == "decision":
-        decision = root / "docs/decisions/ADP-choice.md"
-        decision.parent.mkdir(parents=True)
-        decision.write_text(
-            "# Pending choice\nStatus: Proposed\nSupersedes: None\nSuperseded by: None\n"
-        )
-        spec.write_text(
-            spec.read_text().replace(
-                "plan = ", 'decisions = ["docs/decisions/ADP-choice.md"]\nplan = '
-            )
-        )
-    elif damage == "custom-roots":
-        for path in (review, spec, root / "changes/example/plans/behavior.md"):
-            path.write_text(path.read_text().replace("changes/", "requests/"))
-        (root / "changes").rename(root / "requests")
-        changes, decisions = "requests", "policy/decisions"
-    stdout, stderr = io.StringIO(), io.StringIO()
-    status = query(
-        root,
-        TraceabilityManifest(schema_version=1, changes_root=changes, decision_roots=(decisions,)),
-        EvidenceSnapshot(),
-        stdout,
-        stderr,
-    )
-    script = ROOT / "template/.agents/repo-dev/runtime/traceability.py"
-    result = subprocess.run(  # noqa: S603 -- isolated interpreter and disposable repository
-        [
-            sys.executable,
-            "-I",
-            "-S",
-            str(script),
-            "--repository",
-            str(root),
-            "--changes-root",
-            changes,
-            "--decision-root",
-            decisions,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == status, result.stdout + result.stderr
-    assert json.loads(result.stdout) == json.loads(stdout.getvalue())
 
 
 @pytest.mark.parametrize("portable", [False, True])

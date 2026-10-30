@@ -157,8 +157,9 @@ outcome or acceptance summaries and never creates approval. Competing legacy
 files, path identity mismatches, symlinks and stale approval bindings refuse.
 
 Traceability discovers consolidated records under the declared change root,
-checks exact active follow-up requirement ownership, and uses the same evidence
-progress algorithm as historical packages. A draft remains specified; an
+checks exact active follow-up requirement ownership and derives progress from
+source-bound evidence. Historical Review/Specification/Plan files are not active
+query or execution inputs. A draft remains specified; an
 approved record's execution plan is the record itself. Ready, integration and
 delivery require matching observations, and a completed record never implies
 human acceptance. Historical version-one review projections remain readable. Consolidated journals

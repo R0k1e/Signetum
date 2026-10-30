@@ -17,8 +17,6 @@ class TraceabilityManifest(FrozenContract):
     schema_version: Annotated[int, Constraints(minimum=1)]
     changes_root: str = "changes"
     decision_roots: tuple[str, ...] = ("docs/decisions",)
-    legacy_roots: tuple[str, ...] = ()
-    legacy_inventory: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)

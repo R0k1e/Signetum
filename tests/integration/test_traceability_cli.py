@@ -2,6 +2,9 @@ import io
 import json
 from pathlib import Path
 
+import pytest
+from change_fixtures import consolidated_approval
+
 from signetum.status.models import (
     DeliveryObservation,
     EvidenceSnapshot,
@@ -14,7 +17,11 @@ from signetum.traceability.boundary import (
 )
 from signetum.traceability.cli import ExitCode, query
 
-FIXTURE = Path("tests/fixtures/changes/valid")
+
+@pytest.fixture
+def record_repository(tmp_path):
+    consolidated_approval(tmp_path, "a" * 40)
+    return tmp_path
 
 
 class FixtureInventory:
@@ -38,18 +45,20 @@ class FailingInventory:
         raise OSError("inventory unavailable")
 
 
-def test_historical_yaml_changes_are_read_only_provenance() -> None:
+def test_historical_yaml_changes_are_read_only_provenance(record_repository) -> None:
     stdout = io.StringIO()
     stderr = io.StringIO()
-    inventory = FixtureInventory().read(FIXTURE)
-    historical = RepositoryInventory(paths=inventory.paths | {"changes/historical/review.yaml"})
+    inventory = FixtureInventory().read(record_repository)
+    historical = RepositoryInventory(
+        paths=inventory.paths | {"changes/historical/review.yaml", "changes/historical/review.toml"}
+    )
 
     class InventoryWithHistoricalYaml:
         def read(self, repository: Path) -> RepositoryInventory:
             return historical
 
     exit_code = query(
-        FIXTURE,
+        record_repository,
         TraceabilityManifest(schema_version=1, decision_roots=("decisions",)),
         EvidenceSnapshot(),
         stdout,
@@ -61,22 +70,18 @@ def test_historical_yaml_changes_are_read_only_provenance() -> None:
     assert json.loads(stdout.getvalue())["changes"][0]["review"] == "example"
 
 
-def test_public_query_emits_one_versioned_json_object() -> None:
+def test_public_query_emits_one_versioned_json_object(record_repository) -> None:
     stdout = io.StringIO()
     stderr = io.StringIO()
     evidence = EvidenceSnapshot(
         members=(
-            MemberObservation(plan_id="example/first", commit="m1", ready=True),
-            MemberObservation(plan_id="example/second", commit="m2", ready=True),
+            MemberObservation(plan_id="changes/example/change.toml", commit="m1", ready=True),
         ),
-        integrations=(
-            IntegrationObservation(member_commit="m1", batch_commit="batch"),
-            IntegrationObservation(member_commit="m2", batch_commit="batch"),
-        ),
+        integrations=(IntegrationObservation(member_commit="m1", batch_commit="batch"),),
         deliveries=(DeliveryObservation(batch_commit="batch", delivery_commit="delivery-1"),),
     )
     exit_code = query(
-        FIXTURE,
+        record_repository,
         TraceabilityManifest(schema_version=1, decision_roots=("decisions",)),
         evidence,
         stdout,
@@ -88,16 +93,16 @@ def test_public_query_emits_one_versioned_json_object() -> None:
     assert exit_code is ExitCode.SUCCESS
     assert stdout.getvalue().count("\n") == 1
     assert payload["schema_version"] == 1
-    assert payload["changes"][0]["state"] == "accepted"
+    assert payload["changes"][0]["state"] == "delivered"
     assert stderr.getvalue() == ""
 
 
-def test_public_query_rejects_a_repository_without_changes() -> None:
+def test_public_query_rejects_a_repository_without_changes(record_repository) -> None:
     stdout = io.StringIO()
     stderr = io.StringIO()
 
     exit_code = query(
-        FIXTURE,
+        record_repository,
         TraceabilityManifest(schema_version=1, decision_roots=("decisions",)),
         EvidenceSnapshot(),
         stdout,
@@ -109,12 +114,12 @@ def test_public_query_rejects_a_repository_without_changes() -> None:
     assert json.loads(stdout.getvalue())["valid"] is False
 
 
-def test_public_query_maps_inventory_errors_to_the_invocation_contract() -> None:
+def test_public_query_maps_inventory_errors_to_the_invocation_contract(record_repository) -> None:
     stdout = io.StringIO()
     stderr = io.StringIO()
 
     exit_code = query(
-        FIXTURE,
+        record_repository,
         TraceabilityManifest(schema_version=1, decision_roots=("decisions",)),
         EvidenceSnapshot(),
         stdout,

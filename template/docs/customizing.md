@@ -17,7 +17,7 @@ upgrade.
 `.agents/repo-dev/repo.yaml` contains repository paths, Agent policy routing,
 and delivery settings. In a registered member workspace, start a draft with
 `just change-open <kebab-name>`;
-the command creates a draft under `changes/` and never edits `examples/`.
+the command creates one draft change record under the declared change root.
 
 ## Checks which depend on the outside world
 

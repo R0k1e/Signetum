@@ -421,8 +421,9 @@ Final retains accepted stable decision filenames. Optional explicit proposal
 numbering refuses before mutation if it would rewrite a consolidated approval
 or source journal. Numeric allocation is not a routine development document step.
 
-Change scope is discovered from current change records, Reviews and the declared
-specification pattern at either the base or reviewed tip. Retained raw historical
+Current implementation scope is discovered from change records at either the base
+or reviewed tip. Previously delivered historical promises remain protected against
+rewriting without becoming implementation approval. Retained raw historical
 documents do not become executable approval packages merely by occupying a
 change directory. Removing a current authority remains in scope; malformed
 current authorities still refuse qualification. No YAML approval fallback exists.

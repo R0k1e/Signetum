@@ -13,6 +13,8 @@ Use semantic product versions: major for incompatible public contracts, minor fo
 normal feature releases, patch for compatible fixes. Do not advance the major
 number for an internal cleanup or each development batch. Internal schema
 revisions follow actual serialized format changes rather than product releases.
+Before 1.0, a minor release may refine unstable contracts; state incompatible
+schema changes explicitly in its release notes.
 
 Use the toolchain in `mise.toml` and the setup in [Contributing](../../CONTRIBUTING.md).
 The complete native acceptance suite needs Node/npm and Rust/Cargo as well as
