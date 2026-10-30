@@ -75,3 +75,24 @@ is separate from an application's language. See [the guide](../guide.md) and
 Keep affected architecture and instructions current in the implementing change.
 Reasons belong once in its significant history. Current pages describe actual
 owners; they are not an exhaustive algorithm catalogue or execution diary.
+
+## Source and disposable material
+
+`src/signetum` owns the setup engine and portable source modules. Its subpackages
+separate change accounting, validation, profiles and release boundaries; moving
+modules solely to shrink a directory would add import churn without removing an
+owner. `template.py` validates an internal acceptance fixture, not a public setup
+command. Adoption emits reviewed bindings into the existing project directly.
+
+Keep production HTML/CSS/JS, the SVG mark, social image, font and its license in
+source. Design-tool skills, context, concept variants, screenshots and review
+output are local development material, not shipped product authorities. Keep
+them outside the tracked tree. Build exports, generated runtime copies, virtual
+environments and test reports are disposable output. Significant design choices
+still belong in the existing change history, rather than a second design diary.
+
+The internal `template/uv.lock` pins the Python acceptance fixture's own dev
+tools. Independent tests run `uv sync --locked` there without the installed engine.
+It is neither a Skill installation requirement nor a file copied by adoption.
+Removing it requires replacing that isolated environment evidence first. The
+primary `uv.lock` separately pins development of Signetum itself.

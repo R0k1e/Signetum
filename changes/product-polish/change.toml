@@ -1,0 +1,81 @@
+[change]
+schema_version = 1
+id = "product-polish"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner requests remote branch hygiene, a redesigned logo, exclusion of design-tool intermediates and an evidence-based explanation of documentation, source and template boundaries."
+
+[change.contract]
+version = 1
+approved_base = "06df066a2c8a058625a69d2d7f2886c74d75bbe0"
+
+[[change.contract.requirements]]
+id = "POL-001"
+outcome = "The candidate uses a legible redesigned logo and ships only maintained site assets, not Impeccable context or review output."
+acceptance = [
+    "Inspect actual desktop/mobile rendering and exported SVG/PNG assets; retain existing build and asset checks.",
+    "Remove PRODUCT.md, DESIGN.md and .impeccable context from tracked source, retire exact historic evidence and retain original journals.",
+]
+
+[[change.contract.requirements]]
+id = "POL-002"
+outcome = "Repository consumers can distinguish current architecture, user guidance, maintainer instructions and internal acceptance fixtures."
+acceptance = [
+    "Document source/output ownership and why the internal locked Python fixture is not an installation requirement.",
+    "Audit src consumers before recommending refactors; preserve supported runtime and independent validation.",
+]
+
+[[change.contract.requirements]]
+id = "POL-003"
+outcome = "Obsolete merged remote refs are pruned safely and the review candidate remains available under a readable ref."
+acceptance = [
+    "Verify every deleted tip is reachable from main and guard deletions against changed remote tips.",
+    "Retain main and unmerged candidate source; document remote cleanup as a distinct maintenance responsibility.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement, commit and validate this requested candidate correction; prune only inspected merged remote refs and publish a readable review ref; serve a localhost-only static preview.",
+]
+requires_confirmation = [
+    "Delivery to main, deployment, release and deleting unmerged work.",
+]
+
+[[change.contract.excluded]]
+statement = "Broad source rearrangement, removal of independent runtime evidence, application-specific defaults and publication to main."
+reason = "Remove real duplication without inventing another architecture or reducing safety."
+
+[[change.contract.retirements]]
+id = "product-polish/retire-1"
+target = "homepage-redesign/homepage-hierarchy/observation"
+resolution_id = "homepage-redesign/compact-proof-implemented/resolution"
+targets = [
+    "DESIGN.md",
+]
+reason = "The owner explicitly excludes design-tool intermediate files from final source; retain original history and actual site evidence."
+
+[[change.contract.retirements]]
+id = "product-polish/retire-2"
+target = "homepage-redesign/sidecar-implementation-drift/observation"
+resolution_id = "homepage-redesign/sidecar-single-owner/resolution"
+targets = [
+    ".impeccable/design.json",
+    "DESIGN.md",
+]
+reason = "The owner explicitly excludes design-tool intermediate files from final source; retain original history and actual site evidence."
+
+[[change.execution.steps]]
+id = "STEP-1"
+requirements = [
+    "POL-001",
+    "POL-002",
+    "POL-003",
+]
+action = "Revise branding, separate final source from review material, inspect source and fixture consumers, prune merged remote refs and validate the candidate."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-30
+source = "The owner explicitly requests these corrections in the current conversation. Review candidate changes and merged-ref cleanup are authorized; main delivery remains separate."
+contract_digest = "sha256:3482b97c6f5f35108e420889d1d3c138fb771d067f19b34a39902f1255c53202"
