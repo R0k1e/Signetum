@@ -15,7 +15,7 @@ ROOT = Path(__file__).parents[3]
     "runtime,module",
     [
         (ROOT / "src", "signetum.validation.process"),
-        (ROOT / "template/.agents/repo-dev/runtime", "_signetum_runtime.process"),
+        (ROOT / "template/.agents/signetum/runtime", "_signetum_runtime.process"),
     ],
 )
 @pytest.mark.parametrize("nested", [False, True])

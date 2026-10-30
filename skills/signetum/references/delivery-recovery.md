@@ -9,7 +9,8 @@ Named ready members enter a batch through admission. Before final, reconcile
 retained findings with `status` and the journal tools. Final checks the
 frozen source and generates the delivery review; do not write a duplicate review
 file. Show the approved outcomes, standing answers, accepted decision changes,
-evidence and unfinished work before explicit delivery. Source journals and
+evidence, test changes and their effect on coverage, and unfinished work before
+explicit delivery. Source journals and
 admitted receipts remain bound to that exact review.
 
 On failure, inspect the structured result, retained diagnostics and exact local

@@ -14,8 +14,8 @@ if [ "${1:-}" = adopt ]; then
     fi
     exec "$engine" adopt "$@"
 fi
-if [ -f .agents/repo-dev/run ]; then
-    exec sh .agents/repo-dev/run protocol "$@"
+if [ -f .agents/signetum/run ]; then
+    exec sh .agents/signetum/run protocol "$@"
 fi
 if ! command -v just >/dev/null 2>&1; then
     echo "Repository command authority unavailable: install the repository-declared just tool." >&2

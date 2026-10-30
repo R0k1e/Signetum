@@ -1,7 +1,7 @@
 set positional-arguments
 
 _signetum *args:
-    mise exec -- uv run --no-project python .agents/repo-dev/runtime/lifecycle.py {{args}}
+    mise exec -- uv run --no-project python .agents/signetum/runtime/lifecycle.py {{args}}
 
 # Authoring utility; not a lifecycle operation.
 change-open name:
@@ -33,8 +33,8 @@ batch-deliver source target expected-base expected-batch-tip:
 
 # Local support utility; not a lifecycle operation.
 maintenance *args:
-    mise exec -- uv run --no-project python .agents/repo-dev/runtime/maintenance.py {{args}}
+    mise exec -- uv run --no-project python .agents/signetum/runtime/maintenance.py {{args}}
 
 # Local authoring and journal utility; not a lifecycle operation.
 protocol *args:
-    mise exec -- uv run --no-project python .agents/repo-dev/runtime/protocol.py "$@"
+    mise exec -- uv run --no-project python .agents/signetum/runtime/protocol.py "$@"

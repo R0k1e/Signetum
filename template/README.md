@@ -1,9 +1,9 @@
-# Internal Signetum scaffold
+# Portable runtime acceptance fixture
 
-This directory is maintained source material for portable runtime generation and
-representative lifecycle tests. It is not a separately distributed Template.
-Product setup uses the standard Signetum Skill for new and existing repositories.
+Internal scaffold for Signetum rendering and independent runtime tests. This is
+not a public project-creation route. Users install `skills/signetum` and review
+local adoption with their existing application tools.
 
-The minimal Python application and local tools provide independently executable
-fixtures. Product facts, environment and tests in a real project belong to that
-project and are established during reviewed adoption.
+The renderer combines these small fixture files with a portable runtime generated
+from the maintained engine. Generated modules are ignored build/test output.
+See the product repository's architecture and contributor guide for maintenance.

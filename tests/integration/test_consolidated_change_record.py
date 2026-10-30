@@ -18,7 +18,7 @@ from signetum.git import git_output
 
 
 def read_record(path, frontend):
-    runtime = Path(__file__).parents[2] / "template/.agents/repo-dev/runtime"
+    runtime = Path(__file__).parents[2] / "template/.agents/signetum/runtime"
     script = """
 import sys
 sys.path.insert(0,sys.argv[1])
@@ -125,7 +125,7 @@ contract_digest = "{contract_digest(record.contract)}"
 def repository_module(frontend, name, monkeypatch):
     if frontend == "template":
         monkeypatch.syspath_prepend(
-            str(Path(__file__).parents[2] / "template/.agents/repo-dev/runtime")
+            str(Path(__file__).parents[2] / "template/.agents/signetum/runtime")
         )
     return importlib.import_module(
         ("signetum." if frontend == "engine" else "_signetum_runtime.") + name
