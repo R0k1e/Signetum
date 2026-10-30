@@ -229,24 +229,13 @@ significant discoveries and accepted clause edits in their source journal throug
 `just protocol`; the frozen review binds its committed history and dispositions.
 Validation does not append its own success to that source.
 
-Legacy packages retain approved Reviews and Specifications and their existing
-common-Git deviation authority at
-`signetum/changes/<change-id>/deviations.jsonl`. Linked members and the batch share
-that operational state without committing it to the product tree.
-
-The legacy ledger API validates each record or resolution before appending,
-under a nonblocking per-change writer lock. Invalid authority, a repeated ID or
-an already resolved discovery is refused without changing the ledger; a failed
-resolution remains pending and can be corrected through the same API.
-Specification resolutions require approved behavior, an approved linked Plan and
-accepted required decisions. A deferred target must be a valid specification in
-an active change, with its own Review and Plan; a completed Review, withdrawn
-specification or arbitrary existing file cannot carry unfinished work. Completed
-approved specifications remain usable as behavior authority. Declared change
-and decision roots own these checks.
+Historical Reviews, Specifications and common-Git ledgers are retained as read-only
+evidence. Their original resolutions and authority references remain inspectable
+and participate in exact final-review bindings. There is no legacy writer command
+or qualification fallback: current implementation requires an approved record.
 
 Before final validation, the Agent reconciles every retained discovery into
-the applicable Specification, accepted clarifying or superseding Decision,
+the applicable requirement, accepted clarifying or superseding decision,
 architecture authority, behavior test, explicit follow-up Change, justified
 rejection, or justified no-authority-change result. `final` numbers accepted proposals under the batch lock, then validates the
 frozen resulting tip. It refuses unapproved proposals and an unresolved ledger and places approval plus reconciliation data in
@@ -284,10 +273,9 @@ the same mapping rather than inferring moves from rename similarity. A successor
 edges whose unaffected clauses remain authoritative; complete replacements
 continue to invalidate current authority citations.
 
-Discoveries are written from the package-owning member branch. A resolution is
-written there while the branch is registered; once it has no registered workspace,
-a supported resolution may be written from another worktree. Linked worktrees
-share the same ledger and change ownership registry under Git common state.
+Current discoveries and resolutions use the owning member's approved source
+journal. Linked members share immutable change ownership under common Git state;
+historical ledgers are inspected without reopening their write channel.
 
 ## Workspace operations
 
@@ -359,8 +347,8 @@ The generated review reports the selected standing answers and provenance;
 ordinary validation output stays in receipts. Validation appends no success
 event to its source. Final rechecks source-journal bindings before writing its
 receipt, and delivery rechecks them before publication. Missing or altered
-bindings require fresh final validation. The historical local-ledger checks
-remain separate while legacy source adoption is still being migrated.
+bindings require fresh final validation. Read-only historical ledger bindings preserve original evidence without
+a second active workflow.
 
 ## Repository-owned selection providers
 

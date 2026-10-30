@@ -1,18 +1,13 @@
-"""Signetum-owned execution deviations and human review projections."""
+"""Read-only historical deviation decoding and delivery review projections."""
 
 from __future__ import annotations
 
-import argparse
-import fcntl
 import hashlib
 import json
-import os
-import sys
 import tomllib
-from collections.abc import Iterator, Mapping, Sequence
-from contextlib import contextmanager, nullcontext
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Literal, TypedDict
@@ -23,7 +18,7 @@ from signetum.change.paths import changes_root
 from signetum.change_record import load_repository_record, review_view
 from signetum.contract_values import FrozenContract
 from signetum.git import GitError, git_output, run_git
-from signetum.manifest import ManifestError, load_manifest
+from signetum.manifest import load_manifest
 from signetum.serialization import (
     Constraints,
     ValueDecodeError,
@@ -33,7 +28,6 @@ from signetum.serialization import (
     validate_value,
 )
 from signetum.traceability.loading import load_decision
-from signetum.workspaces import WorkspaceError, claim_change
 
 
 class DeviationError(ValueError):
@@ -126,60 +120,6 @@ def ledger_path(repository: Path, change_id: str) -> Path:
     """Return the deterministic per-change ledger path."""
     _validate_identity(change_id)
     return git_common_dir(repository) / "signetum" / "changes" / change_id / "deviations.jsonl"
-
-
-def append_event(repository: Path, event: DeviationEvent) -> Path:
-    """Validate and append exactly one complete event with O_APPEND semantics."""
-    _validate_identity(event.change_id)
-    manifest_path = repository / "signetum.toml"
-    root = changes_root(load_manifest(manifest_path)) if manifest_path.exists() else "changes"
-    consolidated = repository / root / event.change_id / "change.toml"
-    if consolidated.exists() or consolidated.is_symlink():
-        raise DeviationError(
-            "consolidated changes use the repository protocol source-journal tools"
-        )
-    if isinstance(event, Discovered):
-        require_change_workspace(repository, event.change_id, event.member)
-        source = git_output(repository, "rev-parse", "HEAD")
-        if event.source_commit is not None and event.source_commit != source:
-            raise DeviationError("discovery source differs from the observed member commit")
-        event = replace(event, **{"source_commit": source})
-        try:
-            claim_change(git_common_dir(repository) / "signetum", event.change_id, event.member)
-        except WorkspaceError as error:
-            raise DeviationError(str(error)) from error
-    else:
-        registered = git_output(repository, "worktree", "list", "--porcelain").splitlines()
-        if f"branch refs/heads/{event.member}" in registered:
-            require_change_workspace(repository, event.change_id, event.member)
-    target = ledger_path(repository, event.change_id)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    encoded = event_json(event).encode("utf-8") + b"\n"
-    if len(encoded) > 65_536:
-        raise DeviationError("deviation event exceeds the atomic record bound")
-    descriptor = os.open(target, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
-    try:
-        written = os.write(descriptor, encoded)
-        if written != len(encoded):
-            raise DeviationError("deviation event append was incomplete")
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-    return target
-
-
-def require_change_workspace(repository: Path, change_id: str, member: str) -> None:
-    _validate_identity(change_id)
-    try:
-        branch = git_output(repository, "symbolic-ref", "--quiet", "--short", "HEAD")
-    except GitError as error:
-        raise DeviationError(str(error)) from error
-    if branch != member:
-        raise DeviationError(f"member {member} is not the branch checked out here: {branch}")
-    manifest_path = repository / "signetum.toml"
-    root = changes_root(load_manifest(manifest_path)) if manifest_path.exists() else "changes"
-    if not (repository / root / change_id).is_dir():
-        raise DeviationError(f"change package {root}/{change_id} is absent from member {member}")
 
 
 def changes_naming_member(
@@ -498,134 +438,3 @@ def _validate_identity(value: str) -> None:
         validate_value(value, Identifier)
     except ValueError as error:
         raise DeviationError(f"invalid change identity: {value}") from error
-
-
-@contextmanager
-def _ledger_write(repository: Path, change_id: str) -> Iterator[None]:
-    """Serialize each public check-and-append transition, without waiting."""
-    parent = ledger_path(repository, change_id).parent
-    parent.mkdir(parents=True, exist_ok=True)
-    with (parent / "ledger.lock").open("a", encoding="utf-8") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise DeviationError("change ledger has an active update; retry") from error
-        try:
-            yield
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
-
-
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--repository", type=Path, default=Path("."))
-    commands = parser.add_subparsers(dest="command", required=True)
-    approval = commands.add_parser("approval")
-    approval.add_argument("--change", required=True)
-    record = commands.add_parser("record")
-    record.add_argument("--change", required=True)
-    record.add_argument("--id", required=True)
-    record.add_argument("--member", required=True)
-    record.add_argument(
-        "--class", dest="classification", choices=tuple(DeviationClass), required=True
-    )
-    record.add_argument("--summary", required=True)
-    record.add_argument("--commitment", required=True)
-    record.add_argument("--action", required=True)
-    record.add_argument("--impact", required=True)
-    resolve = commands.add_parser("resolve")
-    resolve.add_argument("--change", required=True)
-    resolve.add_argument("--id", required=True)
-    resolve.add_argument("--member", required=True)
-    resolve.add_argument("--resolution", choices=tuple(ResolutionKind), required=True)
-    resolve.add_argument("--target", action="append", default=[])
-    resolve.add_argument("--reason", required=True)
-    resolve.add_argument("--implemented", action="store_true")
-    status = commands.add_parser("status")
-    status.add_argument("--change", required=True, action="append")
-    return parser
-
-
-def main(arguments: list[str] | None = None) -> int:
-    parsed = _parser().parse_args(arguments)
-    repository = parsed.repository.resolve()
-    try:
-        with (
-            _ledger_write(repository, parsed.change)
-            if parsed.command in {"record", "resolve"}
-            else nullcontext()
-        ):
-            if parsed.command == "approval":
-                result = approval_view(repository, parsed.change)
-            elif parsed.command == "record":
-                event = Discovered(
-                    id=parsed.id,
-                    change_id=parsed.change,
-                    member=parsed.member,
-                    at=datetime.now(UTC),
-                    summary=parsed.summary,
-                    classification=DeviationClass(parsed.classification),
-                    original_commitment=parsed.commitment,
-                    action=parsed.action,
-                    impact=parsed.impact,
-                )
-                if any(
-                    state.discovered.id == event.id
-                    for state in read_states(repository, event.change_id)
-                ):
-                    raise DeviationError(f"duplicate deviation discovery: {event.id}")
-                path = append_event(repository, event)
-                result = {
-                    "schema_version": 1,
-                    "status": "recorded",
-                    "id": event.id,
-                    "ledger": str(path),
-                }
-            elif parsed.command == "resolve":
-                event = Resolved(
-                    id=parsed.id,
-                    change_id=parsed.change,
-                    member=parsed.member,
-                    at=datetime.now(UTC),
-                    resolution=ResolutionKind(parsed.resolution),
-                    targets=tuple(parsed.target),
-                    reason=parsed.reason,
-                    implemented=parsed.implemented,
-                )
-                states = {
-                    state.discovered.id: state for state in read_states(repository, parsed.change)
-                }
-                if parsed.id not in states:
-                    raise DeviationError(f"deviation is absent: {parsed.id}")
-                state = states[parsed.id]
-                if state.resolution is not None:
-                    raise DeviationError(f"duplicate deviation resolution: {event.id}")
-                if event.member != state.discovered.member:
-                    raise DeviationError(f"deviation member changed during resolution: {event.id}")
-                _validate_resolution(repository, replace(state, **{"resolution": event}))
-                path = append_event(repository, event)
-                result = {
-                    "schema_version": 1,
-                    "status": "resolved",
-                    "id": event.id,
-                    "ledger": str(path),
-                }
-            else:
-                result = {
-                    "schema_version": 1,
-                    "status": "reconciled",
-                    **reconciliation_summary(repository, tuple(parsed.change)),
-                }
-    except (DeviationError, OSError, ManifestError, ValueError) as error:
-        print(
-            json.dumps(
-                {"schema_version": 1, "status": "refused", "reason": str(error)}, sort_keys=True
-            )
-        )
-        return 2
-    print(json.dumps(result, sort_keys=True))
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

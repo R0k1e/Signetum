@@ -49,7 +49,7 @@ src/signetum/resources/vendor_yaml`, then regenerate and verify the runtime.
 | `operation_cli`, `workflow_status` | Shared argument refusals and diagnostics; read-only workspace, change and recorded-evidence overview. |
 | `change_record`, `decision_clauses`, `decision_history`, `development_log`, `development_store` | Consolidated approval, targeted clause edits, significant source journals and their deterministic current decision projection. |
 | `contract_values`, `change.models`, `change.paths`, `traceability`, `status` | Frozen change values, native and wire constraints, complete relation checks and derived status. |
-| `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and the locked append-only ledger. |
+| `change.authority`, `change.scope`, `decision_identity`, `deviations` | Declared authority standing, committed change scope, explicit identity moves and read-only historical ledger evidence. |
 | `change.member`, `lifecycle_validation`, `provenance`, `execution_review`, `validation.review` | Member qualification, actual package Plans, exact validation and final review/receipt bindings through repository effect adapters. |
 | `findings`, `waivers` | Tool-neutral findings and approved, expiring coverage. |
 | `impact`, `repository_selection`, `selection_contracts`, `selection_request`, `validation` | Explicit source-bound selection, dependency graphs and policy-bound execution identity. |
@@ -124,8 +124,9 @@ provenance; it does not claim a new implementation of the old finding.
 Mutation output contains the affected observations and decision identities,
 rather than repeating the entire current set or source history.
 
-Existing traceability and the common-Git deviation API remain available for
-historical and in-flight packages until explicitly migrated. The new command reports `authority_coverage = journal_only`;
+Historical documents and common-Git ledgers remain readable for inspection and
+source-bound delivery review. They cannot authorize new member development or
+receive new protocol writes. The new command reports `authority_coverage = journal_only`;
 its working set does not silently absorb or replace historical Markdown
 decisions. `current` also discovers committed accepted decision sources, their
 blob identities and declared supersession standing, so one entrypoint exposes
@@ -137,7 +138,7 @@ The engine does not parse constraint tables or assign semantic meaning to their
 rows. Source text and mapping previews never confer approval.
 
 Member qualification reads a committed consolidated `change.toml` as its sole
-change authority when present. Competing Review, Specification or Plan files
+change authority. Competing Review, Specification or Plan files
 refuse qualification rather than supplying fallback approval. The record must
 be active, approved, identify the owning change and bind the registered workspace
 base. An implementation commit must follow approval of the exact current
@@ -146,8 +147,7 @@ contract; an earlier approved contract cannot qualify a revised outcome.
 For consolidated changes, delivery scope names `change.toml` as the actual
 execution-plan owner. Delivered intent, contract and approval remain protected,
 while execution-step refinements can preserve the same behavior approval.
-Legacy package readers remain available for unchanged historical and in-flight
-packages; they do not provide fallback approval for consolidated changes.
+Historical package sources remain protected; they provide no fallback approval.
 
 Repository approval queries use the safe consolidated-record loader and a
 version-two review projection: each requirement appears once with its stable
@@ -180,8 +180,7 @@ operations and explicit test diagnostics to their existing
 owners. Test diagnostics delegate to the normal repository execution adapter;
 they do not own another runner or readiness store. Candidate views
 expose the exact base, approval digest and retirement proposals without recording
-confirmation. Consolidated records refuse legacy-ledger mutations, preserving
-one journal write channel. Agent instructions
+confirmation. The retired ledger has no writing API or command. Agent instructions
 use these commands, preserve relevant legacy authorities during `journal_only`
 coverage, and require significant journals rather than duplicate reports.
 

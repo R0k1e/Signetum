@@ -121,6 +121,23 @@ def test_gate_executes_dependencies_and_binds_every_declared_input() -> None:
     assert receipt.identity.configuration.path == "signetum.toml"
     assert tuple(lock.path for lock in receipt.identity.lockfiles) == ("uv.lock",)
     assert receipt.identity.tools[0].identity == "uv 0.8.14"
+    # Equal argv does not make distinct shard obligations interchangeable.
+    same_command = resolve_validation_graph(
+        (
+            GraphContribution(
+                "core",
+                shards=(
+                    ValidationShard("core:one", ("check",)),
+                    ValidationShard("core:two", ("check",)),
+                ),
+                gates=(GateDeclaration("final", ("core:one", "core:two")),),
+            ),
+        )
+    )
+    independent = Adapter()
+    both = execute_gate(same_command, "final", _inputs(), independent)
+    assert independent.executed == ["core:one", "core:two"]
+    assert both.execution.names == ("core:one", "core:two")
 
 
 def test_failed_shard_produces_no_gate_evidence() -> None:

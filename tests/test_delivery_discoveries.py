@@ -4,7 +4,8 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
-from change_fixtures import approve_legacy_change as approve_change
+from change_fixtures import append_historical_event as append_event
+from change_fixtures import approve_change, approve_legacy_change
 from test_batch_admission import _git, _record, _repository
 
 from signetum import lifecycle
@@ -13,7 +14,6 @@ from signetum.deviations import (
     Discovered,
     ResolutionKind,
     Resolved,
-    append_event,
     ledger_path,
 )
 
@@ -21,7 +21,7 @@ from signetum.deviations import (
 def member_and_batch(tmp_path, *, historical=False):
     root = _repository(tmp_path / "repository")
     if historical:
-        approve_change(root, "old")
+        approve_legacy_change(root, "old")
         _git(root, "add", ".")
         _git(root, "commit", "-m", "delivered old package")
     base = _git(root, "rev-parse", "HEAD")
@@ -38,6 +38,10 @@ def member_and_batch(tmp_path, *, historical=False):
         decision.write_text("# New\n\nStatus: Accepted\n")
         _git(member, "add", ".")
         _git(member, "commit", "-m", "approve package and decision")
+    if historical:
+        approve_change(member, "current")
+        _git(member, "add", ".")
+        _git(member, "commit", "-m", "approve current implementation")
     (member / "behavior.txt").write_text("implemented")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement behavior")
@@ -94,8 +98,11 @@ def test_admitted_historical_discovery_is_reviewed_without_reopening_approval(tm
     lifecycle.admit(batch, (member,))
     review = lifecycle.validate(batch, "final")["delivery_review"]
     assert isinstance(review, dict)
-    assert review["approvals"] == []
-    assert review["reconciliation"]["changes"][0]["change_id"] == "old"
+    assert [item["change_id"] for item in review["approvals"]] == ["current"]
+    historical = next(
+        row for row in review["reconciliation"]["changes"] if row["change_id"] == "old"
+    )
+    assert len(historical["deviations"]) == 1
     assert review["reconciliation"]["deviation_count"] == 1
 
 

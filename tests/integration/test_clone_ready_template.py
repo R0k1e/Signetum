@@ -7,7 +7,7 @@ from tomllib import loads
 from urllib.parse import quote
 
 import pytest
-from change_fixtures import approve_legacy_change, commit_approval
+from change_fixtures import commit_approval
 
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.git import git_output
@@ -328,105 +328,6 @@ def test_rendered_template_opens_one_safe_active_change(tmp_path: Path) -> None:
     assert not (rendered / "changes/first-change").exists()
     assert duplicate.returncode == 2
     assert invalid.returncode == 2
-
-
-def test_rendered_template_retains_and_reconciles_legacy_execution_deviations(
-    tmp_path: Path,
-) -> None:
-    rendered = tmp_path / "repository"
-    render_template(ROOT / "template", rendered)
-    for command in (
-        ("git", "init", "-b", "main"),
-        ("git", "config", "user.name", "Signetum test"),
-        ("git", "config", "user.email", "signetum@example.invalid"),
-    ):
-        subprocess.run(command, cwd=rendered, check=True, capture_output=True)
-    approve_legacy_change(rendered, "first-change")
-    specification = rendered / "changes/first-change/specs/behavior.toml"
-    specification.write_text(
-        specification.read_text(encoding="utf-8")
-        .replace('status = "draft"', 'status = "approved"')
-        .replace("implementation_authorized = false", "implementation_authorized = true"),
-        encoding="utf-8",
-    )
-    for command in (
-        ("git", "add", "."),
-        ("git", "commit", "-m", "approve fixture specification"),
-        ("git", "switch", "-c", "impl/first-change"),
-    ):
-        subprocess.run(command, cwd=rendered, check=True, capture_output=True)
-    runtime = rendered / ".agents/repo-dev/runtime/deviations.py"
-
-    approval = subprocess.run(
-        (sys.executable, "-I", str(runtime), "approval", "--change", "first-change"),
-        cwd=rendered,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    recorded = subprocess.run(
-        (
-            sys.executable,
-            "-I",
-            str(runtime),
-            "record",
-            "--change",
-            "first-change",
-            "--id",
-            "DEV-001",
-            "--member",
-            "impl/first-change",
-            "--class",
-            "implementation_clarification",
-            "--summary",
-            "The implementation authority is elsewhere.",
-            "--commitment",
-            "Preserve the approved behavior.",
-            "--action",
-            "Reuse the existing authority.",
-            "--impact",
-            "No public behavior changes.",
-        ),
-        cwd=rendered,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    resolved = subprocess.run(
-        (
-            sys.executable,
-            "-I",
-            str(runtime),
-            "resolve",
-            "--change",
-            "first-change",
-            "--id",
-            "DEV-001",
-            "--member",
-            "impl/first-change",
-            "--resolution",
-            "no_authority_change",
-            "--reason",
-            "The approved behavior and authority are unchanged.",
-        ),
-        cwd=rendered,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    status = subprocess.run(
-        (sys.executable, "-I", str(runtime), "status", "--change", "first-change"),
-        cwd=rendered,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert json.loads(approval.stdout)["status"] == "approval"
-    assert json.loads(recorded.stdout)["status"] == "recorded"
-    assert json.loads(resolved.stdout)["status"] == "resolved"
-    assert json.loads(status.stdout)["deviation_count"] == 1
-    assert not (rendered / ".signetum").exists()
 
 
 def _traceability(
