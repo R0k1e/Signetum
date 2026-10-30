@@ -4,7 +4,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
-from change_fixtures import approve_change
+from change_fixtures import approve_legacy_change as approve_change
 from test_batch_admission import _git, _record, _repository
 
 from signetum import lifecycle

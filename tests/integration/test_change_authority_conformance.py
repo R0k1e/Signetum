@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from change_fixtures import approve_change
+from change_fixtures import approve_legacy_change as approve_change
 
 from signetum import deviations
 from signetum.git import git_output

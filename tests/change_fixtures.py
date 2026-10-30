@@ -4,9 +4,11 @@ from pathlib import Path
 
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
+from signetum.operations import AdmissionError
+from signetum.workspaces import WorkspaceError, recorded_base
 
 
-def approve_change(repository: Path, change_id: str = "example") -> None:
+def approve_legacy_change(repository: Path, change_id: str = "example") -> None:
     root = repository / "changes" / change_id
     (root / "specs").mkdir(parents=True, exist_ok=True)
     (root / "plans").mkdir(parents=True, exist_ok=True)
@@ -45,6 +47,15 @@ Base: fixture
 """)
 
 
+def approve_change(repository: Path, change_id: str = "example") -> None:
+    """Current fixtures use the same single record as ordinary development."""
+    try:
+        base = recorded_base(repository)
+    except (WorkspaceError, AdmissionError):
+        base = git_output(repository, "rev-parse", "HEAD")
+    consolidated_approval(repository, base, change_id=change_id)
+
+
 def commit_approval(repository: Path, change_id: str = "example") -> None:
     """Give a fixture its own committed approval before implementation."""
     approve_change(repository, change_id)
@@ -53,11 +64,11 @@ def commit_approval(repository: Path, change_id: str = "example") -> None:
 
 
 def consolidated_approval(
-    member, base, *, approved=True, outcome="Implement the confirmed behavior."
+    member, base, *, approved=True, outcome="Implement the confirmed behavior.", change_id="example"
 ):
     text = f'''[change]
 schema_version = 1
-id = "example"
+id = "{change_id}"
 [change.source]
 kind = "human_direction"
 summary = "Implement the confirmed outcome."
@@ -81,7 +92,7 @@ recorded_at = 2026-10-29
 source = "Owner confirmed the fixture outcome."
 contract_digest = "{digest}"
 '''
-    path = member / "changes/example/change.toml"
+    path = member / f"changes/{change_id}/change.toml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
     return path

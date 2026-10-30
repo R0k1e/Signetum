@@ -7,7 +7,7 @@ from tomllib import loads
 from urllib.parse import quote
 
 import pytest
-from change_fixtures import approve_change, commit_approval
+from change_fixtures import approve_legacy_change, commit_approval
 
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.git import git_output
@@ -341,7 +341,7 @@ def test_rendered_template_retains_and_reconciles_legacy_execution_deviations(
         ("git", "config", "user.email", "signetum@example.invalid"),
     ):
         subprocess.run(command, cwd=rendered, check=True, capture_output=True)
-    approve_change(rendered, "first-change")
+    approve_legacy_change(rendered, "first-change")
     specification = rendered / "changes/first-change/specs/behavior.toml"
     specification.write_text(
         specification.read_text(encoding="utf-8")
