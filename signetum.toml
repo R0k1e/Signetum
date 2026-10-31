@@ -1,6 +1,7 @@
 schema_version = 4
 
 [signetum]
+engine_digest = "sha256:89fb82c09c2354c3ec0cd52377dbc7667e11bf0f3d1dfd84260b7faf739fdb72"
 protocol = 2
 evidence_protocol = "reposeal.validation-evidence@3"
 evidence_schema_digest = "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture(params=["engine"])
 def command_owner(request, monkeypatch):
     monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", "0")
     if request.param == "engine":

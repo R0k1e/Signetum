@@ -33,9 +33,7 @@ def main() -> int:
         arguments = ["--help"]
     code = implementation_digest()
     lock = (PROJECT / "uv.lock").read_bytes()
-    content = (
-        code.encode() + lock + (PROJECT / "pyproject.toml").read_bytes() + sys.version.encode()
-    )
+    content = code.encode() + lock + (PROJECT / "pyproject.toml").read_bytes()
     fingerprint = hashlib.sha256(content).hexdigest()
     cache = SKILL / ".runtime"
     if cache.is_symlink():

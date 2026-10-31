@@ -9,7 +9,7 @@ from signetum import lifecycle
 from signetum import lifecycle as core_lifecycle
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture(params=["engine"])
 def frontend(request):
     return lifecycle if request.param == "engine" else core_lifecycle
 

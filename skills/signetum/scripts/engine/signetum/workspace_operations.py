@@ -350,11 +350,17 @@ def batch_discard(batch: Path) -> dict[str, object]:
         _, published = fresh_delivery(batch)
         tip = git_output(batch, "rev-parse", "HEAD")
         git_output(batch, "fetch", "--no-tags", "origin")
+        publication_scope = (
+            f"refs/remotes/origin/{branch}" if tip == record.base else "refs/remotes/origin"
+        )
         if git_output(
-            batch, "for-each-ref", "--format=%(refname)", "--contains", tip, "refs/remotes/origin"
+            batch, "for-each-ref", "--format=%(refname)", "--contains", tip, publication_scope
         ):
             raise AdmissionError("cannot discard a published batch")
-        if run_git(batch, "merge-base", "--is-ancestor", tip, published).returncode == 0:
+        if (
+            tip != record.base
+            and run_git(batch, "merge-base", "--is-ancestor", tip, published).returncode == 0
+        ):
             raise AdmissionError("cannot discard a delivered batch")
         workspace = wt.registered_workspace(batch, branch)
         remove_workspace(batch, workspace)

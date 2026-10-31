@@ -8,7 +8,7 @@ from signetum.evidence.receipts import EvidenceReceipt, ReceiptError
 from test_receipts_v2 import _gate, _identity, _selection
 
 
-@pytest.fixture(params=["engine", "generated"])
+@pytest.fixture(params=["engine"])
 def decode(request):
     return lambda source: json.loads(EvidenceReceipt.from_json(source).to_json())
 

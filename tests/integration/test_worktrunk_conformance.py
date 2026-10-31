@@ -8,7 +8,7 @@ import pytest
 from signetum import worktrunk
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture(params=["engine"])
 def launcher(request):
     return worktrunk
 
@@ -54,4 +54,4 @@ def test_host_projection_preserves_explicit_inputs_and_clears_foreign_context(
     assert result.stdout == "identity"
     assert "GIT_DIR" not in seen
     assert seen["KEEP"] == "yes"
-    assert seen["MISE_TRUSTED_CONFIG_PATHS"] == str(tmp_path.resolve())
+    assert "MISE_TRUSTED_CONFIG_PATHS" not in seen

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/R0k1e/Signetum/main/src/signetum/resources/schemas/release-metadata-v2.schema.json",
+  "$id": "https://raw.githubusercontent.com/R0k1e/Signetum/main/skills/signetum/scripts/engine/signetum/resources/schemas/release-metadata-v2.schema.json",
   "title": "Signetum release metadata v2",
   "type": "object",
   "additionalProperties": false,

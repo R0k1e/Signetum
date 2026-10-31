@@ -339,7 +339,7 @@ def test_sync_conflict_keeps_git_state_and_names_member_recovery(repository):
     git_output(root, "push", "origin", "main")
     with pytest.raises(MergeConflict) as refusal:
         ops.workspace_sync(member)
-    assert "worktree-prepare and ready" in refusal.value.expected
+    assert "prepare and validate" in refusal.value.expected
     assert run_git(member, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
 
 
@@ -544,7 +544,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     assert not member.exists()
 
 
-@pytest.fixture(params=["engine", "template"], autouse=True)
+@pytest.fixture(params=["engine"], autouse=True)
 def lifecycle_frontend(request, monkeypatch):
     """Run every disposable Git workspace contract against both maintained outputs."""
     return

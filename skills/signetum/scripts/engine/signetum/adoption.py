@@ -41,6 +41,7 @@ class FileChange(FrozenContract):
     path: str
     before: str | None
     after: str | None
+    before_mode: int | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -110,9 +111,11 @@ def _payload(repository: Path, request: AdoptionRequest) -> dict[str, str | None
         raise ValueError("bind engine_digest to the installed Skill engine identity")
     files: dict[str, str | None] = {"signetum.toml": request.manifest}
     inventory_root = ".agents/signetum/runtime/_signetum_runtime"
-    inventory_path = source_path(repository, inventory_root + "/runtime.toml")
+    inventory_path = (
+        source_path(repository, inventory_root + "/runtime.toml") if request.retirements else None
+    )
     owned: dict[str, str] = {}
-    if inventory_path.is_file():
+    if inventory_path is not None and inventory_path.is_file():
         inventory = tomllib.loads(inventory_path.read_text())
         owned = {inventory_root + "/" + name: digest for name, digest in inventory["files"].items()}
     wrappers = {
@@ -158,7 +161,14 @@ def preview(repository: Path, request: AdoptionRequest) -> AdoptionPlan:
         base=base,
         request=request,
         files=tuple(
-            FileChange(path=name, before=before[name], after=value)
+            FileChange(
+                path=name,
+                before=before[name],
+                after=value,
+                before_mode=stat.S_IMODE(source_path(repository, name).stat().st_mode)
+                if before[name] is not None
+                else None,
+            )
             for name, value in sorted(files.items())
         ),
     )
@@ -214,7 +224,14 @@ def apply(repository: Path, plan: AdoptionPlan, expected: str) -> dict[str, obje
                 "operation": "adopt-apply",
                 "plan_digest": expected,
             }
-        if any(current[f.path] != f.before for f in plan.files):
+        if any(
+            current[f.path] != f.before
+            or (
+                f.before_mode is not None
+                and stat.S_IMODE(source_path(repository, f.path).stat().st_mode) != f.before_mode
+            )
+            for f in plan.files
+        ):
             raise ValueError(
                 "adoption target changed; preserve local work and review a fresh preview"
             )
@@ -245,6 +262,8 @@ def apply(repository: Path, plan: AdoptionPlan, expected: str) -> dict[str, obje
                     path.unlink()
                 else:
                     _replace(path, item.after)
+                    if item.before_mode is not None:
+                        path.chmod(item.before_mode)
                 written.append(item)
         except (OSError, ValueError):
             for item in reversed(written):
@@ -253,6 +272,8 @@ def apply(repository: Path, plan: AdoptionPlan, expected: str) -> dict[str, obje
                     path.unlink()
                 else:
                     _replace(path, item.before)
+                    if item.before_mode is not None:
+                        path.chmod(item.before_mode)
             for directory in reversed(created):
                 directory.rmdir()
             raise

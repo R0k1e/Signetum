@@ -21,7 +21,7 @@ from signetum.validation.repository import RepositoryValidationAdapter
 from signetum.validation.resources import ResourceObservation, allocate_workers, observe_resources
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture(params=["engine"])
 def repository_adapter(request, monkeypatch):
     return (RepositoryValidationAdapter, resources, ("-m", "signetum.validation.pytest_runner"))
 
@@ -215,12 +215,12 @@ def test_unavailable_native_memory_is_not_replaced_with_a_guess(platform, docume
 
 
 def test_generated_native_observation_runs_without_site_packages(tmp_path):
-    runtime = Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[3] / "skills/signetum/scripts/engine"
     script = (
         "import sys,json; from dataclasses import asdict; sys.path.insert(0,sys.argv[1]); "
         "from signetum.validation.resources import observe_resources; "
         "print(json.dumps(asdict(observe_resources()))); "
-        "assert 'signetum' not in sys.modules and 'psutil' not in sys.modules"
+        "assert 'psutil' not in sys.modules"
     )
     result = subprocess.run(  # noqa: S603 -- isolated interpreter and native host observation
         [sys.executable, "-I", "-S", "-c", script, str(runtime)],

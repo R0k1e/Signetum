@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 
-@pytest.fixture(params=["signetum.profiles.existing_runner", "signetum.profiles.existing_runner"])
+@pytest.fixture(params=["signetum.profiles.existing_runner"])
 def adapter(request, monkeypatch):
     monkeypatch.syspath_prepend(
         str(Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime")

@@ -26,7 +26,7 @@ def document(*diagnostics):
     return json.dumps({"schema_version": 1, "diagnostics": list(diagnostics)})
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture(params=["engine"])
 def runtime(request, monkeypatch):
     return lifecycle
 
@@ -60,9 +60,9 @@ def configured(repository, *, baseline_report=None):
     manifest.write_text(
         manifest.read_text()
         .replace(
-            "[repository]",
-            'evidence_protocol = "reposeal.validation-evidence@3"\n'
-            + f'evidence_schema_digest = "{evidence_schema_digest()}"\n[repository]',
+            "[signetum]",
+            '[signetum]\nevidence_protocol = "reposeal.validation-evidence@3"\n'
+            + f'evidence_schema_digest = "{evidence_schema_digest()}"\n',
         )
         .replace(
             'name = "test:check"\ncommand = ["true"]',

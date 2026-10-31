@@ -20,7 +20,7 @@ from test_batch_admission import MANIFEST
 @pytest.fixture(autouse=True)
 def delivery_frontend(request, monkeypatch):
     runtime = core_lifecycle
-    errors = importlib.import_module("_signetum_runtime.operations")
+    errors = importlib.import_module("signetum.operations")
     monkeypatch.setattr(sys.modules[__name__], "lifecycle", runtime)
     monkeypatch.setattr(sys.modules[__name__], "OperationFailed", errors.OperationFailed)
 

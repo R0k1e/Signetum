@@ -33,7 +33,8 @@ def components(tmp_path):
     (tmp_path / "signetum.toml").write_text(
         'schema_version = 4\n[signetum]\nprotocol = 2\n[delivery]\nbranch = "main"\n'
         '[repository]\nchanges = "changes"\ndecisions = "docs/decisions"\n'
-        '[validation]\n[[validation.gates]]\nname = "member"\nshards = []\n'
+        '[validation]\n[[validation.shards]]\nname = "test:check"\ncommand = ["true"]\n'
+        '[[validation.gates]]\nname = "member"\nshards = []\n'
         '[[validation.gates]]\nname = "final"\nshards = []\n'
     )
     return tmp_path

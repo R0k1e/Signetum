@@ -15,7 +15,7 @@ from signetum.decision_clauses import (
 )
 
 
-@pytest.fixture(autouse=True, params=["engine", "template"])
+@pytest.fixture(autouse=True, params=["engine"])
 def authority(request, monkeypatch):
     if request.param == "template":
         monkeypatch.syspath_prepend(

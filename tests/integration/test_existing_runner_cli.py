@@ -52,7 +52,7 @@ def test_runner_proposal_preserves_existing_argv_without_running_or_adopting_it(
     assert retired_retry_tuning.isdisjoint(fragment["validation"])
     manifest = manifest_from_mapping(
         {
-            "schema_version": 3,
+            "schema_version": 4,
             "signetum": {"protocol": 2},
             "repository": {
                 "architecture": "docs/ARCHITECTURE.md",

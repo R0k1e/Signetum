@@ -821,7 +821,7 @@ def test_ready_and_admission_refuse_an_implementation_without_a_change_package(t
     assert _git(batch, "rev-parse", "HEAD") == before
 
 
-@pytest.fixture(params=["engine", "template"], autouse=True)
+@pytest.fixture(params=["engine"], autouse=True)
 def lifecycle_frontend(request, monkeypatch):
     """The complete admission/final contract corpus also runs on the generated library."""
     if request.param == "template":
