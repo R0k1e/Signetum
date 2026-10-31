@@ -52,6 +52,8 @@ def publish_batch(
     if not is_ancestor(source, expected_base, expected_tip):
         raise AdmissionError("batch tip does not descend from expected base")
     if resumed_commit is None:
+        branch = git(source, "symbolic-ref", "--short", "HEAD")
+        task = branch.removeprefix("batch/")
         delivery_commit = git(
             source,
             "commit-tree",
@@ -61,7 +63,8 @@ def publish_batch(
             "-p",
             expected_tip,
             "-m",
-            f"Merge validated batch {expected_tip}\n\nSignetum-Batch-Base: {expected_base}",
+            f"Merge {task} into {target_branch}\n\n"
+            f"Signetum-Batch-Base: {expected_base}\nSignetum-Batch-Tip: {expected_tip}",
         )
         try:
             git(source, "push", "origin", f"{delivery_commit}:refs/heads/{target_branch}")
