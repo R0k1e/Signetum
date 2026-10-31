@@ -7,16 +7,15 @@ import pytest
 from change_fixtures import append_historical_event as append_event
 from change_fixtures import approve_legacy_change as approve_change
 from change_fixtures import commit_approval
-from test_lifecycle_conformance import _template_lifecycle
-
 from signetum import lifecycle, workspace_operations
+from signetum import lifecycle as core_lifecycle
 from signetum.deviations import DeviationClass, Discovered
 from signetum.git import git_output
 
 
 @pytest.fixture
 def final_runtime(request):
-    return lifecycle if getattr(request, "param", "engine") == "engine" else _template_lifecycle()
+    return lifecycle if getattr(request, "param", "engine") == "engine" else core_lifecycle
 
 
 def assembled(repository, *, historical=False, rewrite=False, pending=False):
@@ -58,7 +57,7 @@ def assembled(repository, *, historical=False, rewrite=False, pending=False):
     return member, batch, admitted
 
 
-@pytest.mark.parametrize("final_runtime", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("final_runtime", ["engine"], indirect=True)
 def test_final_reviews_first_delivered_change_and_lists_historical_plan_edit(
     repository, final_runtime
 ):
@@ -92,7 +91,7 @@ def test_final_refuses_an_unresolved_admitted_discovery(repository, final_runtim
     assert not list(final_runtime._receipt_root(batch).glob("final-*.json"))
 
 
-@pytest.mark.parametrize("final_runtime", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("final_runtime", ["engine"], indirect=True)
 def test_final_cannot_publish_if_admitted_receipt_changes_during_checks(
     repository, final_runtime, monkeypatch
 ):

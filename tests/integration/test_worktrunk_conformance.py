@@ -1,22 +1,16 @@
 """Portable host-tool effects match the engine without importing it."""
 
-import importlib
 import subprocess
 import sys
 import time
 
 import pytest
-from test_lifecycle_conformance import _template_lifecycle
-
 from signetum import worktrunk
 
 
 @pytest.fixture(params=["engine", "template"])
 def launcher(request):
-    if request.param == "engine":
-        return worktrunk
-    _template_lifecycle()
-    return importlib.import_module("_signetum_runtime.worktrunk")
+    return worktrunk
 
 
 @pytest.mark.parametrize("required", [True, False])

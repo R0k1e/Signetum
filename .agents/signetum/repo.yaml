@@ -13,7 +13,7 @@ repository:
     selectors:
       - group: python-uv
         intents: [implementation, validation, bootstrap]
-        paths: [pyproject.toml, uv.lock, src, tests]
+        paths: [pyproject.toml, uv.lock, skills/signetum/scripts, tests]
         reference: .agents/signetum/references/python-uv.md
       - group: git-worktrunk
         intents: [planning, implementation, delivery, recovery]
@@ -39,5 +39,3 @@ repository:
       - final
       - batch-deliver
 
-delivery:
-  branch: main

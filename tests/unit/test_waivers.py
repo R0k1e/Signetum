@@ -7,7 +7,6 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-
 from signetum.findings import Finding
 from signetum.waivers import Waiver, WaiverError, cover_findings, load_waivers, parse_waiver
 
@@ -221,7 +220,7 @@ print(json.dumps(result))
         (root / "src", "signetum.waivers"),
         (
             root / "tests/fixtures/portable-python/.agents/signetum/runtime",
-            "_signetum_runtime.waivers",
+            "signetum.waivers",
         ),
     ):
         completed = subprocess.run(  # noqa: S603 -- isolated fixed interpreter and fixture argv

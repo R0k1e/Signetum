@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from signetum import lifecycle
 from signetum.operations import InfrastructureError, MergeConflict, OperationFailed
 from signetum.validation.execution import ValidationInfrastructureError

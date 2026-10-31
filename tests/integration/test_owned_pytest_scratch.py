@@ -15,7 +15,7 @@ def command_owner(request, monkeypatch):
     monkeypatch.syspath_prepend(
         str(Path(__file__).parents[2] / "tests/fixtures/portable-python/.agents/signetum/runtime")
     )
-    return importlib.import_module("_signetum_runtime.process")
+    return importlib.import_module("signetum.validation.process")
 
 
 @pytest.mark.parametrize("workers", [0, 2])

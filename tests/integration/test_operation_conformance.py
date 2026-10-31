@@ -5,14 +5,13 @@ import json
 from pathlib import Path
 
 import pytest
-from test_lifecycle_conformance import _template_lifecycle
-
 from signetum import lifecycle
+from signetum import lifecycle as core_lifecycle
 
 
 @pytest.fixture(params=["engine", "template"])
 def frontend(request):
-    return lifecycle if request.param == "engine" else _template_lifecycle()
+    return lifecycle if request.param == "engine" else core_lifecycle
 
 
 @pytest.mark.parametrize(
@@ -30,12 +29,8 @@ def frontend(request):
 def test_native_cli_classifies_failure_and_retains_one_result(
     frontend, category, status, exit_code, tmp_path, monkeypatch, capsys
 ):
-    execution = importlib.import_module(
-        "signetum.validation.execution" if frontend is lifecycle else "_signetum_runtime.execution"
-    )
-    operations = importlib.import_module(
-        "signetum.operations" if frontend is lifecycle else "_signetum_runtime.operations"
-    )
+    execution = importlib.import_module("signetum.validation.execution")
+    operations = importlib.import_module("signetum.operations")
     errors = {
         "OSError": OSError,
         "AdmissionError": frontend.AdmissionError,
@@ -94,9 +89,7 @@ def test_native_cli_invalid_arguments_are_one_json_refusal(frontend, tmp_path, m
 
 
 def test_missing_git_is_infrastructure_without_a_log_authority(frontend, monkeypatch, capsys):
-    git = importlib.import_module(
-        "signetum.git" if frontend is lifecycle else "_signetum_runtime.git"
-    )
+    git = importlib.import_module("signetum.git")
     monkeypatch.setattr(git, "which", lambda executable: None)
     assert frontend.main(["changed"]) == 4
     result = json.loads(capsys.readouterr().out)
@@ -106,9 +99,7 @@ def test_missing_git_is_infrastructure_without_a_log_authority(frontend, monkeyp
 
 
 def test_missing_host_launcher_is_infrastructure(frontend, tmp_path, monkeypatch, capsys):
-    launcher = importlib.import_module(
-        "signetum.worktrunk" if frontend is lifecycle else "_signetum_runtime.worktrunk"
-    )
+    launcher = importlib.import_module("signetum.worktrunk")
     monkeypatch.setattr(launcher, "which", lambda executable: None)
     run = launcher.run_tool
     monkeypatch.setattr(frontend, "changed", lambda *a, **k: run(tmp_path, ("wt", "--version")))

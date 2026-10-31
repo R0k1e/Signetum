@@ -1,5 +1,4 @@
 import pytest
-
 from signetum.profiles import (
     ProfileDeclaration,
     ProfileError,

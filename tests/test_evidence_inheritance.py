@@ -1,6 +1,5 @@
 """Real Git members may inherit tests only across non-selecting fixups."""
 
-import importlib.util
 import json
 import sys
 from dataclasses import replace
@@ -9,23 +8,16 @@ from pathlib import Path
 import pytest
 from change_fixtures import commit_approval
 from pydantic import JsonValue
-from test_workspace_operations import commit_file, opened
-
 from signetum import lifecycle
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.git import git_output
 from signetum.validation.receipt_store import ReceiptStore
+from test_workspace_operations import commit_file, opened
 
 
 @pytest.fixture
 def runtime(request, monkeypatch):
-    if getattr(request, "param", "engine") == "engine":
-        return lifecycle
-    directory = (
-        Path(__file__).parents[1] / "tests/fixtures/portable-python/.agents/signetum/runtime"
-    )
-    monkeypatch.syspath_prepend(str(directory))
-    return importlib.import_module("_signetum_runtime.lifecycle")
+    return lifecycle
 
 
 def configured(repository, runtime):
@@ -109,7 +101,7 @@ print(json.dumps(dict(protocol="signetum.selection@1",request_digest=q["request_
     return member, state, first
 
 
-@pytest.mark.parametrize("runtime", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("runtime", ["engine"], indirect=True)
 def test_documentation_fixup_inherits_tests_but_reruns_static(repository, runtime):
     member, state, first = configured(repository, runtime)
     (member / "docs").mkdir()
@@ -138,7 +130,7 @@ def test_a_selecting_path_modified_then_reverted_still_forces_fresh_tests(reposi
     assert "inherited_test_evidence_from" not in evidence["extensions"]
 
 
-@pytest.mark.parametrize("runtime", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("runtime", ["engine"], indirect=True)
 def test_final_executes_test_shards_even_with_ancestor_member_evidence(repository, runtime):
     root, _ = repository
     member, state, _ = configured(repository, runtime)
@@ -207,7 +199,7 @@ def test_incompatible_nearest_receipt_does_not_fall_back_to_older_evidence(
     assert (state / "tests").read_text() == "xx"
 
 
-@pytest.mark.parametrize("runtime", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("runtime", ["engine"], indirect=True)
 def test_an_ancestor_with_recovered_failure_requires_fresh_normal_tests(repository, runtime):
     member, state, first = configured(repository, runtime)
     evidence = first["evidence"]

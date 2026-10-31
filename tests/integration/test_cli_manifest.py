@@ -2,11 +2,10 @@ import json
 from pathlib import Path
 
 from change_fixtures import consolidated_approval
-from typer.testing import CliRunner
-
 from signetum import git as git_tools
 from signetum.cli import app
 from signetum.traceability.boundary import RepositoryInventory
+from typer.testing import CliRunner
 
 FIXTURE = Path(__file__).parents[2] / "tests/fixtures/portable-python" / "signetum.toml"
 

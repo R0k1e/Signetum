@@ -23,10 +23,11 @@ Then ask:
 > Use $signetum to set up this new project, or inspect and adopt this existing
 > repository. Preserve its tools and show the proposed changes first.
 
-The agent obtains a fixed-version setup tool, inspects the project and prepares
-minimal local bindings. You review the preview. After adoption, the Skill calls
-the repository's local runtime; normal development needs neither an upstream
-checkout nor repeated tool downloads. See [First use](QUICKSTART.md).
+The agent prepares the installed Skill's locked execution environment, inspects
+the project and proposes `signetum.toml` bindings. You review the preview.
+The engine stays with the Skill; application dependencies and Agent entry files
+stay unchanged. Daily work needs no upstream checkout or tool downloads.
+See [First use](QUICKSTART.md).
 
 For a development task, describe the behavior normally. Discuss consequential
 choices with the agent, then approve the outcome and acceptance. For parallel
@@ -51,10 +52,10 @@ It provides no remote ledger or automatic consumer updates.
 
 ## Maintained source
 
-`main` owns the Skill, setup/runtime implementation and documentation. The
-`tests/fixtures/portable-python/` directory is internal runtime test material, not a
-second installation route or independently published product. The package bundles
-the same standard Skill folder; there is one source and release path.
+`main` owns the standard Skill, including its execution source and lock, plus
+maintainer tests and documentation. The Skill folder is the distribution unit;
+internal package builds verify its isolated installation boundary. Consumer
+projects retain only their reviewed bindings and development records.
 
 [Documentation](docs/README.md) covers usage and configuration.
 [Architecture](docs/ARCHITECTURE.md), [Contributing](CONTRIBUTING.md) and

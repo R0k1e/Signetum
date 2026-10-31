@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 from jsonschema import validate
-
 from signetum import git as git_tools
 from signetum import release
 from signetum.git import GitInfrastructureError, git_output
@@ -12,11 +11,13 @@ from signetum.release import ReleaseError, build_metadata, preflight
 
 @pytest.fixture
 def components(tmp_path):
-    (tmp_path / "src/signetum/resources/schemas").mkdir(parents=True)
-    (tmp_path / "src/signetum/resources/schemas/release-metadata-v2.schema.json").write_text(
-        '{"properties":{"schema_version":{"const":2}}}'
-    )
-    (tmp_path / "pyproject.toml").write_text(
+    (tmp_path / "skills/signetum/scripts/engine/signetum/resources/schemas").mkdir(parents=True)
+    (
+        tmp_path
+        / "skills/signetum/scripts/engine/signetum/resources/schemas"
+        / "release-metadata-v2.schema.json"
+    ).write_text('{"properties":{"schema_version":{"const":2}}}')
+    (tmp_path / "skills/signetum/scripts/engine/pyproject.toml").write_text(
         f'[project]\nname="signetum"\nversion="{release.__version__}"\n'
     )
     skill = tmp_path / "skills/signetum"
@@ -29,13 +30,23 @@ def components(tmp_path):
     policy = tmp_path / ".agents/signetum/repo.yaml"
     policy.parent.mkdir(parents=True)
     policy.write_text("delivery:\n  branch: main\n")
+    (tmp_path / "signetum.toml").write_text(
+        'schema_version = 4\n[signetum]\nprotocol = 2\n[delivery]\nbranch = "main"\n'
+        '[repository]\nchanges = "changes"\ndecisions = "docs/decisions"\n'
+        '[validation]\n[[validation.gates]]\nname = "member"\nshards = []\n'
+        '[[validation.gates]]\nname = "final"\nshards = []\n'
+    )
     return tmp_path
 
 
 def test_release_metadata_binds_versions_and_complete_skill(components):
     source = Path(__file__).resolve().parents[3]
     schema = json.loads(
-        (source / "src/signetum/resources/schemas/release-metadata-v2.schema.json").read_text()
+        (
+            source
+            / "skills/signetum/scripts/engine/signetum/resources/schemas"
+            / "release-metadata-v2.schema.json"
+        ).read_text()
     )
     validate(build_metadata(source, "source-commit").model_dump(mode="json"), schema)
     duplicated = build_metadata(source, "source-commit").model_dump(mode="json")
@@ -60,7 +71,7 @@ def test_release_metadata_binds_versions_and_complete_skill(components):
 @pytest.mark.parametrize("damage", ["package-version", "skill-version", "skill-symlink", "schema"])
 def test_component_refusals_need_no_repository(components, damage):
     if damage == "package-version":
-        p = components / "pyproject.toml"
+        p = components / "skills/signetum/scripts/engine/pyproject.toml"
         p.write_text(p.read_text().replace(release.__version__, "999.0.0"))
     elif damage == "skill-version":
         p = components / "skills/signetum/SKILL.md"
@@ -70,9 +81,11 @@ def test_component_refusals_need_no_repository(components, damage):
     elif damage == "skill-symlink":
         (components / "skills/signetum/linked").symlink_to("SKILL.md")
     else:
-        (components / "src/signetum/resources/schemas/release-metadata-v2.schema.json").write_text(
-            "{}"
-        )
+        (
+            components
+            / "skills/signetum/scripts/engine/signetum/resources/schemas"
+            / "release-metadata-v2.schema.json"
+        ).write_text("{}")
     with pytest.raises(ReleaseError):
         build_metadata(components, "source-commit")
 

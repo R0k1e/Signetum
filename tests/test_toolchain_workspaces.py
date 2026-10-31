@@ -7,7 +7,6 @@ from pathlib import Path
 from subprocess import CompletedProcess
 
 import pytest
-
 import signetum.worktrunk as wt
 
 

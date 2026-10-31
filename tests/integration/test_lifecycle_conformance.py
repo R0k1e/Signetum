@@ -10,7 +10,6 @@ from types import ModuleType
 
 import pytest
 from change_fixtures import commit_approval
-
 from signetum import lifecycle as engine_lifecycle
 from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, branch_name, read_record, state_root, write_record
@@ -18,17 +17,13 @@ from signetum.workspaces import WorkspaceRecord, branch_name, read_record, state
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _template_lifecycle() -> ModuleType:
-    directory = ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime"
-    if str(directory) not in sys.path:
-        sys.path.insert(0, str(directory))
-    return importlib.import_module("_signetum_runtime.lifecycle")
+core_lifecycle = engine_lifecycle
 
 
 @pytest.fixture
 def template_admission_member(repository, tmp_path):
     root, state = repository
-    runtime = _template_lifecycle()
+    runtime = core_lifecycle
     (state / "tool").write_text("v1")
     manifest = root / "signetum.toml"
     text = (
@@ -155,7 +150,7 @@ def test_native_template_admission_requires_exact_member_inputs(template_admissi
 def test_native_template_accepts_complete_final_evidence(template_admission_member):
     runtime, member, _, base = template_admission_member
     tip = git_output(member, "rev-parse", "HEAD")
-    repository_api = importlib.import_module("_signetum_runtime.repository")
+    repository_api = importlib.import_module("signetum.validation.repository")
     graph, inputs = runtime._runtime_validation(runtime.load_manifest(member / "signetum.toml"))
 
     evidence, raw_path = repository_api.run_repository_gate(
@@ -175,8 +170,8 @@ def test_template_passes_actual_bounded_worker_count_to_its_command(tmp_path, mo
     # This case supplies standalone host capacity; nested-lane behavior has its own public case.
     monkeypatch.delenv("SIGNETUM_VALIDATION_WORKERS", raising=False)
     monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
-    runtime = _template_lifecycle()
-    resources = importlib.import_module("_signetum_runtime.resources")
+    runtime = core_lifecycle
+    resources = importlib.import_module("signetum.validation.resources")
     monkeypatch.setattr(
         resources, "observe_resources", lambda: resources.ResourceObservation(2, 3000)
     )
@@ -185,13 +180,15 @@ def test_template_passes_actual_bounded_worker_count_to_its_command(tmp_path, mo
         "Path('workers').write_text(os.environ['SIGNETUM_VALIDATION_WORKERS'])"
     )
     result = runtime.RepositoryValidationAdapter(tmp_path).run_shard(
-        importlib.import_module("_signetum_runtime.validation").ValidationShard(
+        importlib.import_module("signetum.validation").ValidationShard(
             "test:bounded", (sys.executable, "-c", script), workers=8, worker_memory_mb=1000
         )
     )
     assert result.succeeded, result.diagnostic
     assert (tmp_path / "workers").read_text() == "2"
-    assert result.details["resource_allocation"]["workers"] == 2
+    allocation = result.details["resource_allocation"]
+    assert isinstance(allocation, dict)
+    assert allocation["workers"] == 2
 
 
 def _git_for(files: tuple[str, ...]):
@@ -206,7 +203,7 @@ def _git_for(files: tuple[str, ...]):
     return fake_git
 
 
-@pytest.mark.parametrize("runtime", (engine_lifecycle, _template_lifecycle()))
+@pytest.mark.parametrize("runtime", (engine_lifecycle,))
 def test_changed_contract_vectors_are_shared(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -246,7 +243,7 @@ def test_changed_contract_vectors_are_shared(
             )
 
 
-@pytest.mark.parametrize("runtime", (engine_lifecycle, _template_lifecycle()))
+@pytest.mark.parametrize("runtime", (engine_lifecycle,))
 def test_local_validation_state_has_one_git_common_root(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -257,18 +254,18 @@ def test_local_validation_state_has_one_git_common_root(
 
 def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     root, _ = repository
-    runtime = _template_lifecycle()
+    runtime = core_lifecycle
     monkeypatch.setattr(runtime, "admit", lambda batch, members: {})
     base = git_output(root, "rev-parse", "HEAD")
     declared = (root,)
     opened = runtime.batch_open(root, declared)
-    batch = Path(opened["worktree"])
+    batch = Path(str(opened["worktree"]))
     branch = branch_name(batch)
     record = read_record(state_root(root), branch)
     assert record.kind == "batch"
     assert record.base == base
     assert record.members == ("main",)
-    owner = importlib.import_module("_signetum_runtime.workspaces")
+    owner = importlib.import_module("signetum.workspaces")
     path = owner.record_path(owner.state_root(root), branch)
     before = path.read_bytes()
     with pytest.raises(owner.WorkspaceError, match="different recorded identity"):
