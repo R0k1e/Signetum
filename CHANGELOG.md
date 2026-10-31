@@ -3,40 +3,27 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## 0.3.0 - Unreleased
+## 0.3.0
 
-- Keep Mise and Worktrunk, project-owned preparation and commit hooks; use readable
-  real merge commits with structured provenance and no empty batch commit.
-- Preserve existing Agent entrypoints and application dependencies. Explicit Skill
-  setup is separate from application environments; ordinary work never installs tools.
-- Keep historical decisions available on demand and bound error summaries concise.
+Signetum is a standard Skill for reliable Agent development and delivery, from a
+single Agent across sessions to parallel work in evolving repositories.
 
-- Center public entrypoints on reliable Agent delivery, including session handoffs,
-  integrated validation and exact-source publication; refresh the generated signet.
+- Install one complete Skill with its own locked execution environment. Review
+  project bindings while retaining application tools, dependencies and entry files.
+- Keep approved outcomes, significant decision history and a concise derived
+  decision set so later sessions can continue without repeating decisions.
+- Develop in isolated worktrees, integrate named changes and explicitly deliver
+  the exact checked source using readable branches and commit subjects.
+- Run existing project checks, preserve first failures and settle owned processes.
+  Optional selectors, weighted scheduling and CI partitions retain complete final checks.
+- Start through the bilingual homepage and one installation/adoption guide.
 
-- Focus the Skill on human decisions, parallel worktrees and reliable integration/delivery.
-- Retain project selection interfaces; remove bundled Python reach and its optional command.
-- Move private acceptance scaffolding to tests, remove future ADR numbering and simplify journal dispatch.
-- Keep adoption to one project manifest without required Agent entrypoint edits.
+### Updating from RepoSeal
 
-- Use the standard `signetum` Skill for reviewed new/existing-project adoption;
-  retain application tools and run the engine from the Skill’s isolated environment.
-- Use `.agents/signetum` consistently without a `repo-dev` runtime alias.
-- Keep one approved change record, significant append history and a derived
-  decision set. Retire the old active workflow and preserve original rationale.
-- Use manifest schema 4 with one `repository.changes` root and independent
-  schema/product versions; remove ineffective retry settings and old bindings.
-- Contain worktrees under the primary repository, retire removed registrations
-  and safely clean up after delivery without deleting the active executor.
-- Share supervised diagnostics and gate verdicts, preserving first failures,
-  owned-process settlement and complete final validation. Optional selection,
-  weighted scheduling and CI partitions remain source-bound optimizations.
-- Maintain the engine once inside the Skill with a locked execution environment. Consolidate
-  user guides, remove obsolete files and disclose test changes and evidence loss.
-- Replace the mascot variants with compact branding and a bilingual, accessible
-  static homepage with a direct Skill installation action.
-- Prepare one package/Skill release with wheel/sdist, component metadata and
-  checksums; hosted coverage requires all platforms and PyPI stays opt-in.
+This release replaces the template and copied runtime with the `signetum` Skill.
+It uses manifest schema 4 and protocol 2. Existing projects require an explicit
+reviewed adoption; installing the Skill does not update them automatically.
+Historical tags remain unchanged. The release is a candidate until published.
 
 ## 0.1.0 - 2026-08-30
 
