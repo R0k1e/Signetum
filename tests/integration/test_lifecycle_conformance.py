@@ -258,9 +258,12 @@ def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     monkeypatch.setattr(runtime, "admit", lambda batch, members: {})
     base = git_output(root, "rev-parse", "HEAD")
     declared = (root,)
-    opened = runtime.batch_open(root, declared)
+    opened = runtime.batch_open(root, declared, name="coordinated-work")
     batch = Path(str(opened["worktree"]))
     branch = branch_name(batch)
+    assert branch == "batch/coordinated-work"
+    with pytest.raises(runtime.AdmissionError, match="task slug"):
+        runtime.batch_open(root, declared, name="../unsafe")
     record = read_record(state_root(root), branch)
     assert record.kind == "batch"
     assert record.base == base

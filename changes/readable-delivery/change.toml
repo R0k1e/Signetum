@@ -1,0 +1,72 @@
+[change]
+schema_version = 1
+id = "readable-delivery"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approves readable Git changes and a real downstream linked-worktree adoption test, excludes Windows, and rejects unnecessary videos or case-study artifacts."
+
+[change.contract]
+version = 1
+approved_base = "0d7cbeabaaba909a0be734bd3dd1ddc0dec6cc62"
+
+[[change.contract.requirements]]
+id = "GIT-001"
+outcome = "Integration branches and publication subjects describe the task instead of a SHA."
+acceptance = [
+    "Default batch names derive from member branches; an optional explicit name supports coordinated work.",
+    "Exact base, source, provenance, retry and collision checks remain authoritative; publication retains immutable source trailers.",
+]
+
+[[change.contract.requirements]]
+id = "GIT-002"
+outcome = "Skill guidance produces concise readable project-conforming commits."
+acceptance = [
+    "Use meaningful branch names and outcome subjects; retain project commit validation and explain the synthetic publication hook boundary.",
+    "Keep reasoning once in the owning change; avoid per-event housekeeping commits.",
+]
+
+[[change.contract.requirements]]
+id = "ADOPT-001"
+outcome = "Verify adoption in a new linked worktree of the actual downstream repository."
+acceptance = [
+    "Preserve the delivery branch and existing worktrees, native environments and test optimizations.",
+    "Report the exact achieved stage and remaining compatibility problems; no production cutover or unsupported readiness claim.",
+]
+
+[[change.contract.requirements]]
+id = "DELIVER-001"
+outcome = "Qualify and deliver the approved Signetum changes."
+acceptance = [
+    "Extend existing Git boundary tests without lowering evidence or coverage thresholds.",
+    "Run member and complete final checks, exact-candidate hosted CI, show review and deliver under existing authorization.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement and qualify the Git/Skill change, publish an exact review candidate and deliver Signetum to main under existing delivery authorization.",
+    "Create and test an owned downstream linked worktree without changing its delivery branch or existing worktrees.",
+]
+requires_confirmation = [
+    "Downstream production delivery, release tags, new package publication or unrelated destructive changes.",
+]
+
+[[change.contract.excluded]]
+statement = "Windows support, video production, an additional case-study system and downstream production cutover."
+reason = "Explicit user scope; existing diagram suffices."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = [
+    "GIT-001",
+    "GIT-002",
+    "ADOPT-001",
+    "DELIVER-001",
+]
+action = "Record approval, extend existing Git boundary tests, implement readable names and guidance, exercise real downstream adoption and report exact findings, then qualify and deliver Signetum."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-31
+source = "The owner explicitly requested the Git branch changes and a new actual downstream worktree test; existing Signetum delivery authorization remains in scope."
+contract_digest = "sha256:a4cda188cad7f684da933266113f769c9cd27f13d2e293d00660d0fb8c61a788"
