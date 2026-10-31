@@ -7,7 +7,6 @@ from pathlib import Path
 from subprocess import CompletedProcess
 
 import pytest
-
 import signetum.worktrunk as wt
 
 
@@ -50,7 +49,7 @@ def test_mise_projection_sanitizes_repository_environment(monkeypatch, tmp_path:
 
     assert "GIT_DIR" not in observed
     assert "PYTHONPATH" not in observed
-    assert observed["MISE_TRUSTED_CONFIG_PATHS"] == str(tmp_path.resolve())
+    assert "MISE_TRUSTED_CONFIG_PATHS" not in observed
 
 
 def test_worktree_inventory_accepts_only_schema_two_registered_items(

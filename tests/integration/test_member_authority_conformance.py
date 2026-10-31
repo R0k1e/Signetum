@@ -7,9 +7,8 @@ from pathlib import Path
 
 import pytest
 from change_fixtures import approve_change, approve_legacy_change, consolidated_approval
-from test_lifecycle_conformance import _template_lifecycle
-
 from signetum import lifecycle
+from signetum import lifecycle as core_lifecycle
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
 from signetum.serialization import contract_mapping
@@ -19,9 +18,7 @@ from signetum.workspaces import WorkspaceRecord, state_root, write_record
 @pytest.fixture
 def authority(request, repository, tmp_path):
     root, state = repository
-    runtime = (
-        lifecycle if getattr(request, "param", "engine") == "engine" else _template_lifecycle()
-    )
+    runtime = lifecycle if getattr(request, "param", "engine") == "engine" else core_lifecycle
     marker = state / "checks"
     path = root / "signetum.toml"
     command = [sys.executable, "-c", f"from pathlib import Path; Path({str(marker)!r}).touch()"]
@@ -98,7 +95,7 @@ def test_ready_requires_own_approved_change_before_checks(authority, stage):
         assert not list((state_root(root) / "validation").glob("member-*.json"))
 
 
-@pytest.mark.parametrize("authority", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("authority", ["engine"], indirect=True)
 def test_ready_cannot_claim_a_change_owned_by_another_member(authority):
     runtime, root, marker, scratch = authority
     base = git_output(root, "rev-parse", "HEAD")
@@ -142,7 +139,7 @@ def test_admission_uses_committed_package_plans_and_ignores_forged_trailer(autho
 
 
 @pytest.mark.parametrize("stage", ["approved", "draft", "plan-only", "wrong-base", "dual"])
-@pytest.mark.parametrize("authority", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("authority", ["engine"], indirect=True)
 def test_ready_uses_one_consolidated_record_without_legacy_files(authority, stage):
     runtime, root, marker, scratch = authority
     base = git_output(root, "rev-parse", "HEAD")
@@ -198,9 +195,7 @@ def test_revised_contract_needs_its_own_post_approval_implementation(
 @pytest.mark.parametrize("edit", ["execution", "contract", "delete"])
 def test_delivered_consolidated_contract_is_protected_but_execution_can_refine(authority, edit):
     runtime, root, _, _ = authority
-    module = importlib.import_module(
-        "signetum.change.scope" if runtime is lifecycle else "_signetum_runtime.change_scope"
-    )
+    module = importlib.import_module("signetum.change.scope")
     original_base = git_output(root, "rev-parse", "HEAD")
     path = consolidated_approval(root, original_base)
     commit(root, "deliver fixture approval")
@@ -229,9 +224,7 @@ def test_delivered_consolidated_contract_is_protected_but_execution_can_refine(a
 
 def test_delivery_scope_refuses_a_symlink_record_as_a_structured_error(authority):
     runtime, root, _, _ = authority
-    module = importlib.import_module(
-        "signetum.change.scope" if runtime is lifecycle else "_signetum_runtime.change_scope"
-    )
+    module = importlib.import_module("signetum.change.scope")
     base = git_output(root, "rev-parse", "HEAD")
     path = consolidated_approval(root, base)
     path.rename(path.with_name("original.toml"))
@@ -245,7 +238,7 @@ def test_delivery_scope_refuses_a_symlink_record_as_a_structured_error(authority
 @pytest.mark.parametrize(
     "application", ["decision", "observation", "approval-only", "tampered", "borrowed"]
 )
-@pytest.mark.parametrize("authority", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("authority", ["engine"], indirect=True)
 def test_authority_only_ready_requires_an_exact_applied_decision(authority, application):
     runtime, root, marker, scratch = authority
     base = git_output(root, "rev-parse", "HEAD")
@@ -274,11 +267,7 @@ contract_digest = "{digest}"
 '''
     path.write_text(source)
     commit(member, "approve exact decision")
-    module = importlib.import_module(
-        "signetum.development_store"
-        if runtime is lifecycle
-        else "_signetum_runtime.development_store"
-    )
+    module = importlib.import_module("signetum.development_store")
     decision = parse_change_record(source).contract.decisions[0]
     request: dict[str, object] = dict(
         id="example/apply",

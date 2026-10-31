@@ -4,25 +4,18 @@ import importlib
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
-
 from signetum.validation import process_observation
 
 
 @pytest.fixture
 def runner(request, monkeypatch):
-    if getattr(request, "param", "engine") == "engine":
-        return importlib.import_module("signetum.validation.process")
-    monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime")
-    )
-    return importlib.import_module("_signetum_runtime.process")
+    return importlib.import_module("signetum.validation.process")
 
 
 @pytest.mark.parametrize("exit_code", [0, 7])
-@pytest.mark.parametrize("runner", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("runner", ["engine"], indirect=True)
 def test_detached_leak_is_cleaned_and_never_publishes_success(tmp_path, runner, exit_code):
     child = "import time; time.sleep(30)"
     script = (
@@ -58,7 +51,7 @@ def test_detached_leak_is_cleaned_and_never_publishes_success(tmp_path, runner, 
 
 
 @pytest.mark.parametrize("detached", [False, True])
-@pytest.mark.parametrize("runner", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("runner", ["engine"], indirect=True)
 def test_timeout_cleans_owned_descendants(tmp_path, runner, detached):
     pid_file = tmp_path / "child-pid"
     child = "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(30)"
@@ -120,7 +113,7 @@ def test_unavailable_scan_is_infrastructure_without_masking_original_failure(
     assert "process observation unavailable" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("runner", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("runner", ["engine"], indirect=True)
 def test_detached_child_with_cleared_environment_is_owned_by_private_scratch(tmp_path, runner):
     script = (
         "import os,subprocess,sys; from pathlib import Path; "

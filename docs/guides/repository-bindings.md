@@ -5,15 +5,14 @@ bindings and use an explicit preview for later runtime updates.
 
 ## Replace product facts first
 
-Current manifest schema 3 declares `repository.changes` for the change root,
+Current manifest schema 4 declares `repository.changes` for the change root,
 `repository.decisions` for retained standalone decisions and `repository.architecture`
-for the responsibility map. A change uses `change.toml` and its significant journal.
+as optional responsibility context. Delivery is declared once in `[delivery]`. A change uses `change.toml` and its significant journal.
 There is no separately versioned template or old Specification/Plan path alias.
 
-Update the root README, architecture map, repository manifest, focused policy,
-fixtures, examples, package metadata, and release targets with product facts.
-Delete teaching artifacts that are not true for the new product; do not leave
-placeholder aliases or fallback identities.
+Bind existing product commands and inputs. Do not create placeholder authorities,
+copy a template, or add Signetum to the application's dependency groups. The Skill
+owns execution tooling; the project owns its actual development environment.
 
 ## Preserve the lifecycle boundaries
 
@@ -64,8 +63,8 @@ carried and who approved it.
 
 ## Changing the process later
 
-1. Record the need as Review clauses.
-2. Approve observable process behavior in a Specification.
+1. Record the consequential finding in the owning change journal.
+2. Approve observable process behavior in that change.
 3. Accept a standalone decision explaining the new authority and removed path.
 4. Implement it in a change-owned worktree with behavior tests.
 5. Deliver it through the repository's own batch lifecycle.

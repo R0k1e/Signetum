@@ -1,49 +1,16 @@
 """Untrusted receipt documents obey the owned types in both distributed forms."""
 
 import json
-import subprocess
-import sys
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
+from signetum.evidence.receipts import EvidenceReceipt, ReceiptError
 from test_receipts_v2 import _gate, _identity, _selection
 
-from signetum.evidence.receipts import EvidenceReceipt, ReceiptError
 
-
-@pytest.fixture(params=["engine", "generated"])
+@pytest.fixture(params=["engine"])
 def decode(request):
-    if request.param == "engine":
-        return lambda source: json.loads(EvidenceReceipt.from_json(source).to_json())
-    runtime = Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime"
-    script = """
-import sys
-sys.path.insert(0,sys.argv[1])
-from _signetum_runtime.evidence_receipts import EvidenceReceipt,ReceiptError
-try:
-    result=EvidenceReceipt.from_json(sys.stdin.read())
-except ReceiptError as error:
-    print(str(error),file=sys.stderr)
-    raise SystemExit(2)
-assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
-print(result.to_json(),end='')
-"""
-
-    def generated(source):
-        result = subprocess.run(  # noqa: S603 -- isolated generated consumer, source via stdin
-            [sys.executable, "-I", "-S", "-c", script, str(runtime)],
-            input=source,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        assert result.returncode in {0, 2}, result.stderr
-        if result.returncode == 2:
-            raise ReceiptError(result.stderr)
-        return json.loads(result.stdout)
-
-    return generated
+    return lambda source: json.loads(EvidenceReceipt.from_json(source).to_json())
 
 
 @pytest.fixture

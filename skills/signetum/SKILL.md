@@ -11,31 +11,28 @@ Keep consequential decisions available across sessions, validate integrated work
 and deliver only the reviewed checked source. People make key choices; Agents
 perform routine execution and maintain concise records.
 
-Read the repository's Agent contract, architecture entry and declared development
-manifest. Load mandatory policies and only the groups selected by intent or
-paths; report those groups and reasons. Repository bindings own paths,
-environments, runners and delivery targets. If adoption or a required binding
-is absent, report what is missing before mutation. Do not install a workflow
-into an existing repository merely because this skill was invoked.
+Honor the project's existing instructions and environment authority. Inspect
+`signetum.toml` for command, input, record and delivery bindings. Architecture and
+Agent entry files are project-owned context, not installation prerequisites.
+Read relevant existing policies without adding a new policy router.
 
-Keep cwd in the user's repository. The local utility launcher is
-`sh <skill-base-dir>/scripts/signetum <command> [arguments]`; it delegates to
-the adopted `.agents/signetum/run protocol`, or the existing `just protocol`
-binding. `adopt` delegates to an installed reviewed engine before local adoption.
-It does not download or update anything.
-Honor declared schema, profile and skill identities. A mismatch requires an
-explicit adoption change; installing this folder does not change existing pins.
-Use the repository's declared lifecycle commands for workspace and delivery
-operations. Read [adoption](references/adoption.md) only when initializing a project, adopting a repository or upgrading local bindings.
-It owns fixed-version setup-tool acquisition and prerequisites; daily work uses
-the project's local runtime.
+Keep cwd in the user's repository. Run
+`sh <skill-base-dir>/scripts/signetum <operation> [arguments]`.
+One explicit `setup` prepares this Skill's locked isolated engine environment;
+ordinary operations never install, repair or update it. Git, Mise, Worktrunk,
+uv and host Python 3.12+ are prerequisites. Application preparation runs only
+through the project's declared commands and environment.
+Read [adoption](references/adoption.md) for first use or an explicit update.
+A missing or mismatched project engine pin requires a reviewed adoption change,
+not automatic replacement. The same launcher serves the eight lifecycle
+operations and the record/status/maintenance utilities.
 
 Use `status` to see workspace state, retained findings, source-bound receipts and
 the next action. It executes no checks and does not grant readiness. Before
 planning, read the current decision working set with `current`. Retrieve
 original rationale with `history --event <id>` or `history --change <id>` only
-when relevant. The view also lists historical authority sources and their declared standing.
-Consult relevant retained sources; `journal_only` does not mean they were migrated.
+when relevant. Historical authorities are read on demand from the declared decision directory;
+retrieve relevant original rationale rather than loading the complete archive.
 For new or changed behavior, read
 [change approval](references/spec-plan-decisions.md); create one change record
 and generate its approval view. Read [change closure](references/change-closure.md)

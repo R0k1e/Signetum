@@ -2,7 +2,6 @@ from collections.abc import Callable
 from dataclasses import replace
 
 import pytest
-
 from signetum.validation import (
     GateDeclaration,
     GraphContribution,

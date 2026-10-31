@@ -5,7 +5,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-
 from signetum.decision_clauses import (
     ClauseRevision,
     DecisionEdit,
@@ -16,7 +15,7 @@ from signetum.decision_clauses import (
 )
 
 
-@pytest.fixture(autouse=True, params=["engine", "template"])
+@pytest.fixture(autouse=True, params=["engine"])
 def authority(request, monkeypatch):
     if request.param == "template":
         monkeypatch.syspath_prepend(
@@ -25,7 +24,7 @@ def authority(request, monkeypatch):
                 / "tests/fixtures/portable-python/.agents/signetum/runtime"
             )
         )
-        generated = importlib.import_module("_signetum_runtime.decision_clauses")
+        generated = importlib.import_module("signetum.decision_clauses")
         for name in (
             "ClauseRevision",
             "DecisionEdit",

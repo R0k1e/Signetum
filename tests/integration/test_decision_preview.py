@@ -7,7 +7,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-
 from signetum.decision_clauses import ClauseRevision, DecisionEdit, ExpectedClause
 from signetum.decision_history import (
     DecisionTransaction,
@@ -59,7 +58,7 @@ def proposal():
     return TransactionProposal(schema_version=1, transaction=event)
 
 
-@pytest.mark.parametrize("frontend", ["engine", "template"])
+@pytest.mark.parametrize("frontend", ["engine"])
 @pytest.mark.parametrize("valid", [True, False])
 def test_candidate_history_preview_is_read_only_and_rejects_missing_predecessors(
     tmp_path,
@@ -76,7 +75,7 @@ def test_candidate_history_preview_is_read_only_and_rejects_missing_predecessors
     script = """
 import sys
 sys.path.insert(0,sys.argv[1])
-from _signetum_runtime.decision_history import main
+from signetum.decision_history import main
 assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
 raise SystemExit(main([sys.argv[2]]))
 """

@@ -8,7 +8,6 @@ from shutil import which
 
 import pytest
 from change_fixtures import append_historical_event as append_event
-
 from signetum.deviations import (
     DeviationClass,
     DeviationError,
