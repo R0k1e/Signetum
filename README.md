@@ -1,15 +1,15 @@
 # Signetum
 
 <p align="center">
-  <img src="assets/brand/signetum-mark.svg" width="80" alt="Signetum signet">
+  <img src="assets/brand/signetum-mark.png" width="80" alt="Signetum signet">
 </p>
 
-**Shared decisions. Parallel agent development. Reliable delivery.**
+**A protocol for reliable agentic development and delivery.**
 
-Signetum helps people make key decisions and multiple coding agents work in
-isolated worktrees. Agree on the outcome, divide the work, integrate deliberately
-and deliver the exact source you reviewed. One standard Skill guides the process
-for new projects and existing repositories, using their own application tools.
+Keep key decisions, coordinate independent Agent work, validate the integrated
+result and deliver the source you checked. Signetum supports evolving repositories,
+from one Agent across sessions to parallel Agent development. One standard Skill
+guides new projects and existing repositories using their own application tools.
 
 ## Install and start
 
@@ -39,7 +39,8 @@ validation and explicit delivery.
 
 - Key decisions and their basis kept once, with a derived current decision set.
 - Clear ownership, dependencies and isolated worktrees for parallel agent changes.
-- Named integration, complete final checks and delivery of an exact reviewed source.
+- Named integration, complete final checks and delivery of the exact checked source.
+- Preserved first failures and inspected recovery after delivery interruptions.
 - Behavioral tests through existing tools; optional project selectors and bounded
   test scheduling can improve feedback without weakening final validation.
 

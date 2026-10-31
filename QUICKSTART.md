@@ -34,11 +34,12 @@ repository process, commands use its local runtime. The upstream checkout and
 global setup engine are not daily dependencies. Updating is a later explicit
 preview, not a background synchronization.
 
-## Decide and build
+## Develop and deliver reliably
 
 > Use $signetum to implement [behavior]. Show the intended outcome, scope and
 > acceptance first. Stop at ready.
 
+The same process supports a single Agent across sessions and parallel members.
 Discuss consequential choices about behavior, architecture or delivery before
 implementation.
 The agent should explain the alternatives, consequences and recommendation; you
