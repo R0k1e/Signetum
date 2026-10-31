@@ -454,17 +454,29 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     }
 
 
-def batch_open(repository: Path, members: tuple[Path, ...]) -> dict[str, object]:
+def batch_open(
+    repository: Path, members: tuple[Path, ...], name: str | None = None
+) -> dict[str, object]:
     if not members:
         raise AdmissionError("batch-open requires explicitly named members")
+    member_names = tuple(_branch(member.resolve()) for member in members)
+    task = (
+        name
+        if name is not None
+        else "-and-".join(branch.split("/", 1)[-1].replace("/", "-") for branch in member_names)
+    )
+    if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,95}", task) is None:
+        raise AdmissionError(
+            "batch name requires a lowercase task slug of at most 96 characters; use --name"
+        )
     _, approved_base = fresh_delivery(repository)
-    branch = f"batch/{approved_base}"
+    branch = f"batch/{task}"
     opened = open_workspace(
         repository,
         branch,
         approved_base,
         kind="batch",
-        members=tuple(_branch(member.resolve()) for member in members),
+        members=member_names,
     )
     batch = Path(str(opened["worktree"]))
     result = admit(batch, members)
@@ -580,6 +592,7 @@ def _parser() -> argparse.ArgumentParser:
     diagnostic.add_argument("--explain", action="store_true")
     commands.add_parser("ready")
     opening = commands.add_parser("batch-open")
+    opening.add_argument("--name")
     opening.add_argument("--member", type=Path, action="append", required=True)
     admission = commands.add_parser("batch-admit")
     admission.add_argument("--batch", type=Path, required=True)
@@ -605,7 +618,7 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     elif parsed.command == "ready":
         result = validate(repository, "member")
     elif parsed.command == "batch-open":
-        result = batch_open(repository, tuple(parsed.member))
+        result = batch_open(repository, tuple(parsed.member), parsed.name)
     elif parsed.command == "batch-admit":
         result = admit(parsed.batch.resolve(), tuple(parsed.member))
     elif parsed.command == "batch-continue":

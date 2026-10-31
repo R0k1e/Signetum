@@ -1,6 +1,14 @@
 # Work and validation
 
 Use the registered member workspace, immutable base and repository environment.
+Use a short task branch such as `change/isolate-runtime`, never an opaque identifier.
+Follow the project's commit convention. Subjects describe a durable outcome; keep
+related changes together instead of committing each journal event separately.
+Use concise specific change bullets when the project requires them, and explain
+removed or replaced authorities. Keep decision rationale in its owning change,
+not repeated in commit messages; omit transcripts and command logs. Commit human
+approval before implementation and preserve commits already bound to evidence.
+
 Find and extend the existing implementation owner. Reproduce changed behavior
 through its public boundary and validate the approved contract with the existing
 runner. Without a selection provider, run the full declared member gate. An

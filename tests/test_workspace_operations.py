@@ -523,6 +523,9 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     lifecycle.validate(member, "member")
     opened_batch = lifecycle.batch_open(root, (member,))
     batch = Path(str(opened_batch["worktree"]))
+    assert git_output(batch, "symbolic-ref", "--short", "HEAD") == "batch/example"
+    retried = lifecycle.batch_open(root, (member,))
+    assert retried["worktree"] == str(batch)
     final = lifecycle.validate(batch, "final")
     tip = final["source"]
     assert isinstance(tip, str)
@@ -574,7 +577,7 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
     commit_file(member, "implementation.txt")
     lifecycle.validate(member, "member")
     pending = ops.open_workspace(
-        member, f"batch/{base}", base, kind="batch", members=(str(member),)
+        member, "batch/protocol-upgrade", base, kind="batch", members=("plan/protocol-upgrade",)
     )
     preparation = pending["preparation"]
     assert isinstance(preparation, dict) and preparation["status"] == "pending_admission"
