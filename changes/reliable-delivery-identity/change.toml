@@ -60,3 +60,8 @@ actor = "Repository owner"
 recorded_at = 2026-10-31
 source = "The owner replied: do not mention Perdura; use image generation for the logo first; all other proposed changes approved."
 contract_digest = "sha256:ad8477fed9afcfd9ba7c657792302e923859ccadf2ddb29556a043de9b76f0c2"
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["IDENTITY-003"]
+action = "Correct premature clean settlement on one transient empty inventory; extend the existing native-process test without weakening ownership or first-failure rules, validate and deliver after the owner's explicit delivery request."
