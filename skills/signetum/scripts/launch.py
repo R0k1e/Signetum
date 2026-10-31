@@ -79,6 +79,10 @@ def main() -> int:
                 json.dumps({"environment": fingerprint, "engine": identity}, sort_keys=True)
             )
             os.replace(temporary, receipt)
+            bootstrap = cache / "host-python.pending"
+            bootstrap.unlink(missing_ok=True)
+            bootstrap.symlink_to(python)
+            os.replace(bootstrap, cache / "host-python")
         print(
             json.dumps(
                 {"status": "prepared", "environment": str(home), "engine": identity}, sort_keys=True

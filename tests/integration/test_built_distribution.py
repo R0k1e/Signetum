@@ -284,3 +284,12 @@ contract_digest="{digest}"
         assert package.read_bytes() != original_package
     finally:
         package.write_bytes(original_package)
+
+    # A prepared Skill must not select an application's older/missing Python.
+    shim = tmp_path / "application-tools"
+    shim.mkdir()
+    mise = shim / "mise"
+    mise.write_text("#!/bin/sh\necho 'application tool selection is forbidden' >&2\nexit 23\n")
+    mise.chmod(0o755)
+    environment["PATH"] = str(shim) + os.pathsep + environment["PATH"]
+    assert run("identity")["implementation"] == prepared["engine"]["implementation"]
