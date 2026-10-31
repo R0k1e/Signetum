@@ -16,7 +16,7 @@ SITE_FILES = (
     "fonts/OFL.txt",
 )
 BRAND_FILES = (
-    ("assets/brand/signetum-mark.svg", "assets/signetum-mark.svg"),
+    ("assets/brand/signetum-mark.png", "assets/signetum-mark.png"),
     ("assets/brand/signetum-social-preview.png", "assets/signetum-social-preview.png"),
 )
 

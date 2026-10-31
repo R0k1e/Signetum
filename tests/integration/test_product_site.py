@@ -33,7 +33,7 @@ def test_site_build_emits_an_exact_public_artifact(tmp_path: Path) -> None:
     files = build_site(ROOT, destination)
 
     assert set(files) == {
-        "assets/signetum-mark.svg",
+        "assets/signetum-mark.png",
         "assets/signetum-social-preview.png",
         "fonts/InstrumentSerif-Regular.ttf",
         "fonts/OFL.txt",
@@ -50,7 +50,7 @@ def test_site_build_emits_an_exact_public_artifact(tmp_path: Path) -> None:
         if path.is_file()
     } == set(files)
     for source, output in (
-        ("assets/brand/signetum-mark.svg", "assets/signetum-mark.svg"),
+        ("assets/brand/signetum-mark.png", "assets/signetum-mark.png"),
         ("assets/brand/signetum-social-preview.png", "assets/signetum-social-preview.png"),
         ("site/fonts/InstrumentSerif-Regular.ttf", "fonts/InstrumentSerif-Regular.ttf"),
         ("site/fonts/OFL.txt", "fonts/OFL.txt"),

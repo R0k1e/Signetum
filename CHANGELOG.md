@@ -5,6 +5,9 @@ their original release history. Git and accepted change records retain reasoning
 
 ## 0.3.0 - Unreleased
 
+- Center public entrypoints on reliable Agent delivery, including session handoffs,
+  integrated validation and exact-source publication; refresh the generated signet.
+
 - Focus the Skill on human decisions, parallel worktrees and reliable integration/delivery.
 - Retain project selection interfaces; remove bundled Python reach and its optional command.
 - Move private acceptance scaffolding to tests, remove future ADR numbering and simplify journal dispatch.
