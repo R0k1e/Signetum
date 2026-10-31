@@ -1,0 +1,64 @@
+[change]
+schema_version = 1
+id = "release-ready"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner directs public material preparation and current-round cleanup to happen before release, and asks whether publication can then be execution only."
+
+[change.contract]
+version = 1
+approved_base = "69dce274500060c54eb9382ac3b3b5deba9ed065"
+
+[[change.contract.requirements]]
+id = "PREP-001"
+outcome = "Prepared public materials and release notes form one concise user-facing message."
+acceptance = [
+    "Keep existing README, bilingual site, logo and diagram; reconcile stale installation copy.",
+    "Consolidate the pending 0.3.0 notes into outcomes and essential upgrade information; create no parallel marketing document.",
+]
+
+[[change.contract.requirements]]
+id = "PREP-002"
+outcome = "Publication consumes reviewed notes from the validated release artifact."
+acceptance = [
+    "Prepare release notes from the matching version section and include them in checksums.",
+    "The publish job uses those notes without generating another description or rebuilding artifacts.",
+    "Qualify and deliver this preparation under existing repository delivery authorization; do not tag or publish a release.",
+]
+
+[[change.contract.requirements]]
+id = "CLEAN-001"
+outcome = "Remove obsolete owned acceptance residue before publication."
+acceptance = [
+    "Delete the superseded downstream probe using its owning cleanup tool; preserve the tested undelivered adoption and unrelated work.",
+    "Remove obsolete owned temporary acceptance copies; retain current evidence and verify the current standard Skill archive.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Reconcile existing public materials and release preparation, validate the workflow and standard Skill artifact, qualify and deliver the source using existing authorization.",
+    "Remove explicitly identified obsolete owned test workspaces and temporary artifacts.",
+]
+requires_confirmation = [
+    "Creating a release tag, publishing GitHub Release assets, external promotional posts or delivering Perdura product.",
+]
+
+[[change.contract.excluded]]
+statement = "New marketing document systems, videos, visual redesign, Windows support and production publication."
+reason = "Prepare and clean the existing product without expanding the release scope."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = [
+    "PREP-001",
+    "PREP-002",
+    "CLEAN-001",
+]
+action = "Consolidate version notes, bind them into the verified release artifact, correct stale site copy, clean owned residue, verify the archive, qualify and deliver the preparation."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-31
+source = "The owner explicitly directed that promotional materials and cleanup be completed ahead of release; existing Signetum source-delivery authorization remains in effect."
+contract_digest = "sha256:ffb665b93c735cd1a13dae715a284f9ceef4718a49e885655f3df4bd9a465542"
