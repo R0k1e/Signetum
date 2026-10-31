@@ -29,11 +29,11 @@ def template_admission_member(repository, tmp_path):
     text = (
         manifest.read_text()
         .replace(
-            "[repository]",
-            'evidence_protocol = "reposeal.validation-evidence@3"\n'
+            "[signetum]",
+            '[signetum]\nevidence_protocol = "reposeal.validation-evidence@3"\n'
             + 'evidence_schema_digest = "sha256:'
             + "0" * 64
-            + '"\n[repository]',
+            + '"\n',
         )
         .replace('name = "test:check"\n', 'name = "test:check"\nrequires = ["test:prepare"]\n')
     )

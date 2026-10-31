@@ -26,7 +26,7 @@ def documents():
     }
 
 
-@pytest.fixture(params=["engine", "generated"])
+@pytest.fixture(params=["engine"])
 def resolve(request):
     def installed(documents, selected):
         catalog = load_catalog(documents.__getitem__)

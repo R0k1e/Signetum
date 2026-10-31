@@ -68,16 +68,32 @@ def test_stale_or_unsafe_adoption_refuses_before_any_write(adoption, tmp_path, c
 
 def test_partial_filesystem_failure_rolls_back_owned_writes(adoption, monkeypatch):
     root, request = adoption
+    retired = root / ".agents/signetum/run"
+    retired.parent.mkdir(parents=True, exist_ok=True)
+    retired.write_text("#!/bin/sh\nexit 0\n")
+    retired.chmod(0o755)
+    digest = "sha256:" + hashlib.sha256(retired.read_bytes()).hexdigest()
+    request = replace(
+        request, retirements=(Retirement(path=".agents/signetum/run", digest=digest),)
+    )
     proposal = preview(root, request)
     before = (root / "signetum.toml").read_bytes()
+    original = owner._replace
+    calls = 0
 
-    def fail(path: Path, text: str):
-        raise OSError("injected disk failure")
+    def fail_once(path: Path, text: str):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("injected disk failure")
+        original(path, text)
 
-    monkeypatch.setattr(owner, "_replace", fail)
+    monkeypatch.setattr(owner, "_replace", fail_once)
     with pytest.raises(OSError, match="disk failure"):
         apply(root, proposal, plan_digest(proposal))
     assert (root / "signetum.toml").read_bytes() == before
+    assert retired.read_text() == "#!/bin/sh\nexit 0\n"
+    assert retired.stat().st_mode & 0o777 == 0o755
 
 
 def test_invalid_bindings_and_subdirectory_do_not_create_a_plan(adoption):

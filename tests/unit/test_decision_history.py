@@ -9,7 +9,7 @@ from signetum import decision_clauses as clauses
 from signetum import decision_history as history
 
 
-@pytest.fixture(autouse=True, params=["engine", "template"])
+@pytest.fixture(autouse=True, params=["engine"])
 def backend(request, monkeypatch):
     if request.param == "template":
         monkeypatch.syspath_prepend(

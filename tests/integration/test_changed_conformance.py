@@ -12,7 +12,7 @@ from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture(params=["engine"])
 def diagnostic(request, repository, monkeypatch, tmp_path):
     root, state = repository
     runtime = lifecycle if request.param == "engine" else core_lifecycle

@@ -9,7 +9,7 @@ FIXTURE = Path(__file__).parents[3] / "tests/fixtures/portable-python" / "signet
 def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
     manifest = load_manifest(FIXTURE)
 
-    assert manifest.schema_version == 3
+    assert manifest.schema_version == 4
     assert manifest.signetum.protocol == 2
     assert manifest.repository.architecture == "docs/ARCHITECTURE.md"
     assert manifest.profiles.enabled == ("python-default@1", "git-worktrunk@1")

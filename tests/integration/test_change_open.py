@@ -9,7 +9,7 @@ from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
-@pytest.fixture(params=["signetum", "_signetum_runtime"])
+@pytest.fixture(params=["signetum"])
 def author(request, monkeypatch):
     if request.param == "_signetum_runtime":
         monkeypatch.syspath_prepend(

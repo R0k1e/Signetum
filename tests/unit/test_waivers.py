@@ -215,21 +215,21 @@ if sys.argv[2].startswith('_signetum_runtime.'):
     assert 'signetum' not in sys.modules
 print(json.dumps(result))
 """
-    results = []
-    for path, module in (
-        (root / "src", "signetum.waivers"),
-        (
-            root / "tests/fixtures/portable-python/.agents/signetum/runtime",
+    completed = subprocess.run(  # noqa: S603 -- source-only pure waiver rules
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            script,
+            str(root / "skills/signetum/scripts/engine"),
             "signetum.waivers",
-        ),
-    ):
-        completed = subprocess.run(  # noqa: S603 -- isolated fixed interpreter and fixture argv
-            [sys.executable, "-I", "-S", "-c", script, str(path), module, str(tmp_path), day],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert completed.returncode == 0, completed.stderr
-        results.append(json.loads(completed.stdout))
-    assert results[0] == results[1]
-    assert results[0]["status"] == expected
+            str(tmp_path),
+            day,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["status"] == expected

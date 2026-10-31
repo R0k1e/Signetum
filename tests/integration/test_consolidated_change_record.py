@@ -165,8 +165,7 @@ def test_traceability_accepts_one_consolidated_record_without_legacy_files(
 
 @pytest.mark.parametrize(
     "frontend,damage",
-    [("engine", item) for item in ["draft", "stale", "dual", "identity", "symlink", "withdrawn"]]
-    + [("template", "stale")],
+    [("engine", item) for item in ["draft", "stale", "dual", "identity", "symlink", "withdrawn"]],
 )
 def test_review_refuses_invalid_consolidated_authority_without_legacy_fallback(
     tmp_path, record_source, frontend, damage, monkeypatch
@@ -214,8 +213,7 @@ def test_review_refuses_invalid_consolidated_authority_without_legacy_fallback(
 
 @pytest.mark.parametrize(
     "frontend,target",
-    [("engine", item) for item in ["valid", "missing", "wrong-requirement", "withdrawn"]]
-    + [("template", "wrong-requirement")],
+    [("engine", item) for item in ["valid", "missing", "wrong-requirement", "withdrawn"]],
 )
 def test_traceability_requires_exact_active_transfer_ownership(
     tmp_path, record_source, frontend, target, monkeypatch

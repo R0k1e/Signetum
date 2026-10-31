@@ -11,12 +11,13 @@ from zipfile import ZipFile
 import pytest
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
+from signetum.release import build_skill_archive
 from signetum.runtime_identity import implementation_digest
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_built_wheel_ships_its_declared_resources_without_build_machine_facts():
+def test_built_wheel_ships_its_declared_resources_without_build_machine_facts(tmp_path):
     wheels = tuple((ROOT / "dist").glob("signetum-*.whl"))
     assert len(wheels) == 1
     with ZipFile(wheels[0]) as wheel:
@@ -26,6 +27,15 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts():
     forbidden = (str(ROOT).encode(), b"/Users/", b".runtime/")
     assert all(value not in payload for value in forbidden)
     assert not any("vendor_yaml" in name or "/resources/skills/" in name for name in names)
+    archive = build_skill_archive(ROOT, tmp_path)
+    with ZipFile(archive) as bundle:
+        names = set(bundle.namelist())
+        assert {
+            "signetum/SKILL.md",
+            "signetum/scripts/signetum",
+            "signetum/scripts/engine/uv.lock",
+        } <= names
+        assert not any("/.runtime/" in name or "__pycache__" in name for name in names)
 
 
 @pytest.fixture(scope="session")
@@ -72,11 +82,11 @@ def test_installed_skill_adopts_and_delivers_without_entering_application(
     project = tmp_path / "application"
     project.mkdir()
     environment = dict(environment, MISE_TRUSTED_CONFIG_PATHS=str(tmp_path))
-    launcher = skill / "scripts/launch.py"
+    launcher = skill / "scripts/signetum"
 
     def run(*args, cwd=project, ok=True):
         result = subprocess.run(  # noqa: S603 -- explicit disposable consumer invocation
-            [sys.executable, str(launcher), *map(str, args)],
+            [str(shutil.which("sh")), str(launcher), *map(str, args)],
             cwd=cwd,
             env=environment,
             capture_output=True,

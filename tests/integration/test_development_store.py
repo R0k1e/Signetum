@@ -729,9 +729,6 @@ def _cli(repository, store, *arguments, isolated=None):
     engine = store.__name__.startswith("signetum.")
     if isolated is None:
         isolated = not engine
-    runtime = (
-        root / "src" if engine else root / "tests/fixtures/portable-python/.agents/signetum/runtime"
-    )
     script = (
         "import importlib,sys; sys.path.insert(0,sys.argv.pop(1)); "
         "module=importlib.import_module(sys.argv.pop(1)); "
@@ -746,7 +743,7 @@ def _cli(repository, store, *arguments, isolated=None):
             *(["-I", "-S"] if isolated else []),
             "-c",
             script,
-            str(runtime),
+            str(root / "skills/signetum/scripts/engine"),
             store.__name__.rsplit(".", 1)[0] + ".protocol_cli",
             *arguments,
             "--repository",
@@ -796,11 +793,8 @@ def test_real_cli_mutation_and_lazy_read_views_need_no_engine_installation(
         "authority_coverage",
     } <= json.loads(current.stdout).keys()
     historical = json.loads(current.stdout)["historical_authorities"]
-    assert historical[0]["path"] == "docs/decisions/ADP-existing.md"
-    assert historical[0]["standing"] == "retained"
-    assert historical[0]["blob"] == git_output(
-        repository, "rev-parse", "HEAD:docs/decisions/ADP-existing.md"
-    )
+    assert historical == {"directory": "docs/decisions", "mode": "read_on_demand"}
+    assert legacy.read_text().startswith("# Existing rule")
     listing = _cli(repository, store, "status", isolated=isolated)
     assert listing.returncode == 0, listing.stderr
     assert "entries" not in json.loads(listing.stdout)

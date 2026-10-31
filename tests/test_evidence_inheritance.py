@@ -36,11 +36,11 @@ def configured(repository, runtime):
         )
 
     original = manifest.read_text().replace(
-        "[repository]",
-        'evidence_protocol = "reposeal.validation-evidence@3"\n'
+        "[signetum]",
+        '[signetum]\nevidence_protocol = "reposeal.validation-evidence@3"\n'
         + 'evidence_schema_digest = "sha256:'
         + "0" * 64
-        + '"\n[repository]',
+        + '"\n',
     )
     text = original.replace('paths = ["**"]', 'paths = ["src/**"]')
     text = text.replace(
