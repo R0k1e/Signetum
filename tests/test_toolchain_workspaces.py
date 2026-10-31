@@ -29,6 +29,7 @@ def test_invalid_worktrunk_json_is_refused(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_mise_projection_sanitizes_repository_environment(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", "/explicitly-reviewed")
     observed: dict[str, str] = {}
 
     def fake_run(
@@ -49,7 +50,7 @@ def test_mise_projection_sanitizes_repository_environment(monkeypatch, tmp_path:
 
     assert "GIT_DIR" not in observed
     assert "PYTHONPATH" not in observed
-    assert "MISE_TRUSTED_CONFIG_PATHS" not in observed
+    assert observed["MISE_TRUSTED_CONFIG_PATHS"] == "/explicitly-reviewed"
 
 
 def test_worktree_inventory_accepts_only_schema_two_registered_items(
