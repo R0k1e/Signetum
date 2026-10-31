@@ -1,0 +1,62 @@
+[change]
+schema_version = 1
+id = "reliable-delivery-identity"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approves the reliable Agent delivery design and user-facing updates, removes downstream-project references, and requests image-generated logo exploration."
+
+[change.contract]
+version = 1
+approved_base = "6c8540ce53b9ec54fcff40d24964c45b656bf1fe"
+
+[[change.contract.requirements]]
+id = "IDENTITY-001"
+outcome = "Public entrypoints present reliable Agent development and delivery without naming downstream projects."
+acceptance = [
+    "Update bilingual homepage, README and first use; cover single-Agent continuity and parallel integration with factual claims.",
+    "Show approved intent, independent work, complete integrated validation and delivery of the checked source; failures require repair.",
+]
+
+[[change.contract.requirements]]
+id = "IDENTITY-002"
+outcome = "A generated logo exploration accompanies a coherent accessible product surface."
+acceptance = [
+    "Use the built-in image tool for a non-checklist signet/deliverable mark; keep design intermediates outside tracked source.",
+    "Inspect desktop/mobile EN/ZH, navigation and installation; keep one standard Skill entry and explicit prerequisites.",
+]
+
+[[change.contract.requirements]]
+id = "IDENTITY-003"
+outcome = "Skill instructions and current documentation agree with the reliable-delivery focus."
+acceptance = [
+    "Retain decision reasoning, economical behavioral tests, first-failure preservation and complete final checks.",
+    "Reuse existing site/build checks; disclose any changed test or asset boundary and retain its evidence.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement, commit and validate the approved product surfaces in an isolated worktree; prepare an exact delivery review.",
+]
+requires_confirmation = [
+    "Delivery authorization beyond prior agreed scope, release tags, package publication, protocol behavior changes or external service settings.",
+]
+
+[[change.contract.excluded]]
+statement = "Protocol redesign, downstream adoption and new design documentation layers."
+reason = "This change updates presentation and instructions without introducing another workflow."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = [
+    "IDENTITY-001",
+    "IDENTITY-002",
+    "IDENTITY-003",
+]
+action = "Update product copy, generated brand exploration and workflow presentation, reconcile instructions, inspect renders and run existing checks."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-31
+source = "The owner replied: do not mention Perdura; use image generation for the logo first; all other proposed changes approved."
+contract_digest = "sha256:dceb54390a677343e64140b65c4542bb2297a1d4c35ea0cba1251d30bba0fb2f"
