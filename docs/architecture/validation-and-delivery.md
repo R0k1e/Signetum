@@ -67,7 +67,11 @@ own change. Ordinary execution refinements cannot reduce approved outcomes.
 
 Named admission binds exact member receipt bytes, input identities and provenance.
 Real merge bodies carry member, original source and batch-base fields; titles
-remain readable and project hooks stay enabled. Opening an empty integration
+remain readable and ordinary merge hooks stay enabled. Batch names derive from
+member tasks or an explicit `--name`; immutable registrations still own identity.
+Publication uses `Merge <task> into <target>` with exact base/tip trailers.
+Synthetic `commit-tree` publication does not invoke commit hooks; project-required
+message checks belong in declared validation rather than an assumed hook. Opening an empty integration
 workspace creates no provenance-only commit.
 World evidence cannot replace tree evidence. Preparation/static failure retains
 integration state for ordinary repair; merge conflict uses `batch-continue`.
