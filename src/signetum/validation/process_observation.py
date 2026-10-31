@@ -483,6 +483,7 @@ def settle_owned_processes(
     """Bound cleanup and recheck birth identity before each destructive signal."""
     leaked: set[int] = set()
     unavailable: set[int] = set()
+    empty_inventory = False
     # TERM allows ordinary shutdown. Repeated inventories also catch children
     # created during shutdown; KILL is bounded and never targets a bare PID.
     for termination_signal, duration in ((signal.SIGTERM, 0.2), (signal.SIGKILL, 0.3)):
@@ -490,8 +491,11 @@ def settle_owned_processes(
         while True:
             scan = observe_owned_processes(owner, session, scratch)
             unavailable.update(scan.unavailable)
-            if not scan.owned:
+            if not scan.owned and empty_inventory:
                 return ProcessSettlement(tuple(sorted(leaked)), (), tuple(sorted(unavailable)))
+            # One native snapshot may omit a starting detached child. Confirm
+            # quiescence with a fresh inventory within the existing deadline.
+            empty_inventory = not scan.owned
             for process in scan.owned:
                 identity = process.identity
                 leaked.add(identity.pid)
