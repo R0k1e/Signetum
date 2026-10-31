@@ -73,7 +73,7 @@ def native_application(root, language):
             ToolDeclaration("cargo", (cargo, "--version")),
             ToolDeclaration("rustc", (rustc, "--version")),
         )
-        (root / "skills/signetum/scripts/engine").mkdir()
+        (root / "src").mkdir()
         source = root / "src/lib.rs"
         good = (
             "pub fn twice(value: u32) -> u32 { value * 2 }\n"

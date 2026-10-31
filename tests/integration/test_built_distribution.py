@@ -259,3 +259,28 @@ contract_digest="{digest}"
         manifest.replace(prepared["engine"]["implementation"], "sha256:" + "0" * 64)
     )
     assert run("status", cwd=project, ok=False).returncode != 0
+
+    # Engine cache corruption must refuse without repairing or reinstalling it.
+    home = Path(prepared["environment"])
+    marker = home / "installed.json"
+    original_marker = marker.read_bytes()
+    document = json.loads(original_marker)
+    document["environment"] = "unreviewed"
+    marker.write_text(json.dumps(document))
+    try:
+        refused = run("identity", ok=False)
+        assert refused.returncode != 0
+        assert "identity changed" in refused.stderr
+        assert json.loads(marker.read_text())["environment"] == "unreviewed"
+    finally:
+        marker.write_bytes(original_marker)
+    package = next((home / "environment/lib").glob("python*/site-packages/signetum/__init__.py"))
+    original_package = package.read_bytes()
+    package.write_bytes(original_package + b"\n# changed installed engine\n")
+    try:
+        refused = run("identity", ok=False)
+        assert refused.returncode != 0
+        assert "engine changed" in refused.stderr
+        assert package.read_bytes() != original_package
+    finally:
+        package.write_bytes(original_package)

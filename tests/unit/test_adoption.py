@@ -100,6 +100,17 @@ def test_invalid_bindings_and_subdirectory_do_not_create_a_plan(adoption):
     root, request = adoption
     with pytest.raises(ValueError):
         preview(root, replace(request, manifest="not toml"))
+    invalid = (
+        request.manifest.replace('[delivery]\nbranch = "main"\n', ""),
+        request.manifest.replace('shards = ["test:check"]', "shards = []"),
+        request.manifest.replace('engine_digest = "' + implementation_digest() + '"\n', ""),
+        request.manifest.replace(implementation_digest(), "sha256:" + "0" * 64),
+    )
+    before = git_output(root, "status", "--porcelain")
+    for manifest in invalid:
+        with pytest.raises(ValueError):
+            preview(root, replace(request, manifest=manifest))
+    assert git_output(root, "status", "--porcelain") == before
     directory = root / "subdir"
     directory.mkdir()
     with pytest.raises(ValueError, match="repository root"):
@@ -121,6 +132,15 @@ def test_exact_managed_retirement_preserves_changed_and_unmanaged_files(adoption
             Retirement(path=(directory / "owned.py").relative_to(root).as_posix(), digest=digest),
         ),
     )
+    custom = directory / "custom.py"
+    unknown = Retirement(
+        path=custom.relative_to(root).as_posix(),
+        digest="sha256:" + hashlib.sha256(custom.read_bytes()).hexdigest(),
+    )
+    with pytest.raises(ValueError, match="inventoried"):
+        preview(root, replace(request, retirements=(unknown,)))
+    with pytest.raises(ValueError, match="inventoried"):
+        preview(root, replace(request, retirements=request.retirements * 2))
     proposal = preview(root, request)
     (directory / "owned.py").write_text("user change")
     with pytest.raises(ValueError):
