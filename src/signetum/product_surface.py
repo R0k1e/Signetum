@@ -18,7 +18,7 @@ REQUIRED_PRODUCT_PATHS = (
     "CONTRIBUTING.md",
     "SECURITY.md",
     "LICENSE",
-    "assets/brand/signetum-mark.svg",
+    "assets/brand/signetum-mark.png",
     "assets/brand/signetum-social-preview.png",
     "site/index.html",
     "site/zh-CN/index.html",

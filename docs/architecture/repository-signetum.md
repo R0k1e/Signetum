@@ -84,7 +84,7 @@ modules solely to shrink a directory would add import churn without removing an
 owner. `tests/fixture_rendering.py` validates the internal fixture and is not packaged
 in the wheel. Adoption emits reviewed bindings into the existing project directly.
 
-Keep production HTML/CSS/JS, the SVG mark, social image, font and its license in
+Keep production HTML/CSS/JS, the generated PNG mark, social image, font and its license in
 source. Design-tool skills, context, concept variants, screenshots and review
 output are local development material, not shipped product authorities. Keep
 them outside the tracked tree. Build exports, generated runtime copies, virtual

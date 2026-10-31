@@ -24,7 +24,7 @@ def observer(request, monkeypatch):
 
 
 @pytest.mark.parametrize("observer", ["engine", "template"], indirect=True)
-def test_native_observation_finds_only_owned_detached_processes(observer):
+def test_native_observation_finds_only_owned_detached_processes(observer, monkeypatch):
     if sys.platform != "darwin" and not sys.platform.startswith("linux"):
         pytest.skip("native process observation supports Linux and macOS")
     owner = uuid.uuid4().hex
@@ -66,6 +66,20 @@ def test_native_observation_finds_only_owned_detached_processes(observer):
         orphaned = observer.observe_owned_processes(owner, root.pid)
         assert {item.identity.pid for item in orphaned.owned} == {detached.pid}
         assert unrelated.poll() is None
+        # A process inventory may transiently omit an existing detached child.
+        # One empty snapshot must not qualify a clean settlement.
+        inventory = observer._process_pids
+        first = True
+
+        def transient_inventory():
+            nonlocal first
+            pids = inventory()
+            if first:
+                first = False
+                return tuple(pid for pid in pids if pid != detached.pid)
+            return pids
+
+        monkeypatch.setattr(observer, "_process_pids", transient_inventory)
         settled = observer.settle_owned_processes(owner, root.pid)
         assert settled.leaked == (detached.pid,)
         assert settled.remaining == ()

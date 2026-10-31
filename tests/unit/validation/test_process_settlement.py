@@ -88,7 +88,11 @@ def test_settlement_does_not_signal_a_reused_pid(monkeypatch):
             observer.OwnershipScan((), ()),
         ]
     )
-    monkeypatch.setattr(observer, "observe_owned_processes", lambda *_: next(inventories))
+    monkeypatch.setattr(
+        observer,
+        "observe_owned_processes",
+        lambda *_: next(inventories, observer.OwnershipScan((), ())),
+    )
     monkeypatch.setattr(observer, "process_identity", lambda _: reused)
     signals = []
     monkeypatch.setattr(observer.os, "kill", lambda *args: signals.append(args))
