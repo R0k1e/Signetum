@@ -1,13 +1,10 @@
 """Both distributed frontends bind the same explicitly resolved profile identities."""
 
-import importlib
 import json
 import re
 from pathlib import Path
 
 import pytest
-from test_lifecycle_conformance import _template_lifecycle
-
 from signetum import lifecycle, profiles
 from signetum.git import git_output
 from signetum.manifest import ManifestError, parse_manifest
@@ -60,10 +57,7 @@ def test_native_frontends_resolve_dependency_and_replacement_identities(
 ):
     text = configuration(selected, replacements)
     _, installed = configured_validation(parse_manifest(text))
-    _, generated = _template_lifecycle()._runtime_validation(
-        importlib.import_module("_signetum_runtime.manifest").parse_manifest(text)
-    )
-    assert installed.profiles == generated.profiles == expected
+    assert installed.profiles == expected
 
 
 @pytest.mark.parametrize(
@@ -78,13 +72,8 @@ def test_native_frontends_resolve_dependency_and_replacement_identities(
 )
 def test_both_frontends_refuse_unsupported_or_ambiguous_profile_selection(selected, replacements):
     text = configuration(selected, replacements)
-    runtime = _template_lifecycle()
     with pytest.raises((ProfileError, ManifestError)):
         configured_validation(parse_manifest(text))
-    with pytest.raises(ValueError):
-        runtime._runtime_validation(
-            importlib.import_module("_signetum_runtime.manifest").parse_manifest(text)
-        )
 
 
 @pytest.mark.parametrize("missing_catalog", [False, True])

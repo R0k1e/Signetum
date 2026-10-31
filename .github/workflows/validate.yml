@@ -85,7 +85,8 @@ jobs:
         shell: bash
         run: |
           cp "$RUNNER_TEMP/signetum-release-source.json" dist/release-source.json
-          sha256sum dist/*.whl dist/*.tar.gz dist/release-source.json > dist/SHA256SUMS
+          uv run --no-sync python -c 'from pathlib import Path; from signetum.release import build_skill_archive; build_skill_archive(Path.cwd(), Path("dist"))'
+          sha256sum dist/*.whl dist/*.tar.gz dist/*.zip dist/release-source.json > dist/SHA256SUMS
       - name: Retain the verified release artifact
         if: inputs.release-tag != '' && matrix.artifact == fromJSON(inputs.targets)[0].artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

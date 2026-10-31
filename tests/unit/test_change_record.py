@@ -5,7 +5,6 @@ from datetime import date
 
 import pytest
 from change_fixtures import approved_record_source
-
 from signetum import change_record as records
 from signetum.change_record import (
     EvidenceRetirement,

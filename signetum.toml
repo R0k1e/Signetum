@@ -1,154 +1,414 @@
-schema_version = 3
+schema_version = 4
 
 [signetum]
+engine_digest = "sha256:89fb82c09c2354c3ec0cd52377dbc7667e11bf0f3d1dfd84260b7faf739fdb72"
 protocol = 2
 evidence_protocol = "reposeal.validation-evidence@3"
 evidence_schema_digest = "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
 
 [profiles]
-enabled = ["python-default@1", "git-worktrunk@1"]
+enabled = [
+    "python-default@1",
+    "git-worktrunk@1",
+]
 
 [repository]
 architecture = "docs/ARCHITECTURE.md"
 changes = "changes"
 decisions = "docs/decisions"
-lockfiles = ["uv.lock"]
+lockfiles = [
+    "uv.lock",
+    "skills/signetum/scripts/engine/uv.lock",
+]
 
 [[impact.rules]]
 name = "engine.source"
-paths = ["src/**"]
-profiles = ["python-default@1"]
-shards = ["engine:build", "engine:ruff", "engine:format", "engine:bandit", "engine:ty", "engine:pytest"]
+paths = [
+    "skills/signetum/scripts/engine/**",
+]
+profiles = [
+    "python-default@1",
+]
+shards = [
+    "engine:build",
+    "engine:ruff",
+    "engine:format",
+    "engine:bandit",
+    "engine:ty",
+    "engine:pytest",
+]
 
 [[impact.rules]]
 name = "engine.unit"
-paths = ["tests/unit/**"]
-profiles = ["python-default@1"]
-shards = ["engine:build", "engine:pytest"]
+paths = [
+    "tests/unit/**",
+]
+profiles = [
+    "python-default@1",
+]
+shards = [
+    "engine:build",
+    "engine:pytest",
+]
 
 [[impact.rules]]
 name = "engine.integration"
-paths = ["tests/**", "tests/fixtures/portable-python/**"]
-profiles = ["python-default@1"]
-shards = ["engine:build", "engine:pytest"]
+paths = [
+    "tests/**",
+    "tests/fixtures/portable-python/**",
+]
+profiles = [
+    "python-default@1",
+]
+shards = [
+    "engine:build",
+    "engine:pytest",
+]
 requires_final = true
 
 [[impact.rules]]
 name = "engine.toolchain"
-paths = ["pyproject.toml", "uv.lock", "mise.toml", "Justfile", ".pre-commit-config.yaml", ".github/**", "signetum.toml", ".agents/signetum/repo.yaml"]
-profiles = ["python-default@1"]
-shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit"]
+paths = [
+    "pyproject.toml",
+    "uv.lock",
+    "mise.toml",
+    "Justfile",
+    ".pre-commit-config.yaml",
+    ".github/**",
+    "signetum.toml",
+    ".agents/signetum/repo.yaml",
+]
+profiles = [
+    "python-default@1",
+]
+shards = [
+    "engine:sync",
+    "engine:traceability",
+    "engine:ty",
+    "engine:build",
+    "engine:precommit",
+    "engine:ruff",
+    "engine:format",
+    "engine:bandit",
+    "engine:pytest",
+    "engine:audit",
+]
 requires_final = true
 
 [[impact.rules]]
 name = "engine.governance"
-paths = ["changes/**", "docs/**", "README.md", "QUICKSTART.md", "CONTRIBUTING.md", "CHANGELOG.md", "SECURITY.md", "LICENSE", "AGENTS.md", ".agents/**", "signetum.toml"]
-shards = ["engine:precommit"]
+paths = [
+    "changes/**",
+    "docs/**",
+    "README.md",
+    "QUICKSTART.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "LICENSE",
+    "AGENTS.md",
+    ".agents/**",
+    "signetum.toml",
+]
+shards = [
+    "engine:precommit",
+]
 requires_final = true
 
-
 [validation]
-member_required = ["engine:traceability"]
+member_required = [
+    "engine:traceability",
+]
 
 [[validation.tools]]
 name = "uv"
-identity_command = ["uv", "--version"]
+identity_command = [
+    "uv",
+    "--version",
+]
 
 [[validation.tools]]
 name = "python-checks"
-identity_command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.tool_identity"]
+identity_command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "python",
+    "-m",
+    "signetum.validation.tool_identity",
+]
 
 [[validation.tools]]
 name = "ty"
-identity_command = ["uv", "run", "--no-sync", "ty", "--version"]
+identity_command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "ty",
+    "--version",
+]
 
 [[validation.tools]]
 name = "ruff"
-identity_command = ["uv", "run", "--no-sync", "ruff", "--version"]
+identity_command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "ruff",
+    "--version",
+]
 
 [[validation.tools]]
 name = "bandit"
-identity_command = ["uv", "run", "--no-sync", "bandit", "--version"]
+identity_command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "bandit",
+    "--version",
+]
 
 [[validation.shards]]
 name = "engine:sync"
-command = ["uv", "sync", "--locked", "--all-extras", "--dev"]
-
-[[validation.shards]]
-name = "engine:runtime"
-command = ["uv", "run", "--no-sync", "python", "-m", "signetum.runtime_generation", "tests/fixtures/portable-python"]
-requires = ["engine:sync"]
+command = [
+    "uv",
+    "sync",
+    "--locked",
+    "--all-extras",
+    "--dev",
+]
+requires = []
 
 [[validation.shards]]
 name = "engine:build"
-command = ["uv", "build", "--clear"]
-requires = ["engine:sync"]
+command = [
+    "uv",
+    "build",
+    "--project",
+    "skills/signetum/scripts/engine",
+    "--out-dir",
+    "dist",
+    "--clear",
+]
+requires = [
+    "engine:sync",
+]
 
 [[validation.shards]]
 name = "engine:traceability"
-command = ["uv", "run", "--no-sync", "signetum", "check", "traceability", "--repository", "."]
-ratchet_command = ["uv", "run", "--active", "--no-project", "--no-sync", "python", "-m", "signetum.validation.diagnostics", "traceability"]
-requires = ["engine:sync"]
+command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "signetum",
+    "check",
+    "traceability",
+    "--repository",
+    ".",
+]
+ratchet_command = [
+    "uv",
+    "run",
+    "--active",
+    "--no-project",
+    "--no-sync",
+    "python",
+    "-m",
+    "signetum.validation.diagnostics",
+    "traceability",
+]
+requires = [
+    "engine:sync",
+]
 
 [[validation.shards]]
 name = "engine:ty"
-command = ["uv", "run", "--no-sync", "ty", "check"]
-ratchet_command = ["uv", "run", "--active", "--no-project", "--no-sync", "python", "-m", "signetum.profiles.ty"]
-requires = ["engine:runtime"]
+command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "ty",
+    "check",
+]
+ratchet_command = [
+    "uv",
+    "run",
+    "--active",
+    "--no-project",
+    "--no-sync",
+    "python",
+    "-m",
+    "signetum.profiles.ty",
+]
+requires = [
+    "engine:sync",
+]
 
 [[validation.shards]]
 name = "engine:precommit"
-command = ["env", "SKIP=ruff,ruff-format", "uv", "run", "--no-sync", "pre-commit", "run", "--all-files"]
-requires = ["engine:sync", "engine:ty"]
+command = [
+    "env",
+    "SKIP=ruff,ruff-format",
+    "uv",
+    "run",
+    "--no-sync",
+    "pre-commit",
+    "run",
+    "--all-files",
+]
+requires = [
+    "engine:sync",
+    "engine:ty",
+]
 
 [[validation.shards]]
 name = "engine:ruff"
-command = ["uv", "run", "--no-sync", "ruff", "check", "."]
-requires = ["engine:sync"]
+command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "ruff",
+    "check",
+    ".",
+]
+requires = [
+    "engine:sync",
+]
 
 [[validation.shards]]
 name = "engine:format"
-command = ["uv", "run", "--no-sync", "ruff", "format", "--check", "."]
-requires = ["engine:sync"]
+command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "ruff",
+    "format",
+    "--check",
+    ".",
+]
+requires = [
+    "engine:sync",
+]
 
 [[validation.shards]]
 name = "engine:bandit"
-command = ["uv", "run", "--no-sync", "bandit", "-r", "src"]
-requires = ["engine:sync"]
+command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "bandit",
+    "-r",
+    "skills/signetum/scripts/engine/signetum",
+]
+requires = [
+    "engine:sync",
+]
 
 [[validation.shards]]
 name = "engine:pytest"
 inherit = true
-command = ["uv", "run", "--no-sync", "python", "-m", "signetum.validation.pytest_runner", "--", "-m", "not world"]
+command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "python",
+    "-m",
+    "signetum.validation.pytest_runner",
+    "--",
+    "-m",
+    "not world",
+]
 workers = 4
 worker_memory_mb = 1024
-requires = ["engine:build", "engine:runtime"]
+requires = [
+    "engine:build",
+    "engine:sync",
+]
 
 [[validation.shards]]
 name = "engine:world-tests"
-command = ["uv", "run", "--no-sync", "pytest", "-m", "world", "--no-cov"]
+command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "pytest",
+    "-m",
+    "world",
+    "--no-cov",
+]
 evidence = "world"
-requires = ["engine:sync", "engine:build", "engine:runtime"]
+requires = [
+    "engine:sync",
+    "engine:build",
+]
 
 [[validation.shards]]
 name = "engine:audit"
-command = ["uv", "run", "--no-sync", "pip-audit"]
+command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "pip-audit",
+]
 evidence = "world"
-findings_command = ["uv", "run", "--no-sync", "signetum", "findings", "pip-audit"]
-requires = ["engine:sync"]
+findings_command = [
+    "uv",
+    "run",
+    "--no-sync",
+    "signetum",
+    "findings",
+    "pip-audit",
+]
+requires = [
+    "engine:sync",
+]
 
 [[validation.gates]]
 name = "member"
-shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest"]
+shards = [
+    "engine:sync",
+    "engine:traceability",
+    "engine:ty",
+    "engine:build",
+    "engine:precommit",
+    "engine:ruff",
+    "engine:format",
+    "engine:bandit",
+    "engine:pytest",
+]
 
 [[validation.gates]]
 name = "final"
-shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:build", "engine:precommit", "engine:ruff", "engine:format", "engine:bandit", "engine:pytest", "engine:audit", "engine:world-tests"]
+shards = [
+    "engine:sync",
+    "engine:traceability",
+    "engine:ty",
+    "engine:build",
+    "engine:precommit",
+    "engine:ruff",
+    "engine:format",
+    "engine:bandit",
+    "engine:pytest",
+    "engine:audit",
+    "engine:world-tests",
+]
 
 [[validation.gates]]
 name = "prepare"
-shards = ["engine:runtime"]
+shards = [
+    "engine:sync",
+]
 
 [[validation.gates]]
 name = "batch"
-shards = ["engine:sync", "engine:traceability", "engine:ty", "engine:ruff", "engine:format", "engine:bandit"]
+shards = [
+    "engine:sync",
+    "engine:traceability",
+    "engine:ty",
+    "engine:ruff",
+    "engine:format",
+    "engine:bandit",
+]
+
+[delivery]
+branch = "main"

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.parametrize("frontend", ["engine", "template"])
+@pytest.mark.parametrize("frontend", ["engine"])
 def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path, frontend):
     marker = tmp_path / "attempt"
     case = tmp_path / "test_case.py"

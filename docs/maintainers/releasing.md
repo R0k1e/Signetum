@@ -21,9 +21,8 @@ The complete native acceptance suite needs Node/npm and Rust/Cargo as well as
 Git, Python, uv and Mise/Worktrunk. These are repository development dependencies,
 not additional application-language requirements for Skill users.
 
-Before delivery, update the package version and release notes, prepare the
-portable acceptance fixture and complete the normal batch final review. Release preflight requires package and Skill versions to agree with
-`pyproject.toml`; choose an unused `v<version>` tag. Historical
+Before delivery, update the package version and release notes, build the nested engine and complete the normal batch final review. Release preflight requires package and Skill versions to agree with
+`skills/signetum/scripts/engine/pyproject.toml`; choose an unused `v<version>` tag. Historical
 RepoSeal tags remain unchanged. The 0.3.0 entry is a candidate until published.
 
 Deliver the reviewed source explicitly. Require successful CI for that exact
@@ -34,19 +33,15 @@ combined project coverage must reach 90%; a partial host report is not a verdict
 and do not grant publication permission. Failure output is retained for seven
 days; inspect the complete artifact when the bounded terminal preview is not enough.
 
-## Distribution and optional PyPI setup
+## Distribution
 
-The primary route is the standard `skills/signetum` folder at an exact GitHub tag
-plus wheel/sdist in that tag's GitHub Release. The Skill guides fixed-version
-tool acquisition and reviewed local adoption. No PyPI account is needed for this
-route, and consumers need not clone the upstream repository for daily work.
-
-PyPI is opt-in through repository variable `PUBLISH_PYPI=true`. Before enabling
-it, register the `signetum` project or pending trusted publisher on PyPI for
-owner `R0k1e`, repository `Signetum`, workflow `release.yml`, without an environment
-binding. Verify account ownership and publisher settings there; repository source
-cannot prove that configuration. Keep the variable unset for GitHub-only releases.
-Never bypass authentication or silently switch package names or indexes.
+The primary unit is the complete standard `skills/signetum` folder at an exact
+GitHub tag, also provided as `signetum-skill-<version>.zip` with checksums. Its
+instructions, engine source and runtime lock travel together. Exclude `.runtime`,
+environments, bytecode and build output. The launcher prepares its own locked
+noneditable environment once; no separate global engine installation is needed.
+Internal wheel/sdist artifacts verify that boundary, rather than adding another
+user setup route. Consumers need no upstream checkout for daily work.
 
 ## Publish and verify
 
@@ -54,15 +49,14 @@ Obtain explicit authorization naming the exact delivered source and version.
 Create an annotated tag for that commit and push only that tag. The release
 workflow checks out the triggering commit, prepares declared tools, verifies
 policy-bound source/tag eligibility and runs the complete diagnostic gate. After all targets and coverage pass, a separate publishing job verifies the
-primary target's artifact checksums and publishes its wheel/sdist, source/component
-metadata and `SHA256SUMS`
-to GitHub, with optional PyPI publication of the same package files.
+primary target's checksums and publishes the Skill archive, internal wheel/sdist,
+source/component metadata and `SHA256SUMS` to GitHub.
 
 Download the public artifacts and verify checksums, tag/source and component
-identities. Install the standard Skill from that tag and the exact wheel in an
-isolated environment. Complete reviewed adoption and a small authorized change
+identities. Install the complete standard Skill from that tag or archive and run its explicit
+setup in an isolated acceptance area. Complete reviewed adoption and a small authorized change
 through ready in both a new project and an existing repository; preserve its
-application metadata and runner. If PyPI was enabled, also check index identity.
+application metadata and runner.
 Do not claim public installation from a local build or a successful preflight.
 
 If publication stops partway, inspect existing tag and artifact identities before

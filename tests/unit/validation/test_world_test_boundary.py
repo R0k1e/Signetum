@@ -42,9 +42,5 @@ def test_real_declared_test_commands_keep_world_queries_out_of_members():
     all_nodes = collected((sys.executable, "-m", "pytest"))
     assert tree_nodes.isdisjoint(world_nodes)
     assert tree_nodes | world_nodes == all_nodes
-    prefix = (
-        "tests/integration/test_clone_ready_template.py::"
-        "test_rendered_template_runs_without_the_engine_package"
-    )
-    assert prefix + "[member]" in tree_nodes
-    assert prefix + "[final]" in world_nodes
+    assert any("test_installed_skill" in node for node in tree_nodes)
+    assert any("test_native_existing_runner_failure" in node for node in world_nodes)

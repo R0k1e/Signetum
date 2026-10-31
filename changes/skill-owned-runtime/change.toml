@@ -1,0 +1,99 @@
+[change]
+schema_version = 1
+id = "skill-owned-runtime"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approves the concrete Skill-owned-runtime plan, retains Mise/Worktrunk, requests implementation through ready, then explicitly requests delivery."
+
+[change.contract]
+version = 1
+approved_base = "1f729bd022ead8a9e8b661afa713ea932bb6a632"
+
+[[change.contract.requirements]]
+id = "SKILL-001"
+outcome = "One standard Skill owns the only engine source and an isolated, locked non-editable runtime."
+acceptance = [
+    "Move the maintained engine into the Skill; remove portable generation and bundled YAML copies.",
+    "Normal execution uses a prepared Skill environment, installs no application dependency and refuses identity mismatch without downloading.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-002"
+outcome = "Adoption adds only reviewed project bindings and preserves existing instruction ownership."
+acceptance = [
+    "Use one project manifest for execution and delivery; do not require or modify AGENTS/CLAUDE or create governance pages.",
+    "Retire only inventoried unchanged old managed files with exact preview; preserve user modifications.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-003"
+outcome = "Mise and Worktrunk remain explicit development dependencies with project-owned preparation."
+acceptance = [
+    "Separate Skill setup from application preparation and retain immutable worktree bases.",
+    "Do not grant implicit Mise trust; dependency order is declared and source remains unchanged by preparation.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-004"
+outcome = "Real Git operations use readable commits with structured provenance and no extra empty commit."
+acceptance = [
+    "Move batch base proof into real admissions; recognize member metadata independently of titles.",
+    "Keep project commit hooks enabled and preserve exact source, receipt, conflict and publication recovery guarantees.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-005"
+outcome = "Errors and decision views provide bounded useful feedback."
+acceptance = [
+    "Separate missing tools, command failure, uncommitted merges and path conflicts; retain full diagnostics outside terminal summaries.",
+    "Current answers remain concise and original historical authorities are read only on demand.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-006"
+outcome = "Distribution, tests and current instructions follow the Skill-owned architecture."
+acceptance = [
+    "Replace obsolete portable tests with installed Skill/public boundary evidence without reducing retained guarantees.",
+    "Keep runtime/cache/dev dependencies out of distributed Skill archives and consumer artifacts; update architecture and instructions without a second report.",
+]
+
+[[change.contract.requirements]]
+id = "SKILL-007"
+outcome = "The reviewed source is qualified and delivered through the declared lifecycle."
+acceptance = [
+    "Exercise isolated real downstream adoption without mutating Perdura production.",
+    "Pass member, complete final, exact candidate hosted checks; show generated review, deliver to main, verify Pages and clean owned refs/workspaces.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement, commit, qualify, integrate and deliver the approved change to main, publish the exact candidate review ref, allow existing Pages deployment and clean only owned delivered residue.",
+    "Reconcile affected standing architecture decisions and replace obsolete owned execution/test paths.",
+]
+requires_confirmation = [
+    "Release tags, package-index publication, external service settings, destructive unrelated changes or Perdura production source mutation.",
+]
+
+[[change.contract.excluded]]
+statement = "Perdura production cutover, UI redesign, cross-machine services and compatibility aliases."
+reason = "Keep this change focused on the approved Skill execution boundary and isolated downstream acceptance."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = [
+    "SKILL-001",
+    "SKILL-002",
+    "SKILL-003",
+    "SKILL-004",
+    "SKILL-005",
+    "SKILL-006",
+    "SKILL-007",
+]
+action = "Move and package one engine, implement isolated setup/adoption/provenance/diagnostics, reconcile tests and instructions, validate actual installed Skill and downstream fixture, then deliver exact source."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-10-31
+source = "The owner agreed to the concrete execution plan and requested implementation through ready, then added: deliver it as well."
+contract_digest = "sha256:1971a0202a39c0d24cda65ae2c92ae1d191ebe6751b05a6f918a997da0efcd21"

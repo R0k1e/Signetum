@@ -7,7 +7,6 @@ from hashlib import sha256
 from pathlib import Path
 
 import pytest
-
 from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceIdentity,
@@ -117,13 +116,13 @@ def test_selection_boundary_refuses_missing_fields():
 
 @pytest.mark.parametrize("mismatched", [False, True])
 def test_generated_evidence_verifier_runs_without_engine_or_site_packages(mismatched) -> None:
-    runtime = Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime"
+    runtime = Path(__file__).parents[3] / "skills/signetum/scripts/engine"
     receipt = _gate(_identity(), "member", ("core:static",))
     script = """
 import sys
 from dataclasses import replace
 sys.path.insert(0, sys.argv[1])
-from _signetum_runtime.evidence_receipts import EvidenceReceipt, ReceiptError, verify_gate_evidence
+from signetum.evidence.receipts import EvidenceReceipt, ReceiptError, verify_gate_evidence
 receipt = EvidenceReceipt.from_json(sys.stdin.read())
 expected = receipt.identity
 if sys.argv[2] == 'True':
@@ -136,7 +135,7 @@ except ReceiptError:
 else:
     assert sys.argv[2] == 'False'
     print(receipt.to_json(), end='')
-assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
+assert 'pydantic' not in sys.modules
 """
     completed = subprocess.run(  # noqa: S603 -- fixed isolated interpreter and fixture argv
         [sys.executable, "-I", "-S", "-c", script, str(runtime), str(mismatched)],

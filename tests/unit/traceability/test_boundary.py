@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from signetum import git
 from signetum.git import GitError
 from signetum.traceability import boundary

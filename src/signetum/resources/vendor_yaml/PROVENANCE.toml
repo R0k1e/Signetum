@@ -1,4 +1,0 @@
-distribution = "PyYAML"
-version = "6.0.3"
-module_files = ["__init__.py", "composer.py", "constructor.py", "dumper.py", "emitter.py", "error.py", "events.py", "loader.py", "nodes.py", "parser.py", "reader.py", "representer.py", "resolver.py", "scanner.py", "serializer.py", "tokens.py"]
-native_extensions = false

@@ -66,6 +66,9 @@ no fallback. Previously delivered intent remains protected; new intent needs its
 own change. Ordinary execution refinements cannot reduce approved outcomes.
 
 Named admission binds exact member receipt bytes, input identities and provenance.
+Real merge bodies carry member, original source and batch-base fields; titles
+remain readable and project hooks stay enabled. Opening an empty integration
+workspace creates no provenance-only commit.
 World evidence cannot replace tree evidence. Preparation/static failure retains
 integration state for ordinary repair; merge conflict uses `batch-continue`.
 Member synchronization records authorization before merging a verified source,

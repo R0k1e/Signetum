@@ -1,54 +1,57 @@
-# Set up a new or existing repository
+# Set up a new or existing project
 
-Use this procedure when setup or an explicit upgrade is requested. Skill
-installation alone does not authorize repository mutation. Keep cwd in the
-user's project; obtain tooling separately rather than copying an upstream tree.
+Install the complete `signetum` Skill folder from an exact reviewed tag or commit.
+It includes instructions, execution source and its dependency lock. Keep cwd in
+the user's project and call `sh <skill-base-dir>/scripts/signetum ...`.
 
-## Acquire the setup tool once
+## Prepare the Skill once
 
-Inspect Git, host Python 3.12+ and uv, plus the project's declared Mise/Worktrunk
-workspace setup. Report missing prerequisites and the needed action; do not
-silently trust or replace configuration. Choose an exact reviewed available
-release artifact or source commit. The agent constructs the literal command:
+Check Git, Mise, Worktrunk (`wt`), uv and host Python 3.12+. Report missing tools
+and resolve setup explicitly. Honor the host's Mise trust decision; never trust
+project configuration automatically. Run `setup` to select host Python 3.12 explicitly through Mise and create a locked environment
+under the installed Skill's ignored `.runtime/` directory. `identity` reports its
+code and dependency identities. No Signetum dependency belongs in the application's
+production or development dependency groups. Application commands retain their
+own environment; the engine environment is never prepended to their PATH.
 
-```sh
-uv tool install /path/to/signetum-<version>-py3-none-any.whl
-# Source fallback; replace the placeholder with the reviewed available commit.
-uv tool install 'git+https://github.com/R0k1e/Signetum.git@<commit>'
-```
+Prepared operations use the Skill’s own bootstrap interpreter, regardless of
+the application’s Python version or tool selection.
+Ordinary operations refuse an absent, changed or incompatible environment with a
+setup/update action. They never clone, install, sync or repair the Skill. Use a
+writable complete Skill installation; do not copy its generated environment into
+a distribution artifact. An upstream checkout is unnecessary for daily work.
 
-Use one of these routes, not both. The Skill launcher routes `adopt` to that
-installed tool. It does not fetch tooling itself. A missing release or source is
-a setup refusal, not permission to substitute an old RepoSeal package or latest
-unreviewed code. Upgrades use the same preview against current local files.
+## Review project bindings
 
-## Prepare the project and review adoption
+For a new project, initialize its ordinary application files and Git history.
+For an existing one, preserve tools, metadata, locks, entry files and decisions.
+Both use the same adoption flow:
 
-For a new project, initialize the selected application's ordinary files and Git
-history. Establish its actual architecture, tools and test command. Do not create
-placeholder product facts just to satisfy adoption. For an existing project,
-inspect and preserve its authorities, metadata, locks and accepted decisions.
-Both cases now use the same path:
+1. `adopt inspect` reports available tools and the engine digest without running
+   application commands or reading/modifying Agent entrypoints.
+2. Prepare one request containing the complete reviewed `signetum.toml` text.
+   Bind the reported engine digest, delivery branch, record roots, actual tool
+   identities, inputs and preparation/member/batch/final commands. Architecture
+   is optional context. See the [binding contract](https://github.com/R0k1e/Signetum/blob/main/docs/guides/existing-runners.md).
+3. `adopt preview --repository . --request <request.json> --output <plan.json>`
+   captures the source and exact before/after bytes. Show the user that preview.
+4. Apply the approved plan with `adopt apply --repository . --plan <plan.json>
+   --expected-plan <digest>`. Changed source or targets require a fresh preview.
+5. Commit through the project's existing process and exercise a small authorized
+   change through `ready`. Preparation dependencies run before commands that need
+   them; an environment failure is not permission to weaken application checks.
 
-1. Run `adopt inspect` if an inventory helps; preview also checks its bindings.
-2. Prepare the request using the [binding contract](https://github.com/R0k1e/Signetum/blob/main/docs/guides/existing-runners.md).
-3. Run `adopt preview`, show exact file and binding changes, and resolve missing
-   prerequisites. The user reviews the preview, not protocol syntax.
-4. Apply only the approved plan digest. Changed source, files or runtime require
-   a fresh preview. Inspect interruption before retrying; do not overwrite drift.
-5. Commit accepted setup using the project's existing process. Verify its actual
-   local command and complete a small authorized change through ready.
+Normal adoption writes only `signetum.toml`. No required AGENTS/CLAUDE pointer,
+architecture scaffolding, wrapper or copied engine is added. Legacy generated
+files may be retired only through explicit exact-hash entries in the same reviewed
+preview; changed and unmanaged files remain untouched. This retirement path does
+not provide an old runtime fallback. Inspect interrupted application before retry.
 
-Adoption executes no application commands and creates no development approval or
-readiness. Application tests and preparation stay explicitly owned by the project.
+## Continue and update
 
-## Continue locally
-
-The launcher uses `.agents/signetum/run protocol`, or an existing `just protocol`
-binding. Workspace and delivery use the repository's local lifecycle commands.
-No upstream clone, engine install or remote ledger is needed for daily work.
-
-Read relevant retained decisions before new work. Let the agent organize original
-sources and propose only consequential current decisions through the ordinary
-change process. Preserve evidence and rationale; source organization does not
-grant approval or require a dedicated migration command.
+Use this installed Skill launcher for daily work. Project hooks remain active;
+Signetum emits readable merge commits with structured provenance and does not
+rewrite the project's commit convention. Updating the Skill or engine pin is a
+later explicit reviewed operation. Historical decisions remain evidence; let the
+agent retrieve and organize relevant context rather than forcing an archive
+conversion or copying the full archive into each current view.

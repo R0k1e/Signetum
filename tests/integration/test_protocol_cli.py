@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 from change_fixtures import consolidated_approval
-
 from signetum.change_record import parse_change_record
 from signetum.git import git_output
 from signetum.test_diagnostic import main as diagnostic_main
@@ -17,7 +16,7 @@ from signetum.workspaces import WorkspaceRecord, state_root, write_record
 ROOT = Path(__file__).parents[2]
 
 
-@pytest.mark.parametrize("frontend", ["engine", "template"])
+@pytest.mark.parametrize("frontend", ["engine"])
 def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend):
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")
@@ -64,7 +63,7 @@ def local_only_repository(local_repository):
     return local_repository
 
 
-@pytest.mark.parametrize("frontend", ["engine", "template"])
+@pytest.mark.parametrize("frontend", ["engine"])
 @pytest.mark.parametrize("fails", [False, True])
 def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
     local_repository, frontend, fails
@@ -200,7 +199,7 @@ def test_adoption_inspection_never_mutates_an_unadopted_repository(local_reposit
     assert git_output(root, "status", "--porcelain") == before
 
 
-@pytest.mark.parametrize("frontend", ["engine", "template"])
+@pytest.mark.parametrize("frontend", ["engine"])
 def test_semantic_journal_binds_current_change_and_retains_retry_identity(
     local_repository, frontend
 ):

@@ -5,8 +5,7 @@ import json
 import sys
 
 import pytest
-from test_lifecycle_conformance import _template_lifecycle
-
+from signetum import lifecycle as core_lifecycle
 from signetum import maintenance, workspace_operations
 from signetum.git import git_output
 from signetum.workspaces import state_root
@@ -16,9 +15,7 @@ from signetum.workspaces import state_root
 def preparation(request, repository):
     root, state = repository
     runtime = (
-        workspace_operations
-        if getattr(request, "param", "engine") == "engine"
-        else _template_lifecycle()
+        workspace_operations if getattr(request, "param", "engine") == "engine" else core_lifecycle
     )
     return runtime, root, state
 
@@ -37,7 +34,7 @@ def change_command(root, command):
     commit(root, "signetum.toml", text.replace(json.dumps(list(previous)), json.dumps(command)))
 
 
-@pytest.mark.parametrize("preparation", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("preparation", ["engine"], indirect=True)
 def test_preparation_executes_only_its_gate_without_changing_source_or_issuing_evidence(
     preparation,
 ):
@@ -90,7 +87,7 @@ def test_preparation_refuses_unstaged_or_untracked_work(preparation, merge):
 
 
 @pytest.mark.parametrize("stage", [False, True])
-@pytest.mark.parametrize("preparation", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("preparation", ["engine"], indirect=True)
 def test_preparation_cannot_rewrite_staged_resolution(preparation, stage, capsys):
     runtime, root, _ = preparation
     script = (
@@ -104,11 +101,7 @@ def test_preparation_cannot_rewrite_staged_resolution(preparation, stage, capsys
     git_output(root, "add", "seed.txt")
     tip = git_output(root, "rev-parse", "HEAD")
     with pytest.raises(
-        importlib.import_module(
-            "signetum.operations"
-            if runtime is workspace_operations
-            else "_signetum_runtime.operations"
-        ).OperationFailed,
+        importlib.import_module("signetum.operations").OperationFailed,
         match="changed the staged merge",
     ):
         runtime.worktree_prepare(root, allow_merge=True)
@@ -122,18 +115,14 @@ def test_preparation_refuses_a_command_that_advances_head(preparation):
     change_command(root, ["git", "commit", "--allow-empty", "-m", "unexpected tool commit"])
     tip = git_output(root, "rev-parse", "HEAD")
     with pytest.raises(
-        importlib.import_module(
-            "signetum.operations"
-            if runtime is workspace_operations
-            else "_signetum_runtime.operations"
-        ).OperationFailed,
+        importlib.import_module("signetum.operations").OperationFailed,
         match="changed the committed source",
     ):
         runtime.worktree_prepare(root)
     assert git_output(root, "rev-parse", "HEAD") != tip
 
 
-@pytest.mark.parametrize("preparation", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("preparation", ["engine"], indirect=True)
 def test_public_preparation_uses_explicit_worktree_and_one_result(
     preparation, monkeypatch, capsys, tmp_path
 ):
@@ -141,7 +130,7 @@ def test_public_preparation_uses_explicit_worktree_and_one_result(
     frontend = (
         maintenance
         if runtime is workspace_operations
-        else importlib.import_module("_signetum_runtime.maintenance")
+        else importlib.import_module("signetum.maintenance")
     )
     monkeypatch.chdir(tmp_path)
     assert frontend.main(["worktree-prepare", str(root)]) == 0
