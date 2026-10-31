@@ -33,3 +33,11 @@ If an authorized review needs a remote branch, share a readable name. Its
 publisher owns ref cleanup after delivery: verify that the exact remote tip is
 reachable from the delivery branch and refuse deletion if the tip has changed.
 Preserve unmerged work. Local workspace cleanup does not prune remote branches.
+
+Batch names default to the member task names. For a combined outcome use
+`batch-open --name <task-slug> --member <path> ...`. Reusing a name does not
+authorize a different base or workspace role. Publication uses a readable
+`Merge <task> into <target>` subject with exact source/base trailers. Ordinary
+Git merges keep project hooks enabled; synthetic `commit-tree` publication does
+not invoke commit hooks. Bind any required project commit-message verification
+to the declared final checks rather than assume a hook validated publication.

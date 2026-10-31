@@ -105,6 +105,8 @@ def test_rejected_push_keeps_target_at_base(tmp_path, monkeypatch):
     result = lifecycle.batch_deliver(source, target, base, tip)
     landed = git(target, "rev-parse", "HEAD")
     assert result["remote"] == landed
+    assert git(target, "show", "-s", "--format=%s", landed) == "Merge test into main"
+    assert f"Signetum-Batch-Tip: {tip}" in git(target, "show", "-s", "--format=%B", landed)
     assert git(target, "show", "-s", "--format=%P", landed).split() == [base, tip]
 
 
