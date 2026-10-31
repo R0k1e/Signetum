@@ -1,0 +1,41 @@
+[build-system]
+requires = [
+    "hatchling>=1.27",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "signetum"
+version = "0.3.0"
+description = "Reliable agentic development and delivery through a standard Skill"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.12,<3",
+    "pyyaml>=6.0,<7",
+    "typer>=0.20,<1",
+]
+
+[project.readme]
+text = "Signetum Skill execution engine."
+content-type = "text/plain"
+
+[project.urls]
+Homepage = "https://github.com/R0k1e/Signetum"
+Documentation = "https://github.com/R0k1e/Signetum/blob/main/QUICKSTART.md"
+Issues = "https://github.com/R0k1e/Signetum/issues"
+
+[project.scripts]
+signetum = "signetum.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "signetum",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/signetum",
+    "/pyproject.toml",
+    "/uv.lock",
+]

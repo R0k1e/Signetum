@@ -3,9 +3,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: '^(src/signetum/resources/vendor_yaml/|template/\.agents/signetum/runtime/_signetum_runtime/vendor_yaml/)'
       - id: end-of-file-fixer
-        exclude: '^(src/signetum/resources/vendor_yaml/|template/\.agents/signetum/runtime/_signetum_runtime/vendor_yaml/)'
       - id: check-yaml
       - id: check-json
       - id: check-toml

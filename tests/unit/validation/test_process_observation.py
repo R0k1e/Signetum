@@ -1,6 +1,5 @@
 """Native ownership observation finds detached children and preserves unrelated jobs."""
 
-import importlib
 import json
 import os
 import subprocess
@@ -9,21 +8,15 @@ import uuid
 from pathlib import Path
 
 import pytest
-
 from signetum.validation import process_observation
 
 
 @pytest.fixture
 def observer(request, monkeypatch):
-    if getattr(request, "param", "engine") == "engine":
-        return process_observation
-    monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime")
-    )
-    return importlib.import_module("_signetum_runtime.process_observation")
+    return process_observation
 
 
-@pytest.mark.parametrize("observer", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("observer", ["engine"], indirect=True)
 def test_native_observation_finds_only_owned_detached_processes(observer, monkeypatch):
     if sys.platform != "darwin" and not sys.platform.startswith("linux"):
         pytest.skip("native process observation supports Linux and macOS")
@@ -164,7 +157,7 @@ def test_scratch_registration_binds_exact_directory_and_does_not_authorize_share
         observer.remove_scratch_root(scratch)
 
 
-@pytest.mark.parametrize("observer", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("observer", ["engine"], indirect=True)
 def test_native_scratch_ownership_excludes_similarly_named_foreign_directory(observer, tmp_path):
     owner = uuid.uuid4().hex
     scratch = observer.create_scratch_root(owner, parent=tmp_path)

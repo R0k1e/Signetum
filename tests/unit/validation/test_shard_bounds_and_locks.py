@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 import signetum.lifecycle as lifecycle
 from signetum.validation import (
     GateDeclaration,

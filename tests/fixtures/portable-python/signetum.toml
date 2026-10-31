@@ -1,4 +1,6 @@
-schema_version = 3
+schema_version = 4
+[delivery]
+branch = "main"
 
 [signetum]
 protocol = 2
@@ -70,7 +72,7 @@ command = ["git", "diff", "--check"]
 
 [[validation.shards]]
 name = "repository:traceability"
-command = ["uv", "run", "--no-project", "python", ".agents/signetum/runtime/traceability.py"]
+command = ["git", "diff", "--check"]
 
 [[validation.shards]]
 name = "python:ruff"
@@ -89,12 +91,12 @@ requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:unit"
-command = ["uv", "run", "--no-sync", "python", ".agents/signetum/runtime/_signetum_runtime/pytest_runner.py", "--", "tests/unit"]
+command = ["uv", "run", "--no-sync", "pytest", "tests/unit"]
 requires = ["python:sync"]
 
 [[validation.shards]]
 name = "python:integration"
-command = ["uv", "run", "--no-sync", "python", ".agents/signetum/runtime/_signetum_runtime/pytest_runner.py", "--", "tests/integration"]
+command = ["uv", "run", "--no-sync", "pytest", "tests/integration"]
 requires = ["python:sync"]
 
 [[validation.shards]]
@@ -106,7 +108,7 @@ findings_command = [
   "run",
   "--no-project",
   "python",
-  ".agents/signetum/runtime/pip_audit_findings.py",
+  "project_audit_findings.py",
 ]
 requires = ["python:sync"]
 

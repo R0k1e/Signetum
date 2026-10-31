@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from datetime import date
 
 import pytest
-
 from signetum.findings import Finding, FindingsError, parse_findings
 from signetum.validation import (
     GateDeclaration,
@@ -36,7 +35,7 @@ class Adapter:
         return "b" * 40
 
     def read_file(self, path: str) -> bytes:
-        return {"signetum.toml": b"schema_version = 3\n", "uv.lock": b"lock"}[path]
+        return {"signetum.toml": b"schema_version = 4\n", "uv.lock": b"lock"}[path]
 
     def identify_tool(self, tool: ToolDeclaration) -> str:
         return "uv 0.8.14"

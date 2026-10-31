@@ -4,7 +4,6 @@ from dataclasses import replace
 from pathlib import Path
 
 from change_fixtures import consolidated_approval
-
 from signetum import lifecycle
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.development_store import append_transaction, parse_request, snapshot

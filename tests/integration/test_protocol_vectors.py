@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.protocols import Validator
-
 from signetum.resources import schemas as schema_resources
 from signetum.resources import vectors as vector_resources
 from signetum.resources.schemas import EVIDENCE_PROTOCOL, EVIDENCE_SCHEMA, evidence_schema_digest

@@ -8,13 +8,13 @@ from shutil import which
 
 import pytest
 from change_fixtures import consolidated_approval
-from test_lifecycle_conformance import _template_lifecycle
-
 from signetum import lifecycle
+from signetum import lifecycle as core_lifecycle
 from signetum.adoption import AdoptionRequest, apply, plan_digest, preview
 from signetum.git import git_output
 from signetum.manifest import load_manifest
 from signetum.profiles.existing_runner import ExistingRunnerRequest, existing_runner_validation
+from signetum.runtime_identity import implementation_digest
 from signetum.validation import GateDeclaration, ToolDeclaration
 
 ROOT = Path(__file__).parents[2]
@@ -111,7 +111,7 @@ def configure_existing_runner(root, language, command, tools, metadata):
     original = load_manifest(root / "signetum.toml")
     app = binding.validation.shards[0]
     text = (
-        "schema_version = 3\n[signetum]\nprotocol = 2\n"
+        'schema_version = 4\n[delivery]\nbranch = "main"\n[signetum]\nprotocol = 2\n'
         "[profiles]\nenabled = "
         + json.dumps([binding.identity])
         + '\n[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
@@ -160,12 +160,12 @@ def configure_existing_runner(root, language, command, tools, metadata):
 
 @pytest.mark.world
 @pytest.mark.parametrize("language", ["python", "node", "rust"])
-@pytest.mark.parametrize("frontend", ["engine", "template"])
+@pytest.mark.parametrize("frontend", ["engine"])
 def test_native_existing_runner_failure_fresh_success_admission_and_final(
     repository, tmp_path, language, frontend, monkeypatch, capsys
 ):
     root, _ = repository
-    runtime = lifecycle if frontend == "engine" else _template_lifecycle()
+    runtime = lifecycle if frontend == "engine" else core_lifecycle
     command, tools, source, good, metadata = native_application(root, language)
     tools = (*tools, ToolDeclaration("protocol-python", (sys.executable, "--version")))
     binding = configure_existing_runner(root, language, command, tools, metadata)
@@ -173,9 +173,9 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     architecture.parent.mkdir(exist_ok=True)
     architecture.write_text("# Existing application architecture\n")
     request = AdoptionRequest(
-        manifest=(root / "signetum.toml").read_text(),
-        policy=(root / ".agents/signetum/repo.yaml").read_text(),
-        interpreter=(sys.executable, "-I", "-S"),
+        manifest=(root / "signetum.toml")
+        .read_text()
+        .replace("[signetum]", '[signetum]\nengine_digest = "' + implementation_digest() + '"'),
     )
     plan = preview(root, request)
     assert apply(root, plan, plan_digest(plan))["status"] == "applied"
@@ -184,7 +184,7 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     git_output(root, "push", "origin", "main")
     base = git_output(root, "rev-parse", "HEAD")
     opened = runtime.workspace_open(root, f"plan/{language}", base)
-    member = Path(opened["worktree"])
+    member = Path(str(opened["worktree"]))
     consolidated_approval(member, base)
     git_output(member, "add", ".")
     git_output(member, "commit", "-m", "approve the existing-runner outcome")
@@ -207,9 +207,11 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     git_output(member, "commit", "-m", "fix the application through the same runner")
     ready = runtime.validate(member, "member")
     assert ready["status"] == "ready"
-    assert set(ready["evidence"]["identity"]["profiles"]) == {"shared-core@1", binding.identity}
+    evidence = ready["evidence"]
+    assert isinstance(evidence, dict)
+    assert set(evidence["identity"]["profiles"]) == {"shared-core@1", binding.identity}
     admitted = runtime.batch_open(root, (member,))
-    batch = Path(admitted["batch"])
+    batch = Path(str(admitted["batch"]))
     final = runtime.validate(batch, "final")
     assert final["status"] == "final"
     for name, original in metadata.items():

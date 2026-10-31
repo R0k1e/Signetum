@@ -5,27 +5,33 @@ their original release history. Git and accepted change records retain reasoning
 
 ## 0.3.0 - Unreleased
 
+- Keep Mise and Worktrunk, project-owned preparation and commit hooks; use readable
+  real merge commits with structured provenance and no empty batch commit.
+- Preserve existing Agent entrypoints and application dependencies. Explicit Skill
+  setup is separate from application environments; ordinary work never installs tools.
+- Keep historical decisions available on demand and bound error summaries concise.
+
 - Center public entrypoints on reliable Agent delivery, including session handoffs,
   integrated validation and exact-source publication; refresh the generated signet.
 
 - Focus the Skill on human decisions, parallel worktrees and reliable integration/delivery.
 - Retain project selection interfaces; remove bundled Python reach and its optional command.
 - Move private acceptance scaffolding to tests, remove future ADR numbering and simplify journal dispatch.
-- Unify adopted workflow pointers with the standard Skill and refresh the non-checkbox identity.
+- Keep adoption to one project manifest without required Agent entrypoint edits.
 
 - Use the standard `signetum` Skill for reviewed new/existing-project adoption;
-  retain application tools and use a local portable runtime for daily work.
+  retain application tools and run the engine from the Skill’s isolated environment.
 - Use `.agents/signetum` consistently without a `repo-dev` runtime alias.
 - Keep one approved change record, significant append history and a derived
   decision set. Retire the old active workflow and preserve original rationale.
-- Use manifest schema 3 with one `repository.changes` root and independent
+- Use manifest schema 4 with one `repository.changes` root and independent
   schema/product versions; remove ineffective retry settings and old bindings.
 - Contain worktrees under the primary repository, retire removed registrations
   and safely clean up after delivery without deleting the active executor.
 - Share supervised diagnostics and gate verdicts, preserving first failures,
   owned-process settlement and complete final validation. Optional selection,
   weighted scheduling and CI partitions remain source-bound optimizations.
-- Maintain the engine once and derive portable runtime artifacts. Consolidate
+- Maintain the engine once inside the Skill with a locked execution environment. Consolidate
   user guides, remove obsolete files and disclose test changes and evidence loss.
 - Replace the mascot variants with compact branding and a bilingual, accessible
   static homepage with a direct Skill installation action.

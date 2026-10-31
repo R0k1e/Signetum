@@ -8,7 +8,7 @@ inspect built wheel contents.
 Use `just test <paths-or-native-test-options>` for explicit development feedback.
 It delegates to the declared shard through the same allocator and supervisor as
 ready and CI, without a readiness receipt. Prepare the environment with uv first;
-installed-artifact tests also require the current `uv build --clear` output. Do not start
+installed-artifact tests also require the current `uv build --project skills/signetum/scripts/engine --out-dir dist --clear` output. Do not start
 several full suites concurrently or add inner worker counts independently of the
 enclosing allocation. Preserve unique mutable repositories, ports, scratch and
 reports; reuse only successful immutable preparation. A failure is never a

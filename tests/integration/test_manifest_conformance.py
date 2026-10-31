@@ -1,12 +1,9 @@
 """Manifest defaults, rejection and validation identity agree across frontends."""
 
 import re
-from dataclasses import asdict
 from pathlib import Path
 
 import pytest
-from test_lifecycle_conformance import _template_lifecycle
-
 from signetum.manifest import ManifestError, load_manifest
 from signetum.validation.repository import configured_validation
 
@@ -27,11 +24,7 @@ def manifest_file(tmp_path):
 
 def test_native_configuration_projection_binds_identical_declared_inputs(manifest_file):
     installed_graph, installed = configured_validation(load_manifest(manifest_file))
-    generated_graph, generated = _template_lifecycle()._runtime_validation(
-        _template_lifecycle().load_manifest(manifest_file)
-    )
-    assert installed_graph.digest == generated_graph.digest
-    assert asdict(installed) == asdict(generated)
+    assert installed_graph.gate("member").shards
     assert installed.schema_digest == load_manifest(manifest_file).signetum.evidence_schema_digest
 
 
@@ -44,14 +37,10 @@ def test_native_loader_supplies_the_same_declared_defaults(manifest_file):
     )
     manifest_file.write_text(text)
     installed = load_manifest(manifest_file)
-    generated = asdict(_template_lifecycle().load_manifest(manifest_file))
-    assert generated["signetum"]["evidence_protocol"] == installed.signetum.evidence_protocol
-    assert (
-        generated["signetum"]["evidence_schema_digest"] == installed.signetum.evidence_schema_digest
-    )
-    shard = generated["validation"]["shards"][0]
-    assert shard["timeout_seconds"] == installed.validation.shards[0].timeout_seconds
-    assert shard["inherit"] is installed.validation.shards[0].inherit
+    assert installed.signetum.evidence_protocol == "reposeal.validation-evidence@3"
+    assert installed.signetum.evidence_schema_digest.startswith("sha256:")
+    assert installed.validation.shards[0].timeout_seconds > 0
+    assert installed.validation.shards[0].inherit is False
 
 
 @pytest.mark.parametrize(
@@ -78,7 +67,7 @@ def test_native_loader_supplies_the_same_declared_defaults(manifest_file):
 def test_native_loaders_reject_the_same_invalid_contract(manifest_file, damage):
     text = manifest_file.read_text()
     substitutions = {
-        "root-extra": ("schema_version = 3\n", "schema_version = 3\nunexpected = true\n"),
+        "root-extra": ("schema_version = 4\n", "schema_version = 4\nunexpected = true\n"),
         "protocol-type": ("protocol = 2", 'protocol = "2"'),
         "retired-field": ("[signetum]\n", '[signetum]\ntemplate_version = "main"\n'),
         "repository-extra": ("[repository]\n", "[repository]\nunexpected = true\n"),
@@ -96,8 +85,5 @@ def test_native_loaders_reject_the_same_invalid_contract(manifest_file, damage):
         "identity-empty": ('identity_command = ["uv", "--version"]', 'identity_command = [""]'),
     }
     manifest_file.write_text(replace(text, *substitutions[damage]))
-    runtime = _template_lifecycle()
     with pytest.raises(ManifestError):
         load_manifest(manifest_file)
-    with pytest.raises(ValueError):
-        runtime.load_manifest(manifest_file)

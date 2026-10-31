@@ -2,11 +2,10 @@ import json
 from pathlib import Path
 
 from change_fixtures import consolidated_approval
-from typer.testing import CliRunner
-
 from signetum import git as git_tools
 from signetum.cli import app
 from signetum.traceability.boundary import RepositoryInventory
+from typer.testing import CliRunner
 
 FIXTURE = Path(__file__).parents[2] / "tests/fixtures/portable-python" / "signetum.toml"
 
@@ -17,7 +16,7 @@ def test_cli_validates_manifest_through_public_command() -> None:
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
         "protocol": 2,
-        "manifest_schema": 3,
+        "manifest_schema": 4,
         "profiles": ["shared-core@1", "python-default@1", "git-worktrunk@1"],
         "status": "valid",
     }
