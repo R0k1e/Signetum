@@ -8,12 +8,14 @@ the user's project and call `sh <skill-base-dir>/scripts/signetum ...`.
 
 Check Git, Mise, Worktrunk (`wt`), uv and host Python 3.12+. Report missing tools
 and resolve setup explicitly. Honor the host's Mise trust decision; never trust
-project configuration automatically. Run `setup` to create a locked environment
+project configuration automatically. Run `setup` to select host Python 3.12 explicitly through Mise and create a locked environment
 under the installed Skill's ignored `.runtime/` directory. `identity` reports its
 code and dependency identities. No Signetum dependency belongs in the application's
 production or development dependency groups. Application commands retain their
 own environment; the engine environment is never prepended to their PATH.
 
+Prepared operations use the Skill’s own bootstrap interpreter, regardless of
+the application’s Python version or tool selection.
 Ordinary operations refuse an absent, changed or incompatible environment with a
 setup/update action. They never clone, install, sync or repair the Skill. Use a
 writable complete Skill installation; do not copy its generated environment into

@@ -1,4 +1,11 @@
 #!/bin/sh
-# The Skill owns execution; the current directory remains the user's project.
 set -eu
-exec mise exec -- python "$(dirname "$0")/launch.py" "$@"
+skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+if [ "${1:-}" = setup ]; then
+    exec mise exec python@3.12 -- python "$skill_dir/scripts/launch.py" "$@"
+fi
+if [ ! -x "$skill_dir/.runtime/host-python" ]; then
+    printf '%s\n' '{"status":"failed","stage":"skill-execution","cause":"Skill environment is not prepared; run the explicit setup command first"}' >&2
+    exit 2
+fi
+exec "$skill_dir/.runtime/host-python" "$skill_dir/scripts/launch.py" "$@"
