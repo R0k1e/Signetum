@@ -122,3 +122,16 @@ editable = true
 name = "signetum-development"
 version = "0"
 requires-python = ">=3.12"
+
+[tool.coverage.paths]
+engine = [
+    "skills/signetum/scripts/engine/signetum",
+    "*/signetum/scripts/engine/signetum",
+    "*/site-packages/signetum",
+]
+
+skill = [
+    "skills/signetum",
+    "*/installed Skill*/signetum",
+    "signetum",
+]
