@@ -23,7 +23,9 @@ not additional application-language requirements for Skill users.
 
 Before delivery, update the package version and release notes, build the nested engine and complete the normal batch final review. Release preflight requires package and Skill versions to agree with
 `skills/signetum/scripts/engine/pyproject.toml`; choose an unused `v<version>` tag. Historical
-RepoSeal tags remain unchanged. The 0.3.0 entry is a candidate until published.
+RepoSeal tags remain unchanged. The 0.3.0 entry is a candidate until published. Keep its reviewed version section
+in CHANGELOG.md concise and focused on user outcomes; do not maintain another
+announcement with the same facts.
 
 Deliver the reviewed source explicitly. Require successful CI for that exact
 commit and verify the public Skill path and Pages deployment. CI and release
@@ -50,7 +52,10 @@ Create an annotated tag for that commit and push only that tag. The release
 workflow checks out the triggering commit, prepares declared tools, verifies
 policy-bound source/tag eligibility and runs the complete diagnostic gate. After all targets and coverage pass, a separate publishing job verifies the
 primary target's checksums and publishes the Skill archive, internal wheel/sdist,
-source/component metadata and `SHA256SUMS` to GitHub.
+source/component metadata, extracted `RELEASE_NOTES.md` and `SHA256SUMS` to GitHub.
+The notes come from the matching reviewed CHANGELOG.md version section, travel
+inside the checksum-verified artifact and supply the GitHub release body.
+Publication does not regenerate a description from commit history.
 
 Download the public artifacts and verify checksums, tag/source and component
 identities. Install the complete standard Skill from that tag or archive and run its explicit
