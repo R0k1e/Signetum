@@ -1,11 +1,15 @@
 ---
 name: signetum
-description: Use Signetum to help people decide, coordinate parallel coding Agents in isolated worktrees, and validate and deliver approved changes. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
+description: Use Signetum for reliable Agent development and delivery in evolving repositories, from a single Agent across sessions to parallel coding Agents. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
   version: "0.3.0"
 ---
 
-# Human decisions, parallel development and reliable delivery
+# Reliable Agent development and delivery
+
+Keep consequential decisions available across sessions, validate integrated work
+and deliver only the reviewed checked source. People make key choices; Agents
+perform routine execution and maintain concise records.
 
 Read the repository's Agent contract, architecture entry and declared development
 manifest. Load mandatory policies and only the groups selected by intent or

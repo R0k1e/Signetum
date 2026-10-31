@@ -24,7 +24,8 @@ format or ty owners. Member ratchets compare structured diagnostic multisets
 against verified source; missing baseline is explicit and never cached. Final
 and batch static checks remain strict.
 
-Resource allocation bounds nested workers. The supervisor settles positively
+Resource allocation bounds nested workers. Settlement confirms an empty inventory
+with a fresh snapshot inside its existing deadline. The supervisor settles positively
 owned processes and scratch only; leaked or unobservable owned children refuse
 success. Test measurements report actual phases/allocation without permanent
 count/time gates. Mutable fixtures are independent; reuse only successful
