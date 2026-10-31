@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from signetum.manifest import ManifestError, load_manifest
 
 FIXTURE = Path(__file__).parents[3] / "tests/fixtures/portable-python" / "signetum.toml"
@@ -32,10 +31,12 @@ def test_load_manifest_preserves_language_neutral_repository_facts() -> None:
     ("name", "text", "message"),
     [
         ("signetum.toml", "schema_version = 1\n", "unsupported manifest schema: 1"),
-        ("repository.toml", "schema_version = 3\n", "must be named signetum.toml"),
+        ("repository.toml", "schema_version = 4\n", "must be named signetum.toml"),
         (
             "signetum.toml",
-            """schema_version = 3
+            """schema_version = 4
+[delivery]
+branch = "main"
 [signetum]
 protocol = 2
 template_version = "main"
@@ -48,7 +49,9 @@ decisions = "docs/decisions"
         ),
         (
             "signetum.toml",
-            """schema_version = 3
+            """schema_version = 4
+[delivery]
+branch = "main"
 [signetum]
 protocol = 2
 [profiles]
@@ -84,7 +87,9 @@ def test_invalid_manifest_is_rejected(tmp_path: Path, name: str, text: str, mess
 def test_profile_composition_errors_fail_closed(tmp_path: Path, extra: str, message: str) -> None:
     path = tmp_path / "signetum.toml"
     path.write_text(
-        f"""schema_version = 3
+        f"""schema_version = 4
+[delivery]
+branch = "main"
 [signetum]
 protocol = 2
 [profiles]
@@ -118,7 +123,9 @@ def test_impact_contract_rejects_ambiguous_or_escaping_rules(
 ) -> None:
     path = tmp_path / "signetum.toml"
     path.write_text(
-        f"""schema_version = 3
+        f"""schema_version = 4
+[delivery]
+branch = "main"
 [signetum]
 protocol = 2
 [repository]
@@ -156,7 +163,9 @@ def test_validation_graph_is_strict_and_named(
 ) -> None:
     path = tmp_path / "signetum.toml"
     path.write_text(
-        f"""schema_version = 3
+        f"""schema_version = 4
+[delivery]
+branch = "main"
 [signetum]
 protocol = 2
 [repository]

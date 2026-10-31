@@ -3,12 +3,9 @@
 import importlib.util
 import json
 import sys
-from pathlib import Path
 
 import pytest
 from change_fixtures import commit_approval
-from test_workspace_operations import commit_file, opened
-
 from signetum import lifecycle
 from signetum import workspace_operations as ops
 from signetum.git import git_output
@@ -20,6 +17,7 @@ from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.diagnostics import traceability_document
 from signetum.validation.execution import ValidationInfrastructureError
 from signetum.validation.repository import run_repository_gate
+from test_workspace_operations import commit_file, opened
 
 OLD = {"file": "module.py", "rule": "old-rule", "message": "inherited problem", "line": 2}
 
@@ -30,13 +28,7 @@ def document(*diagnostics):
 
 @pytest.fixture(params=["engine", "template"])
 def runtime(request, monkeypatch):
-    if request.param == "engine":
-        return lifecycle
-    directory = (
-        Path(__file__).parents[1] / "tests/fixtures/portable-python/.agents/signetum/runtime"
-    )
-    monkeypatch.syspath_prepend(str(directory))
-    return importlib.import_module("_signetum_runtime.lifecycle")
+    return lifecycle
 
 
 def execution_failure(runtime):
@@ -114,7 +106,7 @@ def test_member_accepts_only_inherited_findings_and_final_remains_strict(reposit
     runner = (
         run_repository_gate
         if runtime is lifecycle
-        else importlib.import_module("_signetum_runtime.repository").run_repository_gate
+        else importlib.import_module("signetum.validation.repository").run_repository_gate
     )
     with pytest.raises(runtime.ValidationExecutionError):
         runner(member, graph, "final", inputs, root.parent / "final-receipts")

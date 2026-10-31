@@ -5,7 +5,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-
 from signetum import decision_clauses as clauses
 from signetum import decision_history as history
 

@@ -7,7 +7,6 @@ from hashlib import sha256
 from pathlib import Path
 
 import pytest
-
 from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceIdentity,
@@ -123,7 +122,7 @@ def test_generated_evidence_verifier_runs_without_engine_or_site_packages(mismat
 import sys
 from dataclasses import replace
 sys.path.insert(0, sys.argv[1])
-from _signetum_runtime.evidence_receipts import EvidenceReceipt, ReceiptError, verify_gate_evidence
+from signetum.evidence.receipts import EvidenceReceipt, ReceiptError, verify_gate_evidence
 receipt = EvidenceReceipt.from_json(sys.stdin.read())
 expected = receipt.identity
 if sys.argv[2] == 'True':

@@ -17,7 +17,8 @@ For an existing repository:
 > Use $signetum to inspect and adopt this repository. Preserve our tools,
 > architecture and accepted decisions. Show the proposed changes first.
 
-The agent checks prerequisites and obtains one fixed-version Signetum setup tool.
+The agent checks prerequisites and explicitly prepares the installed Skill’s locked
+execution environment.
 It initializes a new project's ordinary files or inspects existing authorities,
 then uses the same adoption preview. You review source, scope and changes; the
 agent handles request formats and commands. Missing tools or an unavailable source
@@ -29,10 +30,10 @@ repository-declared Mise and Worktrunk setup. Your application's language and te
 framework stay unchanged. The agent reports and resolves required setup before
 promising a usable workspace. You do not copy a template over the project.
 
-After the accepted adoption is applied and committed through the existing
-repository process, commands use its local runtime. The upstream checkout and
-global setup engine are not daily dependencies. Updating is a later explicit
-preview, not a background synchronization.
+Adoption adds the reviewed `signetum.toml` bindings. Agent entry files and application
+dependencies stay unchanged. Daily commands run the installed Skill's engine in
+its own environment. The upstream checkout is unnecessary; updates require a
+later explicit preview. No runtime is copied into your project.
 
 ## Develop and deliver reliably
 

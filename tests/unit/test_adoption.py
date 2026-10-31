@@ -1,111 +1,115 @@
-"""Adoption changes only reviewed files and never treats installation as approval."""
+"""Adoption writes exact bindings and preserves a project's own entrypoints."""
 
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
-
 import signetum.adoption as owner
-from signetum.adoption import AdoptionRequest, apply, plan_digest, preview
+from signetum.adoption import AdoptionRequest, Retirement, apply, plan_digest, preview
 from signetum.git import git_output
+from signetum.runtime_identity import implementation_digest
 
 
 @pytest.fixture
 def adoption(local_repository):
     root, _ = local_repository
-    architecture = root / "docs/ARCHITECTURE.md"
-    architecture.parent.mkdir()
-    architecture.write_text("# Existing architecture\n")
-    (root / "AGENTS.md").write_text("Existing instructions.\n")
+    (root / "CLAUDE.md").write_text("Project-owned instructions.\n")
+    (root / "AGENTS.md").symlink_to("CLAUDE.md")
     (root / "Justfile").write_text("test:\n    existing-test\n")
+    manifest = (
+        (root / "signetum.toml")
+        .read_text()
+        .replace("[signetum]", '[signetum]\nengine_digest = "' + implementation_digest() + '"')
+    )
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "existing application")
-    request = AdoptionRequest(
-        manifest=(root / "signetum.toml").read_text(),
-        policy=(root / ".agents/signetum/repo.yaml").read_text(),
-    )
-    return root, request
+    return root, AdoptionRequest(manifest=manifest)
 
 
 def test_review_apply_and_exact_retry_preserve_application_and_unrelated_work(adoption):
     root, request = adoption
-    (root / "user-work").write_text("not part of adoption")
-    before = (root / "Justfile").read_bytes()
+    (root / "user-work").write_text("unrelated")
+    before = {p: p.read_bytes() for p in (root / "CLAUDE.md", root / "Justfile")}
     status = git_output(root, "status", "--porcelain")
-    plan = preview(root, request)
+    proposal = preview(root, request)
+    assert {f.path for f in proposal.files} == {"signetum.toml"}
     assert git_output(root, "status", "--porcelain") == status
-    assert apply(root, plan, plan_digest(plan))["status"] == "applied"
-    assert (root / "Justfile").read_bytes() == before
-    assert (root / "user-work").read_text() == "not part of adoption"
-    assert (root / "AGENTS.md").read_text().startswith("Existing instructions.\n")
-    assert apply(root, plan, plan_digest(plan))["status"] == "unchanged"
-    assert (root / ".agents/signetum/runtime/protocol.py").is_file()
+    assert apply(root, proposal, plan_digest(proposal))["status"] == "applied"
+    assert apply(root, proposal, plan_digest(proposal))["status"] == "unchanged"
+    assert (root / "AGENTS.md").is_symlink()
+    assert all(p.read_bytes() == content for p, content in before.items())
+    assert (root / "user-work").read_text() == "unrelated"
 
 
 @pytest.mark.parametrize("changed", ["digest", "source", "target", "payload", "symlink"])
 def test_stale_or_unsafe_adoption_refuses_before_any_write(adoption, tmp_path, changed):
     root, request = adoption
-    plan = preview(root, request)
-    expected = plan_digest(plan)
+    proposal = preview(root, request)
+    expected = plan_digest(proposal)
     if changed == "digest":
         expected = "sha256:" + "0" * 64
     elif changed == "source":
         git_output(root, "commit", "--allow-empty", "-m", "new source")
     elif changed == "target":
-        (root / "AGENTS.md").write_text("new user instructions")
+        (root / "signetum.toml").write_text("new user bindings")
     elif changed == "payload":
-        item = replace(plan.files[0], after="unreviewed")
-        plan = replace(plan, files=(item, *plan.files[1:]))
-        expected = plan_digest(plan)
+        proposal = replace(proposal, files=(replace(proposal.files[0], after="unreviewed"),))
+        expected = plan_digest(proposal)
     else:
-        outside = tmp_path / "outside"
-        outside.mkdir()
-        (root / ".agents/signetum/runtime").symlink_to(outside, target_is_directory=True)
+        target = root / "signetum.toml"
+        target.unlink()
+        target.symlink_to(tmp_path / "outside")
     status = git_output(root, "status", "--porcelain")
     with pytest.raises(ValueError):
-        apply(root, plan, expected)
+        apply(root, proposal, expected)
     assert git_output(root, "status", "--porcelain") == status
-    assert not (root / ".agents/signetum/run").exists()
 
 
 def test_partial_filesystem_failure_rolls_back_owned_writes(adoption, monkeypatch):
     root, request = adoption
-    plan = preview(root, request)
-    original = owner._replace
-    calls = 0
+    proposal = preview(root, request)
+    before = (root / "signetum.toml").read_bytes()
 
     def fail(path: Path, text: str):
-        nonlocal calls
-        calls += 1
-        if calls == 3:
-            raise OSError("injected disk failure")
-        original(path, text)
+        raise OSError("injected disk failure")
 
     monkeypatch.setattr(owner, "_replace", fail)
-    before = git_output(root, "status", "--porcelain")
     with pytest.raises(OSError, match="disk failure"):
-        apply(root, plan, plan_digest(plan))
-    assert git_output(root, "status", "--porcelain") == before
+        apply(root, proposal, plan_digest(proposal))
+    assert (root / "signetum.toml").read_bytes() == before
 
 
-@pytest.mark.parametrize(
-    "field,value", [("manifest", "not toml"), ("policy", "{}"), ("interpreter", ())]
-)
-def test_invalid_bindings_do_not_create_a_plan(adoption, field, value):
+def test_invalid_bindings_and_subdirectory_do_not_create_a_plan(adoption):
     root, request = adoption
-    before = git_output(root, "status", "--porcelain")
     with pytest.raises(ValueError):
-        preview(root, replace(request, **{field: value}))
-    assert git_output(root, "status", "--porcelain") == before
-
-
-def test_subdirectory_and_unmanaged_runtime_are_explicit_refusals(adoption):
-    root, request = adoption
+        preview(root, replace(request, manifest="not toml"))
+    directory = root / "subdir"
+    directory.mkdir()
     with pytest.raises(ValueError, match="repository root"):
-        preview(root / "docs", request)
-    unmanaged = root / ".agents/signetum/runtime/_signetum_runtime/custom.py"
-    unmanaged.parent.mkdir(parents=True)
-    unmanaged.write_text("user_owned = True\n")
-    with pytest.raises(ValueError, match="unmanaged runtime"):
-        preview(root, request)
-    assert unmanaged.read_text() == "user_owned = True\n"
+        preview(directory, request)
+
+
+def test_exact_managed_retirement_preserves_changed_and_unmanaged_files(adoption):
+    root, request = adoption
+    directory = root / ".agents/signetum/runtime/_signetum_runtime"
+    directory.mkdir(parents=True)
+    content = b"owned=True\n"
+    digest = "sha256:" + hashlib.sha256(content).hexdigest()
+    (directory / "owned.py").write_bytes(content)
+    (directory / "runtime.toml").write_text('[files]\n"owned.py"="' + digest + '"\n')
+    (directory / "custom.py").write_text("user_owned=True\n")
+    request = replace(
+        request,
+        retirements=(
+            Retirement(path=(directory / "owned.py").relative_to(root).as_posix(), digest=digest),
+        ),
+    )
+    proposal = preview(root, request)
+    (directory / "owned.py").write_text("user change")
+    with pytest.raises(ValueError):
+        apply(root, proposal, plan_digest(proposal))
+    (directory / "owned.py").write_bytes(content)
+    assert apply(root, proposal, plan_digest(proposal))["status"] == "applied"
+    assert (directory / "custom.py").read_text() == "user_owned=True\n"
+    assert apply(root, proposal, plan_digest(proposal))["status"] == "unchanged"

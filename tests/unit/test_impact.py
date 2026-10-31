@@ -7,7 +7,6 @@ from shutil import which
 from urllib.parse import quote
 
 import pytest
-
 from signetum.impact import select_impact
 from signetum.manifest import ImpactRule, load_manifest
 from signetum.repository_selection import select_repository
@@ -73,7 +72,9 @@ def test_independent_template_defaults_to_the_same_full_checks_as_the_engine(tmp
     git("init", "-b", "plan/example")
     git("config", "user.name", "Fixture")
     git("config", "user.email", "fixture@example.invalid")
-    (tmp_path / "signetum.toml").write_text("""schema_version = 3
+    (tmp_path / "signetum.toml").write_text("""schema_version = 4
+[delivery]
+branch = "main"
 [signetum]
 protocol = 2
 [repository]

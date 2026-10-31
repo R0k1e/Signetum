@@ -1,29 +1,16 @@
 """Shared disposable Git and Worktrunk effects for lifecycle contracts."""
 
 import hashlib
-import importlib
 import json
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-
 from signetum import worktrunk as wt
 from signetum.git import git_output
 from signetum.operations import InfrastructureError
-from signetum.runtime_generation import generate_runtime, runtime_problems
 from signetum.workspaces import branch_name
-
-
-@pytest.hookimpl(tryfirst=True)
-def pytest_sessionstart(session):
-    """Prepare one immutable portable fixture before xdist starts its workers."""
-    if hasattr(session.config, "workerinput"):
-        return
-    scaffold = Path(__file__).parents[1] / "tests/fixtures/portable-python"
-    if runtime_problems(scaffold):
-        generate_runtime(scaffold)
 
 
 @pytest.fixture
@@ -44,7 +31,7 @@ def local_repository(tmp_path, monkeypatch):
         str(state),
     ]
     (root / "signetum.toml").write_text(
-        "schema_version = 3\n[signetum]\nprotocol = 2\n"
+        'schema_version = 4\n[signetum]\nprotocol = 2\n[delivery]\nbranch = "main"\n'
         '[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
         'changes = "changes"\n'
         'decisions = "docs/decisions"\n'
@@ -133,21 +120,6 @@ def local_repository(tmp_path, monkeypatch):
 
     monkeypatch.setattr(wt, "worktrunk", native_worktrunk)
     monkeypatch.setattr(wt, "run_tool", native_preparation)
-    monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[1] / "tests/fixtures/portable-python/.agents/signetum/runtime")
-    )
-    copied = importlib.import_module("_signetum_runtime.worktrunk")
-    copied_errors = importlib.import_module("_signetum_runtime.operations")
-
-    def copied_preparation(repository, command, **kwargs):
-        try:
-            return native_preparation(repository, command, **kwargs)
-        except InfrastructureError as error:
-            raise copied_errors.InfrastructureError(str(error)) from error
-
-    monkeypatch.setattr(copied, "worktrunk", native_worktrunk)
-    monkeypatch.setattr(copied, "run_tool", copied_preparation)
-
     return root, state
 
 
@@ -207,7 +179,7 @@ def installed_python(_installed_payloads, tmp_path_factory):
         python = environment / "bin/python"
         for command in (
             ["uv", "venv", "--python", sys.executable, str(environment)],
-            ["uv", "pip", "install", "--python", str(python), "--no-deps", str(wheel)],
+            ["uv", "pip", "install", "--python", str(python), str(wheel)],
             [
                 str(python),
                 "-B",
@@ -216,7 +188,7 @@ def installed_python(_installed_payloads, tmp_path_factory):
                 "from pathlib import Path; import sys,signetum; "
                 "from importlib.util import find_spec; "
                 "assert Path(signetum.__file__).is_relative_to(Path(sys.prefix)); "
-                "assert find_spec('pydantic') is None",
+                "assert find_spec('pydantic') is not None",
             ],
         ):
             subprocess.run(command, cwd=root, check=True, capture_output=True, text=True)

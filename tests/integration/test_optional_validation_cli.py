@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 from change_fixtures import consolidated_approval
-
 from signetum import lifecycle
 from signetum.adoption import AdoptionRequest, apply, plan_digest, preview
 from signetum.ci_partitions import (
@@ -20,6 +19,7 @@ from signetum.ci_partitions import (
 from signetum.evidence.receipts import ArtifactIdentity
 from signetum.git import git_output
 from signetum.manifest import load_manifest
+from signetum.runtime_identity import implementation_digest
 from signetum.selection_request import SelectionInput, SelectionRequest
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
 from signetum.validation.repository import configured_validation
@@ -34,12 +34,8 @@ def _commit(root, message):
     return git_output(root, "rev-parse", "HEAD")
 
 
-def _cli(root, *args, portable=False):
-    prefix = (
-        [sys.executable, "-I", "-S", str(root / ".agents/signetum/runtime/protocol.py")]
-        if portable
-        else [sys.executable, "-m", "signetum.cli", "protocol"]
-    )
+def _cli(root, *args):
+    prefix = [sys.executable, "-m", "signetum.cli", "protocol"]
     return subprocess.run(  # noqa: S603 -- private consumer, actual engine or generated utility
         [*prefix, *args],
         cwd=root,
@@ -57,9 +53,9 @@ def consumer(local_repository):
     architecture.write_text("# Existing architecture\n")
     (root / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
     request = AdoptionRequest(
-        manifest=(root / "signetum.toml").read_text(),
-        policy=(root / ".agents/signetum/repo.yaml").read_text(),
-        interpreter=(sys.executable, "-I", "-S"),
+        manifest=(root / "signetum.toml")
+        .read_text()
+        .replace("[signetum]", '[signetum]\nengine_digest = "' + implementation_digest() + '"'),
     )
     proposal = preview(root, request)
     apply(root, proposal, plan_digest(proposal))
@@ -164,7 +160,7 @@ argument_index=5
     ]
     ready = lifecycle.validate(root, "member")
     assert ready["status"] == "ready"
-    outcome = _cli(root, "status", portable=True)
+    outcome = _cli(root, "status")
     assert outcome.returncode == 0, outcome.stdout + outcome.stderr
     status = json.loads(outcome.stdout)
     assert status["receipts"][0]["source_current"] is True

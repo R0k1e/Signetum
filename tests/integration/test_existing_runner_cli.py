@@ -6,13 +6,12 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from signetum.manifest import manifest_from_mapping
 
 ROOT = Path(__file__).parents[2]
 
 
-@pytest.mark.parametrize("frontend", ["engine", "template"])
+@pytest.mark.parametrize("frontend", ["engine"])
 @pytest.mark.parametrize("language", ["python", "node", "rust"])
 def test_runner_proposal_preserves_existing_argv_without_running_or_adopting_it(
     tmp_path, frontend, language

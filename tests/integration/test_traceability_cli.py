@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 from change_fixtures import consolidated_approval
-
 from signetum.status.models import (
     DeliveryObservation,
     EvidenceSnapshot,

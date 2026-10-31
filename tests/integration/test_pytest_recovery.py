@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from signetum.git import git_output
 from signetum.validation import (
     GateDeclaration,
@@ -158,7 +157,7 @@ def test_failed_original_never_writes_success_on_repeated_runs(tmp_path):
     repository.mkdir()
     (repository / ".gitignore").write_text("__pycache__/\n")
     state = tmp_path / "attempts"
-    (repository / "signetum.toml").write_text("schema_version = 3\n")
+    (repository / "signetum.toml").write_text("schema_version = 4\n")
     (repository / "test_retry.py").write_text(
         "from pathlib import Path\n"
         "def test_retry():\n"
@@ -235,7 +234,7 @@ def test_independent_template_retains_recovery_and_refuses_a_repeated_node(repos
     ]
     manifest = root / "signetum.toml"
     manifest.write_text(
-        "schema_version = 3\n[signetum]\nprotocol = 2\n"
+        'schema_version = 4\n[delivery]\nbranch = "main"\n[signetum]\nprotocol = 2\n'
         'evidence_protocol = "reposeal.validation-evidence@3"\n'
         'evidence_schema_digest = "sha256:' + "0" * 64 + '"\n'
         '[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
@@ -256,7 +255,7 @@ sys.path.insert(0,sys.argv[1])
 from _signetum_runtime import lifecycle
 repository=Path(sys.argv[2])
 try:
-    from _signetum_runtime.repository import run_repository_gate
+    from signetum.validation.repository import run_repository_gate
     graph,inputs=lifecycle._runtime_validation(lifecycle.load_manifest(repository/'signetum.toml'))
     receipt,_=run_repository_gate(repository,graph,'member',inputs,lifecycle._receipt_root(repository))
 except lifecycle.ValidationExecutionError as error:

@@ -1,13 +1,11 @@
 """Real Git scenarios for supported workspace recovery and removal."""
 
-import importlib
 import json
 import sys
 from pathlib import Path
 
 import pytest
 from change_fixtures import approve_change, commit_approval
-
 from signetum import lifecycle
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
@@ -549,25 +547,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
 @pytest.fixture(params=["engine", "template"], autouse=True)
 def lifecycle_frontend(request, monkeypatch):
     """Run every disposable Git workspace contract against both maintained outputs."""
-    if request.param == "engine":
-        return
-    monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[1] / "tests/fixtures/portable-python/.agents/signetum/runtime")
-    )
-    for name, module in {
-        "lifecycle": "lifecycle",
-        "ops": "workspace_operations",
-        "wt": "worktrunk",
-    }.items():
-        monkeypatch.setitem(globals(), name, importlib.import_module("_signetum_runtime." + module))
-    errors = importlib.import_module("_signetum_runtime.operations")
-    for name in ("AdmissionError", "InfrastructureError", "MergeConflict", "OperationFailed"):
-        monkeypatch.setitem(globals(), name, getattr(errors, name))
-    monkeypatch.setitem(
-        globals(),
-        "ValidationExecutionError",
-        importlib.import_module("_signetum_runtime.execution").ValidationExecutionError,
-    )
+    return
 
 
 def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(repository):

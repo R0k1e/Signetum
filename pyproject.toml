@@ -1,28 +1,3 @@
-[build-system]
-requires = ["hatchling>=1.27"]
-build-backend = "hatchling.build"
-
-[project]
-name = "signetum"
-version = "0.3.0"
-description = "Reliable agentic development and delivery through a standard Skill"
-readme = "README.md"
-license = "Apache-2.0"
-requires-python = ">=3.12"
-dependencies = [
-    "pydantic>=2.12,<3",
-    "pyyaml>=6.0,<7",
-    "typer>=0.20,<1",
-]
-
-[project.urls]
-Homepage = "https://github.com/R0k1e/Signetum"
-Documentation = "https://github.com/R0k1e/Signetum/blob/main/QUICKSTART.md"
-Issues = "https://github.com/R0k1e/Signetum/issues"
-
-[project.scripts]
-signetum = "signetum.cli:app"
-
 [dependency-groups]
 dev = [
     "bandit>=1.9",
@@ -36,31 +11,7 @@ dev = [
     "ruff>=0.14",
     "ty>=0.0.1a25",
     "typos>=1.42",
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/signetum"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"skills/signetum" = "signetum/resources/skills/signetum"
-
-[tool.hatch.build.targets.sdist]
-exclude = ["/tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime"]
-include = [
-    "/.agents",
-    "/.github",
-    "/AGENTS.md",
-    "/CHANGELOG.md",
-    "/CONTRIBUTING.md",
-    "/LICENSE",
-    "/QUICKSTART.md",
-    "/README.md",
-    "/SECURITY.md",
-    "/changes",
-    "/docs",
-    "/skills",
-    "/src",
-    "/tests",
+    "signetum",
 ]
 
 [tool.ruff]
@@ -68,56 +19,106 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "S", "RUF", "ANN401", "PLC0415"]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "UP",
+    "S",
+    "RUF",
+    "ANN401",
+    "PLC0415",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"]
-# Security-boundary rationale: owned-process fixtures use fixed Python argv without a shell.
-"tests/unit/validation/test_process_observation.py" = ["S101", "S603"]
-"tests/integration/test_clone_ready_template.py" = ["S101", "S603", "S607"]
-# Security-boundary rationale: real delivery tests execute resolved Git with fixed argv.
-"tests/integration/test_delivery_recovery.py" = ["S101", "S603"]
-"tests/unit/validation/test_repository.py" = ["S101", "S603"]
-"tests/test_batch_admission.py" = ["S101", "S603"]
-# Security-boundary rationale: the shared fixture executes only fixture-declared commands.
-"tests/conftest.py" = ["S603"]
-"tests/unit/validation/test_shard_bounds_and_locks.py" = ["S101", "S603", "S607"]
-# Security-boundary rationale: this lifecycle authority invokes the fixed Git
-# executable with tuple arguments after validating repository identities.
-"src/signetum/lifecycle.py" = ["S603"]
-# Security-boundary rationale: Worktrunk runs through resolved Mise with explicit argv.
-"src/signetum/worktrunk.py" = ["S603"]
-"tests/fixtures/portable-python/.agents/signetum/runtime/lifecycle.py" = ["S603"]
-# Security-boundary rationale: both adapters resolve Git to an absolute host
-# executable and pass validated tuple arguments without a shell.
-"src/signetum/release/__init__.py" = ["S603"]
-"src/signetum/traceability/boundary.py" = ["S603"]
-# Security-boundary rationale: the validation repository adapter executes only
-# schema-validated argv declarations and an absolute Git executable, never a shell.
-"src/signetum/validation/repository.py" = ["S603"]
+"tests/**/*.py" = [
+    "S101",
+]
+"tests/unit/validation/test_process_observation.py" = [
+    "S101",
+    "S603",
+]
+"tests/integration/test_delivery_recovery.py" = [
+    "S101",
+    "S603",
+]
+"tests/unit/validation/test_repository.py" = [
+    "S101",
+    "S603",
+]
+"tests/test_batch_admission.py" = [
+    "S101",
+    "S603",
+]
+"tests/conftest.py" = [
+    "S603",
+]
+"tests/unit/validation/test_shard_bounds_and_locks.py" = [
+    "S101",
+    "S603",
+    "S607",
+]
+"skills/signetum/scripts/engine/signetum/lifecycle.py" = [
+    "S603",
+]
+"skills/signetum/scripts/engine/signetum/worktrunk.py" = [
+    "S603",
+]
+"skills/signetum/scripts/engine/signetum/release/__init__.py" = [
+    "S603",
+]
+"skills/signetum/scripts/engine/signetum/traceability/boundary.py" = [
+    "S603",
+]
+"skills/signetum/scripts/engine/signetum/validation/repository.py" = [
+    "S603",
+]
 
 [tool.pytest.ini_options]
-norecursedirs = ["fixtures"]
-testpaths = ["tests"]
-markers = ["world: observes mutable external state and belongs only to final validation"]
-addopts = ["--cov=signetum", "--cov-report=term-missing", "--cov-fail-under=0"]
+norecursedirs = [
+    "fixtures",
+]
+testpaths = [
+    "tests",
+]
+markers = [
+    "world: observes mutable external state and belongs only to final validation",
+]
+addopts = [
+    "--cov=signetum",
+    "--cov-report=term-missing",
+    "--cov-fail-under=0",
+]
 
 [tool.coverage.run]
 relative_files = true
 branch = true
-source = ["signetum"]
-patch = ["subprocess", "execv"]
-# Lifecycle orchestration is exercised through behavioral Git-boundary tests;
-# excluding the moved authority preserves the v2 coverage boundary.
-# Keep the existing module boundary when a measured child changes directory.
-omit = ["*/signetum/lifecycle.py"]
+source = [
+    "signetum",
+]
+patch = [
+    "subprocess",
+    "execv",
+]
+omit = [
+    "*/signetum/lifecycle.py",
+]
 
 [tool.coverage.report]
 precision = 2
 
 [tool.ty.environment]
 python-version = "3.12"
-extra-paths = ["tests/fixtures/portable-python/.agents/signetum/runtime"]
 
-[tool.ty.src]
-exclude = ["tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime/vendor_yaml"]
+[tool.uv]
+package = false
+
+[tool.uv.sources.signetum]
+path = "skills/signetum/scripts/engine"
+editable = true
+
+[project]
+name = "signetum-development"
+version = "0"
+requires-python = ">=3.12"

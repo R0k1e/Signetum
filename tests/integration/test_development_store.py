@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output, run_git
 from signetum.serialization import contract_mapping
@@ -18,12 +17,7 @@ from signetum.workspaces import WorkspaceRecord, write_record
 
 @pytest.fixture
 def store(request, monkeypatch):
-    if getattr(request, "param", "engine") == "engine":
-        return importlib.import_module("signetum.development_store")
-    monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[2] / "tests/fixtures/portable-python/.agents/signetum/runtime")
-    )
-    return importlib.import_module("_signetum_runtime.development_store")
+    return importlib.import_module("signetum.development_store")
 
 
 @pytest.fixture
@@ -98,7 +92,7 @@ def request(repository, store, identity="alpha/first", **fields):
     )
 
 
-@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("store", ["engine"], indirect=True)
 def test_approved_append_and_exact_retry_preserve_source_and_derive_current_state(
     repository, store
 ):
@@ -154,7 +148,7 @@ def test_stale_history_and_conflicting_retry_do_not_change_existing_bytes(reposi
     assert history.read_bytes() == before
 
 
-@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("store", ["engine"], indirect=True)
 def test_atomic_reconciliation_rolls_back_all_changes_on_an_invalid_target(repository, store):
     initial = store.snapshot(repository)
     first = request(repository, store)
@@ -273,7 +267,7 @@ def _decision():
     }
 
 
-@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("store", ["engine"], indirect=True)
 def test_exact_approved_decision_updates_the_generated_current_set(repository, store):
     proposal = _decision()
     path = repository / "changes/alpha/change.toml"
@@ -499,7 +493,7 @@ def test_ordinary_plan_refinement_does_not_request_new_behavior_approval(reposit
     assert "narrower test" in path.read_text()
 
 
-@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("store", ["engine"], indirect=True)
 def test_concurrent_writer_refuses_instead_of_waiting_or_appending(repository, store):
     common = Path(git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     with (common / "signetum/development.lock").open("a+b") as held:
@@ -765,7 +759,7 @@ def _cli(repository, store, *arguments, isolated=None):
 
 
 @pytest.mark.parametrize("isolated", [False, True])
-@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("store", ["engine"], indirect=True)
 def test_real_cli_mutation_and_lazy_read_views_need_no_engine_installation(
     repository, store, isolated
 ):
@@ -1288,7 +1282,7 @@ def test_installed_wheel_runs_the_journal_outside_the_source_checkout(
     assert source.snapshot(repository).observations[0].observation == transaction.observations[0]
 
 
-@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("store", ["engine"], indirect=True)
 def test_uncommitted_repository_binding_cannot_redirect_journal_authority(repository, store):
     archive = repository / "archive/alpha/change.toml"
     archive.parent.mkdir(parents=True)
@@ -1335,7 +1329,7 @@ def test_partially_superseded_legacy_authority_keeps_its_unaffected_clauses(repo
     assert result.working_set.clauses[0].revision.id == "VAL-001"
 
 
-@pytest.mark.parametrize("store", ["engine", "template"], indirect=True)
+@pytest.mark.parametrize("store", ["engine"], indirect=True)
 def test_source_review_binds_committed_history_and_refuses_pending_findings(repository, store):
     initial = store.snapshot(repository)
     store.append_transaction(
@@ -1475,7 +1469,7 @@ def test_archived_manifest_locations_are_readable_but_cannot_authorize_new_write
     current = (Path(__file__).parents[2] / "signetum.toml").read_text()
     transaction = request(repository, store)
     state = store.snapshot(repository)
-    archived = current.replace("schema_version = 3", "schema_version = 2", 1).replace(
+    archived = current.replace("schema_version = 4", "schema_version = 2", 1).replace(
         'changes = "changes"',
         'specifications = "archive/*/specs/*.toml"\nplans = "archive/*/plans/*.md"',
     )
