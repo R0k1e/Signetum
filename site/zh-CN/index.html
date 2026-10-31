@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Signetum — 可靠的 agentic 开发与交付</title>
-  <meta name="description" content="帮助人做关键决策，让多个编码 Agent 在独立工作区并行开发，通过明确的集成与验证可靠交付。一个标准 Skill，保留现有工具。">
+  <meta name="description" content="保留关键决策，验证集成结果，交付检查过的同一份源码。面向持续演进代码库的 Agent 可靠开发与交付协议。">
   <link rel="canonical" href="https://r0k1e.github.io/Signetum/zh-CN/">
   <link rel="alternate" hreflang="zh-CN" href="https://r0k1e.github.io/Signetum/zh-CN/">
   <link rel="alternate" hreflang="en" href="https://r0k1e.github.io/Signetum/">
   <link rel="stylesheet" href="../styles.css">
-  <link rel="icon" type="image/svg+xml" href="../assets/signetum-mark.svg">
+  <link rel="icon" type="image/png" href="../assets/signetum-mark.png">
   <link rel="preload" href="../fonts/InstrumentSerif-Regular.ttf" as="font" type="font/ttf" crossorigin>
   <meta property="og:type" content="website">
   <meta property="og:title" content="Signetum">
-  <meta property="og:description" content="帮助人做关键决策，让多个编码 Agent 在独立工作区并行开发，通过明确的集成与验证可靠交付。一个标准 Skill，保留现有工具。">
+  <meta property="og:description" content="保留关键决策，验证集成结果，交付检查过的同一份源码。面向持续演进代码库的 Agent 可靠开发与交付协议。">
   <meta property="og:url" content="https://r0k1e.github.io/Signetum/zh-CN/">
   <meta property="og:image" content="https://r0k1e.github.io/Signetum/assets/signetum-social-preview.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -22,26 +22,22 @@
 <body>
   <a class="skip" href="#main">跳转到正文</a>
   <nav class="site-nav wrap" aria-label="主导航">
-    <a class="brand" rel="home" href="./"><img src="../assets/signetum-mark.svg" width="34" height="34" alt="">Signetum</a>
+    <a class="brand" rel="home" href="./"><img src="../assets/signetum-mark.png" width="34" height="34" alt="">Signetum</a>
     <div class="nav-links"><a href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">指南</a><a href="https://github.com/r0k1e/Signetum">GitHub</a><a href="../" lang="en" hreflang="en">English</a></div>
   </nav>
   <main id="main">
     <div class="wrap">
       <header class="hero">
-        <h1>共同决策，<br><span>并行开发。</span></h1>
-        <p class="lede">Signetum 帮助人做关键决策，让多个编码 Agent 在独立 worktree 中开发。先明确要改变什么，再有序集成，交付审阅过的同一份源码。</p>
-        <div class="install-actions" id="install"><button class="button" id="copy-install" type="button" hidden data-copied="已复制，粘贴给你的编码 Agent 即可。" data-failed="暂时无法复制，请展开下方提示后手动复制。">复制安装提示<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V4h12v14h-3M4 8h12v13H4z"/></svg></button><noscript><a class="button" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">查看 Skill</a></noscript><a class="source-link" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">查看 Skill</a></div>
+        <h1>让 Agent 的开发成果，<br><span>可靠交付。</span></h1>
+        <p class="lede">保留关键决策，协调独立开发，验证集成后的结果，交付检查过的同一份源码。适用于持续演进的项目，从单个 Agent 的长期开发到多 Agent 并行协作。</p>
+        <div class="install-actions" id="install"><button class="button" id="copy-install" type="button" hidden data-copied="已复制，粘贴给你的编码 Agent 即可。" data-failed="暂时无法复制，请展开下方提示后手动复制。">复制安装提示<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V4h12v14h-3M4 8h12v13H4z"/></svg></button><noscript><a class="button" href="https://github.com/r0k1e/Signetum/tree/main/skills/signetum">查看 Skill</a></noscript><a class="source-link" href="#delivery-flow">了解交付流程</a></div>
         <p class="copy-status" id="copy-status" role="status" aria-live="polite">粘贴给编码 Agent，先审阅接入方案再应用。</p>
         <details class="prompt-preview"><summary>阅读安装提示</summary><pre><code id="install-prompt">请从 https://github.com/R0k1e/Signetum/tree/main/skills/signetum 安装 Signetum Skill，选择一个明确审阅过的提交。用它检查当前项目并提出接入方案，保留现有工具，在应用前展示改动。</code></pre></details>
       </header>
-      <figure class="proof">
-        <div class="proof-top"><code>围绕同一次变更</code><p>人做决策，Agent 开发，集成有人负责。</p></div>
-        <dl class="proof-chain"><div class="proof-stage"><dt>决策</dt><dd><strong>先做重要的选择。</strong>明确目标、边界和验收，保留依据，让后续的人与 Agent 不必重复决策。</dd></div><div class="proof-stage"><dt>开发</dt><dd><strong>并行推进，隔离改动。</strong>为 Agent 划分独立 worktree 和明确职责，协调共享接口与前后依赖。</dd></div><div class="proof-stage"><dt>交付</dt><dd><strong>明确谁来负责集成。</strong>组装点名的变更，检查合并后的源码，再显式交付同一份精确版本。</dd></div></dl>
-        <figcaption>流程示意。人或编码 Agent 宿主负责组织 Agent；Signetum 提供共同遵循的开发与交付协议。</figcaption>
-      </figure>
+      <figure class="proof" id="delivery-flow"><div class="proof-top"><strong>一项变更，从确认到交付</strong><p>示例：同时修改 API 和调用它的客户端。</p></div><dl class="proof-chain"><div class="proof-stage"><dt>确认</dt><dd><strong>先确定要交付什么。</strong>由人确认目标、范围与验收，保留关键取舍，供后续会话接续。</dd></div><div class="proof-stage"><dt>开发</dt><dd><strong>独立推进，共享约定。</strong>API 与客户端成员分别开发，按约定的接口协作，隔离各自改动。</dd></div><div class="proof-stage"><dt>验证</dt><dd><strong>检查集成后的结果。</strong>成员各自通过还不够。组装点名的变更，完成最终全量验证。</dd></div><div class="proof-stage"><dt>交付</dt><dd><strong>交付检查过的版本。</strong>审阅结果并明确授权，交付通过验证的同一份精确源码。</dd></div></dl><figcaption>流程示意。检查失败需修复并重新取得有效验证，才能交付。由人或编码 Agent 宿主组织 Agent。</figcaption></figure>
     </div>
-    <section class="essentials" aria-labelledby="essentials-title"><div class="essentials-inner wrap"><div><h2 id="essentials-title">共享决策，<br>独立推进。</h2><p class="lead">让每个 Agent 有明确的开发边界，也让重要决策在协作与交接中保持一致。</p></div><dl class="principles"><div class="principle"><dt>决策能够延续。</dt><dd>与人讨论关键选择，用一份 <code>change.toml</code> 和重要追加日志保留依据，从历史派生当前决策集合。</dd></div><div class="principle"><dt>测试值得花时间。</dt><dd>沿用项目已有测试工具，在恰当边界验证行为。项目可选接入选择器以缩短反馈，最终验证仍保持完整。</dd></div><div class="principle"><dt>并行改动，有序集成。</dt><dd>先明确范围、依赖和共享接口。独立 worktree 隔离改动，由明确的集成负责人组装通过验证的成员。</dd></div></dl></div></section>
-    <section class="adoption wrap" aria-labelledby="adoption-title"><div><h2 id="adoption-title">接入你已有的仓库，<br>保留熟悉的工具。</h2><p class="intro">新项目或现有代码，都走同一个 Skill 接入流程。审阅配置后，日常开发在本地运行。</p><a href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">阅读接入指南</a></div><div class="faq"><details><summary>安装之后，仓库会改变什么？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>Skill 提供 Agent 指令。经明确审阅的接入方案才会添加仓库本地命令和绑定，保留应用的元数据与已有工具。</p></details><details><summary>还可以使用原来的测试工具吗？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>可以，应用测试方式仍由仓库自己定义。协议需要宿主 Python；当前工作区操作还需要 Git、Mise 和 Worktrunk。接入指南列出了这些前置条件。</p></details><details><summary>谁来组织多个 Agent？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>由你和编码 Agent 宿主分配任务、组织 Agent。Signetum 提供共同指令、隔离工作区，以及明确的集成与交付边界；它不是全局 Agent 或机器资源调度器。</p></details></div></section>
+    <section class="essentials" aria-labelledby="essentials-title"><div class="essentials-inner wrap"><div><h2 id="essentials-title">接续开发，<br>依然可靠。</h2><p class="lead">上下文会更换，改动会交汇，交付会中断。让重要约定和验证结果有明确的归属。</p></div><dl class="principles"><div class="principle"><dt>决策能够接续。</dt><dd>重要依据只保留一次，从历史派生当前有效决定。后续 Agent 可以继续开发，避免重复讨论已经确认的取舍。</dd></div><div class="principle"><dt>并行能够汇合。</dt><dd>隔离改动，约定共享接口，明确集成负责人。交付之前，验证合并后的整体结果。</dd></div><div class="principle"><dt>验证保留失败事实。</dt><dd>沿用已有工具，按行为边界编写测试。可选的项目选择器缩短反馈，重试不清除首次失败，最终验证保持完整。</dd></div><div class="principle"><dt>交付对应验证。</dt><dd>审阅与交付绑定检查过的源码。中断后先核对本地和远端状态，再继续同一次交付。</dd></div></dl></div></section>
+    <section class="adoption wrap" aria-labelledby="adoption-title"><div><h2 id="adoption-title">接入你已有的仓库，<br>保留熟悉的工具。</h2><p class="intro">安装 Skill，让 Agent 检查仓库并提出本地绑定方案。确认配置后，沿用现有工具开始开发。</p><a href="https://github.com/r0k1e/Signetum/blob/main/QUICKSTART.md">阅读接入指南</a></div><div class="faq"><details><summary>安装之后，仓库会改变什么？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>Skill 提供 Agent 指令。经明确审阅的接入方案才会添加仓库本地命令和绑定，保留应用的元数据与已有工具。</p></details><details><summary>还可以使用原来的测试工具吗？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>可以，应用测试方式仍由仓库自己定义。协议需要宿主 Python；当前工作区操作还需要 Git、Mise 和 Worktrunk。接入指南列出了这些前置条件。</p></details><details><summary>谁来组织多个 Agent？<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14"/></svg></summary><p>由你和编码 Agent 宿主分配任务、组织 Agent。Signetum 提供共同指令、隔离工作区，以及明确的集成与交付边界；它不是全局 Agent 或机器资源调度器。</p></details></div></section>
     <div class="close wrap"><p>从共同意图，到代码交付。</p><a class="button" href="#install">前往安装入口</a></div>
   </main>
   <footer class="site-footer wrap"><p>Signetum · 可靠的 agentic 开发与交付。</p><p><a href="https://github.com/r0k1e/Signetum/blob/main/LICENSE">Apache-2.0</a></p></footer>
