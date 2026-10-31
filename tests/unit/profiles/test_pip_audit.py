@@ -4,7 +4,6 @@ import json
 import subprocess
 
 import pytest
-
 from signetum.findings import FindingsError, parse_findings
 from signetum.profiles import pip_audit
 

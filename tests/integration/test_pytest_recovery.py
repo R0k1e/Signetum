@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from signetum.git import git_output
 from signetum.validation import (
     GateDeclaration,
@@ -19,7 +18,7 @@ from signetum.validation.execution import ValidationExecutionError, ValidationIn
 from signetum.validation.repository import run_repository_gate
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture(params=["engine"])
 def runner_command(request, monkeypatch):
     monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", "0")
     if request.param == "engine":
@@ -158,7 +157,7 @@ def test_failed_original_never_writes_success_on_repeated_runs(tmp_path):
     repository.mkdir()
     (repository / ".gitignore").write_text("__pycache__/\n")
     state = tmp_path / "attempts"
-    (repository / "signetum.toml").write_text("schema_version = 3\n")
+    (repository / "signetum.toml").write_text("schema_version = 4\n")
     (repository / "test_retry.py").write_text(
         "from pathlib import Path\n"
         "def test_retry():\n"
@@ -208,78 +207,6 @@ def test_failed_original_never_writes_success_on_repeated_runs(tmp_path):
         with pytest.raises(ValidationExecutionError, match="recurring contention failure"):
             run_repository_gate(repository, graph, "member", inputs, receipts)
         assert not tuple(receipts.glob("member-*.json"))
-
-
-def test_independent_template_retains_recovery_and_refuses_a_repeated_node(repository, tmp_path):
-    root, _ = repository
-    runtime = Path(__file__).parents[2] / "tests/fixtures/portable-python/.agents/signetum/runtime"
-    state = tmp_path / "template-attempts"
-    (root / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
-    (root / "test_retry.py").write_text(
-        "import sys\nfrom pathlib import Path\n"
-        "def test_retry():\n"
-        "    assert 'signetum' not in sys.modules\n"
-        f"    state = Path({str(state)!r})\n"
-        "    n = int(state.read_text()) if state.exists() else 0\n"
-        "    state.write_text(str(n + 1))\n"
-        "    assert n % 2, 'recurring template failure'\n"
-    )
-    command = [
-        sys.executable,
-        str(runtime / "_signetum_runtime/pytest_runner.py"),
-        "--",
-        "-q",
-        "-o",
-        "addopts=",
-        "test_retry.py",
-    ]
-    manifest = root / "signetum.toml"
-    manifest.write_text(
-        "schema_version = 3\n[signetum]\nprotocol = 2\n"
-        'evidence_protocol = "reposeal.validation-evidence@3"\n'
-        'evidence_schema_digest = "sha256:' + "0" * 64 + '"\n'
-        '[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
-        'changes = "changes"\n'
-        'decisions = "docs/decisions"\n'
-        "[validation]\n"
-        '[[validation.shards]]\nname = "test:pytest"\ncommand = ' + json.dumps(command) + "\n"
-        '[[validation.gates]]\nname = "member"\nshards = ["test:pytest"]\n'
-        '[[validation.gates]]\nname = "final"\nshards = ["test:pytest"]\n'
-    )
-    git_output(root, "add", ".")
-    git_output(root, "commit", "-m", "declare template recovery fixture")
-    script = """
-import json,sys
-from datetime import UTC,datetime
-from pathlib import Path
-sys.path.insert(0,sys.argv[1])
-from _signetum_runtime import lifecycle
-repository=Path(sys.argv[2])
-try:
-    from _signetum_runtime.repository import run_repository_gate
-    graph,inputs=lifecycle._runtime_validation(lifecycle.load_manifest(repository/'signetum.toml'))
-    receipt,_=run_repository_gate(repository,graph,'member',inputs,lifecycle._receipt_root(repository))
-except lifecycle.ValidationExecutionError as error:
-    print(json.dumps({'reason':str(error)}))
-    raise SystemExit(3)
-assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
-print(receipt.to_json(),end='')
-"""
-
-    def run():
-        return subprocess.run(  # noqa: S603 -- isolated consumer and native fixture pytest
-            [sys.executable, "-I", "-S", "-c", script, str(runtime), str(root)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    first = run()
-    assert first.returncode == 3, first.stdout + first.stderr
-    assert "recurring template failure" in first.stdout
-    assert "diagnostic retry passed" in first.stdout
-    bounded = run()
-    assert bounded.returncode == 3, bounded.stdout + bounded.stderr
 
 
 def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path, monkeypatch):

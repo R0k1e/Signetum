@@ -10,14 +10,15 @@ The same contract serves new and existing projects after ordinary initialization
 accepts:
 
 - `manifest`: complete reviewed `signetum.toml` text.
-- `policy`: merged repository policy YAML, retaining actual authorities and delivery.
-- `interpreter`: optional literal host Python argv, default `["python3"]`.
+- `retirements`: optional exact `{path, digest}` entries for known managed files.
 
-The declared architecture must exist. Bind actual preparation, member, batch and
-final commands, tool identities, locks and additional validation inputs. Keep
-outside-world checks final-only. Preserve application metadata and Justfile.
-The payload adds a local launcher, portable runtime, workflow reference and an
-Agent-contract pointer; it does not supply a new application environment.
+Use manifest schema 4. Declare `signetum.engine_digest` from the prepared Skill's
+`adopt inspect`, `[delivery] branch`, record roots, actual preparation, member,
+batch and final commands, tool identities, locks and additional validation inputs.
+Architecture is optional. Outside-world checks remain final-only. The normal
+payload is only `signetum.toml`; application metadata, Agent entry files, Justfile
+and environments remain untouched. Explicit retirement refuses drift or unknown
+files. It offers no old execution fallback.
 
 Preview records the exact base, before/after bytes and runtime identity.
 `signetum adopt apply --repository . --plan <plan.json> --expected-plan <digest>`

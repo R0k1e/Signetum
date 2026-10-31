@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from signetum.findings import Finding, FindingsError, parse_findings
 
 

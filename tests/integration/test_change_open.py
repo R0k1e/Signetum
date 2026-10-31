@@ -4,13 +4,12 @@ import importlib
 from pathlib import Path
 
 import pytest
-
 from signetum.change_record import parse_change_record
 from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
-@pytest.fixture(params=["signetum", "_signetum_runtime"])
+@pytest.fixture(params=["signetum"])
 def author(request, monkeypatch):
     if request.param == "_signetum_runtime":
         monkeypatch.syspath_prepend(

@@ -11,13 +11,7 @@ ROOT = Path(__file__).parents[2]
 
 @pytest.mark.parametrize(
     ("module", "source"),
-    [
-        ("signetum.workspaces", ROOT / "src"),
-        (
-            "_signetum_runtime.workspaces",
-            ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime",
-        ),
-    ],
+    [("signetum.workspaces", ROOT / "skills/signetum/scripts/engine")],
 )
 def test_workspace_storage_is_portable_and_immutable(tmp_path, module, source):
     script = """import importlib,json,sys

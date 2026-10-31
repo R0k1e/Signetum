@@ -1,24 +1,11 @@
 #!/bin/sh
-# Repository-owned commands remain the execution authority.
 set -eu
-if [ "${1:-}" = adopt ]; then
-    shift
-    if ! command -v signetum >/dev/null 2>&1; then
-        echo "Adoption needs a reviewed Signetum engine; see the maintained first-use guide." >&2
-        exit 127
-    fi
-    engine="$(command -v signetum)"
-    if [ "$engine" -ef "$0" ]; then
-        echo "Setup tool is shadowed by the Skill launcher; use its installed engine executable." >&2
-        exit 127
-    fi
-    exec "$engine" adopt "$@"
+skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+if [ "${1:-}" = setup ]; then
+    exec mise exec python@3.12 -- python "$skill_dir/scripts/launch.py" "$@"
 fi
-if [ -f .agents/signetum/run ]; then
-    exec sh .agents/signetum/run protocol "$@"
+if [ ! -x "$skill_dir/.runtime/host-python" ]; then
+    printf '%s\n' '{"status":"failed","stage":"skill-execution","cause":"Skill environment is not prepared; run the explicit setup command first"}' >&2
+    exit 2
 fi
-if ! command -v just >/dev/null 2>&1; then
-    echo "Repository command authority unavailable: install the repository-declared just tool." >&2
-    exit 127
-fi
-exec just -- protocol "$@"
+exec "$skill_dir/.runtime/host-python" "$skill_dir/scripts/launch.py" "$@"

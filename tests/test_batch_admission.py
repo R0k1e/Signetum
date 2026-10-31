@@ -12,11 +12,10 @@ from shutil import which
 from typing import Literal
 
 import pytest
+import signetum.lifecycle as lifecycle
 from change_fixtures import approve_change as _approve_change
 from change_fixtures import approved_record_source, commit_approval, consolidated_approval
 from pydantic import JsonValue
-
-import signetum.lifecycle as lifecycle
 from signetum.development_store import snapshot as development_snapshot
 from signetum.validation import command_digest
 from signetum.validation.execution import ShardExecution, build_evidence_identity
@@ -40,7 +39,9 @@ def _git(repository: Path, *arguments: str) -> str:
     ).stdout.strip()
 
 
-MANIFEST = """schema_version = 3
+MANIFEST = """schema_version = 4
+[delivery]
+branch = "main"
 
 [signetum]
 protocol = 2
@@ -820,7 +821,7 @@ def test_ready_and_admission_refuse_an_implementation_without_a_change_package(t
     assert _git(batch, "rev-parse", "HEAD") == before
 
 
-@pytest.fixture(params=["engine", "template"], autouse=True)
+@pytest.fixture(params=["engine"], autouse=True)
 def lifecycle_frontend(request, monkeypatch):
     """The complete admission/final contract corpus also runs on the generated library."""
     if request.param == "template":
@@ -830,9 +831,7 @@ def lifecycle_frontend(request, monkeypatch):
                 / "tests/fixtures/portable-python/.agents/signetum/runtime"
             )
         )
-        monkeypatch.setitem(
-            globals(), "lifecycle", importlib.import_module("_signetum_runtime.lifecycle")
-        )
+        monkeypatch.setitem(globals(), "lifecycle", importlib.import_module("signetum.lifecycle"))
 
 
 @pytest.mark.parametrize("resolved", [False, True])

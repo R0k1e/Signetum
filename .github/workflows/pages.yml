@@ -6,8 +6,8 @@ on:
     paths:
       - "site/**"
       - "assets/brand/**"
-      - "src/signetum/site.py"
-      - "src/signetum/cli.py"
+      - "skills/signetum/scripts/engine/signetum/site.py"
+      - "skills/signetum/scripts/engine/signetum/cli.py"
       - ".github/workflows/pages.yml"
       - "uv.lock"
   workflow_dispatch:

@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from signetum.product_surface import validate_product_surface
 from signetum.traceability.boundary import RepositoryInventory
 

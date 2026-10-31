@@ -1,0 +1,378 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signetum.invalid/schemas/signetum-v4.schema.json",
+  "title": "Signetum repository configuration v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "signetum",
+    "repository",
+    "validation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 4
+    },
+    "signetum": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "evidence_protocol",
+        "evidence_schema_digest"
+      ],
+      "properties": {
+        "protocol": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "evidence_protocol": {
+          "const": "reposeal.validation-evidence@3"
+        },
+        "evidence_schema_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "engine_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/profile"
+          },
+          "uniqueItems": true
+        },
+        "replacements": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/profile"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/profile"
+          }
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decisions",
+        "changes"
+      ],
+      "properties": {
+        "architecture": {
+          "$ref": "#/$defs/path"
+        },
+        "decisions": {
+          "$ref": "#/$defs/path"
+        },
+        "lockfiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          },
+          "uniqueItems": true
+        },
+        "changes": {
+          "$ref": "#/$defs/path"
+        }
+      }
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "paths"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$"
+              },
+              "paths": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/path"
+                }
+              },
+              "profiles": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/profile"
+                }
+              },
+              "gates": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "shards": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "requires_final": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "protocol",
+                "entrypoint",
+                "command",
+                "tools"
+              ],
+              "properties": {
+                "protocol": {
+                  "const": "signetum.selection@1"
+                },
+                "entrypoint": {
+                  "$ref": "#/$defs/path"
+                },
+                "command": {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/argv"
+                    },
+                    {
+                      "contains": {
+                        "const": "{selector}"
+                      },
+                      "minContains": 1,
+                      "maxContains": 1
+                    }
+                  ]
+                },
+                "inputs": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/path"
+                  },
+                  "uniqueItems": true
+                },
+                "tools": {
+                  "allOf": [
+                    {
+                      "$ref": "#/properties/validation/properties/tools"
+                    },
+                    {
+                      "minItems": 1
+                    }
+                  ]
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "targets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "shard",
+                      "roots",
+                      "argument_index"
+                    ],
+                    "properties": {
+                      "shard": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "roots": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "$ref": "#/$defs/path"
+                        }
+                      },
+                      "argument_index": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shards",
+        "gates"
+      ],
+      "properties": {
+        "member_required": {
+          "$ref": "#/$defs/uniqueStrings"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "identity_command"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "identity_command": {
+                "$ref": "#/$defs/argv"
+              }
+            }
+          }
+        },
+        "shards": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "command"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "$ref": "#/$defs/argv"
+              },
+              "requires": {
+                "$ref": "#/$defs/uniqueStrings"
+              },
+              "inherit": {
+                "type": "boolean"
+              },
+              "ratchet_command": {
+                "$ref": "#/$defs/argv"
+              },
+              "workers": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "worker_memory_mb": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "timeout_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "evidence": {
+                "enum": [
+                  "tree",
+                  "world"
+                ]
+              },
+              "findings_command": {
+                "$ref": "#/$defs/argv"
+              }
+            }
+          }
+        },
+        "gates": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "shards"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "shards": {
+                "$ref": "#/$defs/uniqueStrings"
+              }
+            }
+          }
+        }
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "branch"
+      ],
+      "properties": {
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "(^/|(^|/)\\.\\.(/|$))"
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "argv": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "uniqueStrings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "profile": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*@[1-9][0-9]*$"
+    }
+  }
+}

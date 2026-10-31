@@ -6,7 +6,6 @@ from dataclasses import replace
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-
 from signetum.ci_partitions import (
     PartitionConfiguration,
     PartitionPlan,

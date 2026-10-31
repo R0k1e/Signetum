@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from signetum.decision_identity import numbered_targets
 from signetum.git import git_output
 from signetum.operations import AdmissionError

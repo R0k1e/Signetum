@@ -6,8 +6,6 @@ from datetime import UTC, datetime
 import pytest
 from change_fixtures import append_historical_event as append_event
 from change_fixtures import approve_change, approve_legacy_change
-from test_batch_admission import _git, _record, _repository
-
 from signetum import lifecycle
 from signetum.deviations import (
     DeviationClass,
@@ -16,6 +14,7 @@ from signetum.deviations import (
     Resolved,
     ledger_path,
 )
+from test_batch_admission import _git, _record, _repository
 
 
 def member_and_batch(tmp_path, *, historical=False):

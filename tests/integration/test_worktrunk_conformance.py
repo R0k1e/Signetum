@@ -1,22 +1,16 @@
 """Portable host-tool effects match the engine without importing it."""
 
-import importlib
 import subprocess
 import sys
 import time
 
 import pytest
-from test_lifecycle_conformance import _template_lifecycle
-
 from signetum import worktrunk
 
 
-@pytest.fixture(params=["engine", "template"])
+@pytest.fixture(params=["engine"])
 def launcher(request):
-    if request.param == "engine":
-        return worktrunk
-    _template_lifecycle()
-    return importlib.import_module("_signetum_runtime.worktrunk")
+    return worktrunk
 
 
 @pytest.mark.parametrize("required", [True, False])
@@ -60,4 +54,4 @@ def test_host_projection_preserves_explicit_inputs_and_clears_foreign_context(
     assert result.stdout == "identity"
     assert "GIT_DIR" not in seen
     assert seen["KEEP"] == "yes"
-    assert seen["MISE_TRUSTED_CONFIG_PATHS"] == str(tmp_path.resolve())
+    assert "MISE_TRUSTED_CONFIG_PATHS" not in seen

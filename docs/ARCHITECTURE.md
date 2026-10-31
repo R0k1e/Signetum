@@ -5,10 +5,10 @@ Signetum is a standard Skill for reliable agentic development and delivery.
 repository adoption. `main` owns the product source, runtime/setup package,
 schemas, Skill, tests and documentation. Existing consumers update explicitly.
 
-The agent obtains a fixed-version setup tool, prepares reviewed local bindings,
-and then calls the project's own portable runtime. Application tools, architecture
-and delivery policy remain project-owned. `tests/fixtures/portable-python/` is internal scaffolding and
-portable-runtime evidence, not a second public product or default-branch artifact.
+The installed Skill owns one execution engine and a separately locked local
+environment. Consumer repositories declare commands and delivery policy in
+`signetum.toml`; their application dependencies, instructions and architecture
+remain their own. Adoption does not copy the engine or impose an entry file.
 
 Responsibility documents:
 

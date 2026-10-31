@@ -1128,12 +1128,24 @@ wheels = [
 [[package]]
 name = "signetum"
 version = "0.3.0"
-source = { editable = "." }
+source = { editable = "skills/signetum/scripts/engine" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "typer" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "pyyaml", specifier = ">=6.0,<7" },
+    { name = "typer", specifier = ">=0.20,<1" },
+]
+
+[[package]]
+name = "signetum-development"
+version = "0"
+source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
@@ -1146,16 +1158,12 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "signetum" },
     { name = "ty" },
     { name = "typos" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.12,<3" },
-    { name = "pyyaml", specifier = ">=6.0,<7" },
-    { name = "typer", specifier = ">=0.20,<1" },
-]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1168,6 +1176,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.0" },
     { name = "pytest-xdist", specifier = ">=3.8,<4" },
     { name = "ruff", specifier = ">=0.14" },
+    { name = "signetum", editable = "skills/signetum/scripts/engine" },
     { name = "ty", specifier = ">=0.0.1a25" },
     { name = "typos", specifier = ">=1.42" },
 ]
