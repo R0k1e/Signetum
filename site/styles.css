@@ -140,7 +140,7 @@ p { margin-bottom: 20px; }
   .close p { font-size: 34px; margin-bottom: 22px; }
   .site-footer { display: block; }
   .site-footer p + p { margin-top: 7px; }
-  :lang(zh-CN) h1 { font-size: 46px; }
+  :lang(zh-CN) h1 { font-size: clamp(26px, 7.7vw, 42px); }
   :lang(zh-CN) .proof-stage dt { font-size: 26px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; } }
