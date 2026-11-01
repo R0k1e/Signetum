@@ -9,6 +9,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
+from click import Group
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.cli import app
 from signetum.git import git_output
@@ -169,11 +170,12 @@ shards=["app:test"]
     assert not (project / ".venv").exists()
     if existing:
         assert (project / "AGENTS.md").is_symlink()
-    if existing:
         # The installed launcher must expose every command advertised by its engine.
         help_result = run("--help", ok=False)
         assert help_result.returncode == 0, help_result.stderr
-        for name in get_command(app).commands:
+        command_group = get_command(app)
+        assert isinstance(command_group, Group)
+        for name in command_group.commands:
             assert name in help_result.stdout
             result = run(name, "--help", ok=False)
             assert result.returncode == 0, result.stdout + result.stderr
@@ -272,6 +274,17 @@ contract_digest="{digest}"
         manifest.replace(prepared["engine"]["implementation"], "sha256:" + "0" * 64)
     )
     assert run("status", cwd=project, ok=False).returncode != 0
+    if existing:
+        update = run("adopt", "preview", "--request", request, "--output", plan)
+        assert update["files"] == [{"path": "signetum.toml", "action": "replace"}]
+        assert (
+            run("adopt", "apply", "--plan", plan, "--expected-plan", update["plan_digest"])[
+                "status"
+            ]
+            == "applied"
+        )
+        assert run("status")["status"] == "passed"
+        assert all((project / name).read_bytes() == content for name, content in originals.items())
 
     # Engine cache corruption must refuse without repairing or reinstalling it.
     home = Path(prepared["environment"])
