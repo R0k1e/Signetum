@@ -123,7 +123,7 @@ def test_installed_skill_adopts_and_delivers_without_entering_application(
         }
     git_output(project, "add", ".")
     git_output(project, "commit", "-m", "test: initialize application")
-    invoke = ["mise", "exec", "--", "python"]
+    invoke = ["mise", "exec", "--", "python", "-B"]
     command = json.dumps([*invoke, "-m", "unittest", "test_app.py"])
     prepare = json.dumps([*invoke, "-c", "pass"])
     manifest = f'''schema_version=4
@@ -275,10 +275,11 @@ contract_digest="{digest}"
     )
     assert run("status", cwd=project, ok=False).returncode != 0
     if existing:
-        update = run("adopt", "preview", "--request", request, "--output", plan)
+        update_plan = tmp_path / "update-plan.json"
+        update = run("adopt", "preview", "--request", request, "--output", update_plan)
         assert update["files"] == [{"path": "signetum.toml", "action": "replace"}]
         assert (
-            run("adopt", "apply", "--plan", plan, "--expected-plan", update["plan_digest"])[
+            run("adopt", "apply", "--plan", update_plan, "--expected-plan", update["plan_digest"])[
                 "status"
             ]
             == "applied"
