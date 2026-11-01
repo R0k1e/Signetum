@@ -45,7 +45,7 @@ Use `status` for the current workspace, findings, recorded evidence and next ste
 not a required prelude to ready. Status does not requalify tools or grant readiness.
 
 For explicit development feedback, use the repository's configured diagnostic
-utility: `test --shard <declared-shard> -- <native-test-arguments>`. It appends
+utility: `test run --shard <declared-shard> -- <native-test-arguments>`. It appends
 arguments to the existing command, preserves its declared targets and uses the
 normal allocator and supervisor without registration or readiness evidence.
 Prepare its environment and required build inputs first. Native runner options
@@ -56,15 +56,15 @@ or grouping helps. Do not introduce a permanent timing/count gate or handwritten
 test inventory. Stop repeating verification once relevant checks pass unless a
 new change or unresolved concern requires another run.
 
-Use `record` for a finding that changes implementation, authority, scope or the
-delivery explanation. Use `resolve`, `retract`, `reconcile` or `retire` for its
+Use `change record` for a finding that changes implementation, authority, scope or the
+delivery explanation. Use `change resolve`, `change retract`, `change reconcile` or `change retire` for its
 standing answer and accepted decision changes. Ordinary writes take semantic
 arguments; the tool binds the current approved change and history identity:
 
 ```text
-record --id finding --requirement REQ-001 --summary "What was found" --reason "Why it matters"
-resolve --id fix --target <observation-id> --reason "What resolves it" --evidence <source-path>
-reconcile --id accepted-decisions --reason "Apply the approved proposals" --accept-decisions
+change record --id finding --requirement REQ-001 --summary "What was found" --reason "Why it matters"
+change resolve --id fix --target <observation-id> --reason "What resolves it" --evidence <source-path>
+change reconcile --id accepted-decisions --reason "Apply the approved proposals" --accept-decisions
 ```
 
 Use the returned observation ID as the exact resolution target. `--id` is a
@@ -73,7 +73,7 @@ new identity. Add `--change` when more than one approved change matches the
 workspace base. `--expected-history` can explicitly bind a previously reviewed
 view; a stale write refuses. A deferred resolution uses `--disposition deferred`
 and `--followup change-id#REQ-ID`, with the exact approved requirement transfer.
-`retract` takes the target and exact prior `--resolution` ID.
+`change retract` takes the target and exact prior `--resolution` ID.
 
 The advanced structured `--request` plus `--expected-history` path remains for
 atomic combinations and exact evidence retirement. Do not mix it with semantic

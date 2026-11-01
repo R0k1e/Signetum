@@ -22,7 +22,7 @@ repos:
         types_or: [python, pyi]
       - id: product-surface
         name: product-surface
-        entry: uv run --no-sync signetum check product-surface --repository .
+        entry: uv run --no-sync python -m tools.cli check product-surface --repository .
         language: system
         pass_filenames: false
         always_run: true

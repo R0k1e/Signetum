@@ -17,6 +17,7 @@ import tomllib
 SKILL = Path(__file__).resolve().parents[1]
 PROJECT = SKILL / "scripts/engine"
 sys.path.insert(0, str(PROJECT))
+from signetum.commands import BOOTSTRAP  # noqa: E402 -- dependency-free registry
 from signetum.runtime_identity import implementation_digest  # noqa: E402 -- source identity only
 
 
@@ -31,6 +32,9 @@ def main() -> int:
     arguments = sys.argv[1:]
     if not arguments:
         arguments = ["--help"]
+    if len(arguments) == 2 and arguments[0] in BOOTSTRAP and arguments[1] == "--help":
+        print(json.dumps({"command": arguments[0], "help": BOOTSTRAP[arguments[0]]}))
+        return 0
     code = implementation_digest()
     lock = (PROJECT / "uv.lock").read_bytes()
     content = code.encode() + lock + (PROJECT / "pyproject.toml").read_bytes()
@@ -102,7 +106,14 @@ def main() -> int:
     if observed != recorded["engine"] or observed["implementation"] != code:
         raise ValueError("Skill engine changed; ordinary execution will not repair or update it")
     if arguments == ["identity"]:
-        print(json.dumps(observed, sort_keys=True))
+        complete = json.loads(
+            subprocess.check_output(  # noqa: S603 -- verified engine and fixed identity module
+                [str(python), "-I", "-m", "signetum.skill_identity", str(SKILL)],
+                env=child,
+                text=True,
+            )
+        )
+        print(json.dumps({"skill": complete, "engine": observed}, sort_keys=True))
         return 0
     operation = arguments[0]
     if operation != "adopt" and (Path.cwd() / "signetum.toml").is_file():
@@ -111,38 +122,9 @@ def main() -> int:
             raise ValueError(
                 "project engine pin differs from this Skill; review an explicit update"
             )
-    lifecycle = {
-        "workspace-open",
-        "changed",
-        "ready",
-        "batch-open",
-        "batch-admit",
-        "batch-continue",
-        "final",
-        "batch-deliver",
-    }
-    command = (
-        ["lifecycle", *arguments]
-        if operation in lifecycle
-        else arguments
-        if operation
-        in {
-            "adopt",
-            "maintenance",
-            "lifecycle",
-            "protocol",
-            "check",
-            "validate",
-            "release",
-            "site",
-            "findings",
-            "--help",
-        }
-        else ["protocol", *arguments]
-    )
     os.execve(  # noqa: S606 -- absolute verified Skill executable
         str(home / "environment/bin/signetum"),
-        [str(home / "environment/bin/signetum"), *command],
+        [str(home / "environment/bin/signetum"), *arguments],
         child,
     )
     return 0
