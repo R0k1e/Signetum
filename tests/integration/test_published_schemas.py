@@ -44,7 +44,7 @@ def _violations(schema: str, document: object) -> list[str]:
 def test_shipped_manifests_satisfy_the_published_manifest_schema(relative: str) -> None:
     document = tomllib.loads((REPOSITORY / relative).read_text(encoding="utf-8"))
 
-    assert _violations("signetum-v4.schema.json", document) == []
+    assert _violations("signetum-v5.schema.json", document) == []
 
 
 @pytest.mark.parametrize("relative", MANIFESTS)

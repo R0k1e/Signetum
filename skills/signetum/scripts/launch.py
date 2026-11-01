@@ -9,10 +9,11 @@ import sys
 from pathlib import Path
 from shutil import which
 
+from installation import installation_use
+
 if sys.version_info < (3, 12):  # noqa: UP036 -- bootstrap runs before engine environment
     raise SystemExit("Signetum needs host Python 3.12+; prepare it with the declared Mise setup.")
 
-import tomllib
 
 SKILL = Path(__file__).resolve().parents[1]
 PROJECT = SKILL / "scripts/engine"
@@ -115,13 +116,6 @@ def main() -> int:
         )
         print(json.dumps({"skill": complete, "engine": observed}, sort_keys=True))
         return 0
-    operation = arguments[0]
-    if operation != "adopt" and (Path.cwd() / "signetum.toml").is_file():
-        declared = tomllib.loads((Path.cwd() / "signetum.toml").read_text())
-        if declared["signetum"].get("engine_digest") != code:
-            raise ValueError(
-                "project engine pin differs from this Skill; review an explicit update"
-            )
     os.execve(  # noqa: S606 -- absolute verified Skill executable
         str(home / "environment/bin/signetum"),
         [str(home / "environment/bin/signetum"), *arguments],
@@ -132,7 +126,8 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        with installation_use(SKILL, exclusive=sys.argv[1:] == ["setup"]):
+            raise SystemExit(main())
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(
             json.dumps(

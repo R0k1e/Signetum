@@ -39,7 +39,7 @@ def _git(repository: Path, *arguments: str) -> str:
     ).stdout.strip()
 
 
-MANIFEST = """schema_version = 4
+MANIFEST = """schema_version = 5
 [delivery]
 branch = "main"
 

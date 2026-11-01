@@ -12,9 +12,10 @@ accepts:
 - `manifest`: complete reviewed `signetum.toml` text.
 - `retirements`: optional exact `{path, digest}` entries for known managed files.
 
-Use manifest schema 4. Declare `signetum.engine_digest` from the prepared Skill's
-`adopt inspect`, `[delivery] branch`, record roots, actual preparation, member,
-batch and final commands, tool identities, locks and additional validation inputs.
+Use manifest schema 5 and supported protocol 2. Declare `[delivery] branch`,
+record roots, actual preparation/member/batch/final commands, tool identities,
+locks and additional validation inputs. No engine implementation hash belongs
+in a project binding.
 Architecture is optional. Outside-world checks remain final-only. The normal
 payload is only `signetum.toml`; application metadata, Agent entry files, Justfile
 and environments remain untouched. Explicit retirement refuses drift or unknown

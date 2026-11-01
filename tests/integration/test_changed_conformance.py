@@ -7,15 +7,14 @@ from pathlib import Path
 import pytest
 from change_fixtures import commit_approval
 from signetum import lifecycle
-from signetum import lifecycle as core_lifecycle
 from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
-@pytest.fixture(params=["engine"])
+@pytest.fixture
 def diagnostic(request, repository, monkeypatch, tmp_path):
     root, state = repository
-    runtime = lifecycle if request.param == "engine" else core_lifecycle
+    runtime = lifecycle
 
     def open_member(*, code=None, selected=True, world=False, approved=False):
         manifest = root / "signetum.toml"

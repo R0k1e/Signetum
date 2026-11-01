@@ -7,7 +7,6 @@ from dataclasses import replace
 from signetum.evidence.receipts import ValidationSelection
 from signetum.manifest import ManifestError, RepositoryManifest
 from signetum.profiles.catalog import ProfileDeclaration, resolve_profiles
-from signetum.runtime_identity import implementation_digest
 from signetum.validation import (
     GateDeclaration,
     GraphContribution,
@@ -49,13 +48,6 @@ def configured_validation(
             by_name[tool.name] = tool
         tools = tuple(by_name.values())
     try:
-        if (
-            manifest.signetum.engine_digest
-            and manifest.signetum.engine_digest != implementation_digest()
-        ):
-            raise ManifestError(
-                "executed engine differs from the project pin; explicitly review the Skill update"
-            )
         if any(tool.name == "signetum-engine" for tool in tools):
             raise ManifestError("signetum-engine is an internal tool identity")
         tools = (

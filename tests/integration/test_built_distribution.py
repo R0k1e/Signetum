@@ -26,7 +26,7 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts(tm
     assert len(wheels) == 1
     with ZipFile(wheels[0]) as wheel:
         names = set(wheel.namelist())
-        assert "signetum/resources/schemas/signetum-v4.schema.json" in names
+        assert "signetum/resources/schemas/signetum-v5.schema.json" in names
         payload = b"\n".join(wheel.read(n) for n in names if n.endswith((".py", ".toml", ".json")))
     forbidden = (str(ROOT).encode(), b"/Users/", b".runtime/")
     assert all(value not in payload for value in forbidden)
@@ -42,7 +42,7 @@ def test_built_wheel_ships_its_declared_resources_without_build_machine_facts(tm
         assert not any("/.runtime/" in name or "__pycache__" in name for name in names)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def installed_skill(tmp_path_factory):
     directory = tmp_path_factory.mktemp("installed Skill")
     skill = directory / "signetum"
@@ -54,6 +54,10 @@ def installed_skill(tmp_path_factory):
     environment = dict(os.environ)
     for key in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT"):
         environment.pop(key, None)
+    environment["MISE_DATA_DIR"] = environment.get(
+        "MISE_DATA_DIR", str(Path.home() / ".local/share/mise")
+    )
+    environment["XDG_DATA_HOME"] = str(directory / "state")
     update = subprocess.run(  # noqa: S603 -- dependency-free update instructions
         [str(shutil.which("sh")), str(skill / "scripts/signetum"), "update"],
         cwd=directory,
@@ -138,10 +142,9 @@ def test_installed_skill_adopts_and_delivers_without_entering_application(
     invoke = ["mise", "exec", "--", "python", "-B"]
     command = json.dumps([*invoke, "-m", "unittest", "test_app.py"])
     prepare = json.dumps([*invoke, "-c", "pass"])
-    manifest = f'''schema_version=4
+    manifest = f"""schema_version=5
 [signetum]
 protocol=2
-engine_digest="{prepared["engine"]["implementation"]}"
 [delivery]
 branch="main"
 [repository]
@@ -166,7 +169,7 @@ shards=[]
 [[validation.gates]]
 name="final"
 shards=["app:test"]
-'''
+"""
     request = tmp_path / "request.json"
     request.write_text(json.dumps({"manifest": manifest}))
     assert run("adopt", "inspect")["status"] == "inspected"
@@ -300,9 +303,7 @@ contract_digest="{digest}"
     assert (
         run("change", "current", cwd=project)["historical_authorities"]["mode"] == "read_on_demand"
     )
-    (project / "signetum.toml").write_text(
-        manifest.replace(prepared["engine"]["implementation"], "sha256:" + "0" * 64)
-    )
+    (project / "signetum.toml").write_text(manifest.replace("protocol=2", "protocol=99"))
     assert run("status", cwd=project, ok=False).returncode != 0
     if existing:
         update_plan = tmp_path / "update-plan.json"
@@ -342,6 +343,41 @@ contract_digest="{digest}"
     finally:
         package.write_bytes(original_package)
 
+    if existing:
+        before = (project / "signetum.toml").read_bytes()
+        head = git_output(project, "rev-parse", "HEAD")
+        status = git_output(project, "status", "--porcelain")
+        candidate = tmp_path / "candidate"
+        shutil.copytree(
+            skill,
+            candidate,
+            ignore=shutil.ignore_patterns(".runtime", ".venv", "__pycache__", "*.pyc", "dist"),
+        )
+        source = candidate / "scripts/engine/signetum/__init__.py"
+        source.write_bytes(source.read_bytes() + b"\n# compatible implementation update\n")
+        assert run("update", "--check", "--source", candidate)["status"] == "available"
+        updated = run("update", "--source", candidate)
+        assert updated["status"] == "updated"
+        assert skill.is_symlink()
+        assert updated["project_changed"] is False
+        assert (project / "signetum.toml").read_bytes() == before
+        assert git_output(project, "rev-parse", "HEAD") == head
+        assert git_output(project, "status", "--porcelain") == status
+        assert run("identity")["engine"]["implementation"] != prepared["engine"]["implementation"]
+        assert run("check", "manifest")["status"] == "valid"
+        assert run("status")["status"] == "passed"
+        previous_launcher = Path(updated["previous_entry"]) / "scripts/signetum"
+        saved_launcher, launcher = launcher, previous_launcher
+        assert run("identity")["engine"] == prepared["engine"]
+        launcher = saved_launcher
+        # A failed candidate preparation preserves the selected, usable installation.
+        lock = candidate / "scripts/engine/uv.lock"
+        lock.write_text("invalid lock content")
+        selected = skill.resolve()
+        assert run("update", "--source", candidate, ok=False).returncode != 0
+        assert skill.resolve() == selected
+        assert run("identity")["engine"]["implementation"] != prepared["engine"]["implementation"]
+
     # A prepared Skill must not select an application's older/missing Python.
     shim = tmp_path / "application-tools"
     shim.mkdir()
@@ -349,4 +385,4 @@ contract_digest="{digest}"
     mise.write_text("#!/bin/sh\necho 'application tool selection is forbidden' >&2\nexit 23\n")
     mise.chmod(0o755)
     environment["PATH"] = str(shim) + os.pathsep + environment["PATH"]
-    assert run("identity")["engine"]["implementation"] == prepared["engine"]["implementation"]
+    assert run("identity")["engine"]["implementation"].startswith("sha256:")
