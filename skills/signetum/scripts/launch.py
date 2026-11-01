@@ -35,26 +35,6 @@ def main() -> int:
     if len(arguments) == 2 and arguments[0] in BOOTSTRAP and arguments[1] == "--help":
         print(json.dumps({"command": arguments[0], "help": BOOTSTRAP[arguments[0]]}))
         return 0
-    if arguments == ["update"] or arguments == ["update", "--help"]:
-        print(
-            json.dumps(
-                {
-                    "status": "instructions",
-                    "operation": "update",
-                    "instructions": str(SKILL / "references/adoption.md"),
-                    "steps": [
-                        "Acquire the full Skill at an exact revision into a separate directory.",
-                        "Run setup and identity; verify help and required project commands.",
-                        "If the engine changed, preview/apply bindings in a change workspace."
-                        " Qualify and deliver the update.",
-                        "Select the verified installation; remove the old copy only when unused.",
-                    ],
-                    "automatic_updates": False,
-                },
-                sort_keys=True,
-            )
-        )
-        return 0
     code = implementation_digest()
     lock = (PROJECT / "uv.lock").read_bytes()
     content = code.encode() + lock + (PROJECT / "pyproject.toml").read_bytes()

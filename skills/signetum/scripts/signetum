@@ -1,7 +1,16 @@
 #!/bin/sh
 set -eu
 skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-if [ "${1:-}" = setup ] || [ "${1:-}" = update ]; then
+if [ "${1:-}" = update ]; then
+    case "$#:${2:-}" in
+        1:|2:--help)
+            printf '%s\n' '{"schema_version":1,"operation":"update","status":"instructions","reference":"references/adoption.md","automatic_updates":false}'
+            exit 0
+            ;;
+        *) printf '%s\n' '{"status":"invalid","cause":"update accepts no arguments; read references/adoption.md"}' >&2; exit 2 ;;
+    esac
+fi
+if [ "${1:-}" = setup ]; then
     exec mise exec python@3.12 -- python "$skill_dir/scripts/launch.py" "$@"
 fi
 if [ ! -x "$skill_dir/.runtime/host-python" ]; then
