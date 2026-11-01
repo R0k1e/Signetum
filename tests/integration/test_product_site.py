@@ -7,9 +7,10 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
-from signetum.cli import app
-from signetum.site import build_site
 from typer.testing import CliRunner
+
+from tools.cli import app
+from tools.site import build_site
 
 ROOT = Path(__file__).resolve().parents[2]
 CANONICAL = "https://r0k1e.github.io/Signetum/"

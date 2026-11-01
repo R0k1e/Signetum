@@ -13,7 +13,7 @@ repository:
     selectors:
       - group: python-uv
         intents: [implementation, validation, bootstrap]
-        paths: [pyproject.toml, uv.lock, skills/signetum/scripts, tests]
+        paths: [pyproject.toml, uv.lock, skills/signetum/scripts, tools, tests]
         reference: .agents/signetum/references/python-uv.md
       - group: git-worktrunk
         intents: [planning, implementation, delivery, recovery]
@@ -27,7 +27,7 @@ repository:
     profiles: signetum.resources.profiles
   validation:
     targeted: just test
-    complete: uv run signetum lifecycle final
+    complete: uv run signetum final
   lifecycle:
     public_operations:
       - workspace-open

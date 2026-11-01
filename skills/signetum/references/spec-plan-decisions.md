@@ -1,6 +1,6 @@
 # Change approval
 
-Open the repository-declared member workspace first. Run `change-open <id>`
+Open the repository-declared member workspace first. Run `change open <id>`
 through the local utility. It creates one draft record at the returned path, using the
 registered base. Fill its original intent, stable requirement IDs, observable
 outcomes, acceptance, exclusions, transfers and execution autonomy. Execution
@@ -22,7 +22,7 @@ Important architecture, process or security choices require an independently
 identified, accepted decision transaction in the owning contract before implementation.
 Keep its problem, material evidence, chosen rule and applicable boundaries once;
 include alternatives and reopening conditions only when they change the choice.
-Use `reconcile` to append accepted decisions and derive current clauses. Amend
+Use `change reconcile` to append accepted decisions and derive current clauses. Amend
 only affected clause IDs and preserve the other rules and original basis.
 
 A standalone ADR is conditional: use it when the decision needs an independently
