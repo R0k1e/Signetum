@@ -55,6 +55,19 @@ def pytest_collection_finish(session):
     _collection_seconds = time.perf_counter() - _collection_started
 
 
+def pytest_collectreport(report):
+    if report.failed:
+        _reports.append(
+            {
+                "node_id": report.nodeid,
+                "phase": "collect",
+                "outcome": "failed",
+                "diagnostic": str(report.longrepr),
+            }
+        )
+        _pytest.exit("collection failed; repair before running tests", returncode=2)
+
+
 def pytest_runtest_logstart(nodeid, location):
     global _execution_started
     if not _execution_started:

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-if [ "${1:-}" = setup ]; then
+if [ "${1:-}" = setup ] || [ "${1:-}" = update ]; then
     exec mise exec python@3.12 -- python "$skill_dir/scripts/launch.py" "$@"
 fi
 if [ ! -x "$skill_dir/.runtime/host-python" ]; then

@@ -4,9 +4,10 @@ from pathlib import Path
 import pytest
 from jsonschema import validate
 from signetum import git as git_tools
-from signetum import release
 from signetum.git import GitInfrastructureError, git_output
-from signetum.release import ReleaseError, build_metadata, preflight
+
+from tools import release
+from tools.release import ReleaseError, build_metadata, preflight
 
 
 @pytest.fixture

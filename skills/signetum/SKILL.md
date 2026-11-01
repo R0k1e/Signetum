@@ -7,60 +7,46 @@ metadata:
 
 # Reliable Agent development and delivery
 
-Keep consequential decisions available across sessions, validate integrated work
-and deliver only the reviewed checked source. People make key choices; Agents
-perform routine execution and maintain concise records.
+Use the project's existing tools to keep decisions available, integrate parallel
+work and explicitly deliver the exact checked source. People confirm key choices;
+Agents execute and maintain concise records.
 
-Honor the project's existing instructions and environment authority. Inspect
-`signetum.toml` for command, input, record and delivery bindings. Architecture and
-Agent entry files are project-owned context, not installation prerequisites.
-Read relevant existing policies without adding a new policy router.
+Keep cwd in the project. Invoke `sh <skill-base-dir>/scripts/signetum ...`.
+The complete installed Skill owns its locked environment; no Signetum dependency
+belongs in the application. Git, Mise, Worktrunk, uv and host Python 3.12+ are
+prerequisites. Resolve missing tools before promising a usable workspace.
+Read [adoption](references/adoption.md) for setup or updates. `update` displays
+that procedure without downloading or changing files; `identity` distinguishes
+complete Skill content from the project's engine pin.
 
-Keep cwd in the user's repository. Run
-`sh <skill-base-dir>/scripts/signetum <operation> [arguments]`.
-One explicit `setup` prepares this Skill's locked isolated engine environment;
-ordinary operations never install, repair or update it. Git, Mise, Worktrunk,
-uv and host Python 3.12+ are prerequisites. Application preparation runs only
-through the project's declared commands and environment.
-Read [adoption](references/adoption.md) for first use or an explicit update.
-A missing or mismatched project engine pin requires a reviewed adoption change,
-not automatic replacement. The same launcher serves the eight lifecycle
-operations and the record/status/maintenance utilities.
+Read relevant project instructions and the current decision set through
+`change current` before planning. Retrieve original rationale with `change history`
+only when needed. For new or changed behavior, follow [change approval](references/spec-plan-decisions.md):
+one approved change owns outcomes, scope, acceptance and execution autonomy.
+Preserve existing authorization; installation and passing checks confer none.
 
-Use `status` to see workspace state, retained findings, source-bound receipts and
-the next action. It executes no checks and does not grant readiness. Before
-planning, read the current decision working set with `current`. Retrieve
-original rationale with `history --event <id>` or `history --change <id>` only
-when relevant. Historical authorities are read on demand from the declared decision directory;
-retrieve relevant original rationale rather than loading the complete archive.
-For new or changed behavior, read
-[change approval](references/spec-plan-decisions.md); create one change record
-and generate its approval view. Read [change closure](references/change-closure.md)
-for scope, deferral or completion checks.
+Use `status` for blockers and the next action. Develop in registered isolated
+worktrees. The eight delivery operations are `workspace-open`, `changed`, `ready`,
+`batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
+Follow [work and validation](references/worktree-validation.md) during development
+and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
+for integration, review, explicit delivery and cleanup. The coordinating Agent owns
+scope, shared interfaces and integration; Signetum does not schedule Agents.
 
-For parallel development, follow the coordination guidance in
-[work and validation](references/worktree-validation.md). The coordinating Agent
-owns task scope, dependencies and named integration; Signetum does not schedule
-Agents or impose a global host allocation.
+Tell the user which tests change, why, and whether evidence is removed or relaxed.
+Use existing project checks. First failures remain failed after diagnostic retry.
+Record consequential discoveries and their reasons through `change record/resolve`;
+current decisions are derived. Ordinary command output stays in local logs. Keep
+no second handwritten decision set, execution diary or delivery report. Read
+[change closure](references/change-closure.md) before declaring completion.
 
-For changes introducing concurrency, background work or lazy initialization, read
-[stability](references/stability.md).
+When behavior, ownership, commands or prerequisites change, reconcile affected
+current architecture and instructions in the same change. History preserves the
+reason; it does not replace current instructions. Historical approvals stay intact.
+For concurrent/background/lazy paths read [stability](references/stability.md).
+Read [optional validation optimization](references/validation-optimization.md)
+only for requested selection, scheduling or CI partition work.
 
-During implementation, read [work and validation](references/worktree-validation.md).
-Tell the user when tests change, why, and whether the evidence is reduced.
-Trace affected architecture, commands and usage instructions when a behavior,
-owner or prerequisite changes. Update those current authorities in the same
-change; history is the reason, not a substitute for current instructions.
-Keep significant findings and accepted decision edits in the source journal
-through its tools. Do not maintain a second handwritten decision summary,
-execution report, review document or command-by-command log.
-
-For integration, final review, delivery or recovery, read
-[delivery and recovery](references/delivery-recovery.md). A passed check proves
-its observed source; it grants no permission for a later operation. Report only
-the furthest evidenced state: ready, integrated or delivered. Human acceptance
-requires its own explicit evidence.
-
-The maintained implementation and extension point is
-[Signetum](https://github.com/R0k1e/Signetum). Adopt a later revision as an explicit
-local change; never replace repository authorities automatically.
+Report the furthest evidenced state: ready, integrated or delivered. Show the
+generated final review before explicitly authorized delivery. Human acceptance
+requires its own evidence. The maintained source is [Signetum](https://github.com/R0k1e/Signetum).
