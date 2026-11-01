@@ -31,7 +31,7 @@ def authority_roots(
         if historical:
             archived = tomllib.loads(source[1])
             version = archived.get("schema_version")
-            if type(version) is int and version in {2, 3, 4}:
+            if type(version) is int and version in {2, 3, 4, 5}:
                 # An approval location is immutable; old executable settings
                 # are neither reinterpreted nor accepted for current writes.
                 bindings = archived["repository"]

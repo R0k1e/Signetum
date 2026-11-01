@@ -8,8 +8,8 @@ import pytest
 from signetum import worktrunk
 
 
-@pytest.fixture(params=["engine"])
-def launcher(request):
+@pytest.fixture
+def launcher():
     return worktrunk
 
 

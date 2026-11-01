@@ -15,12 +15,16 @@ Keep cwd in the project. Invoke `sh <skill-base-dir>/scripts/signetum ...`.
 The complete installed Skill owns its locked environment; no Signetum dependency
 belongs in the application. Git, Mise, Worktrunk, uv and host Python 3.12+ are
 prerequisites. Resolve missing tools before promising a usable workspace.
-Read [adoption](references/adoption.md) for setup or updates. `update` displays
-that procedure without downloading or changing files; `identity` distinguishes
-complete Skill content from the project's engine pin.
+Read [adoption](references/adoption.md) for setup or explicit updates. Bare
+`update` shows the guide; `update --check` is read-only and `update --source`
+or `--to` explicitly installs a verified version. Ordinary work stays offline.
+`identity` reports complete Skill and actual engine identities; projects declare
+configuration/protocol compatibility, not an implementation pin.
 
-Read relevant project instructions and the current decision set through
-`change current` before planning. Retrieve original rationale with `change history`
+For development planning, read relevant project instructions and the current
+decision set through `change current`. Questions and read-only reviews load only
+relevant context; do not open a change or run delivery for them. Retrieve original
+rationale with `change history`
 only when needed. For new or changed behavior, follow [change approval](references/spec-plan-decisions.md):
 one approved change owns outcomes, scope, acceptance and execution autonomy.
 Preserve existing authorization; installation and passing checks confer none.
@@ -37,8 +41,9 @@ Tell the user which tests change, why, and whether evidence is removed or relaxe
 Use existing project checks. First failures remain failed after diagnostic retry.
 Record consequential discoveries and their reasons through `change record/resolve`;
 current decisions are derived. Ordinary command output stays in local logs. Keep
-no second handwritten decision set, execution diary or delivery report. Read
-[change closure](references/change-closure.md) before declaring completion.
+no second handwritten decision set, execution diary or delivery report. Use the
+closure section of [change approval](references/spec-plan-decisions.md)
+when closing an owned change.
 
 When behavior, ownership, commands or prerequisites change, reconcile affected
 current architecture and instructions in the same change. History preserves the

@@ -6,12 +6,11 @@ from pathlib import Path
 
 import pytest
 from signetum import lifecycle
-from signetum import lifecycle as core_lifecycle
 
 
-@pytest.fixture(params=["engine"])
-def frontend(request):
-    return lifecycle if request.param == "engine" else core_lifecycle
+@pytest.fixture
+def frontend():
+    return lifecycle
 
 
 @pytest.mark.parametrize(

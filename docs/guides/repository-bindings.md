@@ -5,7 +5,7 @@ bindings and use an explicit preview for later runtime updates.
 
 ## Replace product facts first
 
-Current manifest schema 4 declares `repository.changes` for the change root,
+Current manifest schema 5 declares `repository.changes` for the change root,
 `repository.decisions` for retained standalone decisions and `repository.architecture`
 as optional responsibility context. Delivery is declared once in `[delivery]`. A change uses `change.toml` and its significant journal.
 There is no separately versioned template or old Specification/Plan path alias.

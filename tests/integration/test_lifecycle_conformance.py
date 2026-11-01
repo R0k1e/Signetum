@@ -10,20 +10,17 @@ from types import ModuleType
 
 import pytest
 from change_fixtures import commit_approval
-from signetum import lifecycle as engine_lifecycle
+from signetum import lifecycle
 from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, branch_name, read_record, state_root, write_record
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-core_lifecycle = engine_lifecycle
-
-
 @pytest.fixture
-def template_admission_member(repository, tmp_path):
+def admission_member(repository, tmp_path):
     root, state = repository
-    runtime = core_lifecycle
+    runtime = lifecycle
     (state / "tool").write_text("v1")
     manifest = root / "signetum.toml"
     text = (
@@ -87,8 +84,8 @@ def template_admission_member(repository, tmp_path):
         "extensions-type",
     ],
 )
-def test_native_template_admission_requires_exact_member_inputs(template_admission_member, damage):
-    runtime, member, state, _ = template_admission_member
+def test_native_template_admission_requires_exact_member_inputs(admission_member, damage):
+    runtime, member, state, _ = admission_member
     if damage != "missing":
         ready = runtime.validate(member, "member")
         path = Path(ready["receipt"])
@@ -147,8 +144,8 @@ def test_native_template_admission_requires_exact_member_inputs(template_admissi
         runtime._admission_evidence(member, tip, runtime.load_manifest(member / "signetum.toml"))
 
 
-def test_native_template_accepts_complete_final_evidence(template_admission_member):
-    runtime, member, _, base = template_admission_member
+def test_native_template_accepts_complete_final_evidence(admission_member):
+    runtime, member, _, base = admission_member
     tip = git_output(member, "rev-parse", "HEAD")
     repository_api = importlib.import_module("signetum.validation.repository")
     graph, inputs = runtime._runtime_validation(runtime.load_manifest(member / "signetum.toml"))
@@ -170,7 +167,7 @@ def test_template_passes_actual_bounded_worker_count_to_its_command(tmp_path, mo
     # This case supplies standalone host capacity; nested-lane behavior has its own public case.
     monkeypatch.delenv("SIGNETUM_VALIDATION_WORKERS", raising=False)
     monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
-    runtime = core_lifecycle
+    runtime = lifecycle
     resources = importlib.import_module("signetum.validation.resources")
     monkeypatch.setattr(
         resources, "observe_resources", lambda: resources.ResourceObservation(2, 3000)
@@ -203,7 +200,7 @@ def _git_for(files: tuple[str, ...]):
     return fake_git
 
 
-@pytest.mark.parametrize("runtime", (engine_lifecycle,))
+@pytest.mark.parametrize("runtime", (lifecycle,))
 def test_changed_contract_vectors_are_shared(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -243,7 +240,7 @@ def test_changed_contract_vectors_are_shared(
             )
 
 
-@pytest.mark.parametrize("runtime", (engine_lifecycle,))
+@pytest.mark.parametrize("runtime", (lifecycle,))
 def test_local_validation_state_has_one_git_common_root(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -254,7 +251,7 @@ def test_local_validation_state_has_one_git_common_root(
 
 def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     root, _ = repository
-    runtime = core_lifecycle
+    runtime = lifecycle
     monkeypatch.setattr(runtime, "admit", lambda batch, members: {})
     base = git_output(root, "rev-parse", "HEAD")
     declared = (root,)

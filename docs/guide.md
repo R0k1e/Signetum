@@ -31,8 +31,8 @@ its tools. Adoption proposes one project configuration for review. Agent entry
 files, application metadata and dependencies stay project-owned.
 
 Ask the Agent to update Signetum to a named version or commit. It verifies the new
-complete Skill and proposes project changes only when needed. `update` displays
-the procedure; it does not perform an automatic upgrade. Ordinary work downloads
+complete Skill and proposes project changes only when needed. Bare `update` displays
+the procedure; checking and installation require explicit options. Ordinary work downloads
 nothing. [Agent update instructions](../skills/signetum/references/adoption.md)
 explain the exact boundary.
 
