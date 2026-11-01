@@ -211,8 +211,6 @@ try:
 except ValueError as error:
     result = {'status': 'refused', 'reason': str(error)}
 assert 'pydantic' not in sys.modules
-if sys.argv[2].startswith('_signetum_runtime.'):
-    assert 'signetum' not in sys.modules
 print(json.dumps(result))
 """
     completed = subprocess.run(  # noqa: S603 -- source-only pure waiver rules

@@ -1,27 +1,10 @@
 """The current set comes from explicit accepted history, not input ordering."""
 
-import importlib
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 from signetum import decision_clauses as clauses
 from signetum import decision_history as history
-
-
-@pytest.fixture(autouse=True, params=["engine"])
-def backend(request, monkeypatch):
-    if request.param == "template":
-        monkeypatch.syspath_prepend(
-            str(
-                Path(__file__).parents[2]
-                / "tests/fixtures/portable-python/.agents/signetum/runtime"
-            )
-        )
-        for name in ("clauses", "history"):
-            monkeypatch.setitem(
-                globals(), name, importlib.import_module("_signetum_runtime.decision_" + name)
-            )
 
 
 @pytest.fixture

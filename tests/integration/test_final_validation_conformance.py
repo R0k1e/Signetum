@@ -13,7 +13,7 @@ from signetum.git import git_output
 
 
 @pytest.fixture
-def final_runtime(request):
+def final_runtime():
     return lifecycle
 
 

@@ -12,7 +12,7 @@ from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
 @pytest.fixture
-def diagnostic(request, repository, monkeypatch, tmp_path):
+def diagnostic(repository, tmp_path):
     root, state = repository
     runtime = lifecycle
 

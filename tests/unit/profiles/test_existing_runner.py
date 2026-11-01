@@ -1,17 +1,13 @@
 """Optional language adapters preserve existing runners rather than inventing them."""
 
 import importlib
-from pathlib import Path
 
 import pytest
 
 
-@pytest.fixture(params=["signetum.profiles.existing_runner"])
-def adapter(request, monkeypatch):
-    monkeypatch.syspath_prepend(
-        str(Path(__file__).parents[3] / "tests/fixtures/portable-python/.agents/signetum/runtime")
-    )
-    return importlib.import_module(request.param)
+@pytest.fixture
+def adapter():
+    return importlib.import_module("signetum.profiles.existing_runner")
 
 
 @pytest.mark.parametrize("language", ["python", "node", "rust"])

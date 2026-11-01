@@ -26,8 +26,8 @@ def documents():
     }
 
 
-@pytest.fixture(params=["engine"])
-def resolve(request):
+@pytest.fixture
+def resolve():
     def installed(documents, selected):
         catalog = load_catalog(documents.__getitem__)
         return [asdict(item) for item in resolve_profiles(tuple(selected), catalog=catalog)]
