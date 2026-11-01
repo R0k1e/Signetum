@@ -55,3 +55,19 @@ rewrite the project's commit convention. Updating the Skill or engine pin is a
 later explicit reviewed operation. Historical decisions remain evidence; let the
 agent retrieve and organize relevant context rather than forcing an archive
 conversion or copying the full archive into each current view.
+
+For an update, acquire the complete Skill folder at one reviewed exact tag or
+commit into a new writable directory. Exclude the old `.runtime`; run explicit
+`setup` and `identity` there before selecting it as the installed Skill. Keep the
+previous installation available until verification succeeds and avoid replacing
+files while commands are running. A Git pull in an upstream checkout does not
+update an independently installed Skill. Setup prepares local dependencies; it
+does not download newer Skill source.
+
+Compare the new identity with each project's `signetum.engine_digest`. If engine
+content changed, use the same inspect, preview and exact-plan apply flow in a
+project change workspace, preserve all other bindings, then qualify and deliver
+that update. If only launcher/instructions changed and the engine digest matches,
+no project manifest change is needed. Verify the installed help, required commands
+and a relevant project operation before removing the old installation. Existing
+active workspaces and source-bound receipts are not automatically upgraded.
