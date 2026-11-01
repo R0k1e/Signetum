@@ -241,6 +241,10 @@ def test_admission_and_final_preserve_accepted_decision_identities(
     _git(repository, "add", ".")
     _git(repository, "commit", "-m", "record historical accepted decision")
 
+    historical_proposal = repository / "docs/decisions/ADP-unrelated-proposal.md"
+    historical_proposal.write_text("# Historical proposal\n\nStatus: Proposed\n")
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-m", "retain unrelated historical proposal")
     base = _git(repository, "rev-parse", "HEAD")
     member = tmp_path / "member"
     batch = tmp_path / "batch"
@@ -349,14 +353,20 @@ def test_delivery_refuses_numbering_bound_to_another_base(
         lifecycle.batch_deliver(source, target, "approved-base", "tip")
 
 
-def test_final_refuses_proposal_decisions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("modified", [False, True])
+def test_final_refuses_proposal_decisions(tmp_path: Path, modified: bool) -> None:
     repository = _repository(tmp_path / "repository")
     proposal = repository / "docs/decisions/ADP-unresolved.md"
     proposal.parent.mkdir(parents=True)
+    if modified:
+        proposal.write_text("# Historical proposal\n\nStatus: Proposed\n", encoding="utf-8")
+        _git(repository, "add", ".")
+        _git(repository, "commit", "-m", "retain historical proposal")
+    base = _git(repository, "rev-parse", "HEAD")
     proposal.write_text("# unresolved\n\nStatus: Proposed\n", encoding="utf-8")
     _git(repository, "add", ".")
-    _git(repository, "commit", "-m", "add proposal")
-    _record(repository, "main", _git(repository, "rev-parse", "HEAD"), "batch")
+    _git(repository, "commit", "-m", "add or amend proposal")
+    _record(repository, "main", base, "batch")
     with pytest.raises(lifecycle.AdmissionError, match="proposal decision"):
         lifecycle.validate(repository, "final")
 

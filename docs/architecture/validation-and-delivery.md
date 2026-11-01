@@ -80,7 +80,9 @@ keeps the original base and distinguishes imported work from owned repairs.
 
 ## Final review and publication
 
-Final reconciles selected source journals and affected standing answers. Pending
+Final rejects Proposed decisions added or modified within the declared decision
+directory against its registered base; unchanged historical proposals remain
+read-only context. Final reconciles selected source journals and affected standing answers. Pending
 findings, inactive follow-ups, missing effective evidence or uncommitted source
 suffixes refuse. Historical statements retain original proof without another
 active workflow. Exact retirements preserve earlier answers. Final does not

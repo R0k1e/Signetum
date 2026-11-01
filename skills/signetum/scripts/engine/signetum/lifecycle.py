@@ -249,16 +249,24 @@ def _stable_patch_id(repository: Path, base: str, source: str) -> str:
 
 
 def _proposal_paths(repository: Path) -> tuple[str, ...]:
-    """Return every decision still declaring itself a proposal.
+    """Find affected proposals, leaving unchanged historical intent untouched."""
 
-    A proposal is identified by its declared status, not by its file name: an
-    accepted decision may stay unnumbered, so a name alone cannot say whether
-    one is still awaiting acceptance.
-    """
-
+    manifest = load_manifest(repository / "signetum.toml")
+    base = _recorded_base(repository)
+    changed = _git(
+        repository,
+        "diff",
+        "--name-only",
+        "--diff-filter=ACMRT",
+        "-z",
+        base,
+        "HEAD",
+        "--",
+        manifest.repository.decisions,
+    )
     paths: list[str] = []
-    for line in _git(repository, "ls-files", "*ADP-*.md").splitlines():
-        if not line:
+    for line in changed.split("\0"):
+        if not line or not Path(line).match("*ADP-*.md"):
             continue
         candidate = repository / line
         try:
