@@ -125,7 +125,19 @@ def main() -> int:
         ["lifecycle", *arguments]
         if operation in lifecycle
         else arguments
-        if operation in {"adopt", "maintenance", "--help"}
+        if operation
+        in {
+            "adopt",
+            "maintenance",
+            "lifecycle",
+            "protocol",
+            "check",
+            "validate",
+            "release",
+            "site",
+            "findings",
+            "--help",
+        }
         else ["protocol", *arguments]
     )
     os.execve(  # noqa: S606 -- absolute verified Skill executable
