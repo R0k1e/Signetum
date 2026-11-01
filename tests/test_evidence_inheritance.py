@@ -10,8 +10,8 @@ from change_fixtures import commit_approval
 from pydantic import JsonValue
 from signetum import lifecycle
 from signetum.evidence.receipts import EvidenceReceipt
-from signetum.resources.schemas import evidence_schema_digest
 from signetum.git import git_output
+from signetum.resources.schemas import evidence_schema_digest
 from signetum.validation.receipt_store import ReceiptStore
 from test_workspace_operations import commit_file, opened
 

@@ -18,7 +18,7 @@ class Command:
 BOOTSTRAP = {
     "setup": "Prepare this installed Skill's isolated environment.",
     "identity": "Show complete Skill and engine identities.",
-    "update": "Install the latest stable Skill. --check and --to stay optional; other commands stay offline.",
+    "update": "Install the latest stable Skill. --check and --to are optional.",
 }
 
 
