@@ -4,7 +4,6 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 from signetum.git import git_output
@@ -18,15 +17,9 @@ from signetum.validation.execution import ValidationExecutionError, ValidationIn
 from signetum.validation.repository import run_repository_gate
 
 
-@pytest.fixture(params=["engine"])
-def runner_command(request, monkeypatch):
-    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", "0")
-    if request.param == "engine":
-        return ["-m", "signetum.validation.pytest_runner"]
-    runner = Path(__file__).parents[2] / (
-        "tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime/pytest_runner.py"
-    )
-    return [str(runner)]
+@pytest.fixture
+def runner_command():
+    return ["-m", "signetum.validation.pytest_runner"]
 
 
 @pytest.mark.parametrize("retry", ["pass", "fail", "skip"])
@@ -162,7 +155,7 @@ def test_failed_original_never_writes_success_on_repeated_runs(tmp_path):
     repository.mkdir()
     (repository / ".gitignore").write_text("__pycache__/\n")
     state = tmp_path / "attempts"
-    (repository / "signetum.toml").write_text("schema_version = 4\n")
+    (repository / "signetum.toml").write_text("schema_version = 5\n")
     (repository / "test_retry.py").write_text(
         "from pathlib import Path\n"
         "def test_retry():\n"

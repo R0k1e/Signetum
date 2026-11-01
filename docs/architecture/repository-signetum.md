@@ -17,7 +17,7 @@ runners and delivery targets remain repository-owned. Updates are explicit.
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
 | `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
 | `adoption`, `runtime_identity`, Skill `scripts/launch.py` | Exact reviewed bindings, code identity and isolated locked execution. |
-| `resources/schemas`, `skill_identity`, `runtime_identity` | Installed schemas, complete Skill identity and engine pin. |
+| `resources/schemas`, `skill_identity`, `runtime_identity` | Installed schemas, complete Skill identity and runtime identity. |
 | Root `tools/release`, `tools/site`, `tools/product_surface`, `tools/cli` | Repository-only packaging, Pages and public asset checks; excluded from the Skill. |
 
 ## One maintained implementation
@@ -25,15 +25,19 @@ runners and delivery targets remain repository-owned. Updates are explicit.
 `skills/signetum/scripts/engine/signetum` is the only engine source. The Skill
 launcher explicitly prepares a noneditable installation under its own ignored
 `.runtime/` directory using `scripts/engine/uv.lock`. Setup selects a host interpreter through Mise; a prepared launcher uses that
-interpreter directly instead of selecting the application’s Python. Normal commands check that
-installation and the project's `signetum.engine_digest`; they never install or
+interpreter directly instead of selecting the application’s Python. Normal commands verify
+the installed environment and supported project contracts; they never install or
 repair tooling. The application environment is not the engine environment. The launcher forwards arguments unchanged; `commands` owns the sole public
 registry used by CLI/help and installed acceptance. Eight lifecycle operations
 are direct; `change`, `test`, `check`, `adopt` and `maintenance` own auxiliary
 work. No public lifecycle/protocol namespace or validate alias remains. Bootstrap
-setup, identity and update instructions are declared alongside the command table.
-`identity` reports full Skill content independently from the project engine pin;
-explicit launcher/instruction updates need no pin change when engine content matches.
+setup, identity and explicit updates are declared alongside the command table.
+`identity` reports complete Skill and actual engine identities. `scripts/update.py`
+owns explicit acquisition, compatibility inspection and atomic installation switching.
+`scripts/installation.py` protects active installations with shared/exclusive guards.
+Verified versions stay outside projects under the user data directory; the installed
+Skill entry selects one version. Compatible implementation updates change only that
+installation; project edits are reserved for contract migrations.
 
 
 Root `uv.lock` pins maintainer tools and an editable engine dependency. Internal

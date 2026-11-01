@@ -107,8 +107,6 @@ def _payload(repository: Path, request: AdoptionRequest) -> dict[str, str | None
     if manifest.delivery is None:
         raise ValueError("declare delivery.branch in the reviewed manifest")
     git_output(repository, "check-ref-format", "--branch", manifest.delivery.branch)
-    if manifest.signetum.engine_digest != implementation_digest():
-        raise ValueError("bind engine_digest to the installed Skill engine identity")
     files: dict[str, str | None] = {"signetum.toml": request.manifest}
     inventory_root = ".agents/signetum/runtime/_signetum_runtime"
     inventory_path = (

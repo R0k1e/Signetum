@@ -19,7 +19,6 @@ from signetum.ci_partitions import (
 from signetum.evidence.receipts import ArtifactIdentity
 from signetum.git import git_output
 from signetum.manifest import load_manifest
-from signetum.runtime_identity import implementation_digest
 from signetum.selection_request import SelectionInput, SelectionRequest
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
 from signetum.validation.repository import configured_validation
@@ -55,9 +54,7 @@ def consumer(local_repository):
     architecture.write_text("# Existing architecture\n")
     (root / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
     request = AdoptionRequest(
-        manifest=(root / "signetum.toml")
-        .read_text()
-        .replace("[signetum]", '[signetum]\nengine_digest = "' + implementation_digest() + '"'),
+        manifest=(root / "signetum.toml").read_text(),
     )
     proposal = preview(root, request)
     apply(root, proposal, plan_digest(proposal))

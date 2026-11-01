@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from change_fixtures import approve_change, approve_legacy_change, consolidated_approval
 from signetum import lifecycle
-from signetum import lifecycle as core_lifecycle
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
 from signetum.serialization import contract_mapping
@@ -18,7 +17,7 @@ from signetum.workspaces import WorkspaceRecord, state_root, write_record
 @pytest.fixture
 def authority(request, repository, tmp_path):
     root, state = repository
-    runtime = lifecycle if getattr(request, "param", "engine") == "engine" else core_lifecycle
+    runtime = lifecycle
     marker = state / "checks"
     path = root / "signetum.toml"
     command = [sys.executable, "-c", f"from pathlib import Path; Path({str(marker)!r}).touch()"]
@@ -95,7 +94,6 @@ def test_ready_requires_own_approved_change_before_checks(authority, stage):
         assert not list((state_root(root) / "validation").glob("member-*.json"))
 
 
-@pytest.mark.parametrize("authority", ["engine"], indirect=True)
 def test_ready_cannot_claim_a_change_owned_by_another_member(authority):
     runtime, root, marker, scratch = authority
     base = git_output(root, "rev-parse", "HEAD")
@@ -139,7 +137,6 @@ def test_admission_uses_committed_package_plans_and_ignores_forged_trailer(autho
 
 
 @pytest.mark.parametrize("stage", ["approved", "draft", "plan-only", "wrong-base", "dual"])
-@pytest.mark.parametrize("authority", ["engine"], indirect=True)
 def test_ready_uses_one_consolidated_record_without_legacy_files(authority, stage):
     runtime, root, marker, scratch = authority
     base = git_output(root, "rev-parse", "HEAD")
@@ -238,7 +235,6 @@ def test_delivery_scope_refuses_a_symlink_record_as_a_structured_error(authority
 @pytest.mark.parametrize(
     "application", ["decision", "observation", "approval-only", "tampered", "borrowed"]
 )
-@pytest.mark.parametrize("authority", ["engine"], indirect=True)
 def test_authority_only_ready_requires_an_exact_applied_decision(authority, application):
     runtime, root, marker, scratch = authority
     base = git_output(root, "rev-parse", "HEAD")
