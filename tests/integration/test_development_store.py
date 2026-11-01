@@ -16,7 +16,7 @@ from signetum.workspaces import WorkspaceRecord, write_record
 
 
 @pytest.fixture
-def store(request, monkeypatch):
+def store():
     return importlib.import_module("signetum.development_store")
 
 

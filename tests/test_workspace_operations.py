@@ -547,12 +547,6 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     assert not member.exists()
 
 
-@pytest.fixture(params=["engine"], autouse=True)
-def lifecycle_frontend(request, monkeypatch):
-    """Run every disposable Git workspace contract against both maintained outputs."""
-    return
-
-
 def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(repository):
     root, state = repository
     manifest = root / "signetum.toml"
