@@ -89,6 +89,7 @@ markers = [
 addopts = [
     "--cov=signetum",
     "--cov=tools",
+    "--cov=skills/signetum/scripts",
     "--cov-report=term-missing",
     "--cov-fail-under=0",
 ]
@@ -106,6 +107,9 @@ patch = [
 ]
 omit = [
     "*/signetum/lifecycle.py",
+    # The scripts tree is measured so installation locks count. The update entry
+    # stays outside that set; it is not part of the engine coverage denominator.
+    "*/scripts/update.py",
 ]
 
 [tool.coverage.report]
