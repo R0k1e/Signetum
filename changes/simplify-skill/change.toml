@@ -1,0 +1,45 @@
+[change]
+schema_version = 1
+id = "simplify-skill"
+[change.source]
+kind = "human_direction"
+summary = "The owner approves the complete six-part simplification plan and requests implementation and delivery, including real Perdura update acceptance."
+[change.contract]
+version = 1
+approved_base = "a8ede32ddd50a96d68e2158f32acf43daef54a67"
+[[change.contract.requirements]]
+id = "ENTRY-001"
+outcome = "One command registry exposes canonical lifecycle, change, test, check, adoption and maintenance commands."
+acceptance = ["The launcher forwards unchanged arguments; remove public lifecycle/protocol namespaces, validate alias and record shortcuts without compatibility forwarding.", "Keep eight lifecycle operations, status and grouped change/test utilities; reconcile callers and installed acceptance."]
+[[change.contract.requirements]]
+id = "BOUNDARY-001"
+outcome = "Repository release, site and product-surface tools stay outside the distributed Skill."
+acceptance = ["Move existing owners without copying implementations; update workflows, hooks and tests.", "Keep generic finding adapters, project runners and isolated runtime behavior."]
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "Current documentation and Skill instructions each own one audience and retain concise decision history."
+acceptance = ["Remove the special downstream migration manual and repeated operational prose; preserve historical approved records.", "Keep approved change contracts, significant journals and derived current clauses; ordinary logs and delivery reviews are not duplicated in source."]
+[[change.contract.requirements]]
+id = "UPDATE-001"
+outcome = "Explicit Skill updates report full Skill identity separately from engine identity and work in current Perdura."
+acceptance = ["Show version/content identity for the complete Skill, excluding generated runtime; keep project pin meaning unchanged.", "Provide an explicit update instruction entry without automatic downloading or repository mutation.", "Qualify and deliver source, install the exact revision, update affected Perdura bindings/callers in an owned worktree and complete actual final and product delivery."]
+[[change.contract.requirements]]
+id = "TEST-001"
+outcome = "Avoid expensive tests after cheap preflight failure while preserving complete successful qualification."
+acceptance = ["Order repository static/build prerequisites before the full suite; collection errors stop the affected run without an extra collection pass.", "Retain first failures, full final checks, process settlement, exact source binding and parallel delivery boundaries; extend or migrate existing evidence rather than duplicate lifecycle traversals."]
+[change.contract.autonomy]
+allowed = ["Implement the approved cleanup, commit and qualify source, show generated review and deliver to main under standing source delivery authority.", "Update the installed Skill and explicitly reviewed downstream bindings, perform full native acceptance and deliver to product, preserving unrelated work and application behavior.", "Clean only owned obsolete delivered workspaces, branches, installation copies and generated candidates."]
+requires_confirmation = ["Public release tags, assets or external promotional posts; historical approval conversion, unrelated application behavior or reduced checks."]
+[[change.contract.excluded]]
+statement = "Automatic upgrade service, Windows, cross-machine coordination, compatibility aliases and business feature changes."
+reason = "Keep one usable Skill and preserve existing development capabilities."
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["ENTRY-001", "BOUNDARY-001", "DOC-001", "UPDATE-001", "TEST-001"]
+action = "Unify command registration, relocate maintainer owners, reconcile guidance and identity, migrate existing tests and callers, qualify/deliver and verify the real downstream update."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-01
+source = "The owner explicitly approved the complete cleanup plan and instructed implementation and delivery, then asked about the upgrade entry."
+contract_digest = "sha256:e1d11e0e5dc4e517fdee211651ee8ebaac0e23e8d066fe983bba18bcefafa730"
