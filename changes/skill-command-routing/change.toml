@@ -1,0 +1,30 @@
+[change]
+schema_version = 1
+id = "skill-command-routing"
+[change.source]
+kind = "human_direction"
+summary = "The owner reports that installed Skill help advertises commands the launcher rejects, and asks how fixes propagate through the update pipeline."
+[change.contract]
+version = 1
+approved_base = "702b1780ce508bc7616f7819188f805ff5220e7d"
+[[change.contract.requirements]]
+id = "ROUTE-001"
+outcome = "Installed Skill commands agree with their help while preserving lifecycle and protocol shorthand."
+acceptance = ["Exercise every advertised top-level command through the installed launcher and actual manifest validation.", "Extend the existing installed acceptance traversal without reducing assertions, skips or coverage obligations."]
+[[change.contract.requirements]]
+id = "UPDATE-001"
+outcome = "Make the explicit update path clear and verify the corrected installation against current Perdura."
+acceptance = ["Document complete Skill replacement, explicit setup/identity and reviewed project-pin updates when engine content changes; no automatic update or application dependency changes.", "Qualify and deliver the source, update the installed Skill from the exact qualified revision and exercise real read-only commands in Perdura.", "Do not claim a tagged release pipeline has run before a release is published."]
+[change.contract.autonomy]
+allowed = ["Repair the reported dispatch defect, reconcile current guidance, validate and deliver source under standing authority, explicitly update the installed Skill and verify current Perdura without changing its source."]
+requires_confirmation = ["Public tags/releases/posts, unrelated application changes or relaxed verification."]
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["ROUTE-001", "UPDATE-001"]
+action = "Repair launcher dispatch, extend the existing installed traversal, clarify update instructions, qualify/deliver and verify the actual installed update."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-01
+source = "The owner reported the advertised-command defect and requested investigation of the fix/update path; restore intended command access under existing repair and source-delivery authority."
+contract_digest = "sha256:85dacdabf622732bcaf359ed8793d913337e128f99ae954686966ad4c925316e"
