@@ -21,7 +21,7 @@ single Agent across sessions to parallel work in evolving repositories.
 ### Updating from RepoSeal
 
 This release replaces the template and copied runtime with the `signetum` Skill.
-It uses manifest schema 4 and protocol 2. Existing projects require an explicit
+It uses manifest schema 5 and protocol 2; projects declare compatibility instead of an engine code hash. Existing projects require an explicit
 reviewed adoption; installing the Skill does not update them automatically.
 Historical tags remain unchanged. The release is a candidate until published.
 

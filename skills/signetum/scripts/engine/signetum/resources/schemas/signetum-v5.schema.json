@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://signetum.invalid/schemas/signetum-v4.schema.json",
-  "title": "Signetum repository configuration v4",
+  "$id": "https://signetum.invalid/schemas/signetum-v5.schema.json",
+  "title": "Signetum repository configuration v5",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -12,7 +12,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": 4
+      "const": 5
     },
     "signetum": {
       "type": "object",
@@ -24,18 +24,13 @@
       ],
       "properties": {
         "protocol": {
-          "type": "integer",
-          "minimum": 2
+          "const": 2
         },
         "evidence_protocol": {
           "const": "reposeal.validation-evidence@3"
         },
         "evidence_schema_digest": {
           "$ref": "#/$defs/digest"
-        },
-        "engine_digest": {
-          "type": "string",
-          "pattern": "^sha256:[0-9a-f]{64}$"
         }
       }
     },

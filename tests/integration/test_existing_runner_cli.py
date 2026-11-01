@@ -11,11 +11,8 @@ from signetum.manifest import manifest_from_mapping
 ROOT = Path(__file__).parents[2]
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
 @pytest.mark.parametrize("language", ["python", "node", "rust"])
-def test_runner_proposal_preserves_existing_argv_without_running_or_adopting_it(
-    tmp_path, frontend, language
-):
+def test_runner_proposal_preserves_existing_argv_without_running_or_adopting_it(tmp_path, language):
     sentinel = tmp_path / "must-not-execute"
     request = tmp_path / "runner request"
     command = [sys.executable, "-c", f"from pathlib import Path; Path({str(sentinel)!r}).touch()"]
@@ -25,16 +22,7 @@ def test_runner_proposal_preserves_existing_argv_without_running_or_adopting_it(
         "tools": [{"name": "existing", "identity_command": ["existing", "--version"]}],
     }
     request.write_text(json.dumps(data))
-    prefix = (
-        [sys.executable, "-m", "signetum.cli", "adopt"]
-        if frontend == "engine"
-        else [
-            sys.executable,
-            "-I",
-            "-S",
-            str(ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime/protocol.py"),
-        ]
-    )
+    prefix = [sys.executable, "-m", "signetum.cli", "adopt"]
     result = subprocess.run(  # noqa: S603 -- the proposed command itself must remain unexecuted
         [*prefix, "runner", "--request", str(request)],
         cwd=ROOT,
@@ -52,7 +40,7 @@ def test_runner_proposal_preserves_existing_argv_without_running_or_adopting_it(
     assert retired_retry_tuning.isdisjoint(fragment["validation"])
     manifest = manifest_from_mapping(
         {
-            "schema_version": 4,
+            "schema_version": 5,
             "signetum": {"protocol": 2},
             "repository": {
                 "architecture": "docs/ARCHITECTURE.md",

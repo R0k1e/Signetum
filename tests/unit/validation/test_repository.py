@@ -110,7 +110,7 @@ def test_graph_and_inputs_are_plain_manifest_adapter_values() -> None:
 def _repository(tmp_path: Path) -> Path:
     repository = tmp_path / "repository"
     repository.mkdir()
-    (repository / "signetum.toml").write_text("schema_version = 4\n", encoding="utf-8")
+    (repository / "signetum.toml").write_text("schema_version = 5\n", encoding="utf-8")
     (repository / "uv.lock").write_text("lock\n", encoding="utf-8")
     for command in (
         ("git", "init", "-b", "main"),

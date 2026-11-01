@@ -1464,7 +1464,7 @@ def test_archived_manifest_locations_are_readable_but_cannot_authorize_new_write
     current = (Path(__file__).parents[2] / "signetum.toml").read_text()
     transaction = request(repository, store)
     state = store.snapshot(repository)
-    archived = current.replace("schema_version = 4", "schema_version = 2", 1).replace(
+    archived = current.replace("schema_version = 5", "schema_version = 2", 1).replace(
         'changes = "changes"',
         'specifications = "archive/*/specs/*.toml"\nplans = "archive/*/plans/*.md"',
     )

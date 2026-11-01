@@ -300,7 +300,7 @@ def test_adoption_declarations_match_the_shipped_manifest_schema(
     )
     raw["signetum"]["evidence_protocol"] = model.signetum.evidence_protocol
     raw["signetum"]["evidence_schema_digest"] = model.signetum.evidence_schema_digest
-    schema = json.loads((files(schemas) / "signetum-v4.schema.json").read_text())
+    schema = json.loads((files(schemas) / "signetum-v5.schema.json").read_text())
     validator = Draft202012Validator(schema)
     assert list(validator.iter_errors(raw)) == []
     raw["impact"]["provider"]["protocol"] = "invented@99"

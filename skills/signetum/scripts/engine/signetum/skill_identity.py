@@ -1,11 +1,9 @@
-"""Identity of the complete distributed Skill, separate from its engine pin."""
+"""Identity of the complete distributed Skill, separate from execution evidence."""
 
 import hashlib
 import json
 import re
 from pathlib import Path
-
-from yaml import safe_load
 
 
 def skill_files(root: Path) -> tuple[Path, ...]:
@@ -23,18 +21,24 @@ def skill_files(root: Path) -> tuple[Path, ...]:
     return tuple(paths)
 
 
-def skill_identity(root: Path) -> tuple[str, str]:
-    frontmatter = safe_load((root / "SKILL.md").read_text().split("---", 2)[1])
-    version = frontmatter["metadata"]["version"]
-
-    if not isinstance(version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
-        raise ValueError("Skill version must be an explicit semantic version")
+def content_digest(root: Path) -> str:
     digest = hashlib.sha256()
     for path in skill_files(root):
         content = path.read_bytes()
         digest.update(json.dumps([path.relative_to(root).as_posix(), len(content)]).encode())
         digest.update(content)
-    return version, "sha256:" + digest.hexdigest()
+    return "sha256:" + digest.hexdigest()
+
+
+def skill_identity(root: Path) -> tuple[str, str]:
+    from yaml import safe_load  # noqa: PLC0415 -- prepared runtime version parsing
+
+    frontmatter = safe_load((root / "SKILL.md").read_text().split("---", 2)[1])
+    version = frontmatter["metadata"]["version"]
+
+    if not isinstance(version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+        raise ValueError("Skill version must be an explicit semantic version")
+    return version, content_digest(root)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,6 @@ import io
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 from change_fixtures import approved_record_source
@@ -16,20 +15,8 @@ from signetum.change_record import (
 from signetum.git import git_output
 
 
-def read_record(path, frontend):
-    runtime = Path(__file__).parents[2] / "tests/fixtures/portable-python/.agents/signetum/runtime"
-    script = """
-import sys
-sys.path.insert(0,sys.argv[1])
-from signetum.change_record import main
-assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
-raise SystemExit(main([sys.argv[2]]))
-"""
-    argv = (
-        ["-m", "signetum.change_record", str(path)]
-        if frontend == "engine"
-        else ["-I", "-S", "-c", script, str(runtime), str(path)]
-    )
+def read_record(path):
+    argv = ["-m", "signetum.change_record", str(path)]
     result = subprocess.run(  # noqa: S603 -- public isolated reader and explicit fixture paths
         [sys.executable, *argv],
         capture_output=True,
@@ -39,15 +26,13 @@ raise SystemExit(main([sys.argv[2]]))
     return result
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
 def test_the_standalone_reader_does_not_create_approval_or_modify_records(
     tmp_path,
     record_source,
-    frontend,
 ):
     path = tmp_path / "change.toml"
     path.write_text(record_source)
-    result = read_record(path, frontend)
+    result = read_record(path)
     assert result.returncode == 0, result.stderr
     view = json.loads(result.stdout)
     assert view["stage"] == "draft" and view["approval"] is None
@@ -57,8 +42,7 @@ def test_the_standalone_reader_does_not_create_approval_or_modify_records(
     assert sorted(item.name for item in tmp_path.iterdir()) == ["change.toml"]
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
-def test_the_reader_refuses_modified_approved_contract_bytes(tmp_path, record_source, frontend):
+def test_the_reader_refuses_modified_approved_contract_bytes(tmp_path, record_source):
     digest = contract_digest(parse_change_record(record_source).contract)
     approval = f'''
 [change.approval]
@@ -69,32 +53,30 @@ contract_digest = "{digest}"
 '''
     path = tmp_path / "change.toml"
     path.write_text(record_source + approval)
-    result = read_record(path, frontend)
+    result = read_record(path)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["stage"] == "approved"
     path.write_text(record_source.replace('outcome = "', 'outcome = "Different ', 1) + approval)
-    result = read_record(path, frontend)
+    result = read_record(path)
     assert result.returncode == 2
     assert len(result.stdout.splitlines()) == 1
     assert "does not bind" in json.loads(result.stdout)["cause"]
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
-def test_an_unapproved_change_cannot_claim_completion(tmp_path, record_source, frontend):
+def test_an_unapproved_change_cannot_claim_completion(tmp_path, record_source):
     path = tmp_path / "change.toml"
     source = record_source.replace("[change]\n", '[change]\nstatus = "complete"\n', 1)
     path.write_text(source)
-    result = read_record(path, frontend)
+    result = read_record(path)
     assert result.returncode == 2
     assert json.loads(result.stdout)["status"] == "invalid"
     assert path.read_text() == source
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
 def test_repository_approval_view_reads_only_the_consolidated_record(
-    tmp_path, record_source, frontend, monkeypatch
+    tmp_path, record_source, monkeypatch
 ):
-    module = repository_module(frontend, "deviations", monkeypatch)
+    module = repository_module("deviations", monkeypatch)
     record = parse_change_record(record_source)
     source = (
         record_source
@@ -121,26 +103,14 @@ contract_digest = "{contract_digest(record.contract)}"
     assert sorted(item.name for item in path.parent.iterdir()) == ["change.toml"]
 
 
-def repository_module(frontend, name, monkeypatch):
-    if frontend == "template":
-        monkeypatch.syspath_prepend(
-            str(
-                Path(__file__).parents[2]
-                / "tests/fixtures/portable-python/.agents/signetum/runtime"
-            )
-        )
-    return importlib.import_module(
-        ("signetum." if frontend == "engine" else "_signetum_runtime.") + name
-    )
+def repository_module(name, monkeypatch):
+    return importlib.import_module("signetum." + name)
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
 def test_traceability_accepts_one_consolidated_record_without_legacy_files(
-    tmp_path, record_source, frontend, monkeypatch
+    tmp_path, record_source, monkeypatch
 ):
-    module = repository_module(
-        frontend, "traceability.cli" if frontend == "engine" else "traceability_cli", monkeypatch
-    )
+    module = repository_module("traceability.cli", monkeypatch)
     record = parse_change_record(record_source)
     path = tmp_path / "changes" / record.id / "change.toml"
     path.parent.mkdir(parents=True)
@@ -164,13 +134,13 @@ def test_traceability_accepts_one_consolidated_record_without_legacy_files(
 
 
 @pytest.mark.parametrize(
-    "frontend,damage",
-    [("engine", item) for item in ["draft", "stale", "dual", "identity", "symlink", "withdrawn"]],
+    "damage",
+    ["draft", "stale", "dual", "identity", "symlink", "withdrawn"],
 )
 def test_review_refuses_invalid_consolidated_authority_without_legacy_fallback(
-    tmp_path, record_source, frontend, damage, monkeypatch
+    tmp_path, record_source, damage, monkeypatch
 ):
-    module = repository_module(frontend, "deviations", monkeypatch)
+    module = repository_module("deviations", monkeypatch)
     record = parse_change_record(record_source)
     path = tmp_path / "changes" / record.id / "change.toml"
     path.parent.mkdir(parents=True)
@@ -192,8 +162,7 @@ def test_review_refuses_invalid_consolidated_authority_without_legacy_fallback(
     assert path.read_text() == source
     if damage not in {"draft", "withdrawn"}:
         query_module = repository_module(
-            frontend,
-            "traceability.cli" if frontend == "engine" else "traceability_cli",
+            "traceability.cli",
             monkeypatch,
         )
         git_output(tmp_path, "init", "-b", "main")
@@ -212,15 +181,13 @@ def test_review_refuses_invalid_consolidated_authority_without_legacy_fallback(
 
 
 @pytest.mark.parametrize(
-    "frontend,target",
-    [("engine", item) for item in ["valid", "missing", "wrong-requirement", "withdrawn"]],
+    "target",
+    ["valid", "missing", "wrong-requirement", "withdrawn"],
 )
 def test_traceability_requires_exact_active_transfer_ownership(
-    tmp_path, record_source, frontend, target, monkeypatch
+    tmp_path, record_source, target, monkeypatch
 ):
-    module = repository_module(
-        frontend, "traceability.cli" if frontend == "engine" else "traceability_cli", monkeypatch
-    )
+    module = repository_module("traceability.cli", monkeypatch)
     record = parse_change_record(record_source)
     destination = "following/MISSING" if target == "wrong-requirement" else "following/REQ-1"
     source = (

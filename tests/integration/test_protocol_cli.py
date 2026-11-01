@@ -16,22 +16,12 @@ from signetum.workspaces import WorkspaceRecord, state_root, write_record
 ROOT = Path(__file__).parents[2]
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
-def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend):
+def test_protocol_authors_and_reviews_one_unapproved_record(repository):
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")
     git_output(root, "switch", "-c", "plan/protocol")
     write_record(state_root(root), WorkspaceRecord(1, "plan/protocol", base, "member"))
-    prefix = (
-        [sys.executable, "-m", "signetum.cli", "change"]
-        if frontend == "engine"
-        else [
-            sys.executable,
-            "-I",
-            "-S",
-            str(ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime/protocol.py"),
-        ]
-    )
+    prefix = [sys.executable, "-m", "signetum.cli", "change"]
     opened = subprocess.run(  # noqa: S603 -- owned public utilities in a disposable repository
         [*prefix, "open", "protocol-example", "--repository", str(root)],
         cwd=ROOT,
@@ -63,11 +53,8 @@ def local_only_repository(local_repository):
     return local_repository
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
 @pytest.mark.parametrize("fails", [False, True])
-def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
-    local_repository, frontend, fails
-):
+def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(local_repository, fails):
     root, state = local_repository
     observed = state / "test-command.json"
     command = [
@@ -88,16 +75,7 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
     )
     (root / "uncommitted-user-work").write_text("preserved")
     before = git_output(root, "status", "--porcelain")
-    prefix = (
-        [sys.executable, "-m", "signetum.cli", "test"]
-        if frontend == "engine"
-        else [
-            sys.executable,
-            "-I",
-            "-S",
-            str(ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime/protocol.py"),
-        ]
-    )
+    prefix = [sys.executable, "-m", "signetum.cli", "test"]
 
     result = subprocess.run(  # noqa: S603 -- public diagnostic in an isolated repository, literal arguments
         [
@@ -199,10 +177,7 @@ def test_adoption_inspection_never_mutates_an_unadopted_repository(local_reposit
     assert git_output(root, "status", "--porcelain") == before
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
-def test_semantic_journal_binds_current_change_and_retains_retry_identity(
-    local_repository, frontend
-):
+def test_semantic_journal_binds_current_change_and_retains_retry_identity(local_repository):
     root, _ = local_repository
     base = git_output(root, "rev-parse", "HEAD")
     git_output(root, "switch", "-c", "plan/semantic")
@@ -210,16 +185,7 @@ def test_semantic_journal_binds_current_change_and_retains_retry_identity(
     consolidated_approval(root, base)
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "approve semantic record")
-    prefix = (
-        [sys.executable, "-m", "signetum.cli", "change"]
-        if frontend == "engine"
-        else [
-            sys.executable,
-            "-I",
-            "-S",
-            str(ROOT / "tests/fixtures/portable-python/.agents/signetum/runtime/protocol.py"),
-        ]
-    )
+    prefix = [sys.executable, "-m", "signetum.cli", "change"]
     arguments = [
         "record",
         "--repository",
