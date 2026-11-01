@@ -1,28 +1,25 @@
 """Observe the executed engine content, independently of an application environment."""
 
-import hashlib
 import json
 import sys
 from importlib.metadata import version
 from pathlib import Path
 
 from signetum import __version__
+from signetum.skill_identity import labeled_content_digest
 
 
 def implementation_digest() -> str:
     root = Path(__file__).parent
-    digest = hashlib.sha256()
+    entries = []
     for path in sorted(root.rglob("*")):
         if (
             path.is_file()
             and path.suffix in {".py", ".json", ".toml"}
             and "__pycache__" not in path.parts
         ):
-            relative = path.relative_to(root).as_posix()
-            content = path.read_bytes()
-            digest.update(json.dumps([relative, len(content)]).encode())
-            digest.update(content)
-    return "sha256:" + digest.hexdigest()
+            entries.append((path.relative_to(root).as_posix(), path.read_bytes()))
+    return labeled_content_digest(entries)
 
 
 def identity() -> dict[str, object]:

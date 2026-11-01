@@ -364,7 +364,7 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             if _git(batch, "diff", "--name-only", "--diff-filter=U"):
                 raise MergeConflict(
                     diagnostic or "batch has an open merge",
-                    expected=f"resolve and stage paths, then batch-continue {batch}",
+                    expected=f"resolve and stage paths, then batch-continue --batch {batch}",
                 )
             raise OperationFailed(diagnostic or "batch merge failed")
         admission_commit = _git(batch, "rev-parse", "HEAD")
@@ -383,7 +383,7 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     try:
         preparation = worktree_prepare(batch)
     except InfrastructureError as error:
-        retry = ["batch-admit", str(batch)]
+        retry = ["batch-admit", "--batch", str(batch)]
         for member in members:
             retry.extend(("--member", str(member)))
         raise InfrastructureError(str(error), expected=shlex.join(retry)) from error

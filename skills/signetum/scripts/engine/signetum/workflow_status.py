@@ -83,7 +83,7 @@ def workflow_status(
             continue
     if merging:
         next_action = (
-            "Resolve and stage conflicts; use batch-continue for a batch, "
+            "Resolve and stage conflicts; use batch-continue --batch <batch> for a batch, "
             "or finish the declared member recovery."
         )
     elif workspace is None:
