@@ -10,9 +10,11 @@ from zipfile import ZipFile
 
 import pytest
 from signetum.change_record import contract_digest, parse_change_record
+from signetum.cli import app
 from signetum.git import git_output
 from signetum.release import build_skill_archive
 from signetum.runtime_identity import implementation_digest
+from typer.main import get_command
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -167,6 +169,17 @@ shards=["app:test"]
     assert not (project / ".venv").exists()
     if existing:
         assert (project / "AGENTS.md").is_symlink()
+    if existing:
+        # The installed launcher must expose every command advertised by its engine.
+        help_result = run("--help", ok=False)
+        assert help_result.returncode == 0, help_result.stderr
+        for name in get_command(app).commands:
+            assert name in help_result.stdout
+            result = run(name, "--help", ok=False)
+            assert result.returncode == 0, result.stdout + result.stderr
+        for prefix in (("validate",), ("check", "manifest")):
+            assert run(*prefix, "--manifest", project / "signetum.toml")["status"] == "valid"
+
     git_output(project, "add", ".")
     git_output(project, "commit", "-m", "test: adopt reviewed bindings")
     remote = tmp_path / "remote.git"
