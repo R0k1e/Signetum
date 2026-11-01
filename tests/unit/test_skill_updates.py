@@ -112,6 +112,43 @@ def test_in_use_version_does_not_block_entry_switch_and_keeps_old_bytes(
     assert result["previous_entry"] == str(old)
 
 
+def test_distinct_retained_copy_is_prepared_before_the_entry_switches(
+    updater, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "state"))
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    retained = tmp_path / "retained"
+    retained.mkdir()
+    loose = tmp_path / "loose"
+    loose.mkdir()
+    (loose / "sentinel").write_text("loose")
+    prepared: list[Path] = []
+
+    def version_copy(source, state):
+        if source.resolve() == candidate.resolve():
+            return candidate
+        return retained
+
+    def prepare(root, state):
+        prepared.append(Path(root))
+        if Path(root) == retained:
+            assert loose.is_dir() and not loose.is_symlink()
+        return {}
+
+    monkeypatch.setattr(updater, "_invoke", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        updater, "describe", lambda root: {"version": "0.3.0", "content_digest": str(root)}
+    )
+    monkeypatch.setattr(updater, "_version_copy", version_copy)
+    monkeypatch.setattr(updater, "_prepare", prepare)
+    result = updater.install(loose, candidate, tmp_path)
+    assert prepared == [candidate, retained]
+    assert result["previous_entry"] == str(retained)
+    assert loose.is_symlink()
+    assert loose.resolve() == candidate.resolve()
+
+
 def test_concurrent_entry_switch_is_refused_without_moving_the_entry(
     updater, monkeypatch, tmp_path
 ):

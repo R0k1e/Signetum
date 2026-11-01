@@ -280,6 +280,11 @@ def install(entry: Path, source: Path, project: Path) -> dict[str, object]:
         retained = _version_copy(current, state)
     else:
         retained = current
+    if retained.resolve() != current.resolve():
+        # Version copies omit .runtime. Prepare that new path once so the
+        # retained installation stays executable. An in-place version directory
+        # keeps its existing environment and is not prepared again.
+        _prepare(retained, state)
     with entry_switch(entry):
         if entry.resolve() != current:
             raise ValueError("Skill entry changed while starting the update; inspect and retry")
