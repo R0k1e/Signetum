@@ -4,13 +4,9 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
-
-import pytest
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
-def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path, frontend):
+def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path):
     marker = tmp_path / "attempt"
     case = tmp_path / "test_case.py"
     case.write_text(
@@ -21,15 +17,7 @@ def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path, frontend):
         "    marker.touch()\n"
         "    assert not first, 'original execution defect'\n"
     )
-    runtime = (
-        Path(__file__).parents[2]
-        / "tests/fixtures/portable-python/.agents/signetum/runtime/_signetum_runtime"
-    )
-    launcher = (
-        ["-m", "signetum.validation.pytest_runner"]
-        if frontend == "engine"
-        else [str(runtime / "pytest_runner.py")]
-    )
+    launcher = ["-m", "signetum.validation.pytest_runner"]
     report = tmp_path / "attempts.json"
     argv = [sys.executable, *launcher, "--", "-q", "-o", "addopts=", str(case)]
     failed = subprocess.run(  # noqa: S603 -- real public runner and disposable test

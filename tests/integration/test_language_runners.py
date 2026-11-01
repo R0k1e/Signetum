@@ -9,12 +9,10 @@ from shutil import which
 import pytest
 from change_fixtures import consolidated_approval
 from signetum import lifecycle
-from signetum import lifecycle as core_lifecycle
 from signetum.adoption import AdoptionRequest, apply, plan_digest, preview
 from signetum.git import git_output
 from signetum.manifest import load_manifest
 from signetum.profiles.existing_runner import ExistingRunnerRequest, existing_runner_validation
-from signetum.runtime_identity import implementation_digest
 from signetum.validation import GateDeclaration, ToolDeclaration
 
 ROOT = Path(__file__).parents[2]
@@ -111,7 +109,7 @@ def configure_existing_runner(root, language, command, tools, metadata):
     original = load_manifest(root / "signetum.toml")
     app = binding.validation.shards[0]
     text = (
-        'schema_version = 4\n[delivery]\nbranch = "main"\n[signetum]\nprotocol = 2\n'
+        'schema_version = 5\n[delivery]\nbranch = "main"\n[signetum]\nprotocol = 2\n'
         "[profiles]\nenabled = "
         + json.dumps([binding.identity])
         + '\n[repository]\narchitecture = "docs/ARCHITECTURE.md"\n'
@@ -160,12 +158,11 @@ def configure_existing_runner(root, language, command, tools, metadata):
 
 @pytest.mark.world
 @pytest.mark.parametrize("language", ["python", "node", "rust"])
-@pytest.mark.parametrize("frontend", ["engine"])
 def test_native_existing_runner_failure_fresh_success_admission_and_final(
-    repository, tmp_path, language, frontend, monkeypatch, capsys
+    repository, tmp_path, language, monkeypatch, capsys
 ):
     root, _ = repository
-    runtime = lifecycle if frontend == "engine" else core_lifecycle
+    runtime = lifecycle
     command, tools, source, good, metadata = native_application(root, language)
     tools = (*tools, ToolDeclaration("protocol-python", (sys.executable, "--version")))
     binding = configure_existing_runner(root, language, command, tools, metadata)
@@ -173,9 +170,7 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     architecture.parent.mkdir(exist_ok=True)
     architecture.write_text("# Existing application architecture\n")
     request = AdoptionRequest(
-        manifest=(root / "signetum.toml")
-        .read_text()
-        .replace("[signetum]", '[signetum]\nengine_digest = "' + implementation_digest() + '"'),
+        manifest=(root / "signetum.toml").read_text(),
     )
     plan = preview(root, request)
     assert apply(root, plan, plan_digest(plan))["status"] == "applied"

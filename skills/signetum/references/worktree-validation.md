@@ -56,6 +56,10 @@ or grouping helps. Do not introduce a permanent timing/count gate or handwritten
 test inventory. Stop repeating verification once relevant checks pass unless a
 new change or unresolved concern requires another run.
 
+## Significant records
+
+Read this section when a finding needs a durable answer.
+
 Use `change record` for a finding that changes implementation, authority, scope or the
 delivery explanation. Use `change resolve`, `change retract`, `change reconcile` or `change retire` for its
 standing answer and accepted decision changes. Ordinary writes take semantic
@@ -75,6 +79,9 @@ view; a stale write refuses. A deferred resolution uses `--disposition deferred`
 and `--followup change-id#REQ-ID`, with the exact approved requirement transfer.
 `change retract` takes the target and exact prior `--resolution` ID.
 
+### Conditional atomic edits
+
+Read only for an atomic combination or exact evidence retirement.
 The advanced structured `--request` plus `--expected-history` path remains for
 atomic combinations and exact evidence retirement. Do not mix it with semantic
 fields. Both paths use the same locked writer and committed approval. On refusal,
@@ -96,6 +103,8 @@ read [optional validation optimization](validation-optimization.md). Keep these
 opt-in; do not expand every repository adoption to include them.
 
 ## Coordinating parallel members
+
+Read only for multiple members or integration coordination.
 
 Before delegating, the coordinating Agent names each member's outcome, worktree,
 owned scope, dependencies and shared interfaces in the existing execution plan.

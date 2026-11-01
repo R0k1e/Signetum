@@ -8,7 +8,6 @@ import pytest
 import signetum.adoption as owner
 from signetum.adoption import AdoptionRequest, Retirement, apply, plan_digest, preview
 from signetum.git import git_output
-from signetum.runtime_identity import implementation_digest
 
 
 @pytest.fixture
@@ -17,14 +16,10 @@ def adoption(local_repository):
     (root / "CLAUDE.md").write_text("Project-owned instructions.\n")
     (root / "AGENTS.md").symlink_to("CLAUDE.md")
     (root / "Justfile").write_text("test:\n    existing-test\n")
-    manifest = (
-        (root / "signetum.toml")
-        .read_text()
-        .replace("[signetum]", '[signetum]\nengine_digest = "' + implementation_digest() + '"')
-    )
+    manifest = (root / "signetum.toml").read_text()
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "existing application")
-    return root, AdoptionRequest(manifest=manifest)
+    return root, AdoptionRequest(manifest=manifest + "\n# Reviewed adoption bindings.\n")
 
 
 def test_review_apply_and_exact_retry_preserve_application_and_unrelated_work(adoption):
@@ -103,8 +98,10 @@ def test_invalid_bindings_and_subdirectory_do_not_create_a_plan(adoption):
     invalid = (
         request.manifest.replace('[delivery]\nbranch = "main"\n', ""),
         request.manifest.replace('shards = ["test:check"]', "shards = []"),
-        request.manifest.replace('engine_digest = "' + implementation_digest() + '"\n', ""),
-        request.manifest.replace(implementation_digest(), "sha256:" + "0" * 64),
+        request.manifest.replace("protocol = 2", "protocol = 99"),
+        request.manifest.replace(
+            "[signetum]", '[signetum]\nengine_digest = "sha256:' + "0" * 64 + '"'
+        ),
     )
     before = git_output(root, "status", "--porcelain")
     for manifest in invalid:
