@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 
@@ -21,13 +22,20 @@ def skill_files(root: Path) -> tuple[Path, ...]:
     return tuple(paths)
 
 
-def content_digest(root: Path) -> str:
+def labeled_content_digest(entries: Iterable[tuple[str, bytes]]) -> str:
+    """Hash labeled file bytes once for every Signetum content identity."""
+
     digest = hashlib.sha256()
-    for path in skill_files(root):
-        content = path.read_bytes()
-        digest.update(json.dumps([path.relative_to(root).as_posix(), len(content)]).encode())
+    for relative, content in entries:
+        digest.update(json.dumps([relative, len(content)]).encode())
         digest.update(content)
     return "sha256:" + digest.hexdigest()
+
+
+def content_digest(root: Path) -> str:
+    return labeled_content_digest(
+        (path.relative_to(root).as_posix(), path.read_bytes()) for path in skill_files(root)
+    )
 
 
 def skill_identity(root: Path) -> tuple[str, str]:

@@ -38,7 +38,7 @@ def build_app() -> typer.Typer:
                 help={
                     "change": "Approved changes, significant history and current decisions.",
                     "test": "Feedback and optional test optimization.",
-                    "adopt": "Explicit project adoption or engine-binding update.",
+                    "adopt": "Explicit project adoption.",
                     "check": "Read-only repository checks.",
                 }[parent[0]],
             )

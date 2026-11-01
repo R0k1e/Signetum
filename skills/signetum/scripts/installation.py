@@ -13,6 +13,24 @@ def data_root() -> Path:
 
 
 @contextmanager
+def entry_switch(entry: Path):
+    """Lock one install entry without resolving or locking its version directory."""
+
+    locks = data_root() / "locks"
+    locks.mkdir(parents=True, exist_ok=True)
+    key = hashlib.sha256(os.path.abspath(entry).encode()).hexdigest()
+    with (locks / (key + ".entry.lock")).open("a") as guard:
+        try:
+            fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError("Skill entry is being switched; retry the update") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(guard, fcntl.LOCK_UN)
+
+
+@contextmanager
 def installation_use(root: Path, *, exclusive: bool = False):
     locks = data_root() / "locks"
     locks.mkdir(parents=True, exist_ok=True)

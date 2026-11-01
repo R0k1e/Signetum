@@ -1,7 +1,5 @@
 """Installed and generated catalog parsing retain one portable contract."""
 
-import json
-import tomllib
 from dataclasses import asdict
 from pathlib import Path
 
@@ -35,16 +33,17 @@ def resolve():
     return installed
 
 
-def test_catalog_uses_owned_defaults_and_retains_graph_metadata(resolve, documents):
+def test_catalog_resolves_identities_without_execution_templates(resolve, documents):
     profiles = resolve(documents, ["python-default@1", "git-worktrunk@1"])
     assert [item["identity"] for item in profiles] == [
         "shared-core@1",
         "python-default@1",
         "git-worktrunk@1",
     ]
-    assert list(profiles[0]["tools"]) == []
-    expected = tomllib.loads(documents["python-default-v1.toml"])["shards"]
-    assert json.loads(json.dumps(profiles[1]["shards"])) == expected
+    python_default = profiles[1]
+    assert python_default["authorities"] == ("python-environment", "python-quality")
+    assert python_default["requires"] == ("shared-core@1",)
+    assert set(python_default) == {"identity", "authorities", "requires"}
 
 
 @pytest.mark.parametrize(

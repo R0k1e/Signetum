@@ -15,9 +15,10 @@ Keep cwd in the project. Invoke `sh <skill-base-dir>/scripts/signetum ...`.
 The complete installed Skill owns its locked environment; no Signetum dependency
 belongs in the application. Git, Mise, Worktrunk, uv and host Python 3.12+ are
 prerequisites. Resolve missing tools before promising a usable workspace.
-Read [adoption](references/adoption.md) for setup or explicit updates. Bare
-`update` shows the guide; `update --check` is read-only and `update --source`
-or `--to` explicitly installs a verified version. Ordinary work stays offline.
+Read [adoption](references/adoption.md) for setup and the one update procedure.
+Bare `update` installs the latest stable release and prepares that Skill.
+`update --check` and `update --to` are optional. Ordinary commands other than
+`update` stay offline.
 `identity` reports complete Skill and actual engine identities; projects declare
 configuration/protocol compatibility, not an implementation pin.
 
