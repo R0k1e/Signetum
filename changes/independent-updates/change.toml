@@ -1,0 +1,41 @@
+[change]
+schema_version = 1
+id = "independent-updates"
+[change.source]
+kind = "human_direction"
+summary = "The owner approves decoupling project configuration from engine implementation, explicit Skill upgrades and the remaining documentation/test cleanup, and requests implementation and delivery."
+[change.contract]
+version = 1
+approved_base = "c4c54631edc00485ebedd79dfa1fd498bf43291b"
+[[change.contract.requirements]]
+id = "CONTRACT-001"
+outcome = "Compatible Skill implementation upgrades require no project edit or commit."
+acceptance = ["Remove engine_digest and duplicate exact-code checks from current project configuration; use an explicit manifest format revision for this one-time field removal and exact supported protocol checks.", "Keep installed-runtime integrity and exact actual engine/dependency identities in validation evidence; incompatible formats refuse and old receipts do not qualify a changed runtime.", "Historical approval bindings remain readable without interpreting old executable configuration."]
+[[change.contract.requirements]]
+id = "UPDATE-001"
+outcome = "Separate read-only update checks from explicit verified installation upgrades."
+acceptance = ["Bare update remains non-mutating guidance; --check checks an explicit local source or eligible stable Signetum release, with offline/unpublished states distinct from up-to-date.", "Explicit --source or --to upgrades acquire one complete exact revision, prepare and verify isolated execution before switching the installation; failures and active use retain the old usable entry.", "Keep usable previous versions for old workspaces; never alter project files, Git state, application dependencies or entry instructions during compatible installation updates.", "Ordinary operations never contact the network or self-update; public tags, releases and promotional publication remain outside this change."]
+[[change.contract.requirements]]
+id = "CLEAN-001"
+outcome = "Current instructions use real commands with task-specific progressive disclosure."
+acceptance = ["Fix change view and test schedule/partition examples, consolidate repeated change closure guidance and read advanced/parallel details only when relevant.", "Read-only questions and reviews do not require opening a development change.", "Delete engine-only test frontend branches and retain actual installed, language and delivery boundary coverage without weakening gates."]
+[[change.contract.requirements]]
+id = "DELIVER-001"
+outcome = "Deliver Signetum and the one-time Perdura configuration migration with actual acceptance."
+acceptance = ["Qualify frozen source and Linux/macOS CI, show the generated review and deliver to main.", "Install the qualified complete Skill, explicitly preview/apply the downstream format migration in an owned worktree, retain native project checks and complete full final/product delivery.", "Prove a compatible implementation update leaves a consumer manifest and Git source unchanged through the existing installed acceptance traversal; clean only owned unused residue."]
+[change.contract.autonomy]
+allowed = ["Implement the approved contract/update/cleanup, commit, qualify and deliver source and downstream migration under existing explicit delivery authorization.", "Use exact public revisions and isolated local candidates for upgrade acceptance; preserve unrelated active worktrees, old needed versions and application behavior."]
+requires_confirmation = ["Public tags/releases/assets/posts, unrelated application behavior/dependencies, weaker checks or rewriting historical approvals."]
+[[change.contract.excluded]]
+statement = "Background update service, per-command networking, Windows, automatic project migration and compatibility aliases."
+reason = "Make explicit Skill upgrades independent without expanding runtime authority."
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["CONTRACT-001", "UPDATE-001", "CLEAN-001", "DELIVER-001"]
+action = "Revise the current manifest contract, implement verified explicit installation updates, extend existing evidence, reconcile instructions, qualify and deliver source then migrate and accept current Perdura."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-01
+source = "The owner explicitly approved implementation and delivery of the five cleanup priorities, including independent compatible Skill updates and explicit upgrades."
+contract_digest = "sha256:a2513a64b5870713c238e9d20ade4f866f61457ed467b127e23d48298fd23ffb"
