@@ -1,4 +1,4 @@
-"""Untrusted receipt documents obey the owned types in both distributed forms."""
+"""Untrusted receipt documents obey the owned types through the maintained engine."""
 
 import json
 from dataclasses import replace
@@ -8,8 +8,8 @@ from signetum.evidence.receipts import EvidenceReceipt, ReceiptError
 from test_receipts_v2 import _gate, _identity, _selection
 
 
-@pytest.fixture(params=["engine"])
-def decode(request):
+@pytest.fixture
+def decode():
     return lambda source: json.loads(EvidenceReceipt.from_json(source).to_json())
 
 

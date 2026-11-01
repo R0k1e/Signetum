@@ -16,7 +16,7 @@ from signetum.validation import process_observation
 
 
 @pytest.fixture
-def selection_runtime(request, monkeypatch):
+def selection_runtime():
     return importlib.import_module("signetum.repository_selection")
 
 

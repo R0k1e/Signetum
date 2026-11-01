@@ -12,11 +12,10 @@ from signetum.validation import process_observation
 
 
 @pytest.fixture
-def observer(request, monkeypatch):
+def observer():
     return process_observation
 
 
-@pytest.mark.parametrize("observer", ["engine"], indirect=True)
 def test_native_observation_finds_only_owned_detached_processes(observer, monkeypatch):
     if sys.platform != "darwin" and not sys.platform.startswith("linux"):
         pytest.skip("native process observation supports Linux and macOS")
@@ -157,7 +156,6 @@ def test_scratch_registration_binds_exact_directory_and_does_not_authorize_share
         observer.remove_scratch_root(scratch)
 
 
-@pytest.mark.parametrize("observer", ["engine"], indirect=True)
 def test_native_scratch_ownership_excludes_similarly_named_foreign_directory(observer, tmp_path):
     owner = uuid.uuid4().hex
     scratch = observer.create_scratch_root(owner, parent=tmp_path)
