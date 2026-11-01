@@ -33,11 +33,14 @@ are direct; `change`, `test`, `check`, `adopt` and `maintenance` own auxiliary
 work. No public lifecycle/protocol namespace or validate alias remains. Bootstrap
 setup, identity and explicit updates are declared alongside the command table.
 `identity` reports complete Skill and actual engine identities. `scripts/update.py`
-owns explicit acquisition, compatibility inspection and atomic installation switching.
-`scripts/installation.py` protects active installations with shared/exclusive guards.
-Verified versions stay outside projects under the user data directory; the installed
-Skill entry selects one version. Compatible implementation updates change only that
-installation; project edits are reserved for contract migrations.
+owns release lookup, explicit acquisition, compatibility inspection and entry switching.
+`scripts/installation.py` gives a running command a shared lock on its resolved
+version directory and gives an update a separate exclusive lock on the install entry.
+Version directories stay immutable outside projects. An upgrade switches only the
+install entry. It refuses a Git-managed source checkout and refuses to rewrite
+version storage. A command that already resolved an old version keeps that directory.
+Compatible implementation updates change only the installation; project edits are
+reserved for contract migrations.
 
 
 Root `uv.lock` pins maintainer tools and an editable engine dependency. Internal

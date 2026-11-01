@@ -1,0 +1,137 @@
+[change]
+schema_version = 1
+id = "release-closure"
+
+[change.source]
+kind = "human_direction"
+summary = "Close the confirmed format-5 release gaps in one frozen batch: config contract, bare update, install boundary, unused profile templates, command docs, and one acceptance set."
+
+[change.contract]
+version = 1
+approved_base = "4957afbe7b9a47965cde202256bf0cba63a218f2" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "CLOSE-001"
+outcome = "Manifest format 5 accepts the same minimal configuration in the parser and the public schema, and both reject an explicit wrong evidence declaration."
+acceptance = [
+    "A minimal format-5 manifest with protocol 2, repository roots, one shard, and member and final gates passes the parser and signetum-v5.",
+    "An omitted evidence protocol or digest uses the published values. An explicit digest must equal the published schema digest; a well-formed other SHA and a wrong evidence protocol fail both checks.",
+    "schema_version stays 5. No format 6, project implementation pin, or Perdura config migration is introduced.",
+]
+
+[[change.contract.requirements]]
+id = "CLOSE-002"
+outcome = "Bare update installs the latest stable Skill and prepares that candidate. --check and --to remain optional."
+acceptance = [
+    "Bare update resolves the newest eligible stable release to an exact commit, prepares only that candidate, and switches the install entry.",
+    "An already-current or older candidate returns without downgrade or replacement. --check stays read-only. --to and --source still select an exact target.",
+    "Network, missing-release, or prepare failure leaves the old entry usable and does not edit the project.",
+]
+
+[[change.contract.requirements]]
+id = "CLOSE-003"
+outcome = "An upgrade switches only the install entry. Version directories and Git-managed source stay untouched, including while an old version is in use."
+acceptance = [
+    "A shared lock on the resolved old version does not block a symlink entry switch, and the old directory bytes remain.",
+    "A second entry switch is refused. A failed switch restores the previous symlink or loose directory.",
+    "The updater refuses to overwrite a Git-managed source directory or rewrite a path under version storage.",
+]
+
+[[change.contract.requirements]]
+id = "CLOSE-004"
+outcome = "Profile resources carry identity only, and Skill content and engine implementation share one digest function while remaining separate identities."
+acceptance = [
+    "python-default no longer carries tool, shard, or gate templates, and catalog tests do not require those templates.",
+    "Profile identities still resolve into evidence. Profile templates are not added to the execution graph.",
+    "labeled_content_digest is the one hasher. Skill content includes packaging. Engine implementation stays limited to engine py, json, and toml files.",
+]
+
+[[change.contract.requirements]]
+id = "CLOSE-005"
+outcome = "Command text matches the real CLI, and update has one explanation."
+acceptance = [
+    "batch-admit and batch-continue guidance include --batch. The adopt help text no longer says engine-binding update.",
+    "adoption.md is the only update procedure. SKILL.md, the guide, and the quickstart cite it and describe bare update as installing the latest stable release.",
+    "Architecture pages describe entry switching, immutable version directories, and the separate entry lock.",
+]
+
+[[change.contract.requirements]]
+id = "CLOSE-006"
+outcome = "Targeted tests cover the minimal manifest, explicit bad declarations, install boundaries, bare update, concurrent entry switch, and failure recovery before any full delivery."
+acceptance = [
+    "Existing schema and manifest tests gain the real minimal input and explicit rejection cases.",
+    "Update tests cover in-use switch, Git and version-directory refusal, failed switch, prepare failure, newer install, current or older skip, and network failure.",
+    "Ready, batch, final, publication, and Perdura verification stay outside this implementation step.",
+]
+
+[[change.contract.decisions]]
+id = "release-closure/installation-entry"
+change_id = "release-closure"
+authority = "docs/decisions/ADP-compatible-skill-updates-stay-outside-projects.md"
+reason = "The owner froze one format-5 release closure: bare update installs the latest stable Skill, and the install entry switches without rewriting version directories or source checkouts."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "skill-installation"
+version = 1
+summary = "Format 5 bindings and an install entry that switches independently of version storage."
+boundaries = [
+    "One manifest format and one published evidence schema digest.",
+    "Version directories stay immutable and outside the project.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "release-closure/install-entry"
+change_id = "release-closure"
+action = "add"
+reason = "Record the frozen release-closure rule before treating the implementation as qualified."
+authority = "docs/decisions/ADP-compatible-skill-updates-stay-outside-projects.md"
+
+[[change.contract.decisions.clauses.expected]]
+id = "INSTALL-ENTRY-001"
+version = 0
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-ENTRY-001"
+version = 1
+topic = "skill-installation"
+scope = [
+    "Repository manifest format",
+    "Installed Skill update and entry switch",
+]
+statement = "Manifest format stays 5. Omitted evidence fields mean the published evidence protocol and schema digest, and an explicit digest must equal that schema. Bare update installs the newest eligible stable release and prepares that candidate; --check and --to stay optional, and an already-current or older release does not replace the installation. Version directories stay immutable. An upgrade switches only the install entry, refuses Git-managed source and version-storage rewrites, and does not take the use lock of a version directory already resolved by a running command. The updater never edits the project. Skill content identity and engine implementation identity stay separate and share one labeled digest function."
+rationale = "Parser, schema, command text, and the installed entry were accepted separately, so later stages kept reopening the same release. One format-5 closure freezes those boundaries without another consumer migration."
+
+[change.contract.autonomy]
+allowed = [
+    "Implement the frozen closure in this member worktree and run the targeted manifest, install, update, switch, and recovery tests.",
+    "Qualify with ready, admit a batch, run final, and deliver the reviewed tip to main.",
+]
+requires_confirmation = [
+    "Publish a release or change the public package.",
+    "Edit Perdura source, configuration, dependencies, or Git history.",
+]
+
+[[change.contract.excluded]]
+statement = "Format 6, a project implementation pin, a new top-level command, selection changes, splitting the repository, a background updater, Windows, Perdura migration, and publication."
+reason = "The owner froze this batch at the confirmed closure list."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = [
+    "CLOSE-001",
+    "CLOSE-002",
+    "CLOSE-003",
+    "CLOSE-004",
+    "CLOSE-005",
+    "CLOSE-006",
+]
+action = "Align the format-5 contract, bare update, entry switch, profile identity, and current command docs; qualify and deliver the reviewed tip without publication or Perdura edits."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-01
+source = "The owner set the goal to finish the frozen format-5 release closure and deliver that exact candidate to main."
+contract_digest = "sha256:be89a3f5a0c8f09f9572e6e6c6c340d39a37c7d055bdb2c2265309e36033cca3"

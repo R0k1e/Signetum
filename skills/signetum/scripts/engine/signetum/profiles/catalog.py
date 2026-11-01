@@ -5,7 +5,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from tomllib import loads
 
-from signetum.serialization import JsonValue, dataclass_from_mapping
+from signetum.serialization import dataclass_from_mapping
 
 PROFILE_RESOURCE_NAMES = (
     "shared-core-v1.toml",
@@ -54,9 +54,6 @@ class ProfileDeclaration:
     identity: str
     authorities: tuple[str, ...]
     requires: tuple[str, ...] = ()
-    tools: tuple[dict[str, JsonValue], ...] = ()
-    shards: tuple[dict[str, JsonValue], ...] = ()
-    gates: tuple[dict[str, JsonValue], ...] = ()
 
     def __post_init__(self) -> None:
         _identity(self.identity)

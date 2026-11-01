@@ -66,9 +66,6 @@ The [documentation map](docs/README.md) routes configuration and operation detai
 
 ## Update an installed Skill
 
-> Use $signetum to update to [exact version or commit]. Verify the new installation,
-> show any required project-binding changes, then validate and deliver them.
-
-Bare `update` displays the guide. Use `update --check` to inspect a new version,
-and `update --source` or `--to` to explicitly install it. Compatible updates do
-not change project files. Ordinary work does not upgrade the installation.
+Ask the Agent to run bare `update`, or name a version or commit with `--to`.
+The one procedure, including checks, failure recovery and the project boundary,
+is [the Skill update section](skills/signetum/references/adoption.md).
