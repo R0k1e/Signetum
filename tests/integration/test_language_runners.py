@@ -170,7 +170,7 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     architecture.parent.mkdir(exist_ok=True)
     architecture.write_text("# Existing application architecture\n")
     request = AdoptionRequest(
-        manifest=(root / "signetum.toml").read_text(),
+        manifest=(root / "signetum.toml").read_text() + "\n# Reviewed existing-runner adoption.\n",
     )
     plan = preview(root, request)
     assert apply(root, plan, plan_digest(plan))["status"] == "applied"
