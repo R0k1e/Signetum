@@ -79,7 +79,7 @@ def installed_skill(tmp_path_factory):
     )
     assert refused.returncode != 0
     result = subprocess.run(  # noqa: S603 -- explicit disposable consumer invocation
-        [sys.executable, str(launcher), "setup"],
+        [str(shutil.which("sh")), str(skill / "scripts/signetum"), "setup"],
         cwd=directory,
         env=environment,
         capture_output=True,
@@ -364,7 +364,9 @@ contract_digest="{digest}"
         assert git_output(project, "rev-parse", "HEAD") == head
         assert git_output(project, "status", "--porcelain") == status
         assert run("identity")["engine"]["implementation"] != prepared["engine"]["implementation"]
-        assert run("check", "manifest")["status"] == "valid"
+        assert (
+            run("check", "manifest", "--manifest", project / "signetum.toml")["status"] == "valid"
+        )
         assert run("status")["status"] == "passed"
         previous_launcher = Path(updated["previous_entry"]) / "scripts/signetum"
         saved_launcher, launcher = launcher, previous_launcher

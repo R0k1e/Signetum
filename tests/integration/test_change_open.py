@@ -1,7 +1,6 @@
 """New authoring creates one unapproved record in the declared member workspace."""
 
 import importlib
-from pathlib import Path
 
 import pytest
 from signetum.change_record import parse_change_record
@@ -9,16 +8,9 @@ from signetum.git import git_output
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
-@pytest.fixture(params=["signetum"])
-def author(request, monkeypatch):
-    if request.param == "_signetum_runtime":
-        monkeypatch.syspath_prepend(
-            str(
-                Path(__file__).parents[2]
-                / "tests/fixtures/portable-python/.agents/signetum/runtime"
-            )
-        )
-    return importlib.import_module(request.param + ".change_open")
+@pytest.fixture
+def author():
+    return importlib.import_module("signetum.change_open")
 
 
 def test_open_uses_registered_base_and_creates_one_draft_without_approval(repository, author):

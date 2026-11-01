@@ -1,4 +1,4 @@
-"""Observable changed behavior against both native repository frontends."""
+"""Observable changed behavior against the native engine."""
 
 import json
 import sys

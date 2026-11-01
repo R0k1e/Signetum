@@ -1,4 +1,4 @@
-"""Native final validation preserves scope and evidence bindings in both frontends."""
+"""Native final validation preserves scope and evidence bindings in the engine."""
 
 from datetime import UTC, datetime
 from pathlib import Path

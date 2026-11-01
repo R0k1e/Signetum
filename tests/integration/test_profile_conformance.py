@@ -1,4 +1,4 @@
-"""Both distributed frontends bind the same explicitly resolved profile identities."""
+"""The engine binds the same explicitly resolved profile identities."""
 
 import json
 import re

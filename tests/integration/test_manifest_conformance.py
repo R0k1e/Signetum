@@ -1,4 +1,4 @@
-"""Manifest defaults, rejection and validation identity agree across frontends."""
+"""Manifest defaults, rejection and validation identity are enforced by the engine."""
 
 import re
 from pathlib import Path
