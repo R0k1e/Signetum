@@ -23,7 +23,7 @@ def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend
     git_output(root, "switch", "-c", "plan/protocol")
     write_record(state_root(root), WorkspaceRecord(1, "plan/protocol", base, "member"))
     prefix = (
-        [sys.executable, "-m", "signetum.cli", "protocol"]
+        [sys.executable, "-m", "signetum.cli", "change"]
         if frontend == "engine"
         else [
             sys.executable,
@@ -33,7 +33,7 @@ def test_protocol_authors_and_reviews_one_unapproved_record(repository, frontend
         ]
     )
     opened = subprocess.run(  # noqa: S603 -- owned public utilities in a disposable repository
-        [*prefix, "change-open", "protocol-example", "--repository", str(root)],
+        [*prefix, "open", "protocol-example", "--repository", str(root)],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -89,7 +89,7 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
     (root / "uncommitted-user-work").write_text("preserved")
     before = git_output(root, "status", "--porcelain")
     prefix = (
-        [sys.executable, "-m", "signetum.cli", "protocol"]
+        [sys.executable, "-m", "signetum.cli", "test"]
         if frontend == "engine"
         else [
             sys.executable,
@@ -102,7 +102,7 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
     result = subprocess.run(  # noqa: S603 -- public diagnostic in an isolated repository, literal arguments
         [
             *prefix,
-            "test",
+            "run",
             "--repository",
             str(root),
             "--shard",
@@ -135,7 +135,7 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
         assert allocation["workers"] == allocation["enclosing_worker_limit"] == 1
 
     exact = subprocess.run(  # noqa: S603 -- exact-source gate refuses dirty input before checks
-        [*prefix, "test", "--repository", str(root), "--gate", "member", "--exact-source"],
+        [*prefix, "run", "--repository", str(root), "--gate", "member", "--exact-source"],
         capture_output=True,
         text=True,
         check=False,
@@ -145,7 +145,7 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(
 
     assert not (state / "attempts").exists(), "single-shard diagnostics do not prepare"
     gated = subprocess.run(  # noqa: S603 -- same public diagnostic, declared dependency graph
-        [*prefix, "test", "--repository", str(root), "--gate", "member"],
+        [*prefix, "run", "--repository", str(root), "--gate", "member"],
         env=dict(
             os.environ, SIGNETUM_VALIDATION_WORKERS="4", PYTEST_XDIST_WORKER="enclosing-worker"
         ),
@@ -211,7 +211,7 @@ def test_semantic_journal_binds_current_change_and_retains_retry_identity(
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "approve semantic record")
     prefix = (
-        [sys.executable, "-m", "signetum.cli", "protocol"]
+        [sys.executable, "-m", "signetum.cli", "change"]
         if frontend == "engine"
         else [
             sys.executable,

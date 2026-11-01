@@ -3,7 +3,6 @@
 import argparse
 import json
 import sys
-from importlib import import_module
 from pathlib import Path
 
 from signetum.change_record import contract_digest, parse_change_record
@@ -20,7 +19,6 @@ from signetum.development_store import (
 )
 from signetum.git import git_output
 from signetum.operation_cli import OperationParser, utility_failure
-from signetum.profiles.existing_runner import main as runner_main
 from signetum.serialization import contract_mapping, load_json
 from signetum.source_authority import (
     authority_roots,
@@ -177,7 +175,7 @@ def _semantic_request(
     return parse_request(body), options.expected_history or sources.history_digest
 
 
-def journal_main(arguments: list[str] | None = None) -> int:
+def main(arguments: list[str] | None = None) -> int:
     parser = OperationParser(description=__doc__)
     parser.add_argument(
         "operation",
@@ -334,63 +332,3 @@ def journal_main(arguments: list[str] | None = None) -> int:
         return utility_failure((arguments or sys.argv[1:] or ["journal"])[0], error, **extra)
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     return 0
-
-
-JOURNAL_OPERATIONS = (
-    "current",
-    "status",
-    "history",
-    "record",
-    "resolve",
-    "retract",
-    "reconcile",
-    "retire",
-)
-
-
-def main(arguments: list[str] | None = None) -> int:
-    supplied = sys.argv[1:] if arguments is None else arguments
-    parser = OperationParser(
-        description="Daily: change-open, view, status, current, record, resolve, test.",
-        epilog=(
-            "History: history. Conditional decision/repair: reconcile, retract, retire. "
-            "Adoption: runner. "
-            "Optional optimization: schedule, partition. "
-            "Use <command> --help for that operation; lifecycle commands remain separate."
-        ),
-    )
-    parser.add_argument(
-        "command",
-        metavar="<command>",
-        choices=[
-            "change-open",
-            "view",
-            "runner",
-            "test",
-            "partition",
-            "schedule",
-            *JOURNAL_OPERATIONS,
-        ],
-    )
-    try:
-        parsed = parser.parse_args(supplied[:1])
-        remaining = supplied[1:]
-        if parsed.command == "change-open":
-            return import_module(f"{__package__}.change_open").main(remaining)
-        if parsed.command == "view":
-            return import_module(f"{__package__}.change_record").main([*remaining, "--review"])
-        if parsed.command == "test":
-            return import_module(f"{__package__}.test_diagnostic").main(remaining)
-        if parsed.command == "schedule":
-            return import_module(f"{__package__}.pytest_scheduling").main(remaining)
-        if parsed.command == "partition":
-            return import_module(f"{__package__}.ci_partitions").main(remaining)
-        if parsed.command == "runner":
-            return runner_main(remaining)
-        return journal_main([parsed.command, *remaining])
-    except (ValueError, OSError) as error:
-        return utility_failure(supplied[0] if supplied else "protocol", error)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

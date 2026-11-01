@@ -64,7 +64,9 @@ files while commands are running. A Git pull in an upstream checkout does not
 update an independently installed Skill. Setup prepares local dependencies; it
 does not download newer Skill source.
 
-Compare the new identity with each project's `signetum.engine_digest`. If engine
+The `update` entry prints this procedure and its reference path without downloads
+or changes. `identity` reports `skill.version`, `skill.content_digest` and `engine`;
+only `engine.implementation` is compared with a project's `signetum.engine_digest`. If engine
 content changed, use the same inspect, preview and exact-plan apply flow in a
 project change workspace, preserve all other bindings, then qualify and deliver
 that update. If only launcher/instructions changed and the engine digest matches,

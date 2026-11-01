@@ -12,10 +12,11 @@ import pytest
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.cli import app
 from signetum.git import git_output
-from signetum.release import build_skill_archive
 from signetum.runtime_identity import implementation_digest
 from typer.core import TyperGroup
 from typer.main import get_command
+
+from tools.release import build_skill_archive
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -53,6 +54,17 @@ def installed_skill(tmp_path_factory):
     environment = dict(os.environ)
     for key in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT"):
         environment.pop(key, None)
+    update = subprocess.run(  # noqa: S603 -- dependency-free update instructions
+        [str(shutil.which("sh")), str(skill / "scripts/signetum"), "update"],
+        cwd=directory,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert update.returncode == 0, update.stderr
+    assert (skill / json.loads(update.stdout)["reference"]).is_file()
+    assert not (skill / ".runtime").exists()
     launcher = skill / "scripts/launch.py"
     refused = subprocess.run(  # noqa: S603 -- explicit disposable consumer invocation
         [sys.executable, str(launcher), "identity"],
@@ -168,7 +180,23 @@ shards=["app:test"]
     assert all((project / name).read_bytes() == content for name, content in originals.items())
     assert not (project / ".agents").exists()
     assert not (project / ".venv").exists()
+    identity = run("identity")
+    assert identity["engine"]["implementation"] == prepared["engine"]["implementation"]
+    assert identity["skill"]["content_digest"].startswith("sha256:")
+    assert run("update")["automatic_updates"] is False
     if existing:
+        instructions = skill / "SKILL.md"
+        original_instructions = instructions.read_bytes()
+        try:
+            instructions.write_bytes(original_instructions + b"\n")
+            revised = run("identity")
+            assert revised["skill"]["content_digest"] != identity["skill"]["content_digest"]
+            assert revised["engine"] == identity["engine"]
+        finally:
+            instructions.write_bytes(original_instructions)
+    if existing:
+        for retired in ("protocol", "validate"):
+            assert run(retired, "--help", ok=False).returncode != 0
         assert (project / "AGENTS.md").is_symlink()
         # The installed launcher must expose every command advertised by its engine.
         help_result = run("--help", ok=False)
@@ -179,7 +207,7 @@ shards=["app:test"]
             assert name in help_result.stdout
             result = run(name, "--help", ok=False)
             assert result.returncode == 0, result.stdout + result.stderr
-        for prefix in (("validate",), ("check", "manifest")):
+        for prefix in (("check", "manifest"),):
             assert run(*prefix, "--manifest", project / "signetum.toml")["status"] == "valid"
 
     git_output(project, "add", ".")
@@ -192,7 +220,7 @@ shards=["app:test"]
     base = git_output(project, "rev-parse", "HEAD")
     member = Path(run("workspace-open", "plan/arithmetic", base)["worktree"])
     assert member.is_relative_to(project / ".worktrees")
-    run("change-open", "arithmetic", cwd=member)
+    run("change", "open", "arithmetic", cwd=member)
     record = member / "changes/arithmetic/change.toml"
     text = f'''[change]
 schema_version=1
@@ -224,7 +252,7 @@ contract_digest="{digest}"
     )
     git_output(member, "add", ".")
     git_output(member, "commit", "-m", "test: approve fixture outcome")
-    assert run("test", "--shard", "app:test", cwd=member, ok=False).returncode != 0
+    assert run("test", "run", "--shard", "app:test", cwd=member, ok=False).returncode != 0
     (member / "app.py").write_text("def twice(value): return value * 2\n")
     git_output(member, "add", ".")
     git_output(member, "commit", "-m", "fix: correct arithmetic")
@@ -269,7 +297,9 @@ contract_digest="{digest}"
         *originals,
         "AGENTS.md",
     }
-    assert run("current", cwd=project)["historical_authorities"]["mode"] == "read_on_demand"
+    assert (
+        run("change", "current", cwd=project)["historical_authorities"]["mode"] == "read_on_demand"
+    )
     (project / "signetum.toml").write_text(
         manifest.replace(prepared["engine"]["implementation"], "sha256:" + "0" * 64)
     )
@@ -319,4 +349,4 @@ contract_digest="{digest}"
     mise.write_text("#!/bin/sh\necho 'application tool selection is forbidden' >&2\nexit 23\n")
     mise.chmod(0o755)
     environment["PATH"] = str(shim) + os.pathsep + environment["PATH"]
-    assert run("identity")["implementation"] == prepared["engine"]["implementation"]
+    assert run("identity")["engine"]["implementation"] == prepared["engine"]["implementation"]

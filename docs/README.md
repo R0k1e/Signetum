@@ -3,8 +3,7 @@
 Start with [First use](../QUICKSTART.md). The agent handles setup syntax and uses
 the repository's existing application tools.
 
-- [Working with Signetum](guide.md): changes, decisions, tests, parallel delivery,
-  profiles and limitations.
+- [Working with Signetum](guide.md): human review, parallel delivery and updates.
 - [Existing runners](guides/existing-runners.md) and [repository bindings](guides/repository-bindings.md): explicit adoption/configuration contracts.
 - [Structured selection](guides/structured-selection.md): optional source-bound test selection.
 - [Architecture](ARCHITECTURE.md): maintained implementation and validation owners.

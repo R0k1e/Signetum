@@ -5,11 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
-from yaml import YAMLError, safe_load
-
 from signetum.change.models import require_relative_path
 from signetum.contract_values import FrozenContract
 from signetum.traceability.boundary import RepositoryInventory
+from yaml import YAMLError, safe_load
 
 REQUIRED_PRODUCT_PATHS = (
     "README.md",

@@ -29,11 +29,13 @@ with a fresh snapshot inside its existing deadline. The supervisor settles posit
 owned processes and scratch only; leaked or unobservable owned children refuse
 success. Test measurements report actual phases/allocation without permanent
 count/time gates. Mutable fixtures are independent; reuse only successful
-immutable preparation. Required host suites remain complete.
+immutable preparation. Required host suites remain complete. Repository pytest waits for cheap static
+prerequisites; failed prerequisites block it. A collection error ends that run
+without another full precollection pass or a passing qualification.
 
 ## Selection and efficient feedback
 
-`changed` explains without checks. `protocol test` delegates explicit targets or
+`changed` explains without checks. `test run` delegates explicit targets or
 a declared gate to the same supervisor and verdict core, without qualification.
 Native arguments apply only to a shard; full exact-source gates reject them and
 verify clean source plus input identities before and after execution.

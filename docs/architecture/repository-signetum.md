@@ -9,7 +9,7 @@ runners and delivery targets remain repository-owned. Updates are explicit.
 
 | Owner | Responsibility |
 | --- | --- |
-| `cli`, `protocol_cli`, `operation_cli`, `workflow_status` | Dispatch, structured results and derived views. |
+| `commands`, `cli`, `change_cli`, `operation_cli`, `workflow_status` | Dispatch, structured results and derived views. |
 | `change_record`, `development_log`, `development_store`, `decision_clauses`, `decision_history` | Approved outcomes, significant atomic journal mutations and the derived decision set. |
 | `change/*`, `traceability/*`, `source_authority`, `execution_review` | Scope, immutable source proofs, accounting and review qualification. |
 | `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `delivery`, `synchronization` | Isolated work, named integration and exact remote-first delivery. |
@@ -17,7 +17,8 @@ runners and delivery targets remain repository-owned. Updates are explicit.
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
 | `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
 | `adoption`, `runtime_identity`, Skill `scripts/launch.py` | Exact reviewed bindings, code identity and isolated locked execution. |
-| `release`, `resources/schemas`, `site`, `product_surface` | Component identities, installable schemas and public distribution assets. |
+| `resources/schemas`, `skill_identity`, `runtime_identity` | Installed schemas, complete Skill identity and engine pin. |
+| Root `tools/release`, `tools/site`, `tools/product_surface`, `tools/cli` | Repository-only packaging, Pages and public asset checks; excluded from the Skill. |
 
 ## One maintained implementation
 
@@ -26,11 +27,14 @@ launcher explicitly prepares a noneditable installation under its own ignored
 `.runtime/` directory using `scripts/engine/uv.lock`. Setup selects a host interpreter through Mise; a prepared launcher uses that
 interpreter directly instead of selecting the application’s Python. Normal commands check that
 installation and the project's `signetum.engine_digest`; they never install or
-repair tooling. The application environment is not the engine environment. The Skill launcher
-forwards explicit engine command namespaces, maps eight lifecycle shortcuts and
-retains local protocol shortcuts. Installed acceptance checks advertised command
-access. Complete Skill updates and any changed project engine pin are separate,
-explicit steps; launcher-only fixes need no engine pin change.
+repair tooling. The application environment is not the engine environment. The launcher forwards arguments unchanged; `commands` owns the sole public
+registry used by CLI/help and installed acceptance. Eight lifecycle operations
+are direct; `change`, `test`, `check`, `adopt` and `maintenance` own auxiliary
+work. No public lifecycle/protocol namespace or validate alias remains. Bootstrap
+setup, identity and update instructions are declared alongside the command table.
+`identity` reports full Skill content independently from the project engine pin;
+explicit launcher/instruction updates need no pin change when engine content matches.
+
 
 Root `uv.lock` pins maintainer tools and an editable engine dependency. Internal
 wheel/sdist builds verify the install boundary; the standard Skill folder is the
