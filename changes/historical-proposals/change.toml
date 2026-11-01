@@ -1,0 +1,35 @@
+[change]
+schema_version = 1
+id = "historical-proposals"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner renews the instruction to complete actual Perdura adoption after the concrete historical-proposal blocker and its scoped repair were presented."
+
+[change.contract]
+version = 1
+approved_base = "b1a2701286507e82f27edec4d048abde15ea8fdb"
+
+[[change.contract.requirements]]
+id = "REQ-001"
+outcome = "Final rejects proposed decisions introduced or changed by the batch without adopting unchanged historical proposals."
+acceptance = ["Use the immutable registered batch base and declared decision root; unchanged historical proposals remain untouched.", "Retain rejection of added or modified Proposed decisions, accepted decision identity and source-bound final evidence.", "Extend existing batch tests, reconcile architecture and engine identity, qualify and deliver Signetum source, then update the installed Skill for downstream acceptance."]
+
+[change.contract.autonomy]
+allowed = ["Repair the scoped adoption blocker, validate and deliver Signetum source under existing source delivery authority, update the isolated installed Skill and explicitly reviewed downstream pin."]
+requires_confirmation = ["Publishing a tag, GitHub Release or external promotional message; changing unrelated application behavior or accepting historical proposals."]
+
+[[change.contract.excluded]]
+statement = "Historical decision conversion, application behavior changes and public release publication."
+reason = "Preserve existing authorities while completing the requested adoption."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["REQ-001"]
+action = "Scope the existing proposal guard to changed decision paths, extend existing positive/negative final traversals, qualify and deliver the correction, then repeat downstream final."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-01
+source = "The owner instructed completing current Perdura adoption after the historical proposal blocker and its scoped fix were presented; existing Signetum source delivery authorization remains in effect."
+contract_digest = "sha256:98f861461e412f5318caf29506a1b0da998fd6374af2085ccca81f2d60dcbe28"
