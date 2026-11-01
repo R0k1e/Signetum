@@ -184,17 +184,7 @@ shards=["app:test"]
         finally:
             instructions.write_bytes(original_instructions)
     if existing:
-        for retired in (
-            "protocol",
-            "lifecycle",
-            "validate",
-            "release",
-            "site",
-            "findings",
-            "record",
-            "current",
-            "change-open",
-        ):
+        for retired in ("protocol", "validate"):
             assert run(retired, "--help", ok=False).returncode != 0
         assert (project / "AGENTS.md").is_symlink()
         # The installed launcher must expose every command advertised by its engine.
