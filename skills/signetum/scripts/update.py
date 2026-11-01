@@ -105,18 +105,26 @@ def latest_release() -> dict[str, str] | None:
     return max(eligible, key=lambda item: _version(item["version"])) if eligible else None
 
 
+def _candidate_status(installed: dict[str, str], candidate: dict[str, str]) -> str:
+    """Same digest is current; an older version is ahead; anything else can replace."""
+
+    if installed["content_digest"] == candidate["content_digest"]:
+        return "current"
+    if _version(candidate["version"]) < _version(installed["version"]):
+        return "ahead"
+    return "available"
+
+
 def check(current: Path, source: Path | None) -> dict[str, object]:
     installed = describe(current)
     candidate = describe(source) if source is not None else latest_release()
     if candidate is None:
         return {"status": "no_release", "current": installed, "candidate": None}
-    if installed["content_digest"] == candidate["content_digest"]:
-        status = "current"
-    elif _version(candidate["version"]) < _version(installed["version"]):
-        status = "ahead"
-    else:
-        status = "available"
-    return {"status": status, "current": installed, "candidate": candidate}
+    return {
+        "status": _candidate_status(installed, candidate),
+        "current": installed,
+        "candidate": candidate,
+    }
 
 
 def _extract(payload: bytes, destination: Path) -> Path:
@@ -341,9 +349,9 @@ def main(arguments: list[str] | None = None) -> int:
                     if candidate is None:
                         raise ValueError("no stable Signetum release is available")
                     installed = describe(SKILL)
-                    same = installed["content_digest"] == candidate["content_digest"]
-                    newer = _version(candidate["version"]) > _version(installed["version"])
-                    if same or not newer:
+                    # Same digest, or a strictly older candidate, stays current.
+                    # An equal version with a different digest is still installed.
+                    if _candidate_status(installed, candidate) != "available":
                         source = None
                         result = {
                             "status": "current",

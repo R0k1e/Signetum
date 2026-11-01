@@ -3,6 +3,7 @@
 import importlib.util
 import io
 import json
+import os
 import shutil
 import stat
 import subprocess
@@ -282,6 +283,84 @@ def test_bare_update_installs_newer_exact_source_and_skips_current_or_older(
     assert updater.main([]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "current"
     assert installed == []
+
+    monkeypatch.setattr(
+        updater,
+        "latest_release",
+        lambda: {"version": "0.3.0", "content_digest": "sha256:" + "b" * 64, "source": commit},
+    )
+    assert updater.check(tmp_path, None)["status"] == "available"
+    assert updater.main([]) == 0
+    replaced = json.loads(capsys.readouterr().out)
+    assert replaced["status"] == "updated"
+    assert replaced["source"] == commit
+    assert replaced["project_changed"] is False
+    assert installed
+
+
+def test_busy_installation_use_is_refused(updater, monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "state"))
+    root = tmp_path / "version"
+    root.mkdir()
+    installation = _installation(updater)
+    with installation.installation_use(root):
+        with pytest.raises(ValueError, match="in use"):
+            with installation.installation_use(root, exclusive=True):
+                pass
+
+
+def test_traced_skill_copy_refuses_busy_entry_and_installation_locks(tmp_path):
+    """Drive the shipped lock helpers from the installed-skill path coverage traces."""
+
+    scripts = tmp_path / "installed Skill" / "signetum" / "scripts"
+    scripts.mkdir(parents=True)
+    shipped = Path(__file__).resolve().parents[2] / "skills/signetum/scripts/installation.py"
+    (scripts / "installation.py").write_bytes(shipped.read_bytes())
+    entry = tmp_path / "entry"
+    version = tmp_path / "version"
+    entry.mkdir()
+    version.mkdir()
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "\n".join(
+            (
+                "import sys",
+                "from pathlib import Path",
+                "sys.path.insert(0, sys.argv[1])",
+                "import installation",
+                "entry = Path(sys.argv[2])",
+                "version = Path(sys.argv[3])",
+                "with installation.entry_switch(entry):",
+                "    try:",
+                "        with installation.entry_switch(entry):",
+                "            raise SystemExit('entry lock did not conflict')",
+                "    except ValueError as error:",
+                "        if 'being switched' not in str(error):",
+                "            raise",
+                "with installation.installation_use(version):",
+                "    try:",
+                "        with installation.installation_use(version, exclusive=True):",
+                "            raise SystemExit('installation lock did not conflict')",
+                "    except ValueError as error:",
+                "        if 'in use' not in str(error):",
+                "            raise",
+                "print('ok')",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    env = dict(os.environ)
+    env["XDG_DATA_HOME"] = str(tmp_path / "state")
+    completed = subprocess.run(  # noqa: S603 -- shipped installation module, explicit interpreter
+        [sys.executable, str(probe), str(scripts), str(entry), str(version)],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout.strip() == "ok"
 
 
 def test_bare_update_network_or_missing_release_leaves_a_failed_result(
