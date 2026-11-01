@@ -156,7 +156,6 @@ def test_changed_tests_cannot_be_lost_by_narrowing_to_other_targets(
         resolve(root, selection_runtime, ("tests/test_a.py",))
 
 
-@pytest.mark.parametrize("selection_runtime", ["engine"], indirect=True)
 def test_provider_failure_is_infrastructure_without_running_validation(
     local_repository, selection_runtime
 ):
@@ -214,7 +213,6 @@ def _selected_member(repository, selection_runtime, *, mode="valid", broken_full
     return runtime, root, member, base
 
 
-@pytest.mark.parametrize("selection_runtime", ["engine"], indirect=True)
 def test_real_member_diagnostics_ready_admission_and_full_final_share_selection(
     repository, selection_runtime
 ):
@@ -345,7 +343,6 @@ def test_selection_rechecks_tool_identity_before_accepting_a_plan(
     assert resolve(root, selection_runtime).selection.shards == ("test:check",)
 
 
-@pytest.mark.parametrize("selection_runtime", ["engine"], indirect=True)
 def test_provider_process_leak_refuses_a_plan_and_settles_its_owned_child(
     local_repository, selection_runtime
 ):
@@ -424,7 +421,6 @@ def test_whole_shard_provider_needs_no_file_refinement_binding_for_changed_tests
     assert git_output(root, "rev-parse", "main") == base
 
 
-@pytest.mark.parametrize("selection_runtime", ["engine"], indirect=True)
 def test_without_provider_executes_full_member_checks_despite_no_check_impact_rules(
     repository, selection_runtime
 ):
