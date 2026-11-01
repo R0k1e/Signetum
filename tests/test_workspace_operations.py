@@ -500,6 +500,7 @@ def test_failed_admission_preparation_keeps_merge_for_supported_retry(repository
     with pytest.raises(InfrastructureError) as refusal:
         lifecycle.admit(batch, (member,))
     assert "batch-admit" in refusal.value.expected
+    assert "--batch" in refusal.value.expected
     assert str(batch) in refusal.value.expected
     merged = git_output(batch, "rev-parse", "HEAD")
     assert (batch / "own.txt").is_file()

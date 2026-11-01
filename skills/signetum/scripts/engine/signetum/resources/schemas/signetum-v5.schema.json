@@ -18,9 +18,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "protocol",
-        "evidence_protocol",
-        "evidence_schema_digest"
+        "protocol"
       ],
       "properties": {
         "protocol": {
@@ -30,7 +28,7 @@
           "const": "reposeal.validation-evidence@3"
         },
         "evidence_schema_digest": {
-          "$ref": "#/$defs/digest"
+          "const": "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
         }
       }
     },

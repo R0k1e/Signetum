@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from signetum.manifest import ManifestError, load_manifest
+from signetum.resources.schemas import evidence_schema_digest
 from signetum.validation.repository import configured_validation
 
 ROOT = Path(__file__).parents[2]
@@ -38,7 +39,7 @@ def test_native_loader_supplies_the_same_declared_defaults(manifest_file):
     manifest_file.write_text(text)
     installed = load_manifest(manifest_file)
     assert installed.signetum.evidence_protocol == "reposeal.validation-evidence@3"
-    assert installed.signetum.evidence_schema_digest.startswith("sha256:")
+    assert installed.signetum.evidence_schema_digest == evidence_schema_digest()
     assert installed.validation.shards[0].timeout_seconds > 0
     assert installed.validation.shards[0].inherit is False
 
@@ -62,6 +63,7 @@ def test_native_loader_supplies_the_same_declared_defaults(manifest_file):
         "timeout",
         "missing-member",
         "identity-empty",
+        "evidence-digest",
     ],
 )
 def test_native_loaders_reject_the_same_invalid_contract(manifest_file, damage):
@@ -83,6 +85,10 @@ def test_native_loaders_reject_the_same_invalid_contract(manifest_file, damage):
         "timeout": ('name = "python:sync"\n', 'name = "python:sync"\ntimeout_seconds = 0\n'),
         "missing-member": ('name = "member"\n', 'name = "other"\n'),
         "identity-empty": ('identity_command = ["uv", "--version"]', 'identity_command = [""]'),
+        "evidence-digest": (
+            f'evidence_schema_digest = "{evidence_schema_digest()}"',
+            'evidence_schema_digest = "sha256:' + "ab" * 32 + '"',
+        ),
     }
     manifest_file.write_text(replace(text, *substitutions[damage]))
     with pytest.raises(ManifestError):
