@@ -1,0 +1,45 @@
+[change]
+schema_version = 1
+id = "publish-runner"
+
+[change.source]
+kind = "human_direction"
+summary = "Publish Signetum 0.3.0. The pushed tag has no GitHub Release because validation cannot start on the retired macOS 14 runner image."
+
+[change.contract]
+version = 1
+approved_base = "bb827a6c30edd6a03c89f44962fb9090aef56727" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RUNNER-001"
+outcome = "Release validation schedules its macOS leg on an image GitHub still provides, and the authorized 0.3.0 publication can run on that source."
+acceptance = [
+    "The default validation target uses macos-15 for Python 3.13. The artifact name stays macos-3.13.",
+    "The Ubuntu 3.12 and 3.13 targets stay ubuntu-latest. Package version, Skill version, and changelog stay 0.3.0.",
+    "No engine, schema, coverage threshold, or Perdura file changes.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Replace the default macOS runner label and deliver this change to main.",
+    "After delivery, point the unpublished v0.3.0 tag at that commit and push only the tag. That tag has no GitHub Release and no artifacts.",
+]
+requires_confirmation = [
+    "Force-push main or rewrite delivered history.",
+    "Edit Perdura, change the product version, or move a tag that already has a GitHub Release.",
+]
+
+[[change.contract.excluded]]
+statement = "Product behavior, schema, coverage threshold, changelog text, and Perdura."
+reason = "The owner asked to release 0.3.0. This change only makes that publication runnable."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["RUNNER-001"]
+action = "Switch the default macOS validation image to macos-15, qualify the change, and deliver it to main before replacing the unpublished tag."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-01
+source = "The owner asked to release 0.3.0. The pushed tag cannot publish while validation requests the retired macOS 14 runner image."
+contract_digest = "sha256:463b91db176b166bac2c04a6141fba499ad7c5abd2982a443a2540c0b0c344fa"
