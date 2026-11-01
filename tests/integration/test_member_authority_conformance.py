@@ -15,7 +15,7 @@ from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
 @pytest.fixture
-def authority(request, repository, tmp_path):
+def authority(repository, tmp_path):
     root, state = repository
     runtime = lifecycle
     marker = state / "checks"

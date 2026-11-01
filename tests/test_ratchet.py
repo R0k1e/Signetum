@@ -26,8 +26,8 @@ def document(*diagnostics):
     return json.dumps({"schema_version": 1, "diagnostics": list(diagnostics)})
 
 
-@pytest.fixture(params=["engine"])
-def runtime(request, monkeypatch):
+@pytest.fixture
+def runtime():
     return lifecycle
 
 

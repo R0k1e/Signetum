@@ -21,8 +21,8 @@ from signetum.validation.repository import RepositoryValidationAdapter
 from signetum.validation.resources import ResourceObservation, allocate_workers, observe_resources
 
 
-@pytest.fixture(params=["engine"])
-def repository_adapter(request, monkeypatch):
+@pytest.fixture
+def repository_adapter():
     return (RepositoryValidationAdapter, resources, ("-m", "signetum.validation.pytest_runner"))
 
 

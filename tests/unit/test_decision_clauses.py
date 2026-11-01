@@ -1,8 +1,6 @@
 """Decision edits preserve unaffected clauses and refuse lost updates."""
 
-import importlib
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 from signetum.decision_clauses import (
@@ -13,27 +11,6 @@ from signetum.decision_clauses import (
     ExpectedClause,
     apply_decision_edits,
 )
-
-
-@pytest.fixture(autouse=True, params=["engine"])
-def authority(request, monkeypatch):
-    if request.param == "template":
-        monkeypatch.syspath_prepend(
-            str(
-                Path(__file__).parents[2]
-                / "tests/fixtures/portable-python/.agents/signetum/runtime"
-            )
-        )
-        generated = importlib.import_module("signetum.decision_clauses")
-        for name in (
-            "ClauseRevision",
-            "DecisionEdit",
-            "DecisionEditError",
-            "EffectiveClause",
-            "ExpectedClause",
-            "apply_decision_edits",
-        ):
-            monkeypatch.setitem(globals(), name, getattr(generated, name))
 
 
 def clause(identity, **values):

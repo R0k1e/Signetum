@@ -176,19 +176,20 @@ def test_inner_deadline_terminates_descendants_without_killing_outer_adapter(tmp
     child = "import time,sys; from pathlib import Path; time.sleep(2); Path(sys.argv[1]).touch()"
     parent = "import subprocess,sys; subprocess.run([sys.executable,'-c',sys.argv[1],sys.argv[2]])"
     adapter = (
-        "import sys,time,subprocess; from pathlib import Path; "
+        "import sys,json,time,subprocess; from pathlib import Path; "
         "from signetum.validation.process import run_command\n"
         "started=time.monotonic()\n"
         "try:\n"
         "    run_command(Path.cwd(), [sys.executable,'-c',sys.argv[1],sys.argv[2],sys.argv[3]], "
         "timeout_seconds=0.5)\n"
-        "except subprocess.TimeoutExpired:\n"
-        "    print(time.monotonic()-started)\n"
+        "except subprocess.TimeoutExpired as error:\n"
+        "    print(json.dumps({'deadline': error.timeout, 'elapsed': time.monotonic()-started}))\n"
     )
     result = run_command(
         tmp_path, (sys.executable, "-c", adapter, parent, child, str(marker)), timeout_seconds=5
     )
     assert result.returncode == 0, result.stderr
-    assert float(result.stdout) < 1.5
+    # Startup and owned-process settlement are not part of the configured deadline.
+    assert json.loads(result.stdout)["deadline"] == 0.5
     time.sleep(2)
     assert not marker.exists()
