@@ -7,7 +7,7 @@ on:
         default: ""
       targets:
         type: string
-        default: '[{"os":"ubuntu-latest","python":"3.12","artifact":"linux-3.12"},{"os":"ubuntu-latest","python":"3.13","artifact":"linux-3.13"},{"os":"macos-14","python":"3.13","artifact":"macos-3.13"}]'
+        default: '[{"os":"ubuntu-latest","python":"3.12","artifact":"linux-3.12"},{"os":"ubuntu-latest","python":"3.13","artifact":"linux-3.13"},{"os":"macos-15","python":"3.13","artifact":"macos-3.13"}]'
 permissions:
   contents: read
 jobs:
