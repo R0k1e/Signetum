@@ -69,5 +69,6 @@ The [documentation map](docs/README.md) routes configuration and operation detai
 > Use $signetum to update to [exact version or commit]. Verify the new installation,
 > show any required project-binding changes, then validate and deliver them.
 
-The Skill's `update` entry displays the explicit procedure. It downloads and
-changes nothing by itself. Ordinary work does not upgrade the installation.
+Bare `update` displays the guide. Use `update --check` to inspect a new version,
+and `update --source` or `--to` to explicitly install it. Compatible updates do
+not change project files. Ordinary work does not upgrade the installation.

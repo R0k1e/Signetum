@@ -20,7 +20,7 @@ loading and unknown-input cases before adoption. See the maintained
 
 ## Pytest scheduling
 
-Use `schedule --log <existing-pytest-log> --output <new-weights.json>` to derive
+Use `test schedule --log <existing-pytest-log> --output <new-weights.json>` to derive
 hints from ordinary duration output; `--by-file` produces file costs for CI
 partitions. Inspect and commit the resulting validation input. No extra timing
 report is maintained.
@@ -36,7 +36,7 @@ are observations, not wall-clock guarantees or whole-process-tree memory peaks.
 
 ## CI file partitions
 
-`partition plan --config <path> --output <outside-repository-plan.json>` enumerates
+`test partition plan --config <path> --output <outside-repository-plan.json>` enumerates
 committed regular files before importing them. Configuration is also declared in
 `repository.lockfiles`:
 
@@ -64,14 +64,14 @@ executable selected tests; marker-only empty lanes are not successful evidence.
 The result exposes the matrix. Each existing CI job runs:
 
 ```text
-partition run --plan <plan.json> --index <n> --output <unique-result.json>
+test partition run --plan <plan.json> --index <n> --output <unique-result.json>
 ```
 
 Prepare required dependencies/builds first. Upload result files through existing
 CI artifacts. After all jobs finish, run on the same source and tool identities:
 
 ```text
-partition combine --plan <plan.json> --result <result-0.json> --result <result-1.json> --job-status success --job-status success
+test partition combine --plan <plan.json> --result <result-0.json> --result <result-1.json> --job-status success --job-status success
 ```
 
 Each plan has a distinct run identity: do not reuse an old plan for a new CI run.

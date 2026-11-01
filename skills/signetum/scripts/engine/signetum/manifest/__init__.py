@@ -12,7 +12,7 @@ from signetum.validation import GateDeclaration as ValidationGate
 from signetum.validation import ToolDeclaration as ValidationTool
 from signetum.validation import ValidationShard
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 class ManifestError(ValueError):
@@ -22,17 +22,14 @@ class ManifestError(ValueError):
 @dataclass(frozen=True, kw_only=True)
 class SignetumIdentity:
     protocol: int
-    engine_digest: str = ""
     evidence_protocol: str = "reposeal.validation-evidence@3"
     evidence_schema_digest: str = (
         "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
     )
 
     def __post_init__(self) -> None:
-        if self.engine_digest and fullmatch(r"sha256:[0-9a-f]{64}", self.engine_digest) is None:
-            raise ManifestError("engine_digest must be sha256")
-        if self.protocol < 2:
-            raise ManifestError("signetum.protocol must be at least 2")
+        if self.protocol != 2:
+            raise ManifestError("unsupported signetum protocol; supported version is 2")
         if self.evidence_protocol != "reposeal.validation-evidence@3":
             raise ManifestError(f"unsupported evidence protocol: {self.evidence_protocol}")
         if fullmatch(r"sha256:[0-9a-f]{64}", self.evidence_schema_digest) is None:

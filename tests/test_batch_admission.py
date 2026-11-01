@@ -39,7 +39,7 @@ def _git(repository: Path, *arguments: str) -> str:
     ).stdout.strip()
 
 
-MANIFEST = """schema_version = 4
+MANIFEST = """schema_version = 5
 [delivery]
 branch = "main"
 
@@ -831,26 +831,13 @@ def test_ready_and_admission_refuse_an_implementation_without_a_change_package(t
     assert _git(batch, "rev-parse", "HEAD") == before
 
 
-@pytest.fixture(params=["engine"], autouse=True)
-def lifecycle_frontend(request, monkeypatch):
-    """The complete admission/final contract corpus also runs on the generated library."""
-    if request.param == "template":
-        monkeypatch.syspath_prepend(
-            str(
-                Path(__file__).parents[1]
-                / "tests/fixtures/portable-python/.agents/signetum/runtime"
-            )
-        )
-        monkeypatch.setitem(globals(), "lifecycle", importlib.import_module("signetum.lifecycle"))
-
-
 @pytest.mark.parametrize("resolved", [False, True])
 def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_path, resolved):
     member, batch, base = _member_and_batch(tmp_path)
     path = consolidated_approval(member, base)
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve consolidated member")
-    prefix = "signetum" if lifecycle.__name__ == "signetum.lifecycle" else "_signetum_runtime"
+    prefix = "signetum"
     store = importlib.import_module(prefix + ".development_store")
     records = importlib.import_module(prefix + ".change_record")
     record = records.parse_change_record(path.read_text())

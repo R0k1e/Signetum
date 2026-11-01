@@ -8,8 +8,8 @@ the user's project and call `sh <skill-base-dir>/scripts/signetum ...`.
 
 Check Git, Mise, Worktrunk (`wt`), uv and host Python 3.12+. Report missing tools
 and resolve setup explicitly. Honor the host's Mise trust decision; never trust
-project configuration automatically. Run `setup` to select host Python 3.12 explicitly through Mise and create a locked environment
-under the installed Skill's ignored `.runtime/` directory. `identity` reports its
+project configuration automatically. Run `setup` to select host Python 3.12 and uv 0.12.2 explicitly through Mise,
+including on hosts with unconfigured shims, and create a locked environment under the installed Skill's ignored `.runtime/` directory. `identity` reports its
 code and dependency identities. No Signetum dependency belongs in the application's
 production or development dependency groups. Application commands retain their
 own environment; the engine environment is never prepended to their PATH.
@@ -30,7 +30,7 @@ Both use the same adoption flow:
 1. `adopt inspect` reports available tools and the engine digest without running
    application commands or reading/modifying Agent entrypoints.
 2. Prepare one request containing the complete reviewed `signetum.toml` text.
-   Bind the reported engine digest, delivery branch, record roots, actual tool
+   Bind supported configuration/protocol versions, delivery branch, record roots, actual tool
    identities, inputs and preparation/member/batch/final commands. Architecture
    is optional context. See the [binding contract](https://github.com/R0k1e/Signetum/blob/main/docs/guides/existing-runners.md).
 3. `adopt preview --repository . --request <request.json> --output <plan.json>`
@@ -47,29 +47,37 @@ files may be retired only through explicit exact-hash entries in the same review
 preview; changed and unmanaged files remain untouched. This retirement path does
 not provide an old runtime fallback. Inspect interrupted application before retry.
 
-## Continue and update
+## Explicit updates
 
-Use this installed Skill launcher for daily work. Project hooks remain active;
-Signetum emits readable merge commits with structured provenance and does not
-rewrite the project's commit convention. Updating the Skill or engine pin is a
-later explicit reviewed operation. Historical decisions remain evidence; let the
-agent retrieve and organize relevant context rather than forcing an archive
-conversion or copying the full archive into each current view.
+Bare `update` shows this guide without preparing an environment or accessing the
+network. `identity` reports complete Skill content and actual engine/dependency
+identity. Project configuration declares manifest format 5 and protocol 2; it
+contains no engine implementation pin.
 
-For an update, acquire the complete Skill folder at one reviewed exact tag or
-commit into a new writable directory. Exclude the old `.runtime`; run explicit
-`setup` and `identity` there before selecting it as the installed Skill. Keep the
-previous installation available until verification succeeds and avoid replacing
-files while commands are running. A Git pull in an upstream checkout does not
-update an independently installed Skill. Setup prepares local dependencies; it
-does not download newer Skill source.
+- `update --check` reads eligible stable Signetum release metadata. Historical
+  RepoSeal releases, drafts and prereleases do not imply an upgrade. Offline,
+  unavailable and no-release results are not up-to-date claims.
+- `update --check --source <complete-skill-directory>` compares a local candidate
+  without preparing or switching an installation.
+- `update --source <complete-skill-directory>` or `update --to <version-or-commit>`
+  explicitly acquires a complete candidate, prepares and verifies its isolated
+  runtime, checks current project compatibility and switches the installed entry.
+  Moving branch names are refused; remote versions resolve to immutable commits.
 
-The `update` entry prints this procedure and its reference path without downloads
-or changes. `identity` reports `skill.version`, `skill.content_digest` and `engine`;
-only `engine.implementation` is compared with a project's `signetum.engine_digest`. If engine
-content changed, use the same inspect, preview and exact-plan apply flow in a
-project change workspace, preserve all other bindings, then qualify and deliver
-that update. If only launcher/instructions changed and the engine digest matches,
-no project manifest change is needed. Verify the installed help, required commands
-and a relevant project operation before removing the old installation. Existing
-active workspaces and source-bound receipts are not automatically upgraded.
+The installer retains usable version directories outside application repositories
+and switches the stable entry only after verification. Active installation use
+refuses replacement. Preparation/switch failure leaves the old usable entry;
+`previous_entry` identifies the retained version. Do not delete versions used by
+other workspaces. Ordinary commands never download or automatically upgrade.
+
+Compatible implementation changes require no project edit or commit. Verification
+still records actual runtime identity, so old-runtime evidence cannot qualify a
+new runtime. Changed configuration/protocol contracts return migration_required
+without switching or editing the project. Use the candidate entry for a separately
+approved adoption preview, migrate required bindings/callers, qualify and deliver,
+then explicitly activate the installation. Existing active workspaces and receipts
+are not automatically migrated.
+
+For the one-time v4-to-v5 configuration migration, set schema_version to 5 and
+remove signetum.engine_digest; preserve unrelated project commands and inputs.
+The engine remains in the installed Skill. Do not add an application dependency.

@@ -1,4 +1,4 @@
-"""Manifest defaults, rejection and validation identity agree across frontends."""
+"""Manifest defaults, rejection and validation identity are enforced by the engine."""
 
 import re
 from pathlib import Path
@@ -67,7 +67,7 @@ def test_native_loader_supplies_the_same_declared_defaults(manifest_file):
 def test_native_loaders_reject_the_same_invalid_contract(manifest_file, damage):
     text = manifest_file.read_text()
     substitutions = {
-        "root-extra": ("schema_version = 4\n", "schema_version = 4\nunexpected = true\n"),
+        "root-extra": ("schema_version = 5\n", "schema_version = 5\nunexpected = true\n"),
         "protocol-type": ("protocol = 2", 'protocol = "2"'),
         "retired-field": ("[signetum]\n", '[signetum]\ntemplate_version = "main"\n'),
         "repository-extra": ("[repository]\n", "[repository]\nunexpected = true\n"),

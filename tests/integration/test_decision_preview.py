@@ -4,7 +4,6 @@ import json
 import subprocess
 import sys
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 from signetum.decision_clauses import ClauseRevision, DecisionEdit, ExpectedClause
@@ -58,12 +57,10 @@ def proposal():
     return TransactionProposal(schema_version=1, transaction=event)
 
 
-@pytest.mark.parametrize("frontend", ["engine"])
 @pytest.mark.parametrize("valid", [True, False])
 def test_candidate_history_preview_is_read_only_and_rejects_missing_predecessors(
     tmp_path,
     proposal,
-    frontend,
     valid,
 ):
     if not valid:
@@ -71,19 +68,7 @@ def test_candidate_history_preview_is_read_only_and_rejects_missing_predecessors
     candidate = tmp_path / "candidate.jsonl"
     candidate.write_text(json.dumps(contract_mapping(proposal)) + "\n")
     before = candidate.read_bytes()
-    runtime = Path(__file__).parents[2] / "tests/fixtures/portable-python/.agents/signetum/runtime"
-    script = """
-import sys
-sys.path.insert(0,sys.argv[1])
-from signetum.decision_history import main
-assert 'signetum' not in sys.modules and 'pydantic' not in sys.modules
-raise SystemExit(main([sys.argv[2]]))
-"""
-    argv = (
-        ["-m", "signetum.decision_history", str(candidate)]
-        if frontend == "engine"
-        else ["-I", "-S", "-c", script, str(runtime), str(candidate)]
-    )
+    argv = ["-m", "signetum.decision_history", str(candidate)]
     result = subprocess.run(  # noqa: S603 -- isolated preview, explicit disposable candidate input
         [sys.executable, *argv],
         capture_output=True,

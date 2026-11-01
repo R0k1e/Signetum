@@ -7,11 +7,18 @@ if [ "${1:-}" = update ]; then
             printf '%s\n' '{"schema_version":1,"operation":"update","status":"instructions","reference":"references/adoption.md","automatic_updates":false}'
             exit 0
             ;;
-        *) printf '%s\n' '{"status":"invalid","cause":"update accepts no arguments; read references/adoption.md"}' >&2; exit 2 ;;
+        *)
+            if [ ! -x "$skill_dir/.runtime/host-python" ]; then
+                printf '%s\n' '{"status":"failed","cause":"Prepare the Skill with setup before checking or executing updates"}' >&2
+                exit 2
+            fi
+            shift
+            exec "$skill_dir/.runtime/host-python" "$skill_dir/scripts/update.py" "$@"
+            ;;
     esac
 fi
 if [ "${1:-}" = setup ]; then
-    exec mise exec python@3.12 -- python "$skill_dir/scripts/launch.py" "$@"
+    exec mise exec python@3.12 uv@0.12.2 -- python "$skill_dir/scripts/launch.py" "$@"
 fi
 if [ ! -x "$skill_dir/.runtime/host-python" ]; then
     printf '%s\n' '{"status":"failed","stage":"skill-execution","cause":"Skill environment is not prepared; run the explicit setup command first"}' >&2
