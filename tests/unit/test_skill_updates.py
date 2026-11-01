@@ -3,6 +3,7 @@
 import importlib.util
 import io
 import json
+import shutil
 import stat
 import subprocess
 import sys
@@ -89,18 +90,20 @@ def _stage_switch(updater, monkeypatch, tmp_path):
     return candidate
 
 
+def _installation(updater):
+    return sys.modules[updater.entry_switch.__module__]
+
+
 def test_in_use_version_does_not_block_entry_switch_and_keeps_old_bytes(
     updater, monkeypatch, tmp_path
 ):
-    import installation
-
     candidate = _stage_switch(updater, monkeypatch, tmp_path)
     old = tmp_path / "old-version"
     old.mkdir()
     (old / "sentinel").write_text("old")
     entry = tmp_path / "installed"
     entry.symlink_to(old, target_is_directory=True)
-    with installation.installation_use(old):
+    with _installation(updater).installation_use(old):
         result = updater.install(entry, candidate, tmp_path)
     assert result["status"] == "updated"
     assert result["project_changed"] is False
@@ -112,14 +115,12 @@ def test_in_use_version_does_not_block_entry_switch_and_keeps_old_bytes(
 def test_concurrent_entry_switch_is_refused_without_moving_the_entry(
     updater, monkeypatch, tmp_path
 ):
-    import installation
-
     candidate = _stage_switch(updater, monkeypatch, tmp_path)
     old = tmp_path / "old-version"
     old.mkdir()
     entry = tmp_path / "installed"
     entry.symlink_to(old, target_is_directory=True)
-    with installation.entry_switch(entry):
+    with _installation(updater).entry_switch(entry):
         with pytest.raises(ValueError, match="being switched"):
             updater.install(entry, candidate, tmp_path)
     assert entry.resolve() == old.resolve()
@@ -177,7 +178,11 @@ def test_update_refuses_git_source_and_version_storage(updater, monkeypatch, tmp
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     (checkout / "sentinel").write_text("source")
-    subprocess.run(["git", "init", str(checkout)], check=True, capture_output=True)
+    git = shutil.which("git")
+    assert git is not None
+    subprocess.run(  # noqa: S603 -- resolved Git executable, explicit init, no shell
+        [git, "init", str(checkout)], check=True, capture_output=True
+    )
     with pytest.raises(ValueError, match="Git-managed"):
         updater.install(checkout, source, tmp_path)
     assert (checkout / "sentinel").read_text() == "source"

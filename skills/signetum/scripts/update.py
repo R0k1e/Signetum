@@ -236,8 +236,11 @@ def _refuse_protected_target(entry: Path) -> None:
             protected_version = True
         if protected_version:
             raise ValueError("update refuses to rewrite a version directory")
-    completed = subprocess.run(
-        ["git", "-C", str(entry), "rev-parse", "--is-inside-work-tree"],
+    executable = shutil.which("git")
+    if executable is None:
+        return
+    completed = subprocess.run(  # noqa: S603 -- resolved Git executable, explicit argv, no shell
+        [executable, "-C", str(entry), "rev-parse", "--is-inside-work-tree"],
         check=False,
         capture_output=True,
         text=True,
