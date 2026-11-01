@@ -47,28 +47,36 @@ files may be retired only through explicit exact-hash entries in the same review
 preview; changed and unmanaged files remain untouched. This retirement path does
 not provide an old runtime fallback. Inspect interrupted application before retry.
 
-## Explicit updates
+## Update an installed Skill
 
-Bare `update` shows this guide without preparing an environment or accessing the
-network. `identity` reports complete Skill content and actual engine/dependency
-identity. Project configuration declares manifest format 5 and protocol 2; it
-contains no engine implementation pin.
+This is the only update procedure. Other pages cite it.
 
-- `update --check` reads eligible stable Signetum release metadata. Historical
-  RepoSeal releases, drafts and prereleases do not imply an upgrade. Offline,
-  unavailable and no-release results are not up-to-date claims.
-- `update --check --source <complete-skill-directory>` compares a local candidate
-  without preparing or switching an installation.
-- `update --source <complete-skill-directory>` or `update --to <version-or-commit>`
-  explicitly acquires a complete candidate, prepares and verifies its isolated
-  runtime, checks current project compatibility and switches the installed entry.
-  Moving branch names are refused; remote versions resolve to immutable commits.
+Bare `sh <skill-base-dir>/scripts/signetum update` installs the latest eligible
+stable Signetum release and prepares that candidate. It does not ask for a
+separate setup of the old environment. `identity` reports complete Skill content
+and actual engine/dependency identity. Project configuration stays manifest
+format 5 and protocol 2, with no engine implementation pin. Omitted evidence
+fields mean the published evidence protocol and schema digest.
 
-The installer retains usable version directories outside application repositories
-and switches the stable entry only after verification. Active installation use
-refuses replacement. Preparation/switch failure leaves the old usable entry;
+- `update --check` reads eligible stable release metadata, or compares
+  `--source <complete-skill-directory>`, without preparing or switching.
+  Historical RepoSeal releases, drafts and prereleases do not imply an upgrade.
+  Offline, unavailable and no-release results are not up-to-date claims.
+- `update --to <version-or-commit>` installs that exact release version or
+  commit. `update --source <complete-skill-directory>` installs a local
+  candidate. Moving branch names are refused; remote versions resolve to
+  immutable commits.
+- An already-current stable release, or an older one, returns without replacing
+  the installation.
+
+Version directories stay immutable outside application repositories. An upgrade
+switches only the install entry, after the candidate is prepared and the current
+project contract is checked. It does not overwrite a Git-managed source checkout
+or rewrite a version directory. A command that already resolved an old version
+keeps that directory; switching the entry does not wait for it to finish.
+Preparation, network or switch failure leaves the old entry usable.
 `previous_entry` identifies the retained version. Do not delete versions used by
-other workspaces. Ordinary commands never download or automatically upgrade.
+other workspaces. Commands other than `update` never download or upgrade.
 
 Compatible implementation changes require no project edit or commit. Verification
 still records actual runtime identity, so old-runtime evidence cannot qualify a

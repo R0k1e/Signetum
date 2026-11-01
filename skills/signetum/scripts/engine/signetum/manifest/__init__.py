@@ -6,6 +6,7 @@ from re import fullmatch
 from tomllib import loads
 
 from signetum.profiles.catalog import validate_selection
+from signetum.resources.schemas import evidence_schema_digest as published_evidence_schema_digest
 from signetum.selection_contracts import SelectionProvider, repository_file
 from signetum.serialization import dataclass_from_mapping
 from signetum.validation import GateDeclaration as ValidationGate
@@ -23,17 +24,15 @@ class ManifestError(ValueError):
 class SignetumIdentity:
     protocol: int
     evidence_protocol: str = "reposeal.validation-evidence@3"
-    evidence_schema_digest: str = (
-        "sha256:0c3d852d5f2a21856cfde4f31088f4a8527f98cf63d53614d073966187e5be12"
-    )
+    evidence_schema_digest: str = field(default_factory=published_evidence_schema_digest)
 
     def __post_init__(self) -> None:
         if self.protocol != 2:
             raise ManifestError("unsupported signetum protocol; supported version is 2")
         if self.evidence_protocol != "reposeal.validation-evidence@3":
             raise ManifestError(f"unsupported evidence protocol: {self.evidence_protocol}")
-        if fullmatch(r"sha256:[0-9a-f]{64}", self.evidence_schema_digest) is None:
-            raise ManifestError("evidence schema digest must be sha256")
+        if self.evidence_schema_digest != published_evidence_schema_digest():
+            raise ManifestError("evidence schema digest does not match the published schema")
 
 
 @dataclass(frozen=True, kw_only=True)

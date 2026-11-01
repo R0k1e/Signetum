@@ -11,6 +11,7 @@ from pydantic import JsonValue
 from signetum import lifecycle
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.git import git_output
+from signetum.resources.schemas import evidence_schema_digest
 from signetum.validation.receipt_store import ReceiptStore
 from test_workspace_operations import commit_file, opened
 
@@ -38,8 +39,8 @@ def configured(repository, runtime):
     original = manifest.read_text().replace(
         "[signetum]",
         '[signetum]\nevidence_protocol = "reposeal.validation-evidence@3"\n'
-        + 'evidence_schema_digest = "sha256:'
-        + "0" * 64
+        + 'evidence_schema_digest = "'
+        + evidence_schema_digest()
         + '"\n',
     )
     text = original.replace('paths = ["**"]', 'paths = ["src/**"]')

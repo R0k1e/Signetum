@@ -1,4 +1,4 @@
-"""Read-only update checks and explicit complete-Skill installation updates."""
+"""Install the latest stable Skill, with optional checks and exact targets."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import uuid
 import zipfile
 from pathlib import Path, PurePosixPath
 
-from installation import data_root, installation_use
+from installation import data_root, entry_switch
 
 ENTRY = Path(__file__).absolute().parents[1]
 SKILL = ENTRY.resolve()
@@ -221,37 +221,73 @@ def _version_copy(source: Path, state: Path) -> Path:
     return target
 
 
+def _refuse_protected_target(entry: Path) -> None:
+    """A symlink entry may move. Source checkouts and version storage may not."""
+
+    if entry.is_symlink():
+        return
+    versions = data_root() / "versions"
+    if versions.exists():
+        try:
+            entry.resolve().relative_to(versions.resolve())
+        except ValueError:
+            protected_version = False
+        else:
+            protected_version = True
+        if protected_version:
+            raise ValueError("update refuses to rewrite a version directory")
+    executable = shutil.which("git")
+    if executable is None:
+        return
+    completed = subprocess.run(  # noqa: S603 -- resolved Git executable, explicit argv, no shell
+        [executable, "-C", str(entry), "rev-parse", "--is-inside-work-tree"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode == 0 and completed.stdout.strip() == "true":
+        raise ValueError("update refuses to overwrite a Git-managed source directory")
+
+
 def install(entry: Path, source: Path, project: Path) -> dict[str, object]:
+    _refuse_protected_target(entry)
     current = entry.resolve()
-    # Verify before taking the exclusive guard; identity itself acquires shared use.
     _invoke(current, "identity", cwd=project)
-    with installation_use(current, exclusive=True):
+    before, requested = describe(current), describe(source)
+    if before == requested:
+        return {"status": "current", "current": before, "entry": str(entry)}
+    state = data_root()
+    state.mkdir(parents=True, exist_ok=True)
+    candidate = _version_copy(source, state)
+    identity = _prepare(candidate, state)
+    manifest = project / "signetum.toml"
+    if manifest.exists():
+        snapshot = manifest.read_bytes()
+        try:
+            _invoke(candidate, "check", "manifest", "--manifest", str(manifest), cwd=project)
+        except ValueError as error:
+            return {
+                "status": "migration_required",
+                "cause": str(error),
+                "candidate_entry": str(candidate),
+                "current": before,
+            }
+        if manifest.read_bytes() != snapshot:
+            raise ValueError("project configuration changed during compatibility inspection")
+    try:
+        current.resolve().relative_to((state / "versions").resolve())
+    except ValueError:
+        retained = _version_copy(current, state)
+    else:
+        retained = current
+    if retained.resolve() != current.resolve():
+        # Version copies omit .runtime. Prepare that new path once so the
+        # retained installation stays executable. An in-place version directory
+        # keeps its existing environment and is not prepared again.
+        _prepare(retained, state)
+    with entry_switch(entry):
         if entry.resolve() != current:
             raise ValueError("Skill entry changed while starting the update; inspect and retry")
-        before, requested = describe(current), describe(source)
-        if before == requested:
-            return {"status": "current", "current": before, "entry": str(entry)}
-        state = data_root()
-        state.mkdir(parents=True, exist_ok=True)
-        candidate = _version_copy(source, state)
-        identity = _prepare(candidate, state)
-        manifest = project / "signetum.toml"
-        if manifest.exists():
-            snapshot = manifest.read_bytes()
-            try:
-                _invoke(candidate, "check", "manifest", "--manifest", str(manifest), cwd=project)
-            except ValueError as error:
-                return {
-                    "status": "migration_required",
-                    "cause": str(error),
-                    "candidate_entry": str(candidate),
-                    "current": before,
-                }
-            if manifest.read_bytes() != snapshot:
-                raise ValueError("project configuration changed during compatibility inspection")
-        previous = _version_copy(current, state)
-        if previous.resolve() != current:
-            _prepare(previous, state)  # old version remains usable at its own stable absolute path
         temporary = entry.with_name("." + entry.name + ".next-" + uuid.uuid4().hex)
         backup = entry.with_name("." + entry.name + ".previous-" + uuid.uuid4().hex)
         temporary.symlink_to(candidate, target_is_directory=True)
@@ -269,13 +305,13 @@ def install(entry: Path, source: Path, project: Path) -> dict[str, object]:
             temporary.unlink(missing_ok=True)
         if moved:
             shutil.rmtree(backup)
-        return {
-            "status": "updated",
-            "current": identity,
-            "entry": str(entry),
-            "previous_entry": str(previous),
-            "project_changed": False,
-        }
+    return {
+        "status": "updated",
+        "current": identity,
+        "entry": str(entry),
+        "previous_entry": str(retained),
+        "project_changed": False,
+    }
 
 
 def main(arguments: list[str] | None = None) -> int:
@@ -292,16 +328,33 @@ def main(arguments: list[str] | None = None) -> int:
             if args.to:
                 raise ValueError("--check accepts --source or checks stable releases")
             result = check(SKILL, args.source)
+        elif args.source:
+            result = install(ENTRY, args.source.resolve(), Path.cwd())
         else:
-            if not args.source and not args.to:
-                raise ValueError("choose --check, --source or --to; bare update displays the guide")
-            if args.source:
-                result = install(ENTRY, args.source.resolve(), Path.cwd())
-            else:
-                state = data_root()
-                state.mkdir(parents=True, exist_ok=True)
-                with tempfile.TemporaryDirectory(prefix="download-", dir=state) as temporary:
+            state = data_root()
+            state.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix="download-", dir=state) as temporary:
+                if args.to:
                     source, commit = _remote_source(args.to, Path(temporary))
+                else:
+                    candidate = latest_release()
+                    if candidate is None:
+                        raise ValueError("no stable Signetum release is available")
+                    installed = describe(SKILL)
+                    same = installed["content_digest"] == candidate["content_digest"]
+                    newer = _version(candidate["version"]) > _version(installed["version"])
+                    if same or not newer:
+                        source = None
+                        result = {
+                            "status": "current",
+                            "current": installed,
+                            "candidate": candidate,
+                            "entry": str(ENTRY),
+                            "project_changed": False,
+                        }
+                    else:
+                        source, commit = _remote_source(candidate["source"], Path(temporary))
+                if source is not None:
                     result = {**install(ENTRY, source, Path.cwd()), "source": commit}
         result = {"schema_version": 1, "operation": "update", **result}
         print(json.dumps(result, sort_keys=True))

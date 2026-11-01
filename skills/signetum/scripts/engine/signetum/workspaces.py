@@ -306,7 +306,7 @@ def require_no_merge(repository: Path) -> None:
     if merge_head.is_file():
         raise MergeConflict(
             "batch has an open merge",
-            expected=f"resolve and stage paths, then batch-continue {repository}",
+            expected=f"resolve and stage paths, then batch-continue --batch {repository}",
         )
 
 

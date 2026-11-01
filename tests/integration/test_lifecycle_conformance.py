@@ -12,6 +12,7 @@ import pytest
 from change_fixtures import commit_approval
 from signetum import lifecycle
 from signetum.git import git_output
+from signetum.resources.schemas import evidence_schema_digest
 from signetum.workspaces import WorkspaceRecord, branch_name, read_record, state_root, write_record
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,8 +29,8 @@ def admission_member(repository, tmp_path):
         .replace(
             "[signetum]",
             '[signetum]\nevidence_protocol = "reposeal.validation-evidence@3"\n'
-            + 'evidence_schema_digest = "sha256:'
-            + "0" * 64
+            + 'evidence_schema_digest = "'
+            + evidence_schema_digest()
             + '"\n',
         )
         .replace('name = "test:check"\n', 'name = "test:check"\nrequires = ["test:prepare"]\n')

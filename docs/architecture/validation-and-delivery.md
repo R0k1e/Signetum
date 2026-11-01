@@ -55,9 +55,9 @@ aggregation checks exact membership/source and creates no lifecycle authority.
 | `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. |
 | `changed [--explain]` | Inspect the contribution and planned member checks. |
 | `ready` | Qualify approved implemented changes at a clean exact member tip. |
-| `batch-open --member path ...` | Capture fresh delivery base and admit only named ready members. |
-| `batch-admit batch --member path ...` | Merge captured qualified tips, prepare and run batch static checks. |
-| `batch-continue batch` | Check resolved conflict state before completing its merge. |
+| `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. |
+| `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run batch static checks. |
+| `batch-continue --batch path` | Check resolved conflict state before completing its merge. |
 | `final` | Reconcile and validate a frozen batch; emit source-bound receipt and review. |
 | `batch-deliver source target expected-base expected-tip` | Publish only the reviewed exact candidate and confirm remote identity before moving target. |
 
