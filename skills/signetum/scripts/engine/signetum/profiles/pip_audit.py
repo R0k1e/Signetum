@@ -82,3 +82,7 @@ def report() -> str:
 
 
 __all__ = ["PIP_AUDIT_COMMAND", "report", "translate"]
+
+
+if __name__ == "__main__":
+    print(report())

@@ -87,6 +87,7 @@ markers = [
 ]
 addopts = [
     "--cov=signetum",
+    "--cov=tools",
     "--cov-report=term-missing",
     "--cov-fail-under=0",
 ]
@@ -96,6 +97,7 @@ relative_files = true
 branch = true
 source = [
     "signetum",
+    "tools",
 ]
 patch = [
     "subprocess",

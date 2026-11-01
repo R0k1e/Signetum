@@ -35,7 +35,9 @@ def _commit(root, message):
 
 
 def _cli(root, *args):
-    prefix = [sys.executable, "-m", "signetum.cli", "protocol"]
+    prefix = [sys.executable, "-m", "signetum.cli"]
+    if args[0] != "status":
+        prefix.append("test")
     return subprocess.run(  # noqa: S603 -- private consumer, actual engine or generated utility
         [*prefix, *args],
         cwd=root,

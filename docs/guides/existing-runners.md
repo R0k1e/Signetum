@@ -31,7 +31,7 @@ preview. Neither operation executes application commands or creates approval.
 Optional `python-existing@1`, `node-existing@1` and `rust-existing@1` adapters
 propose bindings without installing tools or detecting languages from paths.
 Other languages bind commands directly through the same validation schema.
-`signetum protocol runner --request <request.json>` accepts, for example:
+`signetum adopt runner --request <request.json>` accepts, for example:
 
 ```json
 {

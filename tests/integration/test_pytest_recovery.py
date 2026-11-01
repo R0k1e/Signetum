@@ -77,6 +77,10 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
 def test_collection_failure_is_not_retried(tmp_path, workers, runner_command):
     test = tmp_path / "test_broken.py"
     test.write_text("raise RuntimeError('collection failed')\n")
+    marker = tmp_path / "must-not-execute"
+    (tmp_path / "test_healthy.py").write_text(
+        f"from pathlib import Path\ndef test_healthy():\n    Path({str(marker)!r}).touch()\n"
+    )
     report = tmp_path / "recovery.json"
     result = subprocess.run(  # noqa: S603 -- isolated Python fixture, no shell
         [
@@ -86,7 +90,7 @@ def test_collection_failure_is_not_retried(tmp_path, workers, runner_command):
             "-q",
             "-o",
             "addopts=",
-            str(test),
+            str(tmp_path),
         ],
         env=dict(
             os.environ,
@@ -97,9 +101,10 @@ def test_collection_failure_is_not_retried(tmp_path, workers, runner_command):
         text=True,
         check=False,
     )
-    assert result.returncode == (1 if workers else 2)
+    assert result.returncode == 2
     assert "collection failed" in result.stdout
     assert not report.exists()
+    assert not marker.exists(), "collection failure must prevent test execution"
     metrics = [
         json.loads(line)
         for line in result.stderr.splitlines()

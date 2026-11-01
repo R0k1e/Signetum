@@ -25,7 +25,7 @@ Then ask:
 
 The agent prepares the installed Skill's locked execution environment, inspects
 the project and proposes `signetum.toml` bindings. You review the preview.
-The engine stays with the Skill; application dependencies and Agent entry files
+Execution stays with the Skill; application dependencies and Agent entry files
 stay unchanged. Daily work needs no upstream checkout or tool downloads.
 See [First use](QUICKSTART.md).
 

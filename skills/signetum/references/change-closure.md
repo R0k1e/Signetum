@@ -15,7 +15,7 @@ Use `status` to inspect findings. Resolve or justify rejection through the
 journal tools; retract an incorrect answer by its exact resolution ID, then
 supply a corrected answer. Retire obsolete evidence only through an exact
 approved retirement proposal. Preserve the original answer and its basis.
-`history` retrieves those details on demand.
+`change history` retrieves those details on demand.
 
 Before claiming completion, verify every approved outcome and named deliverable
 against actual evidence. Keep the whole change open for unfulfilled obligations.

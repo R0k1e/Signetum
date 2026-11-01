@@ -7,11 +7,13 @@ from signetum.cli import app
 from signetum.traceability.boundary import RepositoryInventory
 from typer.testing import CliRunner
 
+from tools.cli import app as maintainer_app
+
 FIXTURE = Path(__file__).parents[2] / "tests/fixtures/portable-python" / "signetum.toml"
 
 
 def test_cli_validates_manifest_through_public_command() -> None:
-    result = CliRunner().invoke(app, ["validate", "--manifest", str(FIXTURE)])
+    result = CliRunner().invoke(app, ["check", "manifest", "--manifest", str(FIXTURE)])
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
@@ -26,7 +28,7 @@ def test_cli_reports_one_json_failure(tmp_path: Path) -> None:
     manifest = tmp_path / "signetum.toml"
     manifest.write_text("schema_version = 99\n", encoding="utf-8")
 
-    result = CliRunner().invoke(app, ["validate", "--manifest", str(manifest)])
+    result = CliRunner().invoke(app, ["check", "manifest", "--manifest", str(manifest)])
 
     assert result.exit_code == 2
     assert json.loads(result.stdout) == {
@@ -74,7 +76,7 @@ def test_check_product_surface_reports_one_versioned_result() -> None:
     repository = Path(__file__).parents[2]
 
     result = CliRunner().invoke(
-        app,
+        maintainer_app,
         ["check", "product-surface", "--repository", str(repository)],
     )
 
@@ -88,12 +90,12 @@ def test_check_product_surface_reports_one_versioned_result() -> None:
 
 def test_check_product_surface_rejects_an_incomplete_inventory(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
-        "signetum.cli.GitInventoryProvider.read",
+        "tools.cli.GitInventoryProvider.read",
         lambda self, repository: RepositoryInventory(paths=frozenset()),
     )
 
     result = CliRunner().invoke(
-        app,
+        maintainer_app,
         ["check", "product-surface", "--repository", str(tmp_path)],
     )
 
@@ -109,10 +111,10 @@ def test_check_product_surface_maps_inventory_failure_to_invocation_result(
     def fail(self, repository: Path) -> RepositoryInventory:
         raise OSError("inventory unavailable")
 
-    monkeypatch.setattr("signetum.cli.GitInventoryProvider.read", fail)
+    monkeypatch.setattr("tools.cli.GitInventoryProvider.read", fail)
 
     result = CliRunner().invoke(
-        app,
+        maintainer_app,
         ["check", "product-surface", "--repository", str(tmp_path)],
     )
 
@@ -128,7 +130,7 @@ def test_release_preflight_reports_a_versioned_failure(monkeypatch, tmp_path: Pa
     monkeypatch.setattr(git_tools, "which", lambda executable: None)
 
     result = CliRunner().invoke(
-        app,
+        maintainer_app,
         ["release", "preflight", "--source", "abc", "--repository", str(tmp_path)],
     )
 

@@ -26,7 +26,7 @@ def test_runner_proposal_preserves_existing_argv_without_running_or_adopting_it(
     }
     request.write_text(json.dumps(data))
     prefix = (
-        [sys.executable, "-m", "signetum.protocol_cli"]
+        [sys.executable, "-m", "signetum.cli", "adopt"]
         if frontend == "engine"
         else [
             sys.executable,

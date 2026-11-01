@@ -1,7 +1,7 @@
 set positional-arguments
 
 _lifecycle *args:
-    mise exec -- uv run signetum lifecycle {{args}}
+    mise exec -- uv run signetum {{args}}
 
 workspace-open branch base:
     just _lifecycle workspace-open {{branch}} {{base}}
@@ -32,12 +32,9 @@ maintenance *args:
     mise exec -- uv run signetum maintenance {{args}}
 
 # Local authoring and journal utility; not a lifecycle operation.
-protocol *args:
-    mise exec -- uv run signetum protocol "$@"
-
-change-open name:
-    just protocol change-open "$@"
+change *args:
+    mise exec -- uv run signetum change "$@"
 
 # Explicit development feedback; no workspace registration or readiness receipt.
 test *args:
-    just -- protocol test --shard engine:pytest -- --no-cov "$@"
+    mise exec -- uv run signetum test run --shard engine:pytest -- --no-cov "$@"

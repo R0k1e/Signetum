@@ -42,7 +42,7 @@ jobs:
         run: |
           SOURCE_BRANCH="$(uv run --no-sync python -c 'from pathlib import Path; from signetum.policy import delivery_policy; print(delivery_policy(Path.cwd()).branch)')"
           git fetch --no-tags origin "refs/heads/$SOURCE_BRANCH:refs/remotes/origin/$SOURCE_BRANCH"
-          uv run --no-sync signetum release preflight --source "$RELEASE_SOURCE" --tag "$RELEASE_TAG" > "$RUNNER_TEMP/signetum-release-source.json"
+          uv run --no-sync python -m tools.cli release preflight --source "$RELEASE_SOURCE" --tag "$RELEASE_TAG" > "$RUNNER_TEMP/signetum-release-source.json"
       - name: Validate the declared complete gate
         shell: bash
         env:
@@ -51,7 +51,7 @@ jobs:
           PYTEST_ADDOPTS: --cov-fail-under=0
         run: |
           set +e
-          uv run --no-sync signetum protocol test --gate final --exact-source > "$RUNNER_TEMP/signetum-validation.log" 2>&1
+          uv run --no-sync signetum test run --gate final --exact-source > "$RUNNER_TEMP/signetum-validation.log" 2>&1
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then
@@ -85,7 +85,7 @@ jobs:
         shell: bash
         run: |
           cp "$RUNNER_TEMP/signetum-release-source.json" dist/release-source.json
-          uv run --no-sync python -c 'from pathlib import Path; from signetum.release import build_skill_archive; build_skill_archive(Path.cwd(), Path("dist"))'
+          uv run --no-sync python -c 'from pathlib import Path; from tools.release import build_skill_archive; build_skill_archive(Path.cwd(), Path("dist"))'
           uv run --no-sync python - <<'PYNOTES'
           import re
           import tomllib
