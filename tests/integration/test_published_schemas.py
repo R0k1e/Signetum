@@ -20,7 +20,7 @@ from signetum.evidence.receipts import (
     ValidationExecution,
     ValidationProvenance,
 )
-from signetum.manifest import load_manifest
+from signetum.manifest import ManifestError, load_manifest
 from signetum.resources import schemas as schema_resources
 from signetum.resources.schemas import EVIDENCE_PROTOCOL, evidence_schema_digest
 
@@ -80,6 +80,68 @@ def _receipt(
         True,
     )
     return json.loads(receipt.to_json())
+
+
+MINIMAL_MANIFEST = """\
+schema_version = 5
+[signetum]
+protocol = 2
+[repository]
+changes = "changes"
+decisions = "docs/decisions"
+[validation]
+[[validation.shards]]
+name = "app:check"
+command = ["true"]
+[[validation.gates]]
+name = "member"
+shards = ["app:check"]
+[[validation.gates]]
+name = "final"
+shards = ["app:check"]
+"""
+
+
+def test_schema_digest_const_matches_the_published_schema() -> None:
+    document = json.loads(
+        (files(schema_resources) / "signetum-v5.schema.json").read_text(encoding="utf-8")
+    )
+    assert (
+        document["properties"]["signetum"]["properties"]["evidence_schema_digest"]["const"]
+        == evidence_schema_digest()
+    )
+
+
+def test_minimal_manifest_passes_parser_and_schema(tmp_path: Path) -> None:
+    path = tmp_path / "signetum.toml"
+    path.write_text(MINIMAL_MANIFEST, encoding="utf-8")
+    document = tomllib.loads(MINIMAL_MANIFEST)
+    assert _violations("signetum-v5.schema.json", document) == []
+    loaded = load_manifest(path)
+    assert loaded.signetum.protocol == 2
+    assert loaded.signetum.evidence_protocol == EVIDENCE_PROTOCOL
+    assert loaded.signetum.evidence_schema_digest == evidence_schema_digest()
+
+
+def test_explicit_wrong_evidence_declarations_fail_parser_and_schema(tmp_path: Path) -> None:
+    digest = MINIMAL_MANIFEST.replace(
+        "protocol = 2\n",
+        'protocol = 2\nevidence_schema_digest = "sha256:' + "ab" * 32 + '"\n',
+    )
+    protocol = MINIMAL_MANIFEST.replace(
+        "protocol = 2\n",
+        'protocol = 2\nevidence_protocol = "reposeal.validation-evidence@9"\n',
+    )
+    expectations = (
+        (digest, "digest"),
+        (protocol, "evidence protocol"),
+    )
+    for text, message in expectations:
+        path = tmp_path / "signetum.toml"
+        path.write_text(text, encoding="utf-8")
+        assert _violations("signetum-v5.schema.json", tomllib.loads(text))
+        with pytest.raises(ManifestError, match=message):
+            load_manifest(path)
 
 
 def test_a_passed_gate_receipt_satisfies_the_published_evidence_schema() -> None:
