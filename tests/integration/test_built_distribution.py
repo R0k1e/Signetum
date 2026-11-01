@@ -9,12 +9,12 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
-from click import Group
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.cli import app
 from signetum.git import git_output
 from signetum.release import build_skill_archive
 from signetum.runtime_identity import implementation_digest
+from typer.core import TyperGroup
 from typer.main import get_command
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -174,7 +174,7 @@ shards=["app:test"]
         help_result = run("--help", ok=False)
         assert help_result.returncode == 0, help_result.stderr
         command_group = get_command(app)
-        assert isinstance(command_group, Group)
+        assert isinstance(command_group, TyperGroup)
         for name in command_group.commands:
             assert name in help_result.stdout
             result = run(name, "--help", ok=False)
