@@ -24,7 +24,7 @@ runners and delivery targets remain repository-owned. Updates are explicit.
 
 `skills/signetum/scripts/engine/signetum` is the only engine source. The Skill
 launcher explicitly prepares a noneditable installation under its own ignored
-`.runtime/` directory using `scripts/engine/uv.lock`. Setup selects a host interpreter through Mise; a prepared launcher uses that
+`.runtime/` directory using `scripts/engine/uv.lock`. Setup selects host Python 3.12 and uv 0.12.2 through Mise; a prepared launcher uses that
 interpreter directly instead of selecting the application’s Python. Normal commands verify
 the installed environment and supported project contracts; they never install or
 repair tooling. The application environment is not the engine environment. The launcher forwards arguments unchanged; `commands` owns the sole public
