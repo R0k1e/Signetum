@@ -54,6 +54,17 @@ def installed_skill(tmp_path_factory):
     environment = dict(os.environ)
     for key in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT"):
         environment.pop(key, None)
+    update = subprocess.run(  # noqa: S603 -- dependency-free update instructions
+        [str(shutil.which("sh")), str(skill / "scripts/signetum"), "update"],
+        cwd=directory,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert update.returncode == 0, update.stderr
+    assert (skill / json.loads(update.stdout)["reference"]).is_file()
+    assert not (skill / ".runtime").exists()
     launcher = skill / "scripts/launch.py"
     refused = subprocess.run(  # noqa: S603 -- explicit disposable consumer invocation
         [sys.executable, str(launcher), "identity"],
