@@ -26,7 +26,11 @@ launcher explicitly prepares a noneditable installation under its own ignored
 `.runtime/` directory using `scripts/engine/uv.lock`. Setup selects a host interpreter through Mise; a prepared launcher uses that
 interpreter directly instead of selecting the application’s Python. Normal commands check that
 installation and the project's `signetum.engine_digest`; they never install or
-repair tooling. The application environment is not the engine environment.
+repair tooling. The application environment is not the engine environment. The Skill launcher
+forwards explicit engine command namespaces, maps eight lifecycle shortcuts and
+retains local protocol shortcuts. Installed acceptance checks advertised command
+access. Complete Skill updates and any changed project engine pin are separate,
+explicit steps; launcher-only fixes need no engine pin change.
 
 Root `uv.lock` pins maintainer tools and an editable engine dependency. Internal
 wheel/sdist builds verify the install boundary; the standard Skill folder is the

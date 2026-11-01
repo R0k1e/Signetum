@@ -10,9 +10,12 @@ from zipfile import ZipFile
 
 import pytest
 from signetum.change_record import contract_digest, parse_change_record
+from signetum.cli import app
 from signetum.git import git_output
 from signetum.release import build_skill_archive
 from signetum.runtime_identity import implementation_digest
+from typer.core import TyperGroup
+from typer.main import get_command
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -120,7 +123,7 @@ def test_installed_skill_adopts_and_delivers_without_entering_application(
         }
     git_output(project, "add", ".")
     git_output(project, "commit", "-m", "test: initialize application")
-    invoke = ["mise", "exec", "--", "python"]
+    invoke = ["mise", "exec", "--", "python", "-B"]
     command = json.dumps([*invoke, "-m", "unittest", "test_app.py"])
     prepare = json.dumps([*invoke, "-c", "pass"])
     manifest = f'''schema_version=4
@@ -167,6 +170,18 @@ shards=["app:test"]
     assert not (project / ".venv").exists()
     if existing:
         assert (project / "AGENTS.md").is_symlink()
+        # The installed launcher must expose every command advertised by its engine.
+        help_result = run("--help", ok=False)
+        assert help_result.returncode == 0, help_result.stderr
+        command_group = get_command(app)
+        assert isinstance(command_group, TyperGroup)
+        for name in command_group.commands:
+            assert name in help_result.stdout
+            result = run(name, "--help", ok=False)
+            assert result.returncode == 0, result.stdout + result.stderr
+        for prefix in (("validate",), ("check", "manifest")):
+            assert run(*prefix, "--manifest", project / "signetum.toml")["status"] == "valid"
+
     git_output(project, "add", ".")
     git_output(project, "commit", "-m", "test: adopt reviewed bindings")
     remote = tmp_path / "remote.git"
@@ -259,6 +274,18 @@ contract_digest="{digest}"
         manifest.replace(prepared["engine"]["implementation"], "sha256:" + "0" * 64)
     )
     assert run("status", cwd=project, ok=False).returncode != 0
+    if existing:
+        update_plan = tmp_path / "update-plan.json"
+        update = run("adopt", "preview", "--request", request, "--output", update_plan)
+        assert update["files"] == [{"path": "signetum.toml", "action": "replace"}]
+        assert (
+            run("adopt", "apply", "--plan", update_plan, "--expected-plan", update["plan_digest"])[
+                "status"
+            ]
+            == "applied"
+        )
+        assert run("status")["status"] == "passed"
+        assert all((project / name).read_bytes() == content for name, content in originals.items())
 
     # Engine cache corruption must refuse without repairing or reinstalling it.
     home = Path(prepared["environment"])
