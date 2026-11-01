@@ -25,14 +25,12 @@ agent handles request formats and commands. Missing tools or an unavailable sour
 are reported with the next setup action. A source must actually be available;
 an unpublished development worktree is not an installable public revision.
 
-Host execution needs Git and Python 3.12+. Current workspace operations use the
-repository-declared Mise and Worktrunk setup. Your application's language and test
+Host execution needs Git, Mise, Worktrunk, uv and Python 3.12+. Your application's language and test
 framework stay unchanged. The agent reports and resolves required setup before
 promising a usable workspace. You do not copy a template over the project.
 
 Adoption adds the reviewed `signetum.toml` bindings. Agent entry files and application
-dependencies stay unchanged. Daily commands run the installed Skill's engine in
-its own environment. The upstream checkout is unnecessary; updates require a
+dependencies stay unchanged. Daily commands run the installed Skill in its own environment. The upstream checkout is unnecessary; updates require a
 later explicit preview. No runtime is copied into your project.
 
 ## Develop and deliver reliably
@@ -65,3 +63,11 @@ request integration and full validation, then review the generated delivery
 result before authorizing delivery.
 
 The [documentation map](docs/README.md) routes configuration and operation details.
+
+## Update an installed Skill
+
+> Use $signetum to update to [exact version or commit]. Verify the new installation,
+> show any required project-binding changes, then validate and deliver them.
+
+The Skill's `update` entry displays the explicit procedure. It downloads and
+changes nothing by itself. Ordinary work does not upgrade the installation.

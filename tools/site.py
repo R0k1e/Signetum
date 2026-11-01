@@ -1,4 +1,4 @@
-"""Build the engine-owned static product site as an exact artifact."""
+"""Build the repository-owned static product site as an exact artifact."""
 
 from __future__ import annotations
 
