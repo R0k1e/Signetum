@@ -29,6 +29,7 @@ from signetum.validation.configuration import configured_validation
 from signetum.validation.execution import ValidationInfrastructureError
 from signetum.validation.process import run_command
 from signetum.validation.repository import RepositoryValidationAdapter
+from signetum.worktrunk import declared_argv, declared_environment
 
 
 class SelectionError(AdmissionError):
@@ -159,8 +160,9 @@ def _select(
     try:
         completed = run_command(
             repository,
-            command,
+            declared_argv(command),
             timeout_seconds=provider.timeout_seconds,
+            environment=declared_environment(),
             input_text=json.dumps(contract_mapping(request), ensure_ascii=False),
         )
     except (OSError, TimeoutExpired) as error:

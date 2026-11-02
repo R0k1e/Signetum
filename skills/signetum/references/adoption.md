@@ -13,8 +13,10 @@ and resolve setup explicitly. Honor the host's Mise trust decision; never trust
 project configuration automatically. Run `setup` to select host Python 3.12 and uv 0.12.2 explicitly through Mise,
 including on hosts with unconfigured shims, and create a locked environment under the installed Skill's ignored `.runtime/` directory. `identity` reports its
 code and dependency identities. No Signetum dependency belongs in the application's
-production or development dependency groups. Application commands retain their
-own environment; the engine environment is never prepended to their PATH.
+production or development dependency groups. Declared application commands run
+through `mise exec --` after Git repository context and `PYTHONPATH`,
+`PYTHONHOME`, `VIRTUAL_ENV`, and `UV_PROJECT_ENVIRONMENT` are removed. The Skill
+engine environment is not prepended onto their PATH.
 
 Prepared operations use the Skill’s own bootstrap interpreter, regardless of
 the application’s Python version or tool selection.
@@ -29,8 +31,11 @@ For a new project, initialize its ordinary application files and Git history.
 For an existing one, preserve tools, metadata, locks, entry files and decisions.
 Both use the same adoption flow:
 
-1. `adopt inspect` reports available tools and the engine digest without running
-   application commands or reading/modifying Agent entrypoints.
+1. `adopt inspect` reports tool presence, the version printed by `name --version`,
+   Git floors (2.7 for Signetum's own commands and 2.17 for Worktrunk cleanup),
+   and both the PATH `uv` version and `mise exec -- uv --version` when Mise is
+   present. A version difference is reported and does not fail inspection.
+   Inspect runs no application command and does not modify the project.
 2. Prepare one request containing the complete reviewed `signetum.toml` text.
    Bind supported configuration/protocol versions, delivery branch, record roots, actual tool
    identities, inputs and preparation/member/batch/final commands. Architecture
@@ -40,8 +45,11 @@ Both use the same adoption flow:
 4. Apply the approved plan with `adopt apply --repository . --plan <plan.json>
    --expected-plan <digest>`. Changed source or targets require a fresh preview.
 5. Commit through the project's existing process and exercise a small authorized
-   change through `ready`. Preparation dependencies run before commands that need
-   them; an environment failure is not permission to weaken application checks.
+   change through `ready`. Ready prepares and checks a temporary detached checkout
+   of the committed tip. An ignored file that preparation needs and that is not
+   in the commit fails ready. An ignored file preparation does not need does not
+   fail readiness. The editing worktree stays. An environment failure is not
+   permission to weaken application checks.
 
 Normal adoption writes only `signetum.toml`. No required AGENTS/CLAUDE pointer,
 architecture scaffolding, wrapper or copied engine is added. Legacy generated
@@ -64,6 +72,10 @@ fields mean the published evidence protocol and schema digest.
   `--source <complete-skill-directory>`, without preparing or switching.
   Historical RepoSeal releases, drafts and prereleases do not imply an upgrade.
   Offline, unavailable and no-release results are not up-to-date claims.
+  A GitHub API rate limit on `--check` stays `unavailable` and names
+  `update --source <skill-directory>`. When `GH_TOKEN` or `GITHUB_TOKEN` is set,
+  update sends it only as a bearer token to `api.github.com` and never prints
+  or records the token.
 - `update --to <version-or-commit>` installs that exact release version or
   commit. `update --source <complete-skill-directory>` installs a local
   candidate. Moving branch names are refused; remote versions resolve to

@@ -1,5 +1,6 @@
 """Real Git scenarios for supported workspace recovery and removal."""
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -34,6 +35,82 @@ def preparation_command(repository, command):
         shard.command for shard in manifest.validation.shards if shard.name == "test:prepare"
     )
     path.write_text(path.read_text().replace(json.dumps(list(previous)), json.dumps(command)))
+
+
+def test_ready_fails_when_prepare_needs_an_ignored_file_missing_from_the_commit(repository):
+    root, _state = repository
+    member = opened(root, "plan/example")
+    commit_approval(member)
+    preparation_command(
+        member,
+        [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; import sys; "
+            "sys.exit(0 if Path('local.secret').is_file() else 13)",
+        ],
+    )
+    (member / ".gitignore").write_text("local.secret\n")
+    git_output(member, "add", "signetum.toml", ".gitignore")
+    git_output(member, "commit", "-m", "require an ignored preparation input")
+    (member / "local.secret").write_text("only in the editing worktree\n")
+
+    with pytest.raises(InfrastructureError, match="13"):
+        lifecycle.validate(member, "member")
+
+    assert (member / "local.secret").read_text() == "only in the editing worktree\n"
+    assert "signetum-ready" not in git_output(root, "worktree", "list", "--porcelain")
+
+
+def test_ready_reports_approval_source_when_ignored_files_are_unnecessary(repository):
+    root, _state = repository
+    member = opened(root, "plan/example")
+    commit_approval(member)
+    commit_file(member, ".gitignore", ".venv/\n")
+    commit_file(member, "implementation.txt")
+    (member / ".venv").mkdir()
+    (member / ".venv" / "pyvenv.cfg").write_text("home = fixture\n")
+
+    result = lifecycle.validate(member, "member")
+
+    assert result["status"] == "ready"
+    approvals = result["approvals"]
+    assert isinstance(approvals, list)
+    assert approvals[0]["actor"] == "Owner"
+    assert approvals[0]["recorded_at"] == "2026-10-29"
+    assert approvals[0]["source"] == "Owner confirmed the fixture outcome."
+    assert str(approvals[0]["contract_digest"]).startswith("sha256:")
+    assert (member / ".venv" / "pyvenv.cfg").is_file()
+    assert "signetum-ready" not in git_output(root, "worktree", "list", "--porcelain")
+
+
+def test_batch_deliver_rejects_a_missing_path_before_git(repository, tmp_path):
+    root, _state = repository
+    missing = tmp_path / "main"
+    with pytest.raises(AdmissionError, match="branch name is not a path") as failure:
+        lifecycle.batch_deliver(missing, root, "a" * 40, "b" * 40)
+    assert "cannot change to" not in str(failure.value)
+
+
+def test_batch_deliver_lets_git_refuse_an_existing_non_repository(repository, tmp_path):
+    root, _state = repository
+    empty = tmp_path / "main"
+    empty.mkdir()
+    with pytest.raises(AdmissionError, match="not a git repository") as failure:
+        lifecycle.batch_deliver(empty, root, "a" * 40, "b" * 40)
+    assert "branch name is not a path" not in str(failure.value)
+
+
+def test_batch_deliver_help_names_directories_and_full_commits():
+    parser = lifecycle._parser()
+    subparsers = next(
+        action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+    )
+    text = " ".join(subparsers.choices["batch-deliver"].format_help().split())
+    assert "worktree directory" in text
+    assert "branch name is not a path" in text
+    assert "Full commit of the expected batch base." in text
+    assert "Full commit of the reviewed batch tip." in text
 
 
 def test_open_never_adopts_the_delivery_workspace(repository):
@@ -581,7 +658,7 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
     static = opened_batch["static"]
     assert isinstance(preparation, dict) and preparation["status"] == "prepared"
     assert isinstance(static, dict) and static["executed"] == ["test:check"]
-    assert (state / "attempts").read_text() == "1"
+    assert (state / "attempts").read_text() == "2"
     assert git_output(root, "rev-parse", "HEAD") == base
 
 

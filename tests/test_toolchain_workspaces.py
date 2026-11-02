@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from subprocess import CompletedProcess
 
 import pytest
+import signetum.validation.repository as validation_repository
 import signetum.worktrunk as wt
+from signetum.validation import ToolDeclaration, ValidationShard, ratchet
+from signetum.validation.repository import RepositoryValidationAdapter
 
 
 def test_missing_mise_has_an_actionable_noninteractive_diagnostic(monkeypatch) -> None:
@@ -45,12 +49,98 @@ def test_mise_projection_sanitizes_repository_environment(monkeypatch, tmp_path:
     monkeypatch.setattr(wt, "run_command", fake_run)
     monkeypatch.setenv("GIT_DIR", "/unsafe")
     monkeypatch.setenv("PYTHONPATH", "/unsafe")
+    monkeypatch.setenv("PYTHONHOME", "/unsafe")
+    monkeypatch.setenv("VIRTUAL_ENV", "/unsafe")
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/unsafe")
 
     wt.run_tool(tmp_path, ("uv", "--version"))
 
     assert "GIT_DIR" not in observed
     assert "PYTHONPATH" not in observed
+    assert "PYTHONHOME" not in observed
+    assert "VIRTUAL_ENV" not in observed
+    assert "UV_PROJECT_ENVIRONMENT" not in observed
     assert observed["MISE_TRUSTED_CONFIG_PATHS"] == "/explicitly-reviewed"
+
+
+def test_shard_keeps_its_exit_code_under_the_declared_resolver(monkeypatch, tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(
+        repository: Path, command: tuple[str, ...], **kwargs: object
+    ) -> CompletedProcess[str]:
+        seen["command"] = command
+        seen["environment"] = kwargs["environment"]
+        return CompletedProcess(command, 7, "", "shard failed")
+
+    monkeypatch.setattr(validation_repository, "run_command", fake_run)
+    monkeypatch.setattr(wt, "mise_executable", lambda: "/fixture/mise")
+    monkeypatch.setenv("GIT_DIR", "/unsafe")
+    monkeypatch.setenv("PYTHONPATH", "/unsafe")
+
+    execution = RepositoryValidationAdapter(tmp_path).run_shard(
+        ValidationShard("test:check", ("uv", "run", "false"))
+    )
+
+    assert execution.succeeded is False
+    assert seen["command"] == ("/fixture/mise", "exec", "--", "uv", "run", "false")
+    environment = seen["environment"]
+    assert isinstance(environment, dict)
+    assert "GIT_DIR" not in environment
+    assert "PYTHONPATH" not in environment
+    assert "SIGNETUM_RECOVERY_REPORT" in environment
+    assert environment["SIGNETUM_VALIDATION_WORKERS"] == "0"
+
+
+def test_tool_identity_uses_the_declared_resolver(monkeypatch, tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(
+        repository: Path, command: tuple[str, ...], **kwargs: object
+    ) -> CompletedProcess[str]:
+        seen["command"] = command
+        seen["environment"] = kwargs["environment"]
+        return CompletedProcess(command, 0, "uv 0.12.2\n", "")
+
+    monkeypatch.setattr(validation_repository, "run_command", fake_run)
+    monkeypatch.setattr(wt, "mise_executable", lambda: "/fixture/mise")
+    monkeypatch.setenv("VIRTUAL_ENV", "/unsafe")
+
+    identity = RepositoryValidationAdapter(tmp_path).identify_tool(
+        ToolDeclaration("uv", ("uv", "--version"))
+    )
+
+    assert identity == "uv 0.12.2"
+    assert seen["command"] == ("/fixture/mise", "exec", "--", "uv", "--version")
+    environment = seen["environment"]
+    assert isinstance(environment, dict)
+    assert "VIRTUAL_ENV" not in environment
+
+
+def test_ratchet_diagnostic_uses_the_declared_resolver(monkeypatch, tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(
+        repository: Path, command: tuple[str, ...], **kwargs: object
+    ) -> CompletedProcess[str]:
+        seen["command"] = command
+        seen["environment"] = kwargs["environment"]
+        return CompletedProcess(command, 0, '{"schema_version":1,"diagnostics":[]}', "")
+
+    monkeypatch.setattr(ratchet, "run_command", fake_run)
+    monkeypatch.setattr(wt, "mise_executable", lambda: "/fixture/mise")
+    monkeypatch.setenv("GIT_DIR", "/unsafe")
+    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", "/explicitly-reviewed")
+
+    output = ratchet._measure(tmp_path, ("uv", "run", "diag"), time.monotonic() + 5, 3)
+
+    assert output == '{"schema_version":1,"diagnostics":[]}'
+    assert seen["command"] == ("/fixture/mise", "exec", "--", "uv", "run", "diag")
+    environment = seen["environment"]
+    assert isinstance(environment, dict)
+    assert environment["SIGNETUM_VALIDATION_WORKERS"] == "3"
+    assert environment["MISE_TRUSTED_CONFIG_PATHS"] == f"/explicitly-reviewed:{tmp_path}"
+    assert "GIT_DIR" not in environment
 
 
 def test_worktree_inventory_accepts_only_schema_two_registered_items(

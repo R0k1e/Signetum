@@ -19,6 +19,21 @@ from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.execution import ShardExecution, ValidationInfrastructureError
 from signetum.validation.process import run_command
 from signetum.workspaces import state_root
+from signetum.worktrunk import declared_argv, declared_environment
+
+
+def _trusted_paths(repository: Path) -> str:
+    """Trust the tree this measurement checks, without recording that trust.
+
+    A materialized baseline is a new repository, so Mise does not reuse the
+    member worktree's trust. An operator-supplied path list is kept.
+    """
+
+    path = str(repository)
+    current = os.environ.get("MISE_TRUSTED_CONFIG_PATHS", "")
+    parts = [item for item in current.split(":") if item and item != path]
+    parts.append(path)
+    return ":".join(parts)
 
 
 def _measure(repository: Path, command: tuple[str, ...], deadline: float, workers: int) -> str:
@@ -28,9 +43,14 @@ def _measure(repository: Path, command: tuple[str, ...], deadline: float, worker
     try:
         result = run_command(
             repository,
-            command,
+            declared_argv(tuple(command)),
             timeout_seconds=remaining,
-            environment=dict(os.environ, SIGNETUM_VALIDATION_WORKERS=str(workers)),
+            environment=declared_environment(
+                extra={
+                    "SIGNETUM_VALIDATION_WORKERS": str(workers),
+                    "MISE_TRUSTED_CONFIG_PATHS": _trusted_paths(repository),
+                }
+            ),
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise ValidationInfrastructureError(f"diagnostic command unavailable: {error}") from error

@@ -1,0 +1,97 @@
+[change]
+schema_version = 1
+id = "trial-repairs"
+
+[change.source]
+kind = "human_direction"
+summary = "Repair the 0.3.1 trial findings. Declared commands share one resolver, ready qualifies the committed tree, and the operator-facing reports name the next action."
+
+[change.contract]
+version = 1
+approved_base = "9e6c24579929c639f94b5846ac01d7602a9ab7ba" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "EXEC-001"
+outcome = "Preparation, tool identity, shard commands, and findings commands run through one Mise resolver."
+acceptance = [
+    "A pinned Mise uv and a different PATH uv produce the pinned version for both preparation and tool identity.",
+    "The Skill engine environment is not prepended to application command PATH.",
+    "A failing shard still returns its own exit code to the shard scorer.",
+]
+
+[[change.contract.requirements]]
+id = "READY-001"
+outcome = "Member ready qualifies a temporary detached worktree of the exact HEAD, so ignored member files cannot satisfy the gate."
+acceptance = [
+    "An ignored file required by the declared prepare command and absent from the commit fails ready.",
+    "An ignored file that prepare does not need does not fail cleanliness or ready when the committed tree passes.",
+    "The temporary worktree is removed with directory removal and git worktree prune, not Worktrunk remove.",
+    "Final continues to run on the batch worktree.",
+]
+
+[[change.contract.requirements]]
+id = "APPROVAL-001"
+outcome = "The member ready result shows each carried approval's actor, date, source, and contract digest."
+acceptance = [
+    "A self-written source sentence remains a valid binding when the contract digest matches.",
+    "The ready result includes that source text and does not add an authenticated flag.",
+]
+
+[[change.contract.requirements]]
+id = "DELIVER-001"
+outcome = "batch-deliver states that source and target are existing worktree paths."
+acceptance = [
+    "Command help names worktree directories for source and target and full commits for the base and tip.",
+    "A missing path fails before Git reports cannot change to that path.",
+]
+
+[[change.contract.requirements]]
+id = "INSPECT-001"
+outcome = "adopt inspect reports tool presence and versions without running application commands."
+acceptance = [
+    "Git below 2.7 is present and the Signetum command floor is reported unmet.",
+    "Worktrunk cleanup's Git 2.17 floor is reported separately.",
+    "PATH uv and Mise-resolved uv are both reported, and a difference does not fail inspect.",
+]
+
+[[change.contract.requirements]]
+id = "UPDATE-001"
+outcome = "Remote update uses a bearer token when one is present and names a local source on HTTP 403."
+acceptance = [
+    "GH_TOKEN or GITHUB_TOKEN is sent as Authorization Bearer and is absent from the result.",
+    "An anonymous request stays unauthenticated.",
+    "HTTP 403 on update --check stays unavailable and its cause names update --source.",
+]
+
+[[change.contract.requirements]]
+id = "ERROR-001"
+outcome = "Repeated adopt preview and change open on an unrecorded or delivery branch name the next action."
+acceptance = [
+    "An existing preview output is left unchanged and the error names another --output.",
+    "change open on the delivery branch does not include a JSON workspace template.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement the shared command runner, ready qualification worktree, inspect report, update request, delivery help, and the two error texts.",
+    "Add the 0.3.2 changelog and version text after those tests exist.",
+    "Reconcile the delivery and adoption sentences that these behaviors change.",
+]
+requires_confirmation = [
+    "Publishing 0.3.2, moving v0.3.0 or v0.3.1, editing Perdura, or deleting install directories on another machine.",
+]
+
+[[change.contract.excluded]]
+statement = "A Git command fallback, a wording blacklist for approval source, treating an ignored .venv as a dirty tree, or an external approval identity."
+reason = "The owner approved the trial repair plan. Item 1 stays published, and approval remains a recorded binding."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["EXEC-001", "READY-001", "APPROVAL-001", "DELIVER-001", "INSPECT-001", "UPDATE-001", "ERROR-001"]
+action = "Extend the command, ready, inspect, update, and error owners, with tests at those boundaries."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-02
+source = "The owner approved the trial-repairs plan."
+contract_digest = "sha256:56854138d3a29056a9ab56ce1ab8ebed691160acdede182cec970285001c2ace"

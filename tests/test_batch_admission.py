@@ -341,6 +341,8 @@ def test_delivery_refuses_numbering_bound_to_another_base(
 ) -> None:
     source = tmp_path / "source"
     target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
     monkeypatch.setattr(lifecycle, "_require_clean", lambda path: None)
     monkeypatch.setattr(lifecycle, "_recorded_base", lambda path, branch=None: "older-base")
     monkeypatch.setattr(
