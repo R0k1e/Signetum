@@ -23,7 +23,7 @@ not additional application-language requirements for Skill users.
 
 Before delivery, update the package version and release notes, build the nested engine and complete the normal batch final review. Release preflight requires package and Skill versions to agree with
 `skills/signetum/scripts/engine/pyproject.toml`; choose an unused `v<version>` tag. Historical
-RepoSeal tags remain unchanged. The 0.3.0 entry is a candidate until published. Keep its reviewed version section
+RepoSeal tags remain unchanged. The 0.3.1 entry is a candidate until published. Keep its reviewed version section
 in CHANGELOG.md concise and focused on user outcomes; do not maintain another
 announcement with the same facts.
 
