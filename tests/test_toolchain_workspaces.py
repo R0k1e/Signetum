@@ -130,6 +130,7 @@ def test_ratchet_diagnostic_uses_the_declared_resolver(monkeypatch, tmp_path: Pa
     monkeypatch.setattr(ratchet, "run_command", fake_run)
     monkeypatch.setattr(wt, "mise_executable", lambda: "/fixture/mise")
     monkeypatch.setenv("GIT_DIR", "/unsafe")
+    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", "/explicitly-reviewed")
 
     output = ratchet._measure(tmp_path, ("uv", "run", "diag"), time.monotonic() + 5, 3)
 
@@ -138,6 +139,7 @@ def test_ratchet_diagnostic_uses_the_declared_resolver(monkeypatch, tmp_path: Pa
     environment = seen["environment"]
     assert isinstance(environment, dict)
     assert environment["SIGNETUM_VALIDATION_WORKERS"] == "3"
+    assert environment["MISE_TRUSTED_CONFIG_PATHS"] == f"/explicitly-reviewed:{tmp_path}"
     assert "GIT_DIR" not in environment
 
 

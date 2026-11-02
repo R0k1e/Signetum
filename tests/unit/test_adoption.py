@@ -173,7 +173,9 @@ def test_inspect_reports_versions_and_keeps_a_low_git_floor_inspected(adoption, 
     monkeypatch.setattr(owner, "which", which)
     monkeypatch.setattr(owner.subprocess, "run", run)
     report = owner.inspect(root)
-    git_report = report["tools"]["git"]
+    tools = report["tools"]
+    assert isinstance(tools, dict)
+    git_report = tools["git"]
     assert report["status"] == "inspected"
     assert isinstance(git_report, dict)
     assert git_report["present"] is True
@@ -194,8 +196,10 @@ def test_inspect_reports_a_missing_tool_without_failing(adoption, monkeypatch):
     root, _request = adoption
     monkeypatch.setattr(owner, "which", lambda name: None)
     report = owner.inspect(root)
+    tools = report["tools"]
+    assert isinstance(tools, dict)
     assert report["status"] == "inspected"
-    assert report["tools"]["git"] == {
+    assert tools["git"] == {
         "present": False,
         "version": None,
         "floors": {
