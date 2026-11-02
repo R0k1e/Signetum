@@ -6,10 +6,10 @@ from pathlib import Path
 from signetum.change_record import parse_change_record
 from signetum.development_log import DevelopmentSnapshot
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, ReceiptError
-from signetum.git import git_output
+from signetum.git import git_output, repository_path
 from signetum.serialization import contract_mapping
 from signetum.source_authority import authority_roots, source_path
-from signetum.workspaces import read_change_owner, read_record, record_path
+from signetum.workspaces import current_branch, read_change_owner, read_record, record_path
 
 
 def workflow_status(
@@ -18,16 +18,13 @@ def workflow_status(
     repository = repository.resolve()
     if git_output(repository, "rev-parse", "HEAD") != source:
         raise ValueError("source changed while reading status")
-    branch = git_output(repository, "branch", "--show-current")
-    common = Path(git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    branch = current_branch(repository)
+    common = repository_path(repository, "rev-parse", "--git-common-dir")
     root = common / "signetum"
     registered = record_path(root, branch).exists() if branch else False
     workspace = read_record(root, branch) if registered else None
     dirty = bool(git_output(repository, "status", "--porcelain"))
-    merge = git_output(repository, "rev-parse", "--git-path", "MERGE_HEAD")
-    merging = (
-        (repository / merge).exists() if not Path(merge).is_absolute() else Path(merge).exists()
-    )
+    merging = repository_path(repository, "rev-parse", "--git-path", "MERGE_HEAD").exists()
     change_root, _ = authority_roots(repository)
     changes = []
     for path in sorted((repository / change_root).glob("*/change.toml")):

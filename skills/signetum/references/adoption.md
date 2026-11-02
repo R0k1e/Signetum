@@ -6,7 +6,9 @@ the user's project and call `sh <skill-base-dir>/scripts/signetum ...`.
 
 ## Prepare the Skill once
 
-Check Git, Mise, Worktrunk (`wt`), uv and host Python 3.12+. Report missing tools
+Check Git 2.7 or newer for Signetum's own commands, Mise, Worktrunk 0.74
+(`wt`), uv and host Python 3.12+. Cleanup through Worktrunk needs Git 2.17.
+Worktrunk 0.75 or newer needs Git 2.43. Report missing tools
 and resolve setup explicitly. Honor the host's Mise trust decision; never trust
 project configuration automatically. Run `setup` to select host Python 3.12 and uv 0.12.2 explicitly through Mise,
 including on hosts with unconfigured shims, and create a locked environment under the installed Skill's ignored `.runtime/` directory. `identity` reports its

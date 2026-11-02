@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 from signetum import worktrunk as wt
-from signetum.git import git_output, run_git
+from signetum.git import git_output, repository_path, run_git
 from signetum.manifest import load_manifest, parse_manifest
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.policy import delivery_policy
@@ -220,10 +220,7 @@ def _has_git_operation(repository: Path) -> bool:
         "rebase-apply",
         "sequencer",
     ):
-        path = Path(git_output(repository, "rev-parse", "--git-path", name))
-        if not path.is_absolute():
-            path = repository / path
-        if path.exists():
+        if repository_path(repository, "rev-parse", "--git-path", name).exists():
             return True
     return False
 

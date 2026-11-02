@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "signetum"
-version = "0.3.0"
+version = "0.3.1"
 description = "Reliable agentic development and delivery through a standard Skill"
 license = "Apache-2.0"
 requires-python = ">=3.12"

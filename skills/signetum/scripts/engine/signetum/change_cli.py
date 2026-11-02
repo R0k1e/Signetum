@@ -25,14 +25,14 @@ from signetum.source_authority import (
     committed_blob,
 )
 from signetum.workflow_status import workflow_status
-from signetum.workspaces import read_record, state_root
+from signetum.workspaces import current_branch, read_record, state_root
 
 
 def _semantic_request(
     repository: Path, options: argparse.Namespace
 ) -> tuple[DevelopmentTransaction, str]:
     """Bind semantic input once; the existing writer still judges every append."""
-    branch = git_output(repository, "branch", "--show-current")
+    branch = current_branch(repository)
     workspace = read_record(state_root(repository), branch)
     if workspace.kind != "member":
         raise ValueError("journal requires a registered member workspace")
