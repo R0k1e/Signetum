@@ -4,7 +4,7 @@ id = "wider-git-floor"
 
 [change.source]
 kind = "human_direction"
-summary = "Make Signetum's own Git commands use the oldest stable spelling and set the product version to 0.3.1 without publishing."
+summary = "Deliver and release Signetum 0.3.1. The owner asked to merge the Git compatibility fix and publish it."
 
 [change.contract]
 version = 1
@@ -12,33 +12,36 @@ approved_base = "a22c078f68605c488795de59512d402d0a7b32b1" # pragma: allowlist s
 
 [[change.contract.requirements]]
 id = "GIT-001"
-outcome = "Signetum's own Git commands use the oldest stable spelling and the product version becomes 0.3.1, without publishing."
+outcome = "Signetum 0.3.1, with Git commands on the oldest stable spelling, is delivered to main and published from that exact source."
 acceptance = [
     "primary_worktree parses `git worktree list --porcelain` with no `-z`.",
     "No remaining Signetum call uses `rev-parse --path-format=absolute` or `branch --show-current`.",
     "Skill version and engine package version are 0.3.1. Changelog has a 0.3.1 section. Prerequisites name Git 2.7 or newer for Signetum's own commands, Worktrunk 0.74, cleanup via Worktrunk needs Git 2.17, and Worktrunk 0.75+ needs Git 2.43.",
-    "Manifest format, protocol, Worktrunk pin 0.74.0, update behavior, Perdura, and the v0.3.0 release stay unchanged.",
+    "Manifest format, protocol, Worktrunk pin 0.74.0, update behavior, and Perdura stay unchanged.",
+    "Remote main receives this change through batch delivery. The annotated tag v0.3.1 points at that delivered commit and is pushed alone. The published v0.3.0 tag stays.",
 ]
 
 [change.contract.autonomy]
 allowed = [
-    "Implement that behavior, tests, and the version/prerequisite text in the member worktree, then commit the implementation after a separate approval commit.",
+    "Keep the Git 2.7 spellings, tests, and 0.3.1 version text.",
+    "Deliver the reviewed batch to main.",
+    "Create the annotated tag v0.3.1 on the delivered commit and push only that tag.",
 ]
 requires_confirmation = [
-    "Delivery to main, tagging, publishing, editing Perdura, or upgrading Worktrunk.",
+    "Editing Perdura, upgrading Worktrunk, moving v0.3.0, or force-pushing.",
 ]
 
 [[change.contract.excluded]]
-statement = "Publishing 0.3.1, moving v0.3.0, forking Worktrunk, parsing human `git worktree list` text, adding a git --version probe, or trying `-z` then falling back."
-reason = "The owner asked for the compatible spelling and an unpublished 0.3.1 candidate, not a release or a newer Git probe."
+statement = "Moving v0.3.0, forking Worktrunk, parsing human `git worktree list` text, adding a git version probe, or trying `-z` then falling back."
+reason = "The owner asked to merge and release 0.3.1. The published 0.3.0 tag stays, and the Git floor stays the stable porcelain spelling."
 
 [[change.execution.steps]]
 id = "STEP-001"
 requirements = ["GIT-001"]
-action = "Replace the newer Git spellings in the engine, reconcile the 0.3.1 version and prerequisite text, and extend workspace tests without publishing."
+action = "Keep the Git 2.7 spellings, reconcile the 0.3.1 notes, deliver the reviewed source to main, and push the annotated v0.3.1 tag."
 
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-02
-source = "The owner asked to implement the 0.3.1 Git compatibility fix and not to publish it."
-contract_digest = "sha256:f3d69649425de2b33c92a521eecdf572c04f5e86a0fa9ccac6fcf6462204d883"
+source = "The owner asked to merge wider-git-floor and release 0.3.1."
+contract_digest = "sha256:9c1a08abe3f54f965f458e62626e0dce9fc52f200cde36d10f3571949685943f"
