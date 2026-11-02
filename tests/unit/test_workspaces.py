@@ -4,11 +4,14 @@ import json
 from pathlib import Path
 
 import pytest
+from signetum import workspaces
+from signetum.git import git_output
 from signetum.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
     claim_change,
     parse_record,
+    primary_worktree,
     read_record,
     record_path,
     write_record,
@@ -148,3 +151,58 @@ def test_constructed_record_requires_immutable_string_members(members):
         WorkspaceRecord(
             schema_version=1, branch="plan/example", base=BASE, kind="batch", members=members
         )
+
+
+def test_blank_line_porcelain_resolves_the_primary_worktree(tmp_path: Path, monkeypatch) -> None:
+    primary = tmp_path / "primary"
+    member = tmp_path / "member"
+    primary.mkdir()
+    member.mkdir()
+    inventory = (
+        f"worktree {primary}\n"
+        "HEAD 1111111111111111111111111111111111111111\n"
+        "branch refs/heads/main\n"
+        "\n"
+        f"worktree {member}\n"
+        "HEAD 2222222222222222222222222222222222222222\n"
+        "branch refs/heads/feature\n"
+    )
+
+    def recorded(repository, *arguments, strip=True):
+        del repository, strip
+        assert arguments == ("worktree", "list", "--porcelain")
+        return inventory
+
+    monkeypatch.setattr(workspaces, "git_output", recorded)
+    assert primary_worktree(member) == primary.resolve()
+
+
+def test_porcelain_without_a_worktree_line_is_rejected(monkeypatch) -> None:
+    def recorded(repository, *arguments, strip=True):
+        del repository, arguments, strip
+        return "HEAD 1111111111111111111111111111111111111111\n\nworktree /tmp/later\n"
+
+    monkeypatch.setattr(workspaces, "git_output", recorded)
+    with pytest.raises(WorkspaceError, match="unavailable"):
+        primary_worktree(Path("unused"))
+
+
+def test_live_primary_worktree_is_the_repository_checkout(tmp_path: Path, monkeypatch) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    git_output(repository, "init", "-b", "main")
+    git_output(repository, "config", "user.email", "workspace@example.invalid")
+    git_output(repository, "config", "user.name", "Workspace Test")
+    git_output(repository, "commit", "--allow-empty", "-m", "base")
+    member = tmp_path / "member"
+    git_output(repository, "worktree", "add", "-b", "feature", str(member), "HEAD")
+    observed: list[tuple[str, ...]] = []
+    original = workspaces.git_output
+
+    def record(repo, *arguments, **kwargs):
+        observed.append(arguments)
+        return original(repo, *arguments, **kwargs)
+
+    monkeypatch.setattr(workspaces, "git_output", record)
+    assert primary_worktree(member) == repository.resolve()
+    assert observed == [("worktree", "list", "--porcelain")]

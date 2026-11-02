@@ -1127,7 +1127,7 @@ wheels = [
 
 [[package]]
 name = "signetum"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "skills/signetum/scripts/engine" }
 dependencies = [
     { name = "pydantic" },

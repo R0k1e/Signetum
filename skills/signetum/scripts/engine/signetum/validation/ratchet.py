@@ -12,7 +12,7 @@ import time
 from collections import Counter
 from pathlib import Path
 
-from signetum.git import git_output, run_git
+from signetum.git import git_output, repository_path, run_git
 from signetum.synchronization import verified_sync_sources
 from signetum.validation import ValidationShard
 from signetum.validation.diagnostic_protocol import diagnostic_multiset
@@ -51,8 +51,8 @@ def _materialize(repository: Path, base: str, destination: Path) -> None:
     # An isolated index/HEAD makes Git-aware checks see the archived inventory.
     # This repository has no registered worktree and cannot mutate the source.
     git_output(destination, "init", "--quiet")
-    objects = git_output(repository, "rev-parse", "--path-format=absolute", "--git-path", "objects")
-    (destination / ".git/objects/info/alternates").write_text(objects + "\n", encoding="utf-8")
+    objects = repository_path(repository, "rev-parse", "--git-path", "objects")
+    (destination / ".git/objects/info/alternates").write_text(f"{objects}\n", encoding="utf-8")
     git_output(destination, "read-tree", base)
     git_output(destination, "update-ref", "refs/heads/snapshot", base)
     git_output(destination, "symbolic-ref", "HEAD", "refs/heads/snapshot")

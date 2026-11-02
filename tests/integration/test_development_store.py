@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 from signetum.change_record import contract_digest, parse_change_record
-from signetum.git import git_output, run_git
+from signetum.git import git_output, repository_path, run_git
 from signetum.serialization import contract_mapping
 from signetum.source_authority import authority_roots
 from signetum.workspaces import WorkspaceRecord, write_record
@@ -33,7 +33,7 @@ def repository(tmp_path):
     git_output(tmp_path, "commit", "-m", "base")
     base = git_output(tmp_path, "rev-parse", "HEAD")
     git_output(tmp_path, "switch", "-c", "plan/alpha")
-    common = Path(git_output(tmp_path, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    common = repository_path(tmp_path, "rev-parse", "--git-common-dir")
     write_record(common / "signetum", WorkspaceRecord(1, "plan/alpha", base, "member"))
     source = f'''[change]
 schema_version = 1
@@ -437,9 +437,7 @@ def test_invalid_authority_never_creates_a_journal(repository, store, damage, tm
     else:
         branch = "batch/probe"
         git_output(repository, "switch", "-c", branch)
-        common = Path(
-            git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir")
-        )
+        common = repository_path(repository, "rev-parse", "--git-common-dir")
         write_record(
             common / "signetum",
             WorkspaceRecord(1, branch, git_output(repository, "rev-parse", "HEAD"), "batch"),
@@ -491,7 +489,7 @@ def test_ordinary_plan_refinement_does_not_request_new_behavior_approval(reposit
 
 
 def test_concurrent_writer_refuses_instead_of_waiting_or_appending(repository, store):
-    common = Path(git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    common = repository_path(repository, "rev-parse", "--git-common-dir")
     with (common / "signetum/development.lock").open("a+b") as held:
         fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with pytest.raises(ValueError, match="writer is active"):
@@ -611,7 +609,7 @@ def test_retirement_preserves_the_original_resolution_and_retains_other_evidence
     git_output(repository, "commit", "-m", "close original delivery history")
     base = git_output(repository, "rev-parse", "HEAD")
     git_output(repository, "switch", "-c", "plan/beta")
-    common = Path(git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    common = repository_path(repository, "rev-parse", "--git-common-dir")
     write_record(common / "signetum", WorkspaceRecord(1, "plan/beta", base, "member"))
     retirement = {
         "id": "beta/retire-evidence",
@@ -882,7 +880,7 @@ def test_a_second_member_cannot_claim_the_same_change(repository, store):
         (repository / "changes/alpha/change.toml").read_text()
     ).contract.approved_base
     git_output(repository, "switch", "-c", branch)
-    common = Path(git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    common = repository_path(repository, "rev-parse", "--git-common-dir")
     write_record(common / "signetum", WorkspaceRecord(1, branch, base, "member"))
     history = repository / "changes/alpha/events.jsonl"
     original = history.read_bytes()
