@@ -35,6 +35,35 @@ def mise_executable() -> str:
     return executable
 
 
+def declared_environment(
+    source: Mapping[str, str] | None = None, *, extra: Mapping[str, str] | None = None
+) -> dict[str, str]:
+    """Remove repository Git context and a foreign Python environment.
+
+    Signetum keys in ``extra`` are applied after that removal. Mise supplies
+    the tools a project pins; this does not prepend the Skill engine environment.
+    """
+
+    environment = dict(os.environ if source is None else source)
+    for name in tuple(environment):
+        if name.startswith("GIT_") or name in {
+            "PYTHONHOME",
+            "PYTHONPATH",
+            "UV_PROJECT_ENVIRONMENT",
+            "VIRTUAL_ENV",
+        }:
+            del environment[name]
+    if extra:
+        environment.update(extra)
+    return environment
+
+
+def declared_argv(command: tuple[str, ...]) -> tuple[str, ...]:
+    """Run a declared argv through Mise without wrapping its exit status."""
+
+    return (mise_executable(), "exec", "--", *command)
+
+
 def run_tool(
     repository: Path,
     command: tuple[str, ...],
@@ -43,19 +72,11 @@ def run_tool(
     timeout_seconds: float = 1800,
     environment: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    environment = dict(os.environ if environment is None else environment)
-    for name in tuple(environment):
-        if name.startswith("GIT_") or name in {
-            "PYTHONHOME",
-            "PYTHONPATH",
-            "UV_PROJECT_ENVIRONMENT",
-            "VIRTUAL_ENV",
-        }:
-            environment.pop(name)
+    environment = declared_environment(environment)
     try:
         completed = run_command(
             repository,
-            (mise_executable(), "exec", "--", *command),
+            declared_argv(command),
             timeout_seconds=timeout_seconds,
             environment=environment,
         )
@@ -68,7 +89,7 @@ def run_tool(
     if not required:
         return completed
     if completed.returncode != 0:
-        diagnostic = (completed.stderr or "").strip() or (completed.stdout or "").strip()
+        diagnostic = f"{completed.stdout or ''}{completed.stderr or ''}".strip()
         detail = diagnostic or f"Mise could not execute {command[0]}"
         raise OperationFailed(
             f"declared command failed ({completed.returncode}): {command[0]}\n{detail}",

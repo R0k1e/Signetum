@@ -3,6 +3,27 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.3.2
+
+Declared commands use one Mise resolver, and ready qualifies the committed tree.
+The release is a candidate until published.
+
+- Preparation, tool identity, shard commands, findings commands, and ratchet
+  diagnostics run through `mise exec --`. Repository Git context and foreign
+  Python environments are removed. The Skill engine environment is not prepended
+  onto application PATH.
+- `ready` prepares and checks a temporary detached checkout of the member commit.
+  The editing worktree stays. The result shows each carried approval's actor,
+  date, source, and contract digest.
+- `adopt inspect` reports tool versions, the Git 2.7 and 2.17 floors, and PATH
+  uv beside `mise exec -- uv`. A difference does not fail inspection.
+- `update --check` can send a GitHub token without printing it. A rate limit
+  stays unavailable and names `update --source`.
+- `batch-deliver` states that source and target are worktree directories and the
+  last two arguments are full commits.
+- A repeated adopt preview names the existing file. `change open` without a
+  member workspace names `workspace-open`.
+
 ## 0.3.1
 
 Signetum's own Git commands use spellings available since Git 2.7. The release
