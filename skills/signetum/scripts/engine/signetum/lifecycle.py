@@ -23,7 +23,7 @@ from signetum.deviations import (
 )
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
-from signetum.git import GitError, GitInfrastructureError, git_output, run_git
+from signetum.git import GitError, GitInfrastructureError, git_output, repository_path, run_git
 from signetum.lifecycle_validation import validate_workspace
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.operation_cli import OperationParser, run_operation
@@ -357,9 +357,6 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             text=True,
         )
         if completed.returncode != 0:
-            merge_head = Path(_git(batch, "rev-parse", "--git-path", "MERGE_HEAD"))
-            if not merge_head.is_absolute():
-                merge_head = batch / merge_head
             diagnostic = completed.stderr.strip() or completed.stdout.strip()
             if _git(batch, "diff", "--name-only", "--diff-filter=U"):
                 raise MergeConflict(
@@ -411,9 +408,7 @@ def continue_batch(batch: Path) -> dict[str, object]:
 
 
 def _continue_batch_held(batch: Path) -> dict[str, object]:
-    merge_head = Path(_git(batch, "rev-parse", "--git-path", "MERGE_HEAD"))
-    if not merge_head.is_absolute():
-        merge_head = batch / merge_head
+    merge_head = repository_path(batch, "rev-parse", "--git-path", "MERGE_HEAD")
     if not merge_head.is_file():
         raise AdmissionError("batch has no merge to continue")
     unmerged = _git(batch, "diff", "--name-only", "--diff-filter=U")

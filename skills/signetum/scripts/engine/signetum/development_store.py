@@ -27,7 +27,7 @@ from signetum.development_log import (
     validate_transaction,
     withdrawn_resolution_ids,
 )
-from signetum.git import git_output, run_git
+from signetum.git import git_output, repository_path, run_git
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
 from signetum.source_authority import (
     authority_roots,
@@ -385,7 +385,7 @@ def reconciliation_summary(
 
 @contextmanager
 def _writer(repository: Path) -> Iterator[Path]:
-    common = Path(git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    common = repository_path(repository, "rev-parse", "--git-common-dir")
     root = common / "signetum"
     root.mkdir(parents=True, exist_ok=True)
     with (root / "development.lock").open("a+b") as lock:

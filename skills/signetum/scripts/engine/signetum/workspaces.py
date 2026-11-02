@@ -15,7 +15,7 @@ from re import fullmatch
 from typing import Literal, cast
 from urllib.parse import quote
 
-from signetum.git import git_output
+from signetum.git import GitError, git_output, repository_path, run_git
 from signetum.operations import AdmissionError, MergeConflict
 
 WORKSPACE_DIRECTORY = "workspaces"
@@ -213,21 +213,20 @@ __all__ = [
 
 
 def state_root(repository: Path) -> Path:
-    common = Path(git_output(repository, "rev-parse", "--git-common-dir"))
-    if not common.is_absolute():
-        common = repository / common
-    root = common.resolve() / "signetum"
+    common = repository_path(repository, "rev-parse", "--git-common-dir").resolve()
+    root = common / "signetum"
     root.mkdir(parents=True, exist_ok=True)
     return root
 
 
 def primary_worktree(repository: Path) -> Path:
     """Git lists the primary worktree first, regardless of the invoking member."""
-    inventory = git_output(repository, "worktree", "list", "--porcelain", "-z", strip=False)
-    first = inventory.split("\0", 1)[0]
-    if not first.startswith("worktree "):
+    inventory = git_output(repository, "worktree", "list", "--porcelain", strip=False)
+    first = inventory.split("\n\n", 1)[0]
+    line = first.split("\n", 1)[0]
+    if not line.startswith("worktree "):
         raise WorkspaceError("primary Git worktree is unavailable")
-    root = Path(first.removeprefix("worktree ")).resolve()
+    root = Path(line.removeprefix("worktree ")).resolve()
     if not root.is_dir():
         raise WorkspaceError("primary Git worktree is unavailable")
     return root
@@ -292,6 +291,20 @@ def require_clean(worktree: Path) -> None:
         raise AdmissionError(f"worktree is not clean: {worktree}")
 
 
+def current_branch(repository: Path) -> str:
+    """Return the short branch, or empty when HEAD is not a branch.
+
+    Quiet symbolic-ref exits 1 when HEAD is not a branch. Other failures stay errors.
+    """
+    completed = run_git(repository, "symbolic-ref", "--quiet", "--short", "HEAD")
+    if completed.returncode == 1:
+        return ""
+    if completed.returncode:
+        diagnostic = completed.stderr.strip() or completed.stdout.strip()
+        raise GitError(diagnostic or "git symbolic-ref --quiet --short HEAD failed")
+    return completed.stdout.strip()
+
+
 def branch_name(worktree: Path) -> str:
     branch = git_output(worktree, "symbolic-ref", "--quiet", "--short", "HEAD")
     if not branch:
@@ -300,9 +313,7 @@ def branch_name(worktree: Path) -> str:
 
 
 def require_no_merge(repository: Path) -> None:
-    merge_head = Path(git_output(repository, "rev-parse", "--git-path", "MERGE_HEAD"))
-    if not merge_head.is_absolute():
-        merge_head = repository / merge_head
+    merge_head = repository_path(repository, "rev-parse", "--git-path", "MERGE_HEAD")
     if merge_head.is_file():
         raise MergeConflict(
             "batch has an open merge",
