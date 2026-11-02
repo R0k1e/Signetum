@@ -219,6 +219,10 @@ def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path, monke
     )
     weights = tmp_path / "weights.json"
     weights.write_text(json.dumps({"test_order.py::test_heavy": 100}))
+    # Ready qualifies a detached checkout under the system temp directory, and
+    # pytest writes this generated file there too. Without an explicit root,
+    # pytest 9 uses their common ancestor, so the node id no longer matches
+    # the weight key test_order.py::test_heavy.
     command = [
         sys.executable,
         "-m",
@@ -227,6 +231,8 @@ def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path, monke
         "-q",
         "-o",
         "addopts=",
+        "--rootdir",
+        str(tmp_path),
         str(test),
     ]
     result = subprocess.run(  # noqa: S603 -- actual runner, measured hints and private application tests
