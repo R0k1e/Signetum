@@ -2,7 +2,7 @@
 name: signetum
 description: Use Signetum for reliable Agent development and delivery in evolving repositories, from a single Agent across sessions to parallel coding Agents. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
-  version: "0.3.1"
+  version: "0.3.2"
 ---
 
 # Reliable Agent development and delivery

@@ -19,8 +19,11 @@ uncertainty. Resolve an open batch merge through `batch-continue`. Otherwise fix
 the member, run ready and admit its new tip, then run ordinary final again.
 There is no special recovery verdict that turns a failed validation green.
 
-Publish only through explicit `batch-deliver` with the expected base and batch
-tip. A changed or missing review binding requires fresh final. Publication
+Publish only through explicit
+`batch-deliver <source-worktree> <target-worktree> <expected-base> <expected-batch-tip>`.
+`source` and `target` are existing worktree directories. A branch name is not a
+path. `expected-base` and `expected-batch-tip` are full commits. A changed or
+missing review binding requires fresh final. Publication
 recovery confirms the exact remote identity before moving the local target;
 never substitute force-push, history rewriting or ad-hoc cleanup. If delivery
 retains an `active_runtime` checkout, finish the operation, switch to the delivery

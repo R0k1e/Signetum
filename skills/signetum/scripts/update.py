@@ -35,6 +35,19 @@ API = "https://api.github.com/repos/" + REPOSITORY
 MAX_ARCHIVE = 32 * 1024 * 1024
 
 
+def _headers(url: str) -> dict[str, str]:
+    headers = {
+        "User-Agent": "Signetum-explicit-update",
+        "Accept": "application/vnd.github+json",
+    }
+    if urllib.parse.urlsplit(url).netloc != "api.github.com":
+        return headers
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    return headers
+
+
 def _read(url: str) -> bytes:
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme != "https" or parsed.netloc not in {
@@ -45,9 +58,18 @@ def _read(url: str) -> bytes:
         raise ValueError("update acquisition requires a declared GitHub HTTPS origin")
     request = urllib.request.Request(  # noqa: S310 -- exact HTTPS origin checked above
         url,
-        headers={"User-Agent": "Signetum-explicit-update", "Accept": "application/vnd.github+json"},
+        headers=_headers(url),
     )
-    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 -- fixed HTTPS origins
+    try:
+        response = urllib.request.urlopen(request, timeout=30)  # noqa: S310 -- fixed HTTPS origins
+    except urllib.error.HTTPError as error:
+        if error.code == 403 and parsed.netloc == "api.github.com":
+            raise OSError(
+                "GitHub API rate limited this update check; "
+                "set GH_TOKEN or GITHUB_TOKEN, or run update --source <skill-directory>"
+            ) from error
+        raise
+    with response:
         if urllib.parse.urlsplit(response.geturl()).scheme != "https":
             raise ValueError("update acquisition cannot redirect to insecure transport")
         payload = response.read(MAX_ARCHIVE + 1)
