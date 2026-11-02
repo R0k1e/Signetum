@@ -1,6 +1,8 @@
 # Work and validation
 
-Use the registered member workspace, immutable base and repository environment.
+Use the registered member workspace and its immutable base. Ready prepares and
+checks a temporary detached checkout of that committed tip, so an ignored file
+that is not in the commit cannot satisfy preparation. The editing worktree stays.
 Use a short task branch such as `change/isolate-runtime`, never an opaque identifier.
 Follow the project's commit convention. Subjects describe a durable outcome; keep
 related changes together instead of committing each journal event separately.
