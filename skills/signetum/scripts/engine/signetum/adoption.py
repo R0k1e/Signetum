@@ -5,7 +5,9 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import stat
+import subprocess  # nosec B404 -- resolved tool argv, never a shell
 import tempfile
 import tomllib
 from dataclasses import dataclass
@@ -65,6 +67,73 @@ def _repository_root(repository: Path) -> Path:
     return root
 
 
+_VERSION_PARTS = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
+
+
+def _tool_version(executable: str) -> str | None:
+    try:
+        completed = subprocess.run(  # noqa: S603  # nosec B603 -- resolved executable, fixed argv
+            (executable, "--version"),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode or not completed.stdout.strip():
+        return None
+    return completed.stdout.strip().splitlines()[0]
+
+
+def _version_met(text: str | None, minimum: tuple[int, ...]) -> bool:
+    if text is None:
+        return False
+    match = _VERSION_PARTS.search(text)
+    if match is None:
+        return False
+    found = tuple(int(part) for part in match.groups() if part is not None)
+    width = max(len(found), len(minimum))
+    return found + (0,) * (width - len(found)) >= minimum + (0,) * (width - len(minimum))
+
+
+def _tool_report(name: str) -> dict[str, object]:
+    executable = which(name)
+    version = _tool_version(executable) if executable is not None else None
+    report: dict[str, object] = {"present": executable is not None, "version": version}
+    if name == "git":
+        report["floors"] = {
+            "signetum_commands": {"minimum": "2.7", "met": _version_met(version, (2, 7))},
+            "worktrunk_cleanup": {"minimum": "2.17", "met": _version_met(version, (2, 17))},
+        }
+    return report
+
+
+def _uv_resolution() -> dict[str, object]:
+    path_executable = which("uv")
+    path_version = _tool_version(path_executable) if path_executable is not None else None
+    mise = which("mise")
+    mise_version = None
+    if mise is not None:
+        try:
+            completed = subprocess.run(  # noqa: S603  # nosec B603 -- resolved Mise, fixed argv
+                (mise, "exec", "--", "uv", "--version"),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            completed = None
+        if completed is not None and completed.returncode == 0 and completed.stdout.strip():
+            mise_version = completed.stdout.strip().splitlines()[0]
+    return {
+        "path": path_version,
+        "mise": mise_version,
+        "differs": bool(path_version and mise_version and path_version != mise_version),
+    }
+
+
 def inspect(repository: Path) -> dict[str, object]:
     repository = _repository_root(repository)
     candidates = (
@@ -89,7 +158,8 @@ def inspect(repository: Path) -> dict[str, object]:
             for name in candidates
             if (repository / name).is_file() or (repository / name).is_symlink()
         ],
-        "tools": {name: which(name) is not None for name in ("git", "uv", "mise", "wt")},
+        "tools": {name: _tool_report(name) for name in ("git", "uv", "mise", "wt")},
+        "uv_resolution": _uv_resolution(),
         "engine_digest": implementation_digest(),
         "required": [
             "Reviewed command, input and delivery bindings in signetum.toml.",
@@ -317,8 +387,13 @@ def main(arguments: list[str] | None = None) -> int:
                 AdoptionRequest, load_json(args.request.read_text()), use_defaults=True
             )
             plan = preview(args.repository, request)
-            with args.output.open("x", encoding="utf-8") as output:
-                json.dump(contract_mapping(plan), output, ensure_ascii=False, sort_keys=True)
+            try:
+                with args.output.open("x", encoding="utf-8") as output:
+                    json.dump(contract_mapping(plan), output, ensure_ascii=False, sort_keys=True)
+            except FileExistsError as error:
+                raise ValueError(
+                    f"preview file already exists: {args.output}; choose another --output"
+                ) from error
             changes = [f for f in plan.files if f.before != f.after]
             result = {
                 "schema_version": 1,

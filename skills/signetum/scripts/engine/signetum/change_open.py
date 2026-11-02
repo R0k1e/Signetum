@@ -24,11 +24,22 @@ def open_change(repository: Path, name: str) -> dict[str, object]:
     repository = repository.resolve()
     try:
         branch = branch_name(repository)
-        workspace = read_record(state_root(repository), branch)
+        if branch == delivery_policy(repository).branch:
+            raise ChangeOpenError(
+                "change-open needs a member workspace; "
+                "run workspace-open for a member workspace first"
+            )
+        try:
+            workspace = read_record(state_root(repository), branch)
+        except WorkspaceError as error:
+            if "has no recorded base" in str(error):
+                raise ChangeOpenError(
+                    "change-open needs a member workspace; "
+                    "run workspace-open for a member workspace first"
+                ) from error
+            raise
         if workspace.kind != "member":
             raise ValueError("change-open requires a registered member workspace")
-        if branch == delivery_policy(repository).branch:
-            raise ValueError("change-open refuses the delivery workspace")
         root = changes_root(load_manifest(repository / "signetum.toml"))
         relative = f"{root}/{name}/change.toml"
         path = source_path(repository, relative)

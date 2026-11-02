@@ -1,6 +1,8 @@
 """Adoption writes exact bindings and preserves a project's own entrypoints."""
 
 import hashlib
+import json
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -146,3 +148,84 @@ def test_exact_managed_retirement_preserves_changed_and_unmanaged_files(adoption
     assert apply(root, proposal, plan_digest(proposal))["status"] == "applied"
     assert (directory / "custom.py").read_text() == "user_owned=True\n"
     assert apply(root, proposal, plan_digest(proposal))["status"] == "unchanged"
+
+
+def test_inspect_reports_versions_and_keeps_a_low_git_floor_inspected(adoption, monkeypatch):
+    root, _request = adoption
+
+    real_run = subprocess.run
+
+    def which(name):
+        return f"/usr/bin/{name}"
+
+    def run(argv, **kwargs):
+        arguments = tuple(argv)
+        if arguments[1:3] == ("exec", "--"):
+            text = "uv 0.12.2\n"
+        elif arguments[-1:] == ("--version",) and Path(arguments[0]).name == "git":
+            text = "git version 2.6.0 (Fixture)\n"
+        elif arguments[-1:] == ("--version",):
+            text = f"{Path(arguments[0]).name} 1.0.0\n"
+        else:
+            return real_run(argv, **kwargs)
+        return subprocess.CompletedProcess(argv, 0, text, "")
+
+    monkeypatch.setattr(owner, "which", which)
+    monkeypatch.setattr(owner.subprocess, "run", run)
+    report = owner.inspect(root)
+    git_report = report["tools"]["git"]
+    assert report["status"] == "inspected"
+    assert isinstance(git_report, dict)
+    assert git_report["present"] is True
+    assert git_report["version"] == "git version 2.6.0 (Fixture)"
+    floors = git_report["floors"]
+    assert isinstance(floors, dict)
+    assert floors["signetum_commands"]["met"] is False
+    assert floors["worktrunk_cleanup"]["minimum"] == "2.17"
+    assert floors["worktrunk_cleanup"]["met"] is False
+    assert report["uv_resolution"] == {
+        "path": "uv 1.0.0",
+        "mise": "uv 0.12.2",
+        "differs": True,
+    }
+
+
+def test_inspect_reports_a_missing_tool_without_failing(adoption, monkeypatch):
+    root, _request = adoption
+    monkeypatch.setattr(owner, "which", lambda name: None)
+    report = owner.inspect(root)
+    assert report["status"] == "inspected"
+    assert report["tools"]["git"] == {
+        "present": False,
+        "version": None,
+        "floors": {
+            "signetum_commands": {"minimum": "2.7", "met": False},
+            "worktrunk_cleanup": {"minimum": "2.17", "met": False},
+        },
+    }
+    assert report["uv_resolution"] == {"path": None, "mise": None, "differs": False}
+
+
+def test_second_preview_leaves_the_existing_file_unchanged(adoption, tmp_path, capsys):
+    root, request = adoption
+    request_path = tmp_path / "request.json"
+    output = tmp_path / "plan.json"
+    request_path.write_text(json.dumps({"manifest": request.manifest}))
+    arguments = [
+        "preview",
+        "--repository",
+        str(root),
+        "--request",
+        str(request_path),
+        "--output",
+        str(output),
+    ]
+    assert owner.main(arguments) == 0
+    first = output.read_bytes()
+    assert owner.main(arguments) != 0
+    captured = capsys.readouterr()
+    assert "preview file already exists" in captured.out
+    assert "choose another --output" in captured.out
+    assert "Errno" not in captured.out
+    assert "File exists" not in captured.out
+    assert output.read_bytes() == first

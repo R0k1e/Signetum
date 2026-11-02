@@ -125,8 +125,13 @@ def test_baseline_cache_reuses_only_completed_tool_bound_measurements(repository
     runtime.validate(member, "member")
     runtime.validate(member, "member")
     runs = (state / "runs").read_text().splitlines()
-    assert runs.count(str(member.resolve())) == 2
+    qualification = [path for path in runs if "/signetum-ready-" in path and path.endswith("/tree")]
+    baseline = [path for path in runs if "/signetum-ratchet-" in path and path.endswith("/source")]
     assert len(runs) == 3
+    assert len(qualification) == 2
+    assert len(set(qualification)) == 2
+    assert len(baseline) == 1
+    assert str(member.resolve()) not in runs
 
 
 def test_current_unavailable_report_never_counts_as_no_findings(repository, runtime):
