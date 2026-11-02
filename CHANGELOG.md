@@ -3,6 +3,16 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.3.1
+
+Signetum's own Git commands use spellings available since Git 2.7. The release
+is a candidate until published.
+
+- Discover the primary worktree from blank-line `git worktree list --porcelain`
+  and resolve relative Git paths without newer rev-parse or branch options.
+- Signetum's own commands need Git 2.7 or newer. Worktrunk stays at 0.74.
+  Cleanup through Worktrunk needs Git 2.17. Worktrunk 0.75 or newer needs Git 2.43.
+
 ## 0.3.0
 
 Signetum is a standard Skill for reliable Agent development and delivery, from a

@@ -25,7 +25,9 @@ agent handles request formats and commands. Missing tools or an unavailable sour
 are reported with the next setup action. A source must actually be available;
 an unpublished development worktree is not an installable public revision.
 
-Host execution needs Git, Mise, Worktrunk, uv and Python 3.12+. Your application's language and test
+Host execution needs Git 2.7 or newer for Signetum's own commands, Mise,
+Worktrunk 0.74, uv and Python 3.12+. Cleanup through Worktrunk needs Git 2.17.
+Worktrunk 0.75 or newer needs Git 2.43. Your application's language and test
 framework stay unchanged. The agent reports and resolves required setup before
 promising a usable workspace. You do not copy a template over the project.
 

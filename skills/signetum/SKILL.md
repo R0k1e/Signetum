@@ -2,7 +2,7 @@
 name: signetum
 description: Use Signetum for reliable Agent development and delivery in evolving repositories, from a single Agent across sessions to parallel coding Agents. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
 ---
 
 # Reliable Agent development and delivery
@@ -13,8 +13,10 @@ Agents execute and maintain concise records.
 
 Keep cwd in the project. Invoke `sh <skill-base-dir>/scripts/signetum ...`.
 The complete installed Skill owns its locked environment; no Signetum dependency
-belongs in the application. Git, Mise, Worktrunk, uv and host Python 3.12+ are
-prerequisites. Resolve missing tools before promising a usable workspace.
+belongs in the application. Prerequisites are Git 2.7 or newer for Signetum's
+own commands, Mise, Worktrunk 0.74, uv and host Python 3.12+. Cleanup through
+Worktrunk needs Git 2.17. Worktrunk 0.75 or newer needs Git 2.43. Resolve
+missing tools before promising a usable workspace.
 Read [adoption](references/adoption.md) for setup and the one update procedure.
 Bare `update` installs the latest stable release and prepares that Skill.
 `update --check` and `update --to` are optional. Ordinary commands other than

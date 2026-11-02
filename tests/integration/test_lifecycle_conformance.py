@@ -11,7 +11,7 @@ from types import ModuleType
 import pytest
 from change_fixtures import commit_approval
 from signetum import lifecycle
-from signetum.git import git_output
+from signetum.git import git_output, repository_path
 from signetum.resources.schemas import evidence_schema_digest
 from signetum.workspaces import WorkspaceRecord, branch_name, read_record, state_root, write_record
 
@@ -246,7 +246,7 @@ def test_local_validation_state_has_one_git_common_root(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     git_output(tmp_path, "init")
-    common = Path(git_output(tmp_path, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    common = repository_path(tmp_path, "rev-parse", "--git-common-dir")
     assert runtime._receipt_root(tmp_path) == common / "signetum" / "validation"
 
 

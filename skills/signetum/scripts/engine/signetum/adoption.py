@@ -15,7 +15,7 @@ from typing import Literal
 
 from signetum import __version__
 from signetum.contract_values import FrozenContract
-from signetum.git import git_output
+from signetum.git import git_output, repository_path
 from signetum.manifest import parse_manifest
 from signetum.operation_cli import OperationParser, utility_failure
 from signetum.runtime_identity import implementation_digest
@@ -180,9 +180,7 @@ def apply(repository: Path, plan: AdoptionPlan, expected: str) -> dict[str, obje
         or plan_digest(plan) != expected
     ):
         raise ValueError("adoption plan identity changed; review a fresh preview")
-    common = Path(git_output(repository, "rev-parse", "--git-common-dir"))
-    if not common.is_absolute():
-        common = repository / common
+    common = repository_path(repository, "rev-parse", "--git-common-dir")
     with (common / "signetum-adoption.lock").open("a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

@@ -1,13 +1,12 @@
 """The current overview follows real workspace, journal and evidence authorities."""
 
 from dataclasses import replace
-from pathlib import Path
 
 from change_fixtures import consolidated_approval
 from signetum import lifecycle
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.development_store import append_transaction, parse_request, snapshot
-from signetum.git import git_output, run_git
+from signetum.git import git_output, repository_path, run_git
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
@@ -23,10 +22,7 @@ def _commit(root, message):
 
 def test_overview_is_read_only_scoped_and_distinguishes_recorded_readiness(local_repository):
     root, _ = local_repository
-    common = (
-        Path(git_output(root, "rev-parse", "--path-format=absolute", "--git-common-dir"))
-        / "signetum"
-    )
+    common = repository_path(root, "rev-parse", "--git-common-dir") / "signetum"
     existed = common.exists()
     before = git_output(root, "status", "--porcelain")
     assert _view(root)["workspace"] is None

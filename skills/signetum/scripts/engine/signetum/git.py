@@ -66,6 +66,14 @@ def git_output(repository: Path, *arguments: str, check: bool = True, strip: boo
     return completed.stdout.strip() if strip else completed.stdout
 
 
+def repository_path(repository: Path, *arguments: str) -> Path:
+    """Resolve a Git path. A relative result is joined to the repository."""
+    reported = Path(git_output(repository, *arguments))
+    if reported.is_absolute():
+        return reported
+    return (repository / reported).resolve()
+
+
 def read_blob_contents(repository: Path, identities: tuple[str, ...]) -> dict[str, bytes]:
     """Read exact immutable blobs in one Git process, including non-UTF8 source."""
     if any(re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", value) is None for value in identities):

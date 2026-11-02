@@ -14,7 +14,7 @@ from typing import Annotated, Literal, TypedDict
 from signetum.change.models import Identifier
 from signetum.change_record import load_repository_record, review_view
 from signetum.contract_values import FrozenContract
-from signetum.git import GitError, git_output, run_git
+from signetum.git import GitError, repository_path, run_git
 from signetum.serialization import (
     Constraints,
     ValueDecodeError,
@@ -102,13 +102,9 @@ class DeviationState(FrozenContract):
 def git_common_dir(repository: Path) -> Path:
     """Resolve the one common Git directory shared by linked worktrees."""
     try:
-        output = git_output(repository, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        return repository_path(repository, "rev-parse", "--git-common-dir").resolve()
     except GitError as error:
         raise DeviationError(str(error)) from error
-    common = Path(output)
-    if not common.is_absolute():
-        raise DeviationError("Git returned a non-absolute common directory")
-    return common.resolve()
 
 
 def ledger_path(repository: Path, change_id: str) -> Path:
