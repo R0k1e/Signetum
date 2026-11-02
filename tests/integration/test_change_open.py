@@ -13,6 +13,17 @@ def author():
     return importlib.import_module("signetum.change_open")
 
 
+def test_open_without_a_member_workspace_names_workspace_open(repository, author):
+    root, _state = repository
+    with pytest.raises(author.ChangeOpenError, match="workspace-open") as failure:
+        author.open_change(root, "first-change")
+    assert "schema_version" not in str(failure.value)
+    git_output(root, "switch", "-c", "plan/unrecorded")
+    with pytest.raises(author.ChangeOpenError, match="workspace-open") as failure:
+        author.open_change(root, "first-change")
+    assert "schema_version" not in str(failure.value)
+
+
 def test_open_uses_registered_base_and_creates_one_draft_without_approval(repository, author):
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")

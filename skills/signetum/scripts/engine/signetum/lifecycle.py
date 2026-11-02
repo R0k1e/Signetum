@@ -6,8 +6,10 @@ import argparse
 import json
 import re
 import shlex
+import shutil
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
+import tempfile
 from dataclasses import replace
 from pathlib import Path
 from shutil import which
@@ -135,7 +137,48 @@ def changed(repository: Path, explain: bool) -> dict[str, object]:
     }
 
 
+def _drop_qualification(parent: Path, repository: Path) -> OSError | None:
+    error: OSError | None = None
+    try:
+        shutil.rmtree(parent)
+    except OSError as caught:
+        error = caught
+    run_git(repository, "worktree", "prune")
+    return error
+
+
+def _ready_member(repository: Path) -> dict[str, object]:
+    """Prepare and check a detached checkout of the committed tip.
+
+    The editing worktree stays. Ignored files that are not in the commit are
+    absent from this checkout. Cleanup removes the directory and prunes the
+    registration; it does not use ``git worktree remove``.
+    """
+
+    _require_clean(repository)
+    source = _git(repository, "rev-parse", "HEAD")
+    parent = Path(tempfile.mkdtemp(prefix="signetum-ready-"))
+    execution = parent / "tree"
+    try:
+        _git(repository, "worktree", "add", "--detach", str(execution), source)
+        graph, _inputs = _runtime_validation(load_manifest(execution / "signetum.toml"))
+        if any(gate.name == "prepare" for gate in graph.gates):
+            worktree_prepare(execution)
+        if _git(execution, "rev-parse", "HEAD") != source:
+            raise AdmissionError("qualification worktree is not the member commit")
+        result = _validate_held(repository, "member", execution_root=execution)
+    finally:
+        removal_error = _drop_qualification(parent, repository)
+    if removal_error is not None:
+        raise InfrastructureError(
+            f"qualification worktree could not be removed: {parent}"
+        ) from removal_error
+    return result
+
+
 def validate(repository: Path, kind: str) -> dict[str, object]:
+    if kind == "member":
+        return _ready_member(repository)
     if kind != "final":
         return _validate_held(repository, kind)
     with _exclusive_batch(repository):
@@ -150,7 +193,9 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         return _validate_held(repository, kind)
 
 
-def _validate_held(repository: Path, kind: str) -> dict[str, object]:
+def _validate_held(
+    repository: Path, kind: str, *, execution_root: Path | None = None
+) -> dict[str, object]:
     return validate_workspace(
         repository,
         kind,
@@ -160,6 +205,7 @@ def _validate_held(repository: Path, kind: str) -> dict[str, object]:
         proposal_paths=_proposal_paths,
         check_numbering_base=_require_numbering_base,
         execute=execute_gate,
+        execution_root=execution_root,
     )
 
 
@@ -486,9 +532,18 @@ def batch_open(
     return {**result, "status": "opened", "worktree": str(batch)}
 
 
+def _require_worktree_directory(path: Path, role: str) -> None:
+    if not path.is_dir():
+        raise AdmissionError(
+            f"{role} must be an existing worktree directory; a branch name is not a path: {path}"
+        )
+
+
 def batch_deliver(
     source: Path, target: Path, expected_base: str, expected_tip: str
 ) -> dict[str, object]:
+    _require_worktree_directory(source, "source")
+    _require_worktree_directory(target, "target")
     _require_clean(source)
     _require_clean(target)
     if _git(source, "rev-parse", "HEAD") != expected_tip:
@@ -603,11 +658,22 @@ def _parser() -> argparse.ArgumentParser:
     continuation = commands.add_parser("batch-continue")
     continuation.add_argument("--batch", type=Path, required=True)
     commands.add_parser("final")
-    delivery = commands.add_parser("batch-deliver")
-    delivery.add_argument("source", type=Path)
-    delivery.add_argument("target", type=Path)
-    delivery.add_argument("expected_base")
-    delivery.add_argument("expected_batch_tip")
+    delivery = commands.add_parser(
+        "batch-deliver",
+        help="Publish a reviewed batch. Source and target are existing worktree directories.",
+    )
+    delivery.add_argument(
+        "source",
+        type=Path,
+        help="Existing batch worktree directory. A branch name is not a path.",
+    )
+    delivery.add_argument(
+        "target",
+        type=Path,
+        help="Existing delivery worktree directory. A branch name is not a path.",
+    )
+    delivery.add_argument("expected_base", help="Full commit of the expected batch base.")
+    delivery.add_argument("expected_batch_tip", help="Full commit of the reviewed batch tip.")
     return parser
 
 

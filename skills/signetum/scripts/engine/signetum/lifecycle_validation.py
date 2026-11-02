@@ -48,6 +48,22 @@ class AdapterFactory(Protocol):
         """Construct repository effects for the common execution owner."""
 
 
+def _carried_approval(view: dict[str, object]) -> dict[str, object]:
+    """Expose the recorded approval text. The digest, not the wording, binds it."""
+
+    approval = view.get("approval")
+    change_id = view.get("change_id")
+    if not isinstance(approval, dict) or not isinstance(change_id, str):
+        raise AdmissionError(f"carried change has no approval record: {change_id}")
+    return {
+        "change_id": change_id,
+        "actor": approval["actor"],
+        "recorded_at": approval["recorded_at"],
+        "source": approval["source"],
+        "contract_digest": view["contract_digest"],
+    }
+
+
 def validate_workspace(
     repository: Path,
     kind: str,
@@ -58,15 +74,20 @@ def validate_workspace(
     proposal_paths: Callable[[Path], tuple[str, ...]],
     check_numbering_base: Callable[[Path, str | None, str], None],
     execute: Callable[..., EvidenceReceipt] = execute_gate,
+    execution_root: Path | None = None,
 ) -> dict[str, object]:
+    execution = repository.resolve() if execution_root is None else execution_root.resolve()
     require_clean(repository)
     source = git_output(repository, "rev-parse", "HEAD")
-    manifest = load_manifest(repository / "signetum.toml")
+    if execution_root is not None and git_output(execution, "rev-parse", "HEAD") != source:
+        raise AdmissionError("qualification worktree is not the member commit")
+    manifest = load_manifest(execution / "signetum.toml")
     base = None if kind == "final" else recorded_base(repository)
     if base is not None and source == git_output(repository, "rev-parse", base):
         raise AdmissionError("source has no commits beyond the approved base")
+    carried: tuple[str, ...] = ()
     if base is not None:
-        qualify_member(repository, manifest, base, source)
+        carried = qualify_member(repository, manifest, base, source)
     evidence_base = recorded_base(repository) if kind == "final" else None
     scope = None
     member_recoveries = []
@@ -110,8 +131,14 @@ def validate_workspace(
             raise AdmissionError(f"execution reconciliation failed: {error}") from error
     else:
         reconciliation = None
-        approvals = None
-    manifest = load_manifest(repository / "signetum.toml")
+        try:
+            approvals = [
+                _carried_approval(approval_view(repository, change_id, root=changes_root(manifest)))
+                for change_id in carried
+            ]
+        except DeviationError as error:
+            raise AdmissionError(f"carried approval is unavailable: {error}") from error
+    manifest = load_manifest(execution / "signetum.toml")
     gate = "member" if kind == "member" else "final"
     declared_manifest = manifest
     selected = None
@@ -129,7 +156,7 @@ def validate_workspace(
         selected = with_deferred_world(selected, deferred)
     graph, initial_inputs = configure(manifest, member_shards=member_shards)
     try:
-        waivers = load_waivers(repository)
+        waivers = load_waivers(execution)
     except WaiverError as error:
         raise AdmissionError(f"waiver authority is invalid: {error}") from error
     inputs = ValidationInputs(
@@ -142,7 +169,7 @@ def validate_workspace(
         schema_digest=manifest.signetum.evidence_schema_digest,
         waivers=waivers,
     )
-    adapter = adapter_factory(repository, member_base=base)
+    adapter = adapter_factory(execution, member_base=base)
     inherited = (
         find_test_inheritance(
             repository,
@@ -162,7 +189,7 @@ def validate_workspace(
     )
     receipt = execute(graph, gate, inputs, adapter, inherited=inherited)
     try:
-        require_clean(repository)
+        require_clean(execution)
     except AdmissionError as error:
         raise ValidationExecutionError(str(error)) from error
     if kind == "final":
@@ -192,6 +219,8 @@ def validate_workspace(
         "valid": True,
         "evidence": json.loads(receipt.to_json()),
     }
+    if kind == "member":
+        payload["approvals"] = approvals
     if reconciliation is not None and approvals is not None and scope is not None:
         payload["delivery_review"] = {
             "inputs": review_inputs,

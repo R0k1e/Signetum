@@ -1,5 +1,6 @@
 """Explicit installation updates keep network and application mutation bounded."""
 
+import email.message
 import importlib.util
 import io
 import json
@@ -56,6 +57,69 @@ def test_release_check_distinguishes_missing_offline_and_eligible(updater, monke
 
     monkeypatch.setattr(updater, "_read", offline)
     assert updater.main(["--check"]) == 2
+
+
+class _Response:
+    def __init__(self, url: str, payload: bytes = b"{}") -> None:
+        self._url = url
+        self._payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def geturl(self):
+        return self._url
+
+    def read(self, _limit):
+        return self._payload
+
+
+def test_update_request_sends_a_bearer_token_only_to_the_api(updater, monkeypatch):
+    seen = {}
+
+    def urlopen(request, timeout):
+        del timeout
+        seen["authorization"] = request.get_header("Authorization")
+        return _Response(request.full_url)
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", urlopen)
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-token")
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    payload = updater._read("https://api.github.com/repos/R0k1e/Signetum/releases?per_page=100")
+    assert payload == b"{}"
+    assert seen["authorization"] == "Bearer secret-token"
+    updater._read("https://codeload.github.com/R0k1e/Signetum/zip/" + "a" * 40)
+    assert seen["authorization"] is None
+
+
+def test_rate_limited_check_is_unavailable_and_does_not_record_the_token(
+    updater, monkeypatch, capsys
+):
+    monkeypatch.setenv("GH_TOKEN", "super-secret-token")
+
+    def urlopen(request, timeout):
+        del timeout
+        assert request.get_header("Authorization") == "Bearer super-secret-token"
+        raise updater.urllib.error.HTTPError(
+            request.full_url,
+            403,
+            "forbidden",
+            email.message.Message(),
+            io.BytesIO(b""),
+        )
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", urlopen)
+    assert updater.main(["--check"]) == 2
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+    assert document["status"] == "unavailable"
+    assert "rate limited" in document["cause"]
+    assert "update --source <skill-directory>" in document["cause"]
+    assert "super-secret-token" not in captured.out
+    assert "super-secret-token" not in captured.err
 
 
 @pytest.mark.parametrize("kind", ["escape", "symlink", "duplicate"])

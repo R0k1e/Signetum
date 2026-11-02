@@ -39,6 +39,7 @@ from signetum.validation.ratchet import run_ratchet
 from signetum.validation.receipt_store import ReceiptStore
 from signetum.validation.recovery import shard_execution
 from signetum.waivers import WaiverError, load_waivers
+from signetum.worktrunk import declared_argv, declared_environment
 
 
 class RepositoryValidationAdapter:
@@ -77,8 +78,16 @@ class RepositoryValidationAdapter:
             ) from error
 
     def identify_tool(self, tool: ToolDeclaration) -> str:
+        command = tuple(tool.identity_command)
         try:
-            completed = run_command(self.repository, tool.identity_command, timeout_seconds=60)
+            _require_executable(command)
+            completed = run_command(
+                self.repository,
+                declared_argv(command),
+                timeout_seconds=60,
+                environment=declared_environment(),
+            )
+            _raise_if_unstarted(completed)
         except (OSError, subprocess.TimeoutExpired) as error:
             raise ValidationInfrastructureError(
                 f"tool identity unavailable: {tool.name}: {error}"
@@ -162,17 +171,21 @@ class RepositoryValidationAdapter:
         )
 
     def _run_shard(self, shard: ValidationShard, report: Path, workers: int) -> ShardExecution:
+        command = tuple(shard.command)
         try:
+            _require_executable(command)
             completed = run_command(
                 self.repository,
-                shard.command,
+                declared_argv(command),
                 timeout_seconds=shard.timeout_seconds,
-                environment=dict(
-                    os.environ,
-                    SIGNETUM_RECOVERY_REPORT=str(report),
-                    SIGNETUM_VALIDATION_WORKERS=str(workers),
+                environment=declared_environment(
+                    extra={
+                        "SIGNETUM_RECOVERY_REPORT": str(report),
+                        "SIGNETUM_VALIDATION_WORKERS": str(workers),
+                    }
                 ),
             )
+            _raise_if_unstarted(completed)
         except subprocess.TimeoutExpired:
             # A shard which never returns is otherwise indistinguishable from a
             # slow one, so the gate would wait forever and report nothing.
@@ -190,10 +203,16 @@ class RepositoryValidationAdapter:
         ordinary case.
         """
 
+        command = tuple(shard.findings_command)
         try:
+            _require_executable(command)
             completed = run_command(
-                self.repository, shard.findings_command, timeout_seconds=shard.timeout_seconds
+                self.repository,
+                declared_argv(command),
+                timeout_seconds=shard.timeout_seconds,
+                environment=declared_environment(),
             )
+            _raise_if_unstarted(completed)
         except (OSError, subprocess.TimeoutExpired) as error:
             raise ValidationInfrastructureError(
                 f"findings command unavailable: {shard.name}: {error}"
@@ -202,6 +221,19 @@ class RepositoryValidationAdapter:
             return parse_findings(completed.stdout)
         except FindingsError as error:
             raise ValidationExecutionError(f"{shard.name}: {error}") from error
+
+
+def _require_executable(command: tuple[str, ...]) -> None:
+    program = command[0]
+    if os.path.isabs(program) and not os.access(program, os.X_OK):
+        raise FileNotFoundError(program)
+
+
+def _raise_if_unstarted(completed: subprocess.CompletedProcess[str]) -> None:
+    """Mise reports a missing command as exit 1, which is not that command's status."""
+
+    if completed.returncode and "couldn't exec process" in completed.stderr:
+        raise OSError(completed.stderr.strip())
 
 
 def run_repository_gate(
