@@ -74,6 +74,8 @@ def _run(
     search = environment.get("PYTHONPATH", "")
     environment["PYTHONPATH"] = str(plugins) + (os.pathsep + search if search else "")
     environment.pop("SIGNETUM_RETRY_NODES", None)
+    # Tests that run nested gates must not write the enclosing gate's report.
+    environment.pop("SIGNETUM_NODE_REPORT", None)
     # A fresh controller, including serial retries, must not inherit an outer
     # xdist worker identity. Its own workers receive new identities from xdist.
     for name in tuple(environment):
@@ -171,6 +173,23 @@ def _observed_scratch(context, deferred):
             )
 
 
+def _report_first_attempt(reports: list[dict[str, str]]) -> None:
+    """Report first-attempt node outcomes to the gate; a retry never changes them."""
+    destination = os.environ.get("SIGNETUM_NODE_REPORT")
+    if not destination:
+        return
+    failed = sorted({report["node_id"] for report in reports if report["outcome"] == "failed"})
+    passed = sorted(
+        {
+            report["node_id"]
+            for report in reports
+            if report["phase"] == "call" and report["outcome"] == "passed"
+        }
+        - set(failed)
+    )
+    Path(destination).write_text(json.dumps({"failed": failed, "passed": passed}), encoding="utf-8")
+
+
 def main(arguments: list[str] | None = None) -> int:
     supplied = sys.argv[1:] if arguments is None else arguments
     if supplied[:1] == ["--"]:
@@ -186,6 +205,7 @@ def main(arguments: list[str] | None = None) -> int:
     with _observed_scratch(context, bool(parent)) as scratch:
         root = Path(scratch)
         status, reports = _run(supplied, root / "first.json")
+        _report_first_attempt(reports)
         if status != 1:
             return status
         failed = sorted({report["node_id"] for report in reports if report["outcome"] == "failed"})

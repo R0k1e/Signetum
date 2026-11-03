@@ -9,6 +9,15 @@ tracked source. Diagnostics can inspect dirty work and never issue readiness.
 One dependency/verdict core serves diagnostics, member qualification and final.
 Dependencies run in order, failed dependencies block descendants, independent
 failures are collected, and a successful retry cannot clear a first failure.
+A shard runner may write first-attempt node outcomes, `{"failed": [...], "passed": [...]}`,
+to `SIGNETUM_NODE_REPORT`; the packaged pytest runner does. A failed member, batch
+or final gate writes a failure receipt for its workspace under the Git common
+directory's `signetum/failures`, beside synchronization records. It names the
+workspace, its changes, base, tip, first-attempt failed nodes and nodes that passed
+only on retry. Before checks start, the next gate in that workspace refuses unless
+each remembered node's shard is selected again or an observation in a change
+journal the workspace changed names the node as evidence with its root cause.
+A reselected node must report passing in that run. A passing gate removes the receipt.
 Same argv does not make distinct shards interchangeable. Only explicit successful
 preparation can be reused within an operation.
 
@@ -28,7 +37,7 @@ baseline. A failed ratchet lists unrecorded merges and names `workspace-sync` an
 `SIGNETUM_RATCHET_BASELINE`; each shard's receipt details record them, and
 admission and test inheritance require their current values. Other shards never
 receive them. Final
-and batch static checks remain strict.
+and batch checks remain strict.
 
 Resource allocation bounds nested workers. Settlement confirms an empty inventory
 with a fresh snapshot inside its existing deadline. The supervisor settles positively
@@ -54,6 +63,16 @@ all intervening paths explained. Otherwise tests rerun. Static checks still run.
 Weighted scheduling and CI partitions are optional diagnostics; complete partition
 aggregation checks exact membership/source and creates no lifecycle authority.
 
+Admission and continuation select over the commits added since the batch's last
+passing gate, starting at its recorded base, not the cumulative batch. The declared
+batch gate, resolved with any provider targets, must cover the member shards that
+selection requires, which without a provider is the complete member gate. Otherwise
+the operation refuses before batch checks run. Only a passing batch gate advances
+that verified tip, so a refused or failed increment stays owed. One admission of
+several members is one increment. Batch shards receive its start commit as
+`SIGNETUM_ADMISSION_BASE`, so a project selector can use the same range. A provider
+selects a staged conflict resolution from a temporary detached checkout of its merge.
+
 ## Eight lifecycle operations
 
 | Operation | Responsibility |
@@ -62,8 +81,8 @@ aggregation checks exact membership/source and creates no lifecycle authority.
 | `changed [--explain]` | Inspect the contribution and planned member checks. |
 | `ready` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. |
 | `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. |
-| `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run batch static checks. |
-| `batch-continue --batch path` | Check resolved conflict state before completing its merge. |
+| `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. |
+| `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge. |
 | `final` | Reconcile and validate a frozen batch; emit source-bound receipt and review. |
 | `batch-deliver source target expected-base expected-tip` | Publish only the reviewed exact candidate. `source` and `target` are existing worktree directories; the last two arguments are full commits. Confirm remote identity before moving target. |
 
@@ -81,7 +100,7 @@ Publication uses `Merge <task> into <target>` with exact base/tip trailers.
 Synthetic `commit-tree` publication does not invoke commit hooks; project-required
 message checks belong in declared validation rather than an assumed hook. Opening an empty integration
 workspace creates no provenance-only commit.
-World evidence cannot replace tree evidence. Preparation/static failure retains
+World evidence cannot replace tree evidence. Preparation or batch-gate failure retains
 integration state for ordinary repair; merge conflict uses `batch-continue`.
 Member synchronization records authorization before merging a verified source,
 keeps the original base and distinguishes imported work from owned repairs.
