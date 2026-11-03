@@ -983,3 +983,31 @@ def test_one_admission_of_several_members_hands_its_whole_range_to_batch_shards(
     assert [item["branch"] for item in admitted] == ["impl/first", "impl/second"]
     assert result["admission_base"] == base
     assert seen.read_text() == base
+
+
+@pytest.mark.parametrize("declared", [True, False])
+def test_a_batch_shard_that_covers_the_member_shard_satisfies_admission(tmp_path, declared):
+    member, batch, _ = _member_and_batch(tmp_path, approved=True)
+    for worktree in (member, batch):
+        manifest = worktree / "signetum.toml"
+        text = manifest.read_text() + (
+            '\n[[validation.shards]]\nname = "repo:selected"\ncommand = ["true"]\n'
+            + ('covers = ["repo:check"]\n' if declared else "")
+        )
+        text = text.replace(
+            'name = "prepare"\nshards = ["repo:check"]', 'name = "prepare"\nshards = []'
+        )
+        text = text.replace(
+            'name = "batch"\nshards = ["repo:check"]', 'name = "batch"\nshards = ["repo:selected"]'
+        )
+        manifest.write_text(text)
+        _git(worktree, "commit", "-am", "run member selection from one batch shard")
+    lifecycle.validate(member, "member")
+    if declared:
+        result = lifecycle.admit(batch, (member,))
+        static = result["static"]
+        assert isinstance(static, dict)
+        assert static["executed"] == ["repo:selected"]
+    else:
+        with pytest.raises(lifecycle.AdmissionError, match="repo:check"):
+            lifecycle.admit(batch, (member,))
