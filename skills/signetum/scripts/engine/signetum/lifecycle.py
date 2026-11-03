@@ -48,7 +48,7 @@ from signetum.validation.execution import (
     build_evidence_identity,
     execute_gate,
 )
-from signetum.validation.ratchet import ratchet_baseline
+from signetum.validation.ratchet import member_environment
 from signetum.validation.repository import (
     RepositoryValidationAdapter,
     run_diagnostic_gate,
@@ -245,10 +245,6 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
     graph, inputs = _runtime_validation(manifest, member_shards=required_names)
     closure = set(graph.execution_order("member"))
     required = frozenset(shard.digest for shard in graph.shards if shard.name in closure)
-    ratchets = tuple(
-        shard.name for shard in graph.shards if shard.name in closure and shard.ratchet_command
-    )
-    qualified_base = ratchet_baseline(member, base, tip) if ratchets else base
     adapter = RepositoryValidationAdapter(member)
     member_identity = build_evidence_identity(graph, replace(inputs, base=base), adapter)
     final_graph, _ = _runtime_validation(declared_manifest)
@@ -262,7 +258,7 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
         member_identity=member_identity,
         final_graph_digest=final_graph.digest,
         required_digests=required,
-        ratchet_baselines={name: qualified_base for name in ratchets},
+        member_environment=member_environment(member, base, tip),
         inputs=inputs,
         expected_selection=selection if manifest.impact.provider is not None else None,
         final_required_digests=final_required,

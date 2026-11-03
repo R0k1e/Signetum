@@ -35,7 +35,7 @@ from signetum.validation.execution import (
     execute_gate,
 )
 from signetum.validation.process import run_command
-from signetum.validation.ratchet import run_ratchet
+from signetum.validation.ratchet import member_environment, run_ratchet
 from signetum.validation.receipt_store import ReceiptStore
 from signetum.validation.recovery import shard_execution
 from signetum.waivers import WaiverError, load_waivers
@@ -49,6 +49,18 @@ class RepositoryValidationAdapter:
         self.repository = repository.resolve()
         self.member_base = member_base
         self.observed_tools: dict[str, str] = {}
+        self._member_environment: dict[str, str] | None = None
+
+    def member_environment(self) -> dict[str, str]:
+        """Bases for member shards, observed once per gate; empty for other gates."""
+
+        if self.member_base is None:
+            return {}
+        if self._member_environment is None:
+            self._member_environment = member_environment(
+                self.repository, self.member_base, self.commit_identity()
+            )
+        return dict(self._member_environment)
 
     def _git(self, *arguments: str) -> str:
         try:
@@ -131,11 +143,12 @@ class RepositoryValidationAdapter:
             limit = 1 if os.environ.get("PYTEST_XDIST_WORKER") else max(1, int(enclosing or "0"))
             allocation["enclosing_worker_limit"] = limit
             allocation["workers"] = min(allocation["workers"], limit)
-        if shard.ratchet_command and self.member_base is not None:
+        environment = self.member_environment()
+        if shard.ratchet_command and environment:
             execution = run_ratchet(
                 self.repository,
                 shard,
-                self.member_base,
+                environment,
                 tuple(sorted(self.observed_tools.items())),
                 workers=allocation["workers"],
             )
@@ -143,7 +156,7 @@ class RepositoryValidationAdapter:
             with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
                 report = Path(scratch) / "recovered.json"
                 try:
-                    execution = self._run_shard(shard, report, allocation["workers"])
+                    execution = self._run_shard(shard, report, allocation["workers"], environment)
                 except OSError as error:
                     raise ValidationInfrastructureError(
                         f"shard command unavailable: {shard.name}: {error}"
@@ -167,10 +180,17 @@ class RepositoryValidationAdapter:
                 **execution.details,
                 "resource_allocation": allocation,
                 "elapsed_seconds": elapsed,
+                **({"environment": environment} if environment else {}),
             },
         )
 
-    def _run_shard(self, shard: ValidationShard, report: Path, workers: int) -> ShardExecution:
+    def _run_shard(
+        self,
+        shard: ValidationShard,
+        report: Path,
+        workers: int,
+        environment: dict[str, str],
+    ) -> ShardExecution:
         command = tuple(shard.command)
         try:
             _require_executable(command)
@@ -182,6 +202,7 @@ class RepositoryValidationAdapter:
                     extra={
                         "SIGNETUM_RECOVERY_REPORT": str(report),
                         "SIGNETUM_VALIDATION_WORKERS": str(workers),
+                        **environment,
                     }
                 ),
             )

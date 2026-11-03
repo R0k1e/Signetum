@@ -38,9 +38,10 @@ def mise_executable() -> str:
 def declared_environment(
     source: Mapping[str, str] | None = None, *, extra: Mapping[str, str] | None = None
 ) -> dict[str, str]:
-    """Remove repository Git context and a foreign Python environment.
+    """Remove repository Git context, a foreign Python environment and member bases.
 
-    Signetum keys in ``extra`` are applied after that removal. Mise supplies
+    Signetum keys in ``extra`` are applied after that removal, so only the
+    engine supplies ``SIGNETUM_BASE`` and ``SIGNETUM_RATCHET_BASELINE``. Mise supplies
     the tools a project pins; this does not prepend the Skill engine environment.
     """
 
@@ -49,6 +50,8 @@ def declared_environment(
         if name.startswith("GIT_") or name in {
             "PYTHONHOME",
             "PYTHONPATH",
+            "SIGNETUM_BASE",
+            "SIGNETUM_RATCHET_BASELINE",
             "UV_PROJECT_ENVIRONMENT",
             "VIRTUAL_ENV",
         }:

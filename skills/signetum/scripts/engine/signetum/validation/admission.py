@@ -16,6 +16,23 @@ from signetum.serialization import ValueDecodeError, load_json
 from signetum.validation.execution import ValidationInputs, require_original_success
 
 
+def _observed_environment(receipt: EvidenceReceipt, expected: Mapping[str, str]) -> bool:
+    """Every shard this member run executed saw the current member bases."""
+
+    details = receipt.extensions.get("shard_details", {})
+    inherited = receipt.extensions.get("inherited_test_evidence_from", {})
+    reused = inherited.get("shards", []) if isinstance(inherited, dict) else []
+    if not isinstance(details, dict) or not isinstance(reused, list):
+        return False
+    for outcome in receipt.execution.shards:
+        if outcome.name in reused:
+            continue
+        detail = details.get(outcome.name)
+        if not isinstance(detail, dict) or detail.get("environment") != dict(expected):
+            return False
+    return True
+
+
 def find_member_evidence(
     receipt_root: Path,
     *,
@@ -24,7 +41,7 @@ def find_member_evidence(
     member_identity: EvidenceIdentity,
     final_graph_digest: str,
     required_digests: frozenset[str],
-    ratchet_baselines: Mapping[str, str],
+    member_environment: Mapping[str, str],
     inputs: ValidationInputs,
     expected_selection: ValidationSelection | None = None,
     final_required_digests: frozenset[str] | None = None,
@@ -63,19 +80,10 @@ def find_member_evidence(
             and receipt.selection != expected_selection
         ):
             continue
-        if receipt.execution.gates == ("member",) and ratchet_baselines:
-            details = receipt.extensions.get("shard_details", {})
-            if not isinstance(details, dict):
-                continue
-            qualified = True
-            for name, qualified_base in ratchet_baselines.items():
-                detail = details.get(name)
-                report = detail.get("ratchet") if isinstance(detail, dict) else None
-                if not isinstance(report, dict) or report.get("baseline") != qualified_base:
-                    qualified = False
-                    break
-            if not qualified:
-                continue
+        if receipt.execution.gates == ("member",) and not _observed_environment(
+            receipt, member_environment
+        ):
+            continue
         proven = frozenset(
             outcome.command_digest
             for outcome in receipt.execution.shards
