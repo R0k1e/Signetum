@@ -423,11 +423,19 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
     def retried(self, shard):
         return ShardExecution(True, recovered=(defect,))
 
+    def fixed(self, shard):
+        # The remembered node must be reported passing by a fresh normal run.
+        return ShardExecution(True, passed_nodes=(str(defect["node_id"]),))
+
     monkeypatch.setattr(adapter, "run_shard", retried)
     with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
         lifecycle.validate(member, "member")
     monkeypatch.setattr(adapter, "run_shard", original)
+    with pytest.raises(lifecycle.ValidationExecutionError, match="did not pass in this run"):
+        lifecycle.validate(member, "member")
+    monkeypatch.setattr(adapter, "run_shard", fixed)
     lifecycle.validate(member, "member")
+    monkeypatch.setattr(adapter, "run_shard", original)
     lifecycle.admit(batch, (member,))
     monkeypatch.setattr(adapter, "run_shard", retried)
     with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
@@ -919,3 +927,45 @@ def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_
         )
     assert journal.read_bytes() == before
     assert _git(batch, "rev-parse", "HEAD") == tip
+
+
+def test_one_admission_of_several_members_hands_its_whole_range_to_batch_shards(tmp_path):
+    seen = tmp_path / "admission-base"
+    repository = _repository(tmp_path / "repository")
+    manifest = repository / "signetum.toml"
+    probe = [
+        sys.executable,
+        "-c",
+        "import os,pathlib,sys; "
+        "pathlib.Path(sys.argv[1]).write_text(os.environ.get('SIGNETUM_ADMISSION_BASE', ''))",
+        str(seen),
+    ]
+    text = manifest.read_text().replace('command = ["true"]', "command = " + json.dumps(probe))
+    text = text.replace(
+        'name = "prepare"\nshards = ["repo:check"]', 'name = "prepare"\nshards = []'
+    )
+    manifest.write_text(text)
+    _git(repository, "commit", "-am", "observe the admission range")
+    base = _git(repository, "rev-parse", "HEAD")
+    batch = tmp_path / "batch"
+    _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(batch, "batch/test", base, "batch")
+    members = []
+    for name in ("first", "second"):
+        member = tmp_path / name
+        _git(repository, "worktree", "add", "-b", f"impl/{name}", str(member), base)
+        _record(member, f"impl/{name}", base)
+        commit_approval(member, name)
+        (member / f"{name}.txt").write_text(f"{name} behavior\n")
+        _git(member, "add", ".")
+        _git(member, "commit", "-m", f"implement {name}")
+        lifecycle.validate(member, "member")
+        members.append(member)
+
+    result = lifecycle.admit(batch, tuple(members))
+
+    admitted = result["admitted"]
+    assert isinstance(admitted, list)
+    assert [item["branch"] for item in admitted] == ["impl/first", "impl/second"]
+    assert result["admission_base"] == base
+    assert seen.read_text() == base

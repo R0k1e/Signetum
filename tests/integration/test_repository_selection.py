@@ -178,13 +178,23 @@ def test_selection_implementation_and_rules_are_validation_identity_inputs(
     assert "selector-python" in {tool.name for tool in inputs.tools}
 
 
-def _selected_member(repository, selection_runtime, *, mode="valid", broken_full=False):
+def _selected_member(
+    repository,
+    selection_runtime,
+    *,
+    mode="valid",
+    broken_full=False,
+    batch_tests=True,
+    documentation_only=False,
+):
     root, _ = repository
     declare_provider(root, mode=mode)
     manifest = root / "signetum.toml"
-    text = manifest.read_text().replace(
-        'name = "batch"\nshards = ["test:check"]', 'name = "batch"\nshards = []'
-    )
+    text = manifest.read_text()
+    if not batch_tests:
+        text = text.replace(
+            'name = "batch"\nshards = ["test:check"]', 'name = "batch"\nshards = []'
+        )
     if mode == "docs-aware":
         text = text.replace('paths = ["**"]', 'paths = ["source.py", "tests/**"]')
         text = text.replace(
@@ -199,7 +209,9 @@ def _selected_member(repository, selection_runtime, *, mode="valid", broken_full
         test = root / "tests/test_b.py"
         test.write_text(test.read_text().replace("doubled(2), 4", "doubled(2), 9"))
     git_output(root, "add", ".")
-    git_output(root, "commit", "-m", "bind complete and selective validation boundaries")
+    git_output(
+        root, "commit", "--allow-empty", "-m", "bind complete and selective validation boundaries"
+    )
     git_output(root, "push", "origin", "main")
     base = git_output(root, "rev-parse", "HEAD")
     runtime = importlib.import_module(selection_runtime.__package__ + ".lifecycle")
@@ -208,9 +220,64 @@ def _selected_member(repository, selection_runtime, *, mode="valid", broken_full
     consolidated_approval(member, base)
     git_output(member, "add", ".")
     git_output(member, "commit", "-m", "approve selected validation fixture")
-    (member / "source.py").write_text("def doubled(value): return value + value\n")
-    git_output(member, "commit", "-am", "implement the same observable outcome")
+    if documentation_only:
+        note = member / "docs/note.md"
+        note.parent.mkdir(exist_ok=True)
+        note.write_text("A clarification that selects no check.\n")
+        git_output(member, "add", ".")
+        git_output(member, "commit", "-m", "clarify the documented outcome")
+    else:
+        (member / "source.py").write_text("def doubled(value): return value + value\n")
+        git_output(member, "commit", "-am", "implement the same observable outcome")
     return runtime, root, member, base
+
+
+def _batch_worktree(root):
+    for block in git_output(root, "worktree", "list", "--porcelain").split("\n\n"):
+        fields = dict(line.split(" ", 1) for line in block.splitlines() if " " in line)
+        if fields.get("branch", "").startswith("refs/heads/batch/"):
+            return Path(fields["worktree"])
+    raise AssertionError("no batch worktree was opened")
+
+
+def _shard_runs(captured: str, shard: str) -> int:
+    return sum(
+        1
+        for line in captured.splitlines()
+        if line.startswith('{"event": "validation.shard"') and json.loads(line)["shard"] == shard
+    )
+
+
+def test_a_batch_gate_that_skips_selected_tests_refuses_admission_before_checks(
+    repository, selection_runtime, capfd
+):
+    runtime, root, member, base = _selected_member(repository, selection_runtime, batch_tests=False)
+    assert runtime.validate(member, "member")["status"] == "ready"
+    capfd.readouterr()
+    with pytest.raises(runtime.AdmissionError, match="test:check"):
+        runtime.batch_open(root, (member,))
+    assert _shard_runs(capfd.readouterr().err, "test:check") == 0
+    batch = _batch_worktree(root)
+    # Only a passing batch gate advances the verified increment, so a retry
+    # with nothing new to merge still owes the refused admission's selection.
+    with pytest.raises(runtime.AdmissionError, match="test:check"):
+        runtime.admit(batch, (member,))
+    assert git_output(root, "rev-parse", "main") == base
+
+
+def test_a_documentation_only_admission_passes_a_static_batch_gate(repository, selection_runtime):
+    runtime, root, member, base = _selected_member(
+        repository,
+        selection_runtime,
+        mode="docs-aware",
+        batch_tests=False,
+        documentation_only=True,
+    )
+    assert runtime.validate(member, "member")["status"] == "ready"
+    opened = runtime.batch_open(root, (member,))
+    assert opened["status"] == "opened"
+    assert opened["static"]["executed"] == []
+    assert git_output(root, "rev-parse", "main") == base
 
 
 def test_real_member_diagnostics_ready_admission_and_full_final_share_selection(
@@ -372,11 +439,7 @@ def test_admission_recomputes_selection_proof_even_when_the_commands_are_unchang
     assert git_output(root, "rev-parse", "main") == base
 
 
-def test_open_merge_runs_only_batch_static_and_final_retains_complete_checks(
-    repository, selection_runtime
-):
-    runtime, root, first, base = _selected_member(repository, selection_runtime, broken_full=True)
-    assert runtime.validate(first, "member")["status"] == "ready"
+def _conflicting_second_member(runtime, root, base):
     second = Path(runtime.workspace_open(root, "plan/other", base)["worktree"])
     record = consolidated_approval(second, base)
     record.write_text(record.read_text().replace('id = "example"', 'id = "other"'))
@@ -386,6 +449,15 @@ def test_open_merge_runs_only_batch_static_and_final_retains_complete_checks(
     (second / "source.py").write_text("def doubled(value): return 2 * value\n")
     git_output(second, "commit", "-am", "implement the second approved outcome")
     assert runtime.validate(second, "member")["status"] == "ready"
+    return second
+
+
+def test_open_merge_runs_its_selected_batch_checks_and_final_retains_complete_checks(
+    repository, selection_runtime
+):
+    runtime, root, first, base = _selected_member(repository, selection_runtime, broken_full=True)
+    assert runtime.validate(first, "member")["status"] == "ready"
+    second = _conflicting_second_member(runtime, root, base)
     batch = Path(runtime.batch_open(root, (first,))["batch"])
     with pytest.raises(runtime.MergeConflict):
         runtime.admit(batch, (second,))
@@ -393,10 +465,35 @@ def test_open_merge_runs_only_batch_static_and_final_retains_complete_checks(
     git_output(batch, "add", "source.py")
     continued = runtime.continue_batch(batch)
     assert continued["status"] == "continued"
-    assert continued["static"]["executed"] == []
+    # The resolved merge selects test:check through the provider; its narrowed
+    # target passes while the broken complete suite remains final's verdict.
+    assert continued["static"]["executed"] == ["test:check"]
     assert git_output(batch, "rev-parse", "--verify", "MERGE_HEAD", check=False) == ""
     with pytest.raises(runtime.ValidationExecutionError):
         runtime.validate(batch, "final")
+    assert git_output(root, "rev-parse", "main") == base
+
+
+def test_conflict_continuation_refuses_an_uncovering_batch_gate_before_committing(
+    repository, selection_runtime, capfd
+):
+    runtime, root, first, base = _selected_member(repository, selection_runtime, batch_tests=False)
+    assert runtime.validate(first, "member")["status"] == "ready"
+    second = _conflicting_second_member(runtime, root, base)
+    with pytest.raises(runtime.AdmissionError, match="test:check"):
+        runtime.batch_open(root, (first,))
+    batch = _batch_worktree(root)
+    with pytest.raises(runtime.MergeConflict):
+        runtime.admit(batch, (second,))
+    (batch / "source.py").write_text("def doubled(value): return sum((value, value))\n")
+    git_output(batch, "add", "source.py")
+    before = git_output(batch, "rev-parse", "HEAD")
+    capfd.readouterr()
+    with pytest.raises(runtime.AdmissionError, match="test:check"):
+        runtime.continue_batch(batch)
+    assert _shard_runs(capfd.readouterr().err, "test:check") == 0
+    assert git_output(batch, "rev-parse", "HEAD") == before
+    assert git_output(batch, "rev-parse", "--verify", "MERGE_HEAD")
     assert git_output(root, "rev-parse", "main") == base
 
 

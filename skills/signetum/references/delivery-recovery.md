@@ -5,7 +5,9 @@ Use the repository's eight lifecycle operations: `workspace-open`, `changed`,
 Use separate local maintenance utilities only within their authorization.
 Approval to implement or passing validation does not authorize publication.
 
-Named ready members enter a batch through admission. Before final, reconcile
+Named ready members enter a batch through admission. Admission and
+`batch-continue` run the batch gate over the commits added since its last pass;
+a batch gate that does not cover what they select refuses before checks. Before final, reconcile
 retained findings with `status` and the journal tools. Final checks the
 frozen source and generates the delivery review; do not write a duplicate review
 file. Show the approved outcomes, standing answers, accepted decision changes,
