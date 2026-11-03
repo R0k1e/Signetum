@@ -87,8 +87,9 @@ and compares the exact selection. No second gate or receipt store is introduced.
 Inheritance still requires the existing exact input and graph proof, plus the
 provider's explanation of intervening changes. Unknown coverage or changed tests
 rerun the required checks. Final always executes original complete commands;
-member targets never narrow it. Conflict continuation uses preparation and batch
-static checks without another provider or member-test pass.
+member targets never narrow it. Admission and conflict continuation run the provider
+over the commits added since the batch's last passing gate; the batch gate must
+cover what it selects, with its targets, or the operation refuses before checks.
 
 For first adoption use the repository's existing authority. Compare old and new
 selection on fixed source cases, including new files, dependency changes,

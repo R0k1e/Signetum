@@ -15,6 +15,7 @@ from signetum.development_store import reconciliation_summary as source_reconcil
 from signetum.deviations import DeviationError, approval_view, reconciliation_summary
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.execution_review import execution_review_inputs
+from signetum.gate_records import forget_failures, remember_failure, require_accounted
 from signetum.git import git_output
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.operations import AdmissionError
@@ -33,7 +34,7 @@ from signetum.validation.inheritance import find_test_inheritance
 from signetum.validation.receipt_store import ReceiptStore
 from signetum.validation.review import member_recovery_review, recovery_projection
 from signetum.waivers import WaiverError, load_waivers
-from signetum.workspaces import recorded_base, require_clean
+from signetum.workspaces import branch_name, recorded_base, require_clean
 
 
 class ValidationConfiguration(Protocol):
@@ -187,7 +188,18 @@ def validate_workspace(
         if kind == "member" and declared_manifest.impact.provider is not None
         else None
     )
-    receipt = execute(graph, gate, inputs, adapter, inherited=inherited)
+    branch = branch_name(repository)
+    gate_base = git_output(repository, "rev-parse", base) if base else evidence_base
+    if gate_base is None:
+        raise AdmissionError("validation has no recorded workspace base")
+    owed = require_accounted(repository, branch, gate_base, graph.execution_order(gate))
+    try:
+        receipt = execute(graph, gate, inputs, adapter, inherited=inherited, remembered=owed)
+    except ValidationExecutionError as error:
+        remember_failure(
+            repository, branch, gate=gate, base=gate_base, tip=source, error=error, owed=owed
+        )
+        raise
     try:
         require_clean(execution)
     except AdmissionError as error:
@@ -240,6 +252,7 @@ def validate_workspace(
     lifecycle_receipt.write_text(
         json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
     )
+    forget_failures(repository, branch)
     return {
         **payload,
         "status": "ready" if kind == "member" else "final",
