@@ -1,0 +1,130 @@
+[change]
+schema_version = 1
+id = "gates-prove-selection-and-remember-failures"
+
+[change.source]
+kind = "human_direction"
+summary = "Repair gate holes B and C from the owner-approved gate-fix plan (cards S3 and S4). A batch gate can pass while running only static checks after an admission that selects tests, and a failed test can be dropped from the next selection without any recorded root cause."
+
+[change.contract]
+version = 1
+approved_base = "708a9664a8d19229e51c663e24bd2564bae0d6c0" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "BATCH-SEL-001"
+outcome = "batch-admit and batch-continue select checks over the commits added since the batch's last passing gate, starting at its recorded base, and refuse before running any batch check when the batch gate does not cover the member shards that selection requires."
+acceptance = [
+    "A fixture whose batch gate runs no test shard refuses batch-open and batch-admit when the admitted diff selects a test shard, names that shard, and runs no batch check.",
+    "A documentation-only admission whose provider selects no shard passes with the same batch gate.",
+    "Rerunning batch-admit after a refusal still requires the refused admission's selection.",
+    "batch-continue applies the same requirement to its resolved merge before committing it.",
+    "Without a selection provider, the requirement is the complete member gate.",
+]
+
+[[change.contract.requirements]]
+id = "FAIL-MEM-001"
+outcome = "A failed member, batch or final gate writes a machine-local failure receipt for its workspace. The receipt names the workspace, its changes, base and tip, every node that failed on the first attempt and every node that passed only on retry."
+acceptance = [
+    "A failing node reported by the shard runner appears in the failure receipt beside synchronization records under the Git common directory.",
+    "A node that passed only on retry is listed as both failed and recovered, and the gate still fails.",
+    "A passing gate removes the receipt.",
+]
+
+[[change.contract.requirements]]
+id = "FAIL-MEM-002"
+outcome = "The next gate in that workspace, before running any check, requires each remembered node either to be selected again and pass in that run, or to be named with its root cause by an observation in a change journal the workspace changed."
+acceptance = [
+    "After node X fails, a member that drops X's shard from its gate is refused before any check runs, and the refusal names X.",
+    "After a committed change record observation names X as evidence with its root cause, the same gate proceeds.",
+    "When X stays selected and passes, the gate passes without an observation.",
+    "When X stays selected but the run does not report X passing, the gate fails.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "Current architecture, shipped Skill references, the 0.3.2 changelog and Signetum's own batch gate describe and satisfy the new rules."
+acceptance = [
+    "Signetum's own batch gate covers its complete member gate.",
+    "The 0.3.2 changelog and the Skill references state both rules and the journal entry that accounts for a dropped failure.",
+]
+
+[[change.contract.decisions]]
+id = "gates-prove-selection-and-remember-failures/gate-rules"
+change_id = "gates-prove-selection-and-remember-failures"
+authority = "changes/gates-prove-selection-and-remember-failures/change.toml#decisions/gates-prove-selection-and-remember-failures/gate-rules"
+reason = "The owner approved gate-fix plan cards S3 and S4: a batch gate must prove the checks its admission selects, and a failure must stay accounted for until it passes again or its root cause is recorded."
+parents = [
+    "align-validation-efficiency/boundaries",
+]
+
+[[change.contract.decisions.clauses]]
+id = "gates-prove-selection-and-remember-failures/amend-batch-scope"
+change_id = "gates-prove-selection-and-remember-failures"
+action = "amend"
+expected = [
+    { id = "EFFICIENCY-RUN-001", version = 1 },
+]
+reason = "Static-only admission let semantic merge and stale test failures surface only at final. The batch gate now proves the selection of what it admitted."
+authority = "changes/gates-prove-selection-and-remember-failures/change.toml#decisions/gates-prove-selection-and-remember-failures/gate-rules"
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-RUN-001"
+version = 2
+topic = "validation-efficiency"
+scope = [
+    "Validation execution, diagnostics and CI",
+]
+statement = "Explicit diagnostic targets, readiness and CI share supervised execution and resource allocation. Admission and conflict continuation prepare and run the declared batch gate over the commits added since the batch's last passing gate. That gate must cover the member shards those commits select, without a provider the complete member gate, or the operation refuses before running checks. Final remains complete."
+rationale = "Selection over the admitted increment, not the cumulative batch, keeps admission proportional to what changed. Refusing an uncovering gate configuration before checks start costs nothing, while running the selection implicitly would hide what the project declared. A retried admission keeps the unverified increment because only a passing gate advances it."
+
+[[change.contract.decisions.clauses]]
+id = "gates-prove-selection-and-remember-failures/add-failure-memory"
+change_id = "gates-prove-selection-and-remember-failures"
+action = "add"
+expected = [
+    { id = "EFFICIENCY-FAIL-001", version = 0 },
+]
+reason = "A first failure stayed failed only within one run; a later selection could silently omit it."
+authority = "changes/gates-prove-selection-and-remember-failures/change.toml#decisions/gates-prove-selection-and-remember-failures/gate-rules"
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-FAIL-001"
+version = 1
+topic = "validation-efficiency"
+scope = [
+    "Validation execution, diagnostics and CI",
+    "Change journals",
+]
+statement = "A failed gate leaves a machine-local failure receipt for its workspace naming first-attempt failed and retry-recovered nodes. Before running checks, the next gate in that workspace requires each remembered node to be selected again, or named as evidence with its root cause by an observation in a change journal the workspace changed. A reselected node must pass in that run. A retry success never offsets a first failure."
+rationale = "The existing journal already carries significant findings and blocks final while they are pending, so no new document type is needed. Failure receipts are machine-local evidence like synchronization records, not committed history. Requiring a reselected node to pass closes deletion and narrowing without a second test inventory."
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the lifecycle, validation execution, shard runner protocol and pytest runner owners, with reproducing fixture tests first.",
+    "Declare Signetum's own batch gate as its complete member gate.",
+    "Add the 0.3.2 changelog bullets and reconcile the architecture and Skill reference sentences these rules change.",
+]
+requires_confirmation = [
+    "Publishing 0.3.2, delivering or merging to main, editing Perdura, or changing workspace synchronization and ratchet baselines.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["BATCH-SEL-001"]
+action = "Resolve the batch gate against the admitted increment's selection in lifecycle admission and continuation, and record the last passing batch tip."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["FAIL-MEM-001", "FAIL-MEM-002"]
+action = "Carry first-attempt node outcomes from the shard runner through the execution core, persist failure receipts, and check them before each gate."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["DOC-001"]
+action = "Reconcile Signetum's batch gate, the changelog, architecture and Skill references."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-03
+source = "The owner approved the gate-fix plan, including cards S3 and S4 for Signetum 0.3.2."
+contract_digest = "sha256:42a8a18b1478d433de683354c9e4ab9bbe9972205406f91aba497eff5bd1dbc9"
