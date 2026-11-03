@@ -276,6 +276,9 @@
               "ratchet_command": {
                 "$ref": "#/$defs/argv"
               },
+              "covers": {
+                "$ref": "#/$defs/uniqueStrings"
+              },
               "workers": {
                 "type": "integer",
                 "minimum": 0

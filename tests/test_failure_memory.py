@@ -232,3 +232,15 @@ def test_reselected_failures_need_no_journal_read(tmp_path, monkeypatch):
     assert owed == {"engine:pytest": frozenset({NODE})}
     with pytest.raises(lifecycle.AdmissionError, match="journals are unavailable"):
         records.require_accounted(tmp_path, "batch/x", "a" * 40, set())
+
+
+def test_a_recorded_root_cause_releases_a_node_whose_shard_stays_selected(tmp_path):
+    member, _, _ = _workspaces(tmp_path, {NODE: "failed"})
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    # The one shard holds every test and stays selected; the node no longer runs.
+    (member / "nodes.json").write_text(json.dumps({"tests/test_other.py::test_other": "passed"}))
+    _commit(member, "replace the failing contract test")
+    _record_root_cause(member, NODE)
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+    assert not failure_path(member, "impl/member").exists()

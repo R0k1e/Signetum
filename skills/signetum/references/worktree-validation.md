@@ -95,10 +95,11 @@ Commit significant source events before validation freezes the source. Run the
 repository's targeted checks during work and its member gate for ready. A first
 failure remains failed even when a diagnostic retry passes; after fixing it,
 run ordinary validation again. A failed gate remembers its failed and retry-only
-nodes for the workspace. The next gate refuses before checks unless each node is
-selected again and passes, or a committed `change record` observation names it
-with `--evidence <node-id>` and states its root cause in `--reason`. Moving a failed
-test out of scope never offsets that failure. Process settlement checks only positively owned
+nodes for the workspace. A committed `change record` observation that names a node
+with `--evidence <node-id>` and states its root cause in `--reason` releases it,
+even when its shard is still selected. Otherwise the next gate refuses before checks
+unless the node is selected again, and then it must pass. Moving a failed test out
+of scope never offsets that failure, and neither does a retry-only pass. Process settlement checks only positively owned
 jobs and refuses successful commands that leave owned children behind.
 
 Preserve unrelated files and processes. Stop at a clean ready unless integration

@@ -180,3 +180,68 @@ decisions = "docs/decisions"
 
     with pytest.raises(ManifestError, match=message):
         load_manifest(path)
+
+
+_COVERAGE_GATES = (
+    '[[validation.gates]]\nname = "member"\nshards = ["repo:member"]\n'
+    '[[validation.gates]]\nname = "final"\nshards = ["repo:member"]\n'
+)
+
+
+def _coverage_manifest(tmp_path: Path, shards: str) -> Path:
+    path = tmp_path / "signetum.toml"
+    path.write_text(
+        'schema_version = 5\n[delivery]\nbranch = "main"\n[signetum]\nprotocol = 2\n'
+        '[repository]\narchitecture = "docs/ARCHITECTURE.md"\nchanges = "changes"\n'
+        'decisions = "docs/decisions"\n[validation]\n' + shards + _COVERAGE_GATES,
+        encoding="utf-8",
+    )
+    return path
+
+
+def _shard(name: str, *, covers: tuple[str, ...] = (), world: bool = False) -> str:
+    text = f'[[validation.shards]]\nname = "{name}"\ncommand = ["true"]\n'
+    if covers:
+        text += "covers = [" + ", ".join(f'"{item}"' for item in covers) + "]\n"
+    if world:
+        text += 'evidence = "world"\nfindings_command = ["true"]\n'
+    return text
+
+
+def test_a_shard_may_declare_the_shards_it_covers(tmp_path: Path) -> None:
+    manifest = load_manifest(
+        _coverage_manifest(
+            tmp_path, _shard("repo:member") + _shard("repo:batch", covers=("repo:member",))
+        )
+    )
+    batch = next(item for item in manifest.validation.shards if item.name == "repo:batch")
+    assert batch.covers == ("repo:member",)
+
+
+@pytest.mark.parametrize(
+    ("shards", "message"),
+    [
+        (_shard("repo:member") + _shard("repo:batch", covers=("repo:absent",)), "undeclared"),
+        (_shard("repo:member", covers=("repo:member",)), "itself"),
+        (
+            _shard("repo:member")
+            + _shard("repo:outside", world=True)
+            + _shard("repo:batch", covers=("repo:outside",)),
+            "tree",
+        ),
+        (
+            _shard("repo:member") + _shard("repo:outside", covers=("repo:member",), world=True),
+            "tree",
+        ),
+        (
+            _shard("repo:member", covers=("repo:batch",))
+            + _shard("repo:batch", covers=("repo:member",)),
+            "cycl",
+        ),
+    ],
+)
+def test_coverage_declarations_are_checked_at_load(
+    tmp_path: Path, shards: str, message: str
+) -> None:
+    with pytest.raises(ManifestError, match=message):
+        load_manifest(_coverage_manifest(tmp_path, shards))
