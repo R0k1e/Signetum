@@ -1,0 +1,108 @@
+[change]
+schema_version = 1
+id = "batch-gates-declare-coverage"
+
+[change.source]
+kind = "human_direction"
+summary = "Adopting 0.3.2 in PyReduce exposed two gaps. A project batch shard that runs its own member selection over the admission range is refused because coverage is judged by shard identity only, and a remembered failed node inside an always-selected shard cannot be released by a change record naming its root cause."
+
+[change.contract]
+version = 1
+approved_base = "9fb0afe7860e5e37c999e58d49cd93c6fbfd9d19" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "COVER-001"
+outcome = "A validation shard may declare covers, the shards whose selected checks it executes for its own range. Batch coverage accepts a selected shard covered by a batch-gate shard."
+acceptance = [
+    "A fixture whose batch shard covers its member shard admits a member whose diff selects that member shard.",
+    "The same fixture without covers is refused and names the member shard.",
+    "Manifest load rejects covers naming an undeclared shard, itself, a world shard, a world covering shard, or a cycle.",
+]
+
+[[change.contract.requirements]]
+id = "FAIL-NODE-001"
+outcome = "A remembered failed node satisfies the next gate's precondition when it is reported passing in that run or when a change journal observation of the workspace names it as evidence with its root cause, whether or not its shard is selected."
+acceptance = [
+    "With one always-selected shard, a recorded root cause releases a node that does not report passing in the next run.",
+    "With the same shard and no record, the node must report passing in that run.",
+    "A retry-only pass still fails the gate.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "The 0.3.3 changelog, the repository binding guide, validation and delivery architecture and the Skill reference describe both rules."
+acceptance = [
+    "CHANGELOG.md has a new 0.3.3 section naming covers and node-level release, and the package version is 0.3.3.",
+]
+
+[[change.contract.decisions]]
+id = "batch-gates-declare-coverage/gate-coverage"
+change_id = "batch-gates-declare-coverage"
+authority = "changes/batch-gates-declare-coverage/change.toml#decisions/batch-gates-declare-coverage/gate-coverage"
+reason = "The owner directed a declared coverage relation for batch shards and node-level release of remembered failures after the PyReduce 0.3.2 adoption."
+parents = [
+    "gates-prove-selection-and-remember-failures/gate-rules",
+]
+
+[[change.contract.decisions.clauses]]
+id = "batch-gates-declare-coverage/amend-coverage-and-release"
+change_id = "batch-gates-declare-coverage"
+action = "amend"
+expected = [
+    { id = "EFFICIENCY-RUN-001", version = 2 },
+    { id = "EFFICIENCY-FAIL-001", version = 1 },
+]
+reason = "Shard identity alone cannot see a project shard that runs member selection itself, and shard-level release cannot free one node of a shard that is always selected."
+authority = "changes/batch-gates-declare-coverage/change.toml#decisions/batch-gates-declare-coverage/gate-coverage"
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-RUN-001"
+version = 3
+topic = "validation-efficiency"
+scope = [
+    "Validation execution, diagnostics and CI",
+]
+statement = "Explicit diagnostic targets, readiness and CI share supervised execution and resource allocation. Admission and conflict continuation prepare and run the declared batch gate over the commits added since the batch's last passing gate. That gate must cover the member shards those commits select, without a provider the complete member gate, either by running them or through a batch-gate shard whose declared covers names them, or the operation refuses before running checks. Final remains complete."
+rationale = "Selection over the admitted increment, not the cumulative batch, keeps admission proportional to what changed. Refusing an uncovering gate configuration before checks start costs nothing, while running the selection implicitly would hide what the project declared. A retried admission keeps the unverified increment because only a passing gate advances it. A project that runs its own member selection over the admission range states that in a reviewed covers declaration instead of duplicating the member shard."
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-FAIL-001"
+version = 2
+topic = "validation-efficiency"
+scope = [
+    "Validation execution, diagnostics and CI",
+    "Change journals",
+]
+statement = "A failed gate leaves a machine-local failure receipt for its workspace naming first-attempt failed and retry-recovered nodes. The next gate in that workspace accepts a remembered node that an observation in a change journal the workspace changed names as evidence with its root cause, whatever its shard selection. Otherwise its shard must be selected again, or the gate refuses before running checks, and the node must report passing in that run. A retry success never offsets a first failure."
+rationale = "The existing journal already carries significant findings and blocks final while they are pending, so no new document type is needed. Failure receipts are machine-local evidence like synchronization records, not committed history. Release is per node because one shard may hold every test and stay selected; requiring an unrecorded reselected node to pass still closes deletion and narrowing without a second test inventory."
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the validation shard model, manifest schema, batch coverage check and failure-memory owner, with reproducing fixture tests first.",
+    "Add the 0.3.3 changelog section, bump the package and Skill version to 0.3.3, and reconcile the guide, architecture and Skill reference sentences.",
+    "Integrate through batch-open and final, deliver to main with batch-deliver, and after CI on the delivered commit passes, push an annotated v0.3.3 tag.",
+]
+requires_confirmation = [
+    "Force pushes, moving existing tags, or editing PyReduce.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["COVER-001"]
+action = "Add covers to the shard model and manifest schema and consult it in batch coverage."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["FAIL-NODE-001"]
+action = "Read the workspace journals for every remembered node and release recorded nodes before checks."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["DOC-001"]
+action = "Reconcile the changelog, versions, guide, architecture and Skill reference; deliver and tag."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-04
+source = "The owner directed the batch-gates-declare-coverage fixes (declared covers, node-level failure release) for 0.3.3, with delivery to main and the v0.3.3 tag after CI."
+contract_digest = "sha256:23acdb02f75b133abd0e05fcccdb383ad002969d312a5605cba9938ccd3953da"
