@@ -146,20 +146,23 @@ def _documented(repository: Path, changes: Collection[str]) -> frozenset[str]:
 def require_accounted(
     repository: Path, branch: str, base: str, selected: Collection[str]
 ) -> dict[str, frozenset[str]]:
-    """Refuse before checks unless every remembered node is selected or documented.
+    """Refuse before checks unless every remembered node is documented or selected.
 
-    Returns the selected undocumented nodes by shard; they must pass in this run.
+    A recorded root cause releases its node whatever the shard selection, since
+    one shard may hold every test. Returns the selected undocumented nodes by
+    shard; they must pass in this run.
     """
     remembered = remembered_failures(repository, branch)
     if not remembered:
         return {}
-    # A node selected again must pass in this run, so its record cannot change
-    # the verdict. Read journals only for a dropped node; an open merge's
-    # journal is not yet verifiable from HEAD.
-    dropped = any(shard not in selected for shard, _ in remembered)
-    documented = (
-        _documented(repository, changed_changes(repository, base)) if dropped else frozenset()
-    )
+    try:
+        documented = _documented(repository, changed_changes(repository, base))
+    except AdmissionError:
+        # An open merge's journal may not yet verify from HEAD. Reselected
+        # nodes can still prove themselves by passing; a dropped one cannot.
+        if any(shard not in selected for shard, _ in remembered):
+            raise
+        documented = frozenset()
     owed = [node for node in remembered if node[1] not in documented]
     missing = sorted({node_id for shard, node_id in owed if shard not in selected})
     if missing:

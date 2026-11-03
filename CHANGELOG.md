@@ -3,6 +3,21 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.3.3
+
+Batch gates can declare which member shards they stand for, and a recorded root
+cause releases one remembered failed node.
+
+- A validation shard may declare `covers = ["<shard>", ...]`: the shards whose
+  selected checks it executes for its own range. Batch admission accepts a
+  selected shard when a batch-gate shard covers it, directly or transitively.
+  Manifest load rejects covers that name an undeclared shard, the shard itself,
+  a world shard, a world covering shard, or a cycle.
+- A remembered failed node is released when a change record observation of the
+  workspace names it as evidence with its root cause, even when its shard stays
+  selected. Without that record it must report passing in the next run. A
+  retry-only pass still never offsets a first failure.
+
 ## 0.3.2
 
 Declared commands use one Mise resolver, and ready qualifies the committed tree.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 
 
@@ -50,6 +50,8 @@ class ValidationShard:
     ratchet_command: tuple[str, ...] = ()
     workers: int = 0
     worker_memory_mb: int = 0
+    covers: tuple[str, ...] = ()
+    """Shards whose selected checks this shard executes for its own range."""
 
     def __post_init__(self) -> None:
         if any(
@@ -80,6 +82,12 @@ class ValidationShard:
             )
         if any(not argument for argument in self.ratchet_command):
             raise ValidationGraphError(f"ratchet command must be non-empty: {self.name}")
+        if len(self.covers) != len(set(self.covers)):
+            raise ValidationGraphError(f"duplicate covered shard: {self.name}")
+        if self.name in self.covers:
+            raise ValidationGraphError(f"a shard cannot cover itself: {self.name}")
+        if self.covers and self.evidence != "tree":
+            raise ValidationGraphError(f"only a tree shard can cover shards: {self.name}")
 
     @property
     def digest(self) -> str:
@@ -182,6 +190,7 @@ class ValidationConfiguration:
                     ratchet_command=_tuple_of_strings(
                         raw.get("ratchet_command", ()), "shard.ratchet_command"
                     ),
+                    covers=_tuple_of_strings(raw.get("covers", ()), "shard.covers"),
                 )
             )
 
@@ -233,6 +242,19 @@ class ValidationGraph:
             if gate.name == name:
                 return gate
         raise ValidationGraphError(f"unknown gate: {name}")
+
+    def covered(self, names: Iterable[str]) -> frozenset[str]:
+        """Shards the named shards cover, directly or through covered shards."""
+
+        shards = {shard.name: shard for shard in self.shards}
+        result: set[str] = set()
+        pending = [covered for name in names for covered in shards[name].covers]
+        while pending:
+            name = pending.pop()
+            if name not in result:
+                result.add(name)
+                pending.extend(shards[name].covers)
+        return frozenset(result)
 
     def execution_order(self, gate: str) -> tuple[str, ...]:
         selected = self.gate(gate)
@@ -287,7 +309,7 @@ def resolve_validation_graph(
         "gates": [{"name": gate.name, "shards": gate.shards} for gate in resolved_gates],
         "shards": [
             {
-                **asdict(shard),
+                **{key: value for key, value in asdict(shard).items() if key != "covers" or value},
                 "requires": tuple(sorted(shard.requires)),
             }
             for shard in resolved_shards
