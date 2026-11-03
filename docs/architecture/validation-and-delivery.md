@@ -14,10 +14,11 @@ to `SIGNETUM_NODE_REPORT`; the packaged pytest runner does. A failed member, bat
 or final gate writes a failure receipt for its workspace under the Git common
 directory's `signetum/failures`, beside synchronization records. It names the
 workspace, its changes, base, tip, first-attempt failed nodes and nodes that passed
-only on retry. Before checks start, the next gate in that workspace refuses unless
-each remembered node's shard is selected again or an observation in a change
-journal the workspace changed names the node as evidence with its root cause.
-A reselected node must report passing in that run. A passing gate removes the receipt.
+only on retry. The next gate in that workspace releases a remembered node that an
+observation in a change journal the workspace changed names as evidence with its
+root cause, whether or not its shard is selected. Before checks start, it refuses
+any other node whose shard is not selected again, and such a reselected node must
+report passing in that run. A passing gate removes the receipt.
 Same argv does not make distinct shards interchangeable. Only explicit successful
 preparation can be reused within an operation.
 
@@ -66,8 +67,9 @@ aggregation checks exact membership/source and creates no lifecycle authority.
 Admission and continuation select over the commits added since the batch's last
 passing gate, starting at its recorded base, not the cumulative batch. The declared
 batch gate, resolved with any provider targets, must cover the member shards that
-selection requires, which without a provider is the complete member gate. Otherwise
-the operation refuses before batch checks run. Only a passing batch gate advances
+selection requires, which without a provider is the complete member gate, either by
+running them or through a batch-gate shard that declares `covers` for them, directly
+or transitively. Otherwise the operation refuses before batch checks run. Only a passing batch gate advances
 that verified tip, so a refused or failed increment stays owed. One admission of
 several members is one increment. Batch shards receive its start commit as
 `SIGNETUM_ADMISSION_BASE`, so a project selector can use the same range. A provider
