@@ -139,9 +139,11 @@ def configure_existing_runner(root, language, command, tools, metadata):
             + json.dumps(shard.command)
             + "\ntimeout_seconds=60\n"
         )
+    member = next(gate for gate in binding.validation.gates if gate.name == "member")
     gates = (
         GateDeclaration("prepare", ("test:prepare",)),
-        GateDeclaration("batch", ()),
+        # Without a provider an admission selects the complete member gate.
+        GateDeclaration("batch", member.shards),
         *binding.validation.gates,
     )
     for gate in gates:
