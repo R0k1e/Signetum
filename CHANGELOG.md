@@ -23,6 +23,11 @@ The release is a candidate until published.
   last two arguments are full commits.
 - A repeated adopt preview names the existing file. `change open` without a
   member workspace names `workspace-open`.
+- A manual merge or a copied `Signetum-Sync:` trailer still does not move the
+  ratchet baseline. A failed ratchet now lists those merges and names
+  `maintenance workspace-sync` and `maintenance workspace-sync --batch`. Member
+  gate shards receive `SIGNETUM_BASE` and `SIGNETUM_RATCHET_BASELINE`, and the
+  member receipt binds both.
 
 ## 0.3.1
 
