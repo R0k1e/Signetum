@@ -21,6 +21,13 @@ explicit and non-interactive. Repository commands may project existing
 authorities but must not duplicate selector, receipt, merge, or delivery logic.
 Technology profiles should be selected from repository evidence.
 
+A member gate shard receives two full commits in its environment:
+`SIGNETUM_BASE`, the recorded workspace base, and `SIGNETUM_RATCHET_BASELINE`,
+the source of the latest `maintenance workspace-sync`, otherwise that base. Use
+them for a project-owned ratchet or diff instead of reading Signetum state files.
+Both are absent outside a member gate, so a check without them stays strict. The
+receipt records both, and a receipt is not reused after either moves.
+
 ## Declaring a check which depends on the outside world
 
 A shard whose verdict depends on state outside the observed tree declares

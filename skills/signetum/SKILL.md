@@ -42,6 +42,9 @@ scope, shared interfaces and integration; Signetum does not schedule Agents.
 
 Tell the user which tests change, why, and whether evidence is removed or relaxed.
 Use existing project checks. First failures remain failed after diagnostic retry.
+Recording a failed test as outside the change's scope does not offset that failure.
+Bring a fix already in the batch into a member through
+`maintenance workspace-sync --batch <batch-worktree>`, not cherry-pick or a manual merge.
 Record consequential discoveries and their reasons through `change record/resolve`;
 current decisions are derived. Ordinary command output stays in local logs. Keep
 no second handwritten decision set, execution diary or delivery report. Use the
