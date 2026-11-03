@@ -199,6 +199,24 @@ def test_inventory_retains_every_kind_of_dirty_worktree(tmp_path, dirty_field):
     )
 
 
+def test_inventory_ignores_a_detached_checkout(tmp_path):
+    # A concurrent ready lists its temporary detached qualification checkout.
+    member = {
+        "branch": "plan/member",
+        "head": {"sha": "a" * 40},
+        "worktree": {"path": str(tmp_path), "detached": False, "changes": {}},
+    }
+    detached = {
+        "branch": None,
+        "head": {"sha": "b" * 40},
+        "worktree": {"path": str(tmp_path / "tree"), "detached": True, "changes": {}},
+    }
+    payload = {"schema": 2, "items": [member, detached]}
+    assert wt.parse_worktrees(payload) == (
+        wt.WorkspaceIdentity("plan/member", tmp_path.resolve(), "a" * 40, False),
+    )
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -206,6 +224,17 @@ def test_inventory_retains_every_kind_of_dirty_worktree(tmp_path, dirty_field):
         {"schema": 1, "items": []},
         {"schema": 2, "items": None},
         {"schema": 2, "items": [{"worktree": {"path": "/fixture"}}]},
+        {"schema": 2, "items": [{"branch": "plan/member", "worktree": {"path": "/fixture"}}]},
+        {
+            "schema": 2,
+            "items": [
+                {
+                    "branch": None,
+                    "head": {"sha": "a" * 40},
+                    "worktree": {"path": "/fixture", "detached": False, "changes": {}},
+                }
+            ],
+        },
     ],
 )
 def test_inventory_refuses_invalid_registered_workspace_data(payload):

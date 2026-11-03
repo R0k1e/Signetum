@@ -21,6 +21,20 @@ explicit and non-interactive. Repository commands may project existing
 authorities but must not duplicate selector, receipt, merge, or delivery logic.
 Technology profiles should be selected from repository evidence.
 
+A member gate shard receives two full commits in its environment:
+`SIGNETUM_BASE`, the recorded workspace base, and `SIGNETUM_RATCHET_BASELINE`,
+the source of the latest `maintenance workspace-sync`, otherwise that base. Use
+them for a project-owned ratchet or diff instead of reading Signetum state files.
+Both are absent outside a member gate, so a check without them stays strict. The
+receipt records both, and a receipt is not reused after either moves.
+
+Declare a batch gate that covers what an admission can select. Without a provider
+that is the complete member gate. A static-only batch gate refuses any admission
+whose commits select a test shard. Batch shards receive the increment's start
+commit as `SIGNETUM_ADMISSION_BASE`. A test runner that writes first-attempt
+`{"failed": [...], "passed": [...]}` node ids to `SIGNETUM_NODE_REPORT` lets a
+failed gate remember those nodes for the workspace's next gate.
+
 ## Declaring a check which depends on the outside world
 
 A shard whose verdict depends on state outside the observed tree declares

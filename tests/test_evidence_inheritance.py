@@ -59,6 +59,11 @@ def configured(repository, runtime):
         '\n[[impact.rules]]\nname = "docs"\npaths = ["docs/**", "changes/**"]\n'
         'shards = ["test:static"]\n'
     )
+    # The batch gate covers everything an admission can select.
+    text = text.replace(
+        'name = "batch"\nshards = ["test:check"]',
+        'name = "batch"\nshards = ["test:check", "test:static"]',
+    )
     text += '\n[[validation.shards]]\nname = "test:static"\ncommand = ' + command("static") + "\n"
     text += (
         '\n[[validation.tools]]\nname = "fixture"\nidentity_command = '

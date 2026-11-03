@@ -26,7 +26,8 @@ def test_default_pytest_scratch_finds_environment_scrubbed_detached_leak(
         "def test_leak(tmp_path):\n"
         f"    Path({str(observed)!r}).write_text(str(tmp_path))\n"
         f"    Path({str(width)!r}).write_text(os.environ.get('PYTEST_XDIST_WORKER_COUNT', '0'))\n"
-        "    subprocess.Popen([sys.executable,'-c','import time; time.sleep(3)'],"
+        # The leak outlives the run under any host load; settlement terminates it.
+        "    subprocess.Popen([sys.executable,'-c','import time; time.sleep(120)'],"
         "cwd=tmp_path,env={},start_new_session=True)\n"
     )
     (tmp_path / "pytest.ini").write_text("[pytest]\n")
@@ -34,7 +35,7 @@ def test_default_pytest_scratch_finds_environment_scrubbed_detached_leak(
     result = command_owner.run_command(
         tmp_path,
         [sys.executable, str(runner), "--", "-q", "-n", str(workers), str(case)],
-        timeout_seconds=15,
+        timeout_seconds=90,
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "1 passed" in result.stdout

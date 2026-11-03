@@ -1,0 +1,40 @@
+[change]
+schema_version = 1
+id = "detached-checkouts-are-not-workspaces"
+
+[change.source]
+kind = "human_direction"
+summary = "A concurrent ready's temporary detached checkout appears in the Worktrunk listing without a branch, and the workspace inventory refused the whole listing. Every operation that lists workspaces, including batch-open and workspace-open, failed while any ready ran."
+
+[change.contract]
+version = 1
+approved_base = "e9e2e9e97cefbccd49aa0b42ca92ce05866c77ad" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "LIST-001"
+outcome = "The workspace inventory ignores a detached worktree and still refuses an incomplete branch entry."
+acceptance = [
+    "A listing containing a detached worktree with no branch returns only the branch workspaces.",
+    "A branch entry with missing head, path, or change fields still fails as invalid Worktrunk JSON.",
+    "An entry without a branch that is not marked detached still fails.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Change the Worktrunk inventory parser and its unit tests.",
+    "Add the 0.3.2 changelog line and run member ready on this workspace.",
+]
+requires_confirmation = [
+    "Batch admission, final, delivery to main, pushing, or publishing 0.3.2.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["LIST-001"]
+action = "Reproduce the detached listing in the inventory unit tests, then skip detached entries in parse_worktrees."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-03
+source = "The owner, through the coordinating agent, asked for this separate fix so the S1 and S2 batch can open while another ready runs."
+contract_digest = "sha256:1c1c90d1c868901206bc0f49bc33c5ecb8f7819305a26ea7b21c4569588ad676"

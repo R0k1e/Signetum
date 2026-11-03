@@ -1,0 +1,102 @@
+[change]
+schema_version = 1
+id = "sync-is-only-workspace-sync"
+
+[change.source]
+kind = "human_direction"
+summary = "Repair gate-fix plan rows D and E for the unpublished 0.3.2. A manual merge or a copied Signetum-Sync trailer does not synchronize a member, and a ratchet failure names the recovery commands. The engine hands the recorded base and the ratchet baseline to member shards so projects stop reading private workspace records."
+
+[change.contract]
+version = 1
+approved_base = "e9e2e9e97cefbccd49aa0b42ca92ce05866c77ad" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "SYNC-001"
+outcome = "Only a maintenance workspace-sync merge moves the ratchet baseline. A failed ratchet lists each first-parent merge since the recorded base that has no sync record and names maintenance workspace-sync and maintenance workspace-sync --batch."
+acceptance = [
+    "A manual merge carrying a copied Signetum-Sync trailer leaves the ratchet on the recorded base, and the failure names that merge and both commands after the new diagnostics.",
+    "After maintenance workspace-sync the ratchet baseline is the synchronized source.",
+    "The shipped Skill says batch fixes come in through maintenance workspace-sync --batch, not cherry-pick or a manual merge, and that recording a failed test as outside the change's scope does not offset that failure.",
+]
+
+[[change.contract.requirements]]
+id = "BASES-001"
+outcome = "Member gate shards receive SIGNETUM_BASE, the recorded workspace base, and SIGNETUM_RATCHET_BASELINE, the ratchet baseline after verified syncs. The member receipt records both, and a receipt is not reused after either moves."
+acceptance = [
+    "A member shard observes both values equal to the engine's recorded base and ratchet baseline.",
+    "After maintenance workspace-sync the shard observes SIGNETUM_RATCHET_BASELINE at the synchronized source while SIGNETUM_BASE stays at the recorded base.",
+    "Removing the sync record makes admission refuse the receipt for the same tip until ready runs again, for a shard with no ratchet command.",
+    "Shards outside a member gate do not receive the variables, including from an enclosing environment.",
+    "The manifest and shard documentation and the 0.3.2 changelog describe both variables.",
+]
+
+[[change.contract.decisions]]
+id = "sync-is-only-workspace-sync/member-synchronization"
+change_id = "sync-is-only-workspace-sync"
+authority = "changes/sync-is-only-workspace-sync/change.toml#decisions/sync-is-only-workspace-sync/member-synchronization"
+reason = "The owner approved gate-fix plan cards S1 and S2: one engine owner judges synchronization and supplies member bases."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "member-synchronization"
+version = 1
+summary = "Only workspace-sync synchronizes a member, and the engine supplies member bases to shards."
+boundaries = [
+    "A Git merge or commit trailer alone never grants synchronization.",
+    "Projects read member bases from the shard environment, not from Signetum state files.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "sync-is-only-workspace-sync/clauses"
+change_id = "sync-is-only-workspace-sync"
+action = "add"
+expected = [
+    { id = "SYNC-RECORD-001", version = 0 },
+    { id = "SYNC-BASES-001", version = 0 },
+]
+reason = "Record the approved synchronization and shard-base rules before implementation."
+authority = "changes/sync-is-only-workspace-sync/change.toml#decisions/sync-is-only-workspace-sync/member-synchronization"
+
+[[change.contract.decisions.clauses.updates]]
+id = "SYNC-RECORD-001"
+version = 1
+topic = "member-synchronization"
+scope = [
+    "Member synchronization and ratchet baselines",
+]
+statement = "A member is synchronized only by a maintenance workspace-sync merge carrying both its Signetum-Sync trailer and the machine-local sync record. The ratchet baseline is the latest such source, otherwise the recorded base. A failed ratchet lists unrecorded first-parent merges and names maintenance workspace-sync and maintenance workspace-sync --batch as the recovery."
+rationale = "A manual merge of product and cherry-picked batch fixes in the Signetum trial each required another gate run, and the failure did not say which command moves the baseline. Rejecting the trailer alone keeps the rule; naming the recovery removes the repeated attempts."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SYNC-BASES-001"
+version = 1
+topic = "member-synchronization"
+scope = [
+    "Shard environment and member receipts",
+]
+statement = "Member gate shards receive SIGNETUM_BASE and SIGNETUM_RATCHET_BASELINE from the engine. Each executed member shard's receipt details record both, and admission and test inheritance require them to equal the current values. Shards outside a member gate never receive them, including from an enclosing environment. The published evidence identity schema is unchanged."
+rationale = "Perdura read Signetum's private workspace record for its base and ignored verified syncs, so its own ratchet never moved after a correct sync. The identity schema digest is a published format-5 boundary (INSTALL-ENTRY-001), so the binding lives in receipt details that admission already checks for ratchet baselines."
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the synchronization, ratchet, repository adapter, admission, and test inheritance owners, with fixture-repository tests written first.",
+    "Update the shipped Skill, the validation and manifest documentation, and the 0.3.2 changelog.",
+    "Run focused tests and member ready on this workspace.",
+]
+requires_confirmation = [
+    "Batch admission, final, delivery to main, pushing, or publishing 0.3.2.",
+    "Changing the published evidence schema or editing Perdura.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["SYNC-001", "BASES-001"]
+action = "Reproduce the manual-merge failure text and the shard bases in fixture repositories, then extend the synchronization, ratchet, and adapter owners and reconcile the Skill, validation documentation, and changelog."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-03
+source = "The owner approved the gate-fix plan cards S1 and S2, covering table rows D and E, for the unpublished 0.3.2."
+contract_digest = "sha256:5ebe4dd42a9ec0b78907b83f5c929775e21d9f24b423e40f0a36bcdd1738097a"

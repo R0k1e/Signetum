@@ -165,7 +165,7 @@ name="member"
 shards=["app:test"]
 [[validation.gates]]
 name="batch"
-shards=[]
+shards=["app:test"]
 [[validation.gates]]
 name="final"
 shards=["app:test"]

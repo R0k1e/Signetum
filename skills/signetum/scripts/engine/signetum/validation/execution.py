@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from typing import Protocol
@@ -21,9 +22,30 @@ from signetum.findings import Finding
 from signetum.validation import ToolDeclaration, ValidationGraph, ValidationShard
 from signetum.waivers import Waiver, cover_findings
 
+NodeIdentity = tuple[str, str]
+"""One test node as ``(shard, node_id)``."""
+
 
 class ValidationExecutionError(ValueError):
-    """A declared tool or shard could not produce successful evidence."""
+    """A declared tool or shard could not produce successful evidence.
+
+    A failed gate carries the nodes its runners reported failing on the first
+    attempt, those that passed only on retry, and the shards that passed, so
+    the lifecycle can remember them for the workspace's next gate.
+    """
+
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        failed_nodes: tuple[NodeIdentity, ...] = (),
+        recovered_nodes: tuple[NodeIdentity, ...] = (),
+        passed_shards: tuple[str, ...] = (),
+    ) -> None:
+        super().__init__(message)
+        self.failed_nodes = failed_nodes
+        self.recovered_nodes = recovered_nodes
+        self.passed_shards = passed_shards
 
 
 class ValidationInfrastructureError(ValidationExecutionError):
@@ -38,6 +60,8 @@ class ShardExecution:
     diagnostic: str = ""
     recovered: tuple[dict[str, JsonValue], ...] = ()
     details: dict[str, JsonValue] = field(default_factory=dict)
+    failed_nodes: tuple[str, ...] = ()
+    passed_nodes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -132,6 +156,8 @@ def _resolve_outcome(
     today: date,
     recovered: list[dict[str, JsonValue]],
     details: dict[str, JsonValue],
+    nodes: _NodeObservations,
+    required_nodes: frozenset[str] = frozenset(),
 ) -> ShardOutcome:
     """Execute one shard and decide whether it produced reusable evidence."""
 
@@ -139,10 +165,16 @@ def _resolve_outcome(
     execution = adapter.run_shard(shard)
     if execution.details:
         details[shard.name] = execution.details
+    nodes.observe(shard.name, execution)
     if execution.succeeded:
         require_original_success(
             [{**defect, "shard": shard.name} for defect in execution.recovered]
         )
+        if missing := sorted(required_nodes - set(execution.passed_nodes)):
+            raise ValidationExecutionError(
+                f"{shard.name}: previously failed nodes did not pass in this run: "
+                + ", ".join(missing)
+            )
         recovered.extend({**defect, "shard": shard.name} for defect in execution.recovered)
         return ShardOutcome(shard.name, shard.digest, shard.evidence, "passed", observed_at)
     if shard.evidence != "world":
@@ -170,6 +202,21 @@ def _resolve_outcome(
 
 
 @dataclass
+class _NodeObservations:
+    """First-attempt node outcomes reported by every shard that ran."""
+
+    failed: list[NodeIdentity] = field(default_factory=list)
+    recovered: list[NodeIdentity] = field(default_factory=list)
+
+    def observe(self, shard: str, execution: ShardExecution) -> None:
+        recovered = [(shard, str(item["node_id"])) for item in execution.recovered]
+        for node in [*((shard, item) for item in execution.failed_nodes), *recovered]:
+            if node not in self.failed:
+                self.failed.append(node)
+        self.recovered.extend(node for node in recovered if node not in self.recovered)
+
+
+@dataclass
 class _ExecutionResult:
     outcomes: list[ShardOutcome] = field(default_factory=list)
     names: list[str] = field(default_factory=list)
@@ -188,12 +235,20 @@ def _execute_shards(
     reusable: dict[str, ShardOutcome] | None = None,
     executed: set[str] | None = None,
     advisory_world: bool = False,
+    remembered: Mapping[str, frozenset[str]] | None = None,
 ) -> _ExecutionResult:
-    """One verdict owner for qualified execution and non-qualifying diagnostics."""
+    """One verdict owner for qualified execution and non-qualifying diagnostics.
+
+    ``remembered`` names, per shard, nodes that failed in an earlier gate of the
+    workspace. Such a shard runs in this execution and must report them passing.
+    """
     result = _ExecutionResult()
     outcomes, names, inherited_names = result.outcomes, result.names, result.inherited
     recovered, shard_details, advisories = result.recovered, result.details, result.advisories
     reusable = reusable or {}
+    remembered = remembered or {}
+    nodes = _NodeObservations()
+    passed: list[str] = []
     proven = executed if executed is not None else set()
     shard_by_name = {shard.name: shard for shard in graph.shards}
     today = inputs.today or datetime.now(UTC).date()
@@ -207,16 +262,34 @@ def _execute_shards(
             unproven.add(name)
             failures.append(f"{name}: skipped after {', '.join(blocked)}")
             continue
-        if executed is not None and shard.evidence == "tree" and shard.digest in proven:
+        required_nodes = remembered.get(name, frozenset())
+        if (
+            executed is not None
+            and shard.evidence == "tree"
+            and shard.digest in proven
+            and not required_nodes
+        ):
             continue
         names.append(name)
         try:
-            if shard.inherit and name in reusable and reusable[name].command_digest == shard.digest:
+            if (
+                shard.inherit
+                and not required_nodes
+                and name in reusable
+                and reusable[name].command_digest == shard.digest
+            ):
                 outcome = reusable[name]
                 inherited_names.append(name)
             else:
                 outcome = _resolve_outcome(
-                    shard, inputs, adapter, today=today, recovered=recovered, details=shard_details
+                    shard,
+                    inputs,
+                    adapter,
+                    today=today,
+                    recovered=recovered,
+                    details=shard_details,
+                    nodes=nodes,
+                    required_nodes=required_nodes,
                 )
         except ValidationExecutionError as error:
             if (
@@ -231,13 +304,19 @@ def _execute_shards(
             validation_failed |= not isinstance(error, ValidationInfrastructureError)
             continue
         outcomes.append(outcome)
+        passed.append(name)
         if outcome.evidence == "tree":
             proven.add(shard.digest)
     if failures:
         failure_type = (
             ValidationExecutionError if validation_failed else ValidationInfrastructureError
         )
-        raise failure_type("; ".join(failures))
+        raise failure_type(
+            "; ".join(failures),
+            failed_nodes=tuple(nodes.failed),
+            recovered_nodes=tuple(nodes.recovered),
+            passed_shards=tuple(passed),
+        )
     return result
 
 
@@ -248,6 +327,7 @@ def execute_gate(
     adapter: ValidationAdapter,
     *,
     inherited: InheritedEvidence | None = None,
+    remembered: Mapping[str, frozenset[str]] | None = None,
 ) -> EvidenceReceipt:
     """Execute one resolved gate and compose only its successful shard evidence.
 
@@ -272,7 +352,7 @@ def execute_gate(
                 and outcome.evidence == "tree"
                 and outcome.status == "passed"
             }
-    result = _execute_shards(graph, gate, inputs, adapter, reusable=reusable)
+    result = _execute_shards(graph, gate, inputs, adapter, reusable=reusable, remembered=remembered)
     inherited_names, recovered, shard_details = result.inherited, result.recovered, result.details
     receipts = [
         EvidenceReceipt.shard(
@@ -355,6 +435,7 @@ def execute_diagnostic_gate(
     advisory_world: bool = False,
     tools: tuple[ToolDeclaration, ...] = (),
     inputs: ValidationInputs | None = None,
+    remembered: Mapping[str, frozenset[str]] | None = None,
 ) -> dict[str, object]:
     """Execute diagnostics without granting or storing readiness evidence."""
     projected = inputs or ValidationInputs(
@@ -365,7 +446,13 @@ def execute_diagnostic_gate(
         for tool in tools:
             adapter.identify_tool(tool)
     result = _execute_shards(
-        graph, gate, projected, adapter, executed=executed, advisory_world=advisory_world
+        graph,
+        gate,
+        projected,
+        adapter,
+        executed=executed,
+        advisory_world=advisory_world,
+        remembered=remembered,
     )
     if identity is not None and build_evidence_identity(graph, projected, adapter) != identity:
         raise ValidationExecutionError("validation inputs changed during execution")
