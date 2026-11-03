@@ -28,6 +28,8 @@ The release is a candidate until published.
   `maintenance workspace-sync` and `maintenance workspace-sync --batch`. Member
   gate shards receive `SIGNETUM_BASE` and `SIGNETUM_RATCHET_BASELINE`, and the
   member receipt binds both.
+- Workspace listing ignores detached checkouts, so a concurrent `ready` no
+  longer makes `workspace-open`, `batch-open`, and cleanup refuse the listing.
 
 ## 0.3.1
 
