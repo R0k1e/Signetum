@@ -31,9 +31,26 @@ receipt records both, and a receipt is not reused after either moves.
 Declare a batch gate that covers what an admission can select. Without a provider
 that is the complete member gate. A static-only batch gate refuses any admission
 whose commits select a test shard. Batch shards receive the increment's start
-commit as `SIGNETUM_ADMISSION_BASE`. A test runner that writes first-attempt
+commit as `SIGNETUM_ADMISSION_BASE`.
+
+A batch shard that runs the project's own member selection over that range
+declares the member shards it stands for:
+
+```toml
+[[validation.shards]]
+name = "app:batch"
+command = ["./scripts/check", "batch"]
+covers = ["app:member"]
+```
+
+Admission then accepts a selected `app:member` when `app:batch` is in the batch
+gate and passes. `covers` names only declared tree shards, never the shard itself,
+and cannot form a cycle; manifest load rejects anything else. Keep it reviewable:
+the covering command must really execute the covered shards' selected checks. A test runner that writes first-attempt
 `{"failed": [...], "passed": [...]}` node ids to `SIGNETUM_NODE_REPORT` lets a
-failed gate remember those nodes for the workspace's next gate.
+failed gate remember those nodes for the workspace's next gate. A remembered node
+is released by passing again or by a committed change record observation naming
+it as evidence with its root cause, even inside a shard that is always selected.
 
 ## Declaring a check which depends on the outside world
 
