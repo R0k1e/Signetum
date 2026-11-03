@@ -138,6 +138,10 @@ def parse_worktrees(payload: object) -> tuple[WorkspaceIdentity, ...]:
         branch = item.get("branch")
         head = item.get("head")
         worktree = item["worktree"]
+        if branch is None and worktree.get("detached") is True:
+            # A detached checkout, such as ready's temporary qualification
+            # tree, is not a registered workspace.
+            continue
         changes = worktree.get("changes")
         if (
             not isinstance(branch, str)

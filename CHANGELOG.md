@@ -23,6 +23,8 @@ The release is a candidate until published.
   last two arguments are full commits.
 - A repeated adopt preview names the existing file. `change open` without a
   member workspace names `workspace-open`.
+- Workspace listing ignores detached checkouts, so a concurrent `ready` no
+  longer makes `workspace-open`, `batch-open`, and cleanup refuse the listing.
 
 ## 0.3.1
 
