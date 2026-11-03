@@ -569,7 +569,8 @@ def _batch_graph(
     resolved = select_repository(selector, manifest, files, base=before, source=source)
     required, _ = _member_shards(resolved.manifest, resolved.selection, member_closure=False)
     graph, _ = _runtime_validation(resolved.manifest, member_shards=required)
-    covered = set(graph.execution_order("batch"))
+    executed = graph.execution_order("batch")
+    covered = set(executed) | graph.covered(executed)
     missing = [
         shard.name
         for shard in graph.shards
