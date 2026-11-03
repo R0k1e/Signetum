@@ -23,6 +23,21 @@ The release is a candidate until published.
   last two arguments are full commits.
 - A repeated adopt preview names the existing file. `change open` without a
   member workspace names `workspace-open`.
+- `batch-admit` and `batch-continue` select checks over the commits added since
+  the batch's last passing gate. The batch gate must cover the member shards that
+  selection requires, the complete member gate without a provider, or the
+  operation refuses before checks run. One admission of several members is one
+  range, and batch shards receive its start as `SIGNETUM_ADMISSION_BASE`. A
+  documentation-only admission that selects nothing still passes. Signetum's own
+  batch gate is now its member gate.
+- A failed member, batch, or final gate writes a failure receipt under the Git
+  common directory's `signetum/failures`. It names the workspace, changes, tip,
+  first-attempt failed nodes, and nodes that passed only on retry. Runners report
+  nodes through `SIGNETUM_NODE_REPORT`; the packaged pytest runner does.
+- Before running checks, the next gate in that workspace refuses and lists each
+  remembered node that is neither selected again nor named with its root cause by
+  a `change record --evidence <node-id>` observation. A reselected node must pass
+  in that run. A retry success still never offsets a first failure.
 
 ## 0.3.1
 
