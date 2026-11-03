@@ -19,6 +19,7 @@ from pydantic import JsonValue
 from signetum.development_store import snapshot as development_snapshot
 from signetum.validation import command_digest
 from signetum.validation.execution import ShardExecution, build_evidence_identity
+from signetum.validation.ratchet import member_environment
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import WorkspaceRecord, write_record
 
@@ -134,6 +135,7 @@ def _evidence_receipt(
     identity = build_evidence_identity(
         graph, replace(inputs, base=base), lifecycle.RepositoryValidationAdapter(member)
     )
+    environment = member_environment(member, base, identity.commit)
     evidence = {
         "schema_version": 3,
         "protocol": "reposeal.validation-evidence@3",
@@ -163,7 +165,14 @@ def _evidence_receipt(
             "world_shards": [],
         },
         "provenance": {"stable_patch_id": None},
-        "extensions": {},
+        "extensions": {
+            "shard_details": {
+                f"repo:proven-{index}": {"environment": environment}
+                for index in range(len(commands))
+            }
+        }
+        if gate == "member"
+        else {},
         "valid": True,
     }
     path = lifecycle._receipt_root(member) / name

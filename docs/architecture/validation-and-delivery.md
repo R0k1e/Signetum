@@ -21,7 +21,13 @@ recorded separately from passed.
 The repository owns uv preparation and build dependencies. Build clears stale
 artifacts before installed tests. Static hooks do not duplicate the named Ruff,
 format or ty owners. Member ratchets compare structured diagnostic multisets
-against verified source; missing baseline is explicit and never cached. Final
+against verified source; missing baseline is explicit and never cached. Only a
+`maintenance workspace-sync` merge with its trailer and local record moves that
+baseline. A failed ratchet lists unrecorded merges and names `workspace-sync` and
+`workspace-sync --batch`. Member gate shards receive `SIGNETUM_BASE` and
+`SIGNETUM_RATCHET_BASELINE`; each shard's receipt details record them, and
+admission and test inheritance require their current values. Other shards never
+receive them. Final
 and batch static checks remain strict.
 
 Resource allocation bounds nested workers. Settlement confirms an empty inventory

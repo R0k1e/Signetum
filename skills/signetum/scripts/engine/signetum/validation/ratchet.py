@@ -13,7 +13,7 @@ from collections import Counter
 from pathlib import Path
 
 from signetum.git import git_output, repository_path, run_git
-from signetum.synchronization import verified_sync_sources
+from signetum.synchronization import unrecorded_merges, verified_sync_sources
 from signetum.validation import ValidationShard
 from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.execution import ShardExecution, ValidationInfrastructureError
@@ -85,17 +85,38 @@ def ratchet_baseline(repository: Path, recorded_base: str, tip: str) -> str:
     return sources[0] if sources else recorded_base
 
 
+def member_environment(repository: Path, recorded_base: str, tip: str) -> dict[str, str]:
+    """The bases a member shard receives and its receipt details record."""
+
+    return {
+        "SIGNETUM_BASE": recorded_base,
+        "SIGNETUM_RATCHET_BASELINE": ratchet_baseline(repository, recorded_base, tip),
+    }
+
+
+def _unrecorded_merge_guidance(repository: Path, recorded_base: str, tip: str) -> str:
+    merges = unrecorded_merges(repository, recorded_base, tip)
+    if not merges:
+        return ""
+    return (
+        f"; merges without a sync record: {', '.join(merges)}. "
+        "These merges do not move the ratchet baseline. Synchronize the delivery "
+        "branch with `maintenance workspace-sync`; bring a fix already on the batch "
+        "with `maintenance workspace-sync --batch <batch-worktree>`"
+    )
+
+
 def run_ratchet(
     repository: Path,
     shard: ValidationShard,
-    recorded_base: str,
+    environment: dict[str, str],
     tools: tuple[tuple[str, str], ...],
     *,
     workers: int = 0,
 ) -> ShardExecution:
     deadline = time.monotonic() + shard.timeout_seconds
-    tip = git_output(repository, "rev-parse", "HEAD")
-    baseline = ratchet_baseline(repository, recorded_base, tip)
+    recorded_base = environment["SIGNETUM_BASE"]
+    baseline = environment["SIGNETUM_RATCHET_BASELINE"]
     driver = hashlib.sha256(
         Path(__file__).read_bytes()
         + Path(__file__).with_name("diagnostic_protocol.py").read_bytes()
@@ -152,6 +173,7 @@ def run_ratchet(
         "baseline_cached": cached,
         "baseline_unavailable": unavailable,
     }
+    tip = git_output(repository, "rev-parse", "HEAD")
     if added:
         findings = [
             {"file": path, "rule": rule, "message": message, "count": count}
@@ -160,7 +182,8 @@ def run_ratchet(
         return ShardExecution(
             False,
             f"{shard.name}: baseline={baseline} unavailable={unavailable}; "
-            f"new diagnostics: {json.dumps(findings, sort_keys=True)}",
+            f"new diagnostics: {json.dumps(findings, sort_keys=True)}"
+            + _unrecorded_merge_guidance(repository, recorded_base, tip),
             details={"ratchet": details},
         )
     return ShardExecution(True, details={"ratchet": details})
