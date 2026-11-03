@@ -67,6 +67,16 @@ def verified_sync_sources(repository: Path, base: str, tip: str) -> tuple[str, .
     return tuple(source for _, source in verified_syncs(repository, base, tip))
 
 
+def unrecorded_merges(repository: Path, base: str, tip: str) -> tuple[str, ...]:
+    """First-parent merges which workspace-sync did not record, newest first."""
+
+    verified = {merge for merge, _ in verified_syncs(repository, base, tip)}
+    merges = git_output(
+        repository, "rev-list", "--first-parent", "--merges", f"{base}..{tip}"
+    ).splitlines()
+    return tuple(merge for merge in merges if merge not in verified)
+
+
 def member_contribution_paths(repository: Path, base: str, tip: str) -> tuple[str, ...]:
     @cache
     def changed_between(before: str, after: str) -> frozenset[str]:

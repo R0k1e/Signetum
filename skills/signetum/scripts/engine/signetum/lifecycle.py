@@ -10,6 +10,8 @@ import shutil
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from shutil import which
@@ -25,6 +27,13 @@ from signetum.deviations import (
 )
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
+from signetum.gate_records import (
+    forget_failures,
+    record_verified_batch,
+    remember_failure,
+    require_accounted,
+    verified_batch_tip,
+)
 from signetum.git import GitError, GitInfrastructureError, git_output, repository_path, run_git
 from signetum.lifecycle_validation import validate_workspace
 from signetum.manifest import RepositoryManifest, load_manifest
@@ -40,6 +49,7 @@ from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.repository_selection import select_repository
 from signetum.synchronization import member_contribution_paths
+from signetum.validation import ValidationGraph
 from signetum.validation.admission import find_member_evidence
 from signetum.validation.configuration import member_shards as _member_shards
 from signetum.validation.configuration import with_deferred_world
@@ -48,7 +58,7 @@ from signetum.validation.execution import (
     build_evidence_identity,
     execute_gate,
 )
-from signetum.validation.ratchet import ratchet_baseline
+from signetum.validation.ratchet import member_environment
 from signetum.validation.repository import (
     RepositoryValidationAdapter,
     run_diagnostic_gate,
@@ -245,10 +255,6 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
     graph, inputs = _runtime_validation(manifest, member_shards=required_names)
     closure = set(graph.execution_order("member"))
     required = frozenset(shard.digest for shard in graph.shards if shard.name in closure)
-    ratchets = tuple(
-        shard.name for shard in graph.shards if shard.name in closure and shard.ratchet_command
-    )
-    qualified_base = ratchet_baseline(member, base, tip) if ratchets else base
     adapter = RepositoryValidationAdapter(member)
     member_identity = build_evidence_identity(graph, replace(inputs, base=base), adapter)
     final_graph, _ = _runtime_validation(declared_manifest)
@@ -262,7 +268,7 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
         member_identity=member_identity,
         final_graph_digest=final_graph.digest,
         required_digests=required,
-        ratchet_baselines={name: qualified_base for name in ratchets},
+        member_environment=member_environment(member, base, tip),
         inputs=inputs,
         expected_selection=selection if manifest.impact.provider is not None else None,
         final_required_digests=final_required,
@@ -430,12 +436,12 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         for member in members:
             retry.extend(("--member", str(member)))
         raise InfrastructureError(str(error), expected=shlex.join(retry)) from error
-    graph, _ = _runtime_validation(load_manifest(batch / "signetum.toml"))
-    executed = {shard.digest for shard in graph.shards if shard.name in preparation["executed"]}
-    static = run_diagnostic_gate(batch, graph, "batch", executed=executed, advisory_world=True)
+    source = _git(batch, "rev-parse", "HEAD")
+    static = _run_batch_gate(batch, batch_branch, source, preparation["executed"], selector=batch)
     return {
         "schema_version": 1,
         "status": "admitted",
+        "admission_base": static.pop("admission_base"),
         "preparation": preparation,
         "static": static,
         "batch": str(batch),
@@ -470,10 +476,18 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     against_first = set(_git(batch, "diff", "--name-only", before, staged_tree).splitlines())
     against_second = set(_git(batch, "diff", "--name-only", other, staged_tree).splitlines())
     repaired = tuple(sorted(against_first & against_second))
-    manifest = load_manifest(batch / "signetum.toml")
-    graph, _ = _runtime_validation(manifest)
-    executed = {shard.digest for shard in graph.shards if shard.name in preparation["executed"]}
-    static = run_diagnostic_gate(batch, graph, "batch", executed=executed, advisory_world=True)
+    resolution = _git(
+        batch, "commit-tree", staged_tree, "-p", before, "-p", other, "-m", "batch resolution"
+    )
+    with _selection_checkout(batch, resolution) as selector:
+        static = _run_batch_gate(
+            batch,
+            _branch(batch),
+            resolution,
+            preparation["executed"],
+            selector=selector,
+            recorded_tip=False,
+        )
     if _git(batch, "rev-parse", "HEAD") != before or _git(batch, "write-tree") != staged_tree:
         raise ValidationExecutionError("validation changed staged merge identity")
     if run_git(batch, "diff", "--quiet").returncode:
@@ -491,9 +505,11 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     batch_base = _recorded_base(batch)
     if batch_base is None:
         raise AdmissionError("continued admission has no approved batch base")
+    record_verified_batch(batch, _branch(batch), committed)
     return {
         "schema_version": 1,
         "status": "continued",
+        "admission_base": static.pop("admission_base"),
         "preparation": preparation,
         "repaired_paths": list(repaired),
         "static": static,
@@ -501,6 +517,116 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
         "admission_commit": committed,
     }
+
+
+def _admission_paths(batch: Path, before: str, source: str) -> tuple[str, ...]:
+    changed = _git(batch, "diff", "--name-only", "-z", "--no-renames", before, source)
+    return tuple(sorted(path for path in changed.split("\0") if path))
+
+
+@contextmanager
+def _selection_checkout(batch: Path, resolution: str) -> Iterator[Path]:
+    """Give a provider the exact resolved merge as a clean detached checkout.
+
+    A conflict resolution is staged, not committed, so only a temporary checkout
+    of its synthetic merge can be the committed source a provider requires.
+    Without a provider, selection reads only paths and needs no checkout.
+    """
+
+    if load_manifest(batch / "signetum.toml").impact.provider is None:
+        yield batch
+        return
+    parent = Path(tempfile.mkdtemp(prefix="signetum-selection-"))
+    execution = parent / "tree"
+    try:
+        _git(batch, "worktree", "add", "--detach", str(execution), resolution)
+        graph, _ = _runtime_validation(load_manifest(execution / "signetum.toml"))
+        if any(gate.name == "prepare" for gate in graph.gates):
+            worktree_prepare(execution)
+        yield execution
+    finally:
+        removal_error = _drop_qualification(parent, batch)
+    if removal_error is not None:
+        raise InfrastructureError(
+            f"selection worktree could not be removed: {parent}"
+        ) from removal_error
+
+
+def _batch_graph(
+    batch: Path, selector: Path, before: str, source: str, prepared: frozenset[str]
+) -> ValidationGraph:
+    """Resolve the batch gate against what the admitted increment selects.
+
+    The increment runs from the last batch tip whose gate passed to the new tip.
+    Refuse before any batch check runs when the declared batch gate does not
+    cover the member shards that increment selects.
+    """
+
+    manifest = load_manifest(selector / "signetum.toml")
+    files = _admission_paths(batch, before, source)
+    if not files:
+        return _runtime_validation(manifest)[0]
+    resolved = select_repository(selector, manifest, files, base=before, source=source)
+    required, _ = _member_shards(resolved.manifest, resolved.selection, member_closure=False)
+    graph, _ = _runtime_validation(resolved.manifest, member_shards=required)
+    covered = set(graph.execution_order("batch"))
+    missing = [
+        shard.name
+        for shard in graph.shards
+        if shard.name in graph.execution_order("member")
+        and shard.name not in covered
+        and shard.digest not in prepared
+    ]
+    if missing:
+        raise AdmissionError(
+            "batch gate does not run the shards its admission selects: " + ", ".join(missing),
+            expected="declare them in the batch gate, commit that, and rerun the batch operation",
+        )
+    return graph
+
+
+def _run_batch_gate(
+    batch: Path,
+    branch: str,
+    source: str,
+    prepared_names: list[str],
+    *,
+    selector: Path,
+    recorded_tip: bool = True,
+) -> dict[str, object]:
+    base = _recorded_base(batch)
+    if base is None:
+        raise AdmissionError("batch has no recorded base")
+    declared, _ = _runtime_validation(load_manifest(batch / "signetum.toml"))
+    prepared = frozenset(shard.digest for shard in declared.shards if shard.name in prepared_names)
+    before = verified_batch_tip(batch, branch, base)
+    graph = _batch_graph(batch, selector, before, source, prepared)
+    owed = require_accounted(batch, branch, base, graph.execution_order("batch"))
+    try:
+        static = run_diagnostic_gate(
+            batch,
+            graph,
+            "batch",
+            executed=set(prepared),
+            advisory_world=True,
+            remembered=owed,
+            admission_base=before,
+        )
+    except ValidationExecutionError as error:
+        remember_failure(
+            batch,
+            branch,
+            gate="batch",
+            base=base,
+            tip=_git(batch, "rev-parse", "HEAD"),
+            error=error,
+            owed=owed,
+        )
+        raise
+    forget_failures(batch, branch)
+    if recorded_tip:
+        record_verified_batch(batch, branch, source)
+    return {**static, "admission_base": before}
 
 
 def batch_open(

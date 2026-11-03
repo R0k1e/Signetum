@@ -42,6 +42,7 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
         "    marker.touch()\n"
     )
     report = tmp_path / "recovery.json"
+    nodes = tmp_path / "nodes.json"
     result = subprocess.run(  # noqa: S603 -- isolated Python fixture, no shell
         [
             sys.executable,
@@ -52,7 +53,7 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
             "addopts=",
             str(test),
         ],
-        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
+        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report), SIGNETUM_NODE_REPORT=str(nodes)),
         capture_output=True,
         text=True,
         check=False,
@@ -64,6 +65,10 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
         assert "first failure retained" in str(defects[0]["first_failure"])
     else:
         assert defects == []
+    # First-attempt outcomes are reported whatever the retry concluded.
+    outcomes = json.loads(nodes.read_text())
+    assert [node.rsplit("::", 1)[-1] for node in outcomes["failed"]] == ["test_flaky[user@example]"]
+    assert [node.rsplit("::", 1)[-1] for node in outcomes["passed"]] == ["test_unrelated"]
 
 
 @pytest.mark.parametrize("workers", [0, 2])

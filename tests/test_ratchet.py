@@ -9,7 +9,7 @@ from change_fixtures import commit_approval
 from signetum import lifecycle
 from signetum import workspace_operations as ops
 from signetum.git import git_output
-from signetum.operations import MergeConflict
+from signetum.operations import AdmissionError, MergeConflict
 from signetum.profiles.ty import ty_document
 from signetum.resources.schemas import evidence_schema_digest
 from signetum.synchronization import member_contribution_paths
@@ -200,8 +200,12 @@ def test_admission_rechecks_the_ratchet_source_qualification(repository, runtime
     root, member, _ = configured(repository)
     commit_file(root, "published.txt", "published source")
     git_output(root, "push", "origin", "main")
+    source = git_output(root, "rev-parse", "HEAD")
     ops.workspace_sync(member)
-    runtime.validate(member, "member")
+    ready = runtime.validate(member, "member")
+    evidence = ready["evidence"]
+    assert isinstance(evidence, dict)
+    assert evidence["extensions"]["shard_details"]["test:check"]["ratchet"]["baseline"] == source
     tip = git_output(member, "rev-parse", "HEAD")
     assert admission(runtime, member, tip)
     for path in (lifecycle._state_root(member) / "synchronization").glob("*.json"):
@@ -220,8 +224,75 @@ def test_unverified_merge_trailer_cannot_waive_a_new_finding(repository, runtime
     git_output(root, "worktree", "add", "-b", "unverified", str(sibling), "HEAD")
     source = commit_file(sibling, "diagnostics.json", findings)
     git_output(member, "merge", "--no-ff", source, "-m", f"manual merge\n\nSignetum-Sync: {source}")
-    with pytest.raises(execution_failure(runtime), match="new diagnostics"):
+    merge = git_output(member, "rev-parse", "HEAD")
+    with pytest.raises(execution_failure(runtime), match="new diagnostics") as failure:
         runtime.validate(member, "member")
+    diagnostic = str(failure.value)
+    assert f"baseline={lifecycle._recorded_base(member)}" in diagnostic
+    recovery = diagnostic[diagnostic.index("new diagnostics") :]
+    assert merge in recovery
+    assert "maintenance workspace-sync " in recovery
+    assert "maintenance workspace-sync --batch" in recovery
+
+
+def observed_bases(repository):
+    root, state = repository
+    log = state / "bases"
+    command = [
+        sys.executable,
+        "-c",
+        "import json, os, sys\n"
+        "with open(sys.argv[1], 'a') as stream:\n"
+        "    names = ('SIGNETUM_BASE', 'SIGNETUM_RATCHET_BASELINE')\n"
+        "    stream.write(json.dumps([os.environ.get(name) for name in names]) + '\\n')\n",
+        str(log),
+    ]
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            'name = "test:check"\ncommand = ["true"]',
+            f'name = "test:check"\ncommand = {json.dumps(command)}',
+        )
+    )
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "observe shard bases")
+    return lambda: json.loads(log.read_text().splitlines()[-1])
+
+
+def test_member_shards_receive_bases_that_bind_their_receipt(repository, monkeypatch):
+    root, _ = repository
+    last = observed_bases(repository)
+    # An enclosing gate's values never reach a nested repository's shards.
+    monkeypatch.setenv("SIGNETUM_BASE", "f" * 40)
+    monkeypatch.setenv("SIGNETUM_RATCHET_BASELINE", "f" * 40)
+    member = opened(root, "plan/bases")
+    commit_approval(member, "example")
+    commit_file(member, "work.txt")
+    base = lifecycle._recorded_base(member)
+    lifecycle.validate(member, "member")
+    assert last() == [base, base]
+
+    source = commit_file(root, "published.txt", "published source")
+    git_output(root, "push", "origin", "main")
+    ops.workspace_sync(member)
+    lifecycle.validate(member, "member")
+    assert last() == [base, source]
+    tip = git_output(member, "rev-parse", "HEAD")
+    assert admission(lifecycle, member, tip)
+
+    # Without the sync record the baseline returns to the recorded base, so
+    # the receipt that observed the synchronized baseline no longer admits.
+    for path in (lifecycle._state_root(member) / "synchronization").glob("*.json"):
+        path.unlink()
+    with pytest.raises(AdmissionError, match="no evidence"):
+        admission(lifecycle, member, tip)
+    lifecycle.validate(member, "member")
+    assert last() == [base, base]
+    assert admission(lifecycle, member, tip)
+
+    graph, inputs = lifecycle._runtime_validation(lifecycle.load_manifest(member / "signetum.toml"))
+    run_repository_gate(member, graph, "final", inputs, root.parent / "final-receipts")
+    assert last() == [None, None]
 
 
 def test_archive_attributes_cannot_silently_remove_baseline_inputs(repository, runtime):

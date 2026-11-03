@@ -12,7 +12,7 @@ runners and delivery targets remain repository-owned. Updates are explicit.
 | `commands`, `cli`, `change_cli`, `operation_cli`, `workflow_status` | Dispatch, structured results and derived views. |
 | `change_record`, `development_log`, `development_store`, `decision_clauses`, `decision_history` | Approved outcomes, significant atomic journal mutations and the derived decision set. |
 | `change/*`, `traceability/*`, `source_authority`, `execution_review` | Scope, immutable source proofs, accounting and review qualification. |
-| `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `delivery`, `synchronization` | Isolated work, named integration and exact remote-first delivery. |
+| `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `delivery`, `synchronization`, `gate_records` | Isolated work, named integration, machine-local gate memory and exact remote-first delivery. |
 | `validation/*`, `preparation`, `worktrunk`, `git` | One supervised execution/verdict owner, preparation, tool identities and Git effects. |
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
 | `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |

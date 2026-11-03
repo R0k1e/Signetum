@@ -23,6 +23,7 @@ from signetum.validation.execution import (
     ValidationInputs,
     build_evidence_identity,
 )
+from signetum.validation.ratchet import member_environment
 
 
 def verify_committed_inputs(repository: Path, receipt: EvidenceReceipt) -> None:
@@ -134,6 +135,16 @@ def find_test_inheritance(
             # A historical retry may explain a failure, but it cannot replace
             # fresh normal execution under the current first-failure policy.
             if receipt.extensions.get("recovered_flake_defects", []):
+                return None
+            # Inherited tests saw the ancestor's bases; a moved baseline reruns them.
+            details = receipt.extensions.get("shard_details", {})
+            observed = [
+                detail.get("environment")
+                for detail in (details.values() if isinstance(details, dict) else ())
+                if isinstance(detail, dict)
+            ]
+            expected_environment = member_environment(repository, inputs.base, current.commit)
+            if not observed or any(item != expected_environment for item in observed):
                 return None
             outcomes = {outcome.name: outcome for outcome in receipt.execution.shards}
             if any(
