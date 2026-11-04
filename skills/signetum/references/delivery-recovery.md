@@ -32,6 +32,21 @@ never substitute force-push, history rewriting or ad-hoc cleanup. If delivery
 retains an `active_runtime` checkout, finish the operation, switch to the delivery
 checkout and use its declared cleanup utility to remove that now-unused checkout.
 
+Every workspace ends in exactly one proven outcome. Delivered: its tip is in the
+delivery branch. Contained: it is clean and its content already reached the
+delivery branch another way, because each commit outside it is patch-equivalent
+to a delivery commit with no merge resolution of its own, or each path it changed
+already has its content there. After publication `batch-deliver` sweeps every
+registered workspace, removing those that prove either, and lists the rest with
+the reason they stay; `maintenance cleanup --all-delivered` runs the same sweep.
+Uncommitted work, an open Git operation, a fresh base or any uncontained content
+always stays. `status` lists each open workspace with the outcome it proves.
+Abandoned: only for work the owner decides to drop, run
+`maintenance workspace-abandon <worktree> <confirmed-tip> --actor <owner> --source <confirmation> --reason <why>`
+with the owner's actual confirmation of that exact full commit; never infer it.
+Removals leave a retirement record with the tip, outcome and proof under the Git
+common directory's `signetum/retired`.
+
 Accepted decision filenames stay stable; final validates source without renaming
 authorities or rewriting their references.
 
