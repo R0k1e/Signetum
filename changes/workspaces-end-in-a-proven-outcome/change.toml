@@ -1,0 +1,137 @@
+[change]
+schema_version = 1
+id = "workspaces-end-in-a-proven-outcome"
+
+[change.source]
+kind = "human_direction"
+summary = "Registered worktrees pile up and land on the owner to delete. Cleanup removes only a workspace whose tip is an ancestor of the delivery branch, and agents are blocked from deleting worktrees and branches by hand. A workspace or batch whose every commit already reached the delivery branch some other way (superseded, cherry-picked, landed through another batch) and work the owner decides to drop have no supported exit."
+
+[change.contract]
+version = 1
+approved_base = "f5df3093843f0d96be8ec541cea3794dc2e0111a" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "CONTAINED-001"
+outcome = "A clean registered workspace whose content is already in the fetched delivery branch proves the contained outcome, and cleanup removes its worktree and branch with that proof. Content is contained when every non-merge commit outside the delivery branch is patch-equivalent to a delivery commit and no merge commit outside it adds content of its own, or when every path the workspace changed since its merge base already has the workspace's exact content in the delivery branch."
+acceptance = [
+    "A member whose commit was cherry-picked onto the delivery branch is removed by cleanup with outcome contained and a patch proof naming the commit.",
+    "A batch left over after the same member was delivered through another batch is removed with outcome contained.",
+    "A member with one commit that is not in the delivery branch is retained as not_contained.",
+    "A contained member with an untracked file or a modified tracked file is retained as dirty.",
+    "Each removal writes a machine-local retirement record under the Git common directory naming the branch, tip, outcome and proof.",
+]
+
+[[change.contract.requirements]]
+id = "SWEEP-001"
+outcome = "maintenance cleanup --all-delivered removes every registered workspace that proves delivered or contained, and batch-deliver runs the same sweep over all registered workspaces after publication. A workspace with uncommitted work, an open Git operation, a fresh base, or any content not in the delivery branch stays."
+acceptance = [
+    "After batch-deliver, a sibling workspace whose commit was cherry-picked into the delivered batch is removed, and a sibling with its own undelivered commit and a freshly opened sibling remain.",
+    "The delivery result lists each removed workspace with its outcome and each retained workspace with its reason.",
+]
+
+[[change.contract.requirements]]
+id = "ABANDON-001"
+outcome = "maintenance workspace-abandon removes a workspace only with the exact tip the owner confirmed, the owner's identity, the confirmation source and a reason, and records them in the retirement record. It refuses a workspace that proves delivered or contained, the delivery checkout, an open Git operation and staged changes, and keeps uncommitted work unless --discard is given. It replaces batch-discard."
+acceptance = [
+    "Abandoning without the actor, source or reason, or with a tip other than the current head, is refused and the workspace stays.",
+    "Abandoning a member with an undelivered commit with the confirmed tip removes it and records outcome abandoned with the reason and authorization.",
+    "Abandoning a contained workspace is refused and names cleanup.",
+    "batch-discard is no longer a maintenance command.",
+]
+
+[[change.contract.requirements]]
+id = "STATUS-001"
+outcome = "status lists every registered workspace other than the delivery checkout, with the outcome it can currently prove against the last fetched delivery branch, or none with the retention reason, without fetching."
+acceptance = [
+    "Status in a repository with one contained and one undelivered workspace reports contained for the first and none with not_contained for the second.",
+    "Detached checkouts are not listed.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "The Skill, the delivery and recovery reference, the validation and delivery architecture and an unreleased 0.3.4 changelog section describe the three outcomes, the sweep and workspace-abandon."
+acceptance = [
+    "CHANGELOG.md has a 0.3.4 section marked unreleased that names contained, workspace-abandon, the delivery sweep, the status listing and the removal of batch-discard.",
+]
+
+[[change.contract.decisions]]
+id = "workspaces-end-in-a-proven-outcome/workspace-endings"
+change_id = "workspaces-end-in-a-proven-outcome"
+authority = "changes/workspaces-end-in-a-proven-outcome/change.toml#decisions/workspaces-end-in-a-proven-outcome/workspace-endings"
+reason = "The owner directed that every workspace ends in exactly one proven outcome so leftovers stop landing on the owner."
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "workspace-retirement"
+version = 1
+summary = "Every workspace ends delivered, contained or abandoned, and only a proven outcome removes it."
+boundaries = [
+    "Automatic removal never discards uncommitted work or content outside the delivery branch.",
+    "Abandonment is never automatic.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "workspaces-end-in-a-proven-outcome/clauses"
+change_id = "workspaces-end-in-a-proven-outcome"
+action = "add"
+expected = [
+    { id = "WORKSPACE-END-001", version = 0 },
+    { id = "WORKSPACE-ABANDON-001", version = 0 },
+]
+reason = "Record the approved workspace outcomes and the abandonment authorization before implementation."
+authority = "changes/workspaces-end-in-a-proven-outcome/change.toml#decisions/workspaces-end-in-a-proven-outcome/workspace-endings"
+
+[[change.contract.decisions.clauses.updates]]
+id = "WORKSPACE-END-001"
+version = 1
+topic = "workspace-retirement"
+scope = [
+    "Workspace cleanup, delivery residue removal and status",
+]
+statement = "A registered workspace is removed automatically only when it is clean, has no open Git operation, has advanced from its recorded base, and proves delivered (its tip is an ancestor of the fetched delivery branch) or contained (every non-merge commit outside the delivery branch is patch-equivalent to a delivery commit and no merge outside it has a dense combined diff, or every path it changed since the merge base has its exact content in the delivery branch). Cleanup --all-delivered and the sweep that follows every batch-deliver apply this one predicate to all registered workspaces. Each removal leaves a machine-local retirement record with the outcome and proof. Status lists each registered workspace with the outcome it can prove against the last fetched delivery branch, without fetching."
+rationale = "Ancestry alone misses work that reached the delivery branch through a cherry-pick or another batch, so those worktrees waited for the owner. Patch identity is what Git itself uses to recognize an applied commit, and the dense combined diff exposes a merge resolution that would otherwise hide content outside every commit. The tree comparison covers squashed or re-resolved landings without trusting history shape; it is conservative when the delivery branch later changed the same path. Fresh workspaces stay because an Agent may have just opened one. Ready receipts are not consulted because content, not readiness, decides whether removal loses work. Git 2.7 supports every command used."
+
+[[change.contract.decisions.clauses.updates]]
+id = "WORKSPACE-ABANDON-001"
+version = 1
+topic = "workspace-retirement"
+scope = [
+    "Workspace abandonment",
+]
+statement = "maintenance workspace-abandon removes a workspace that proves neither delivered nor contained only when given the exact current tip the owner confirmed, the owner's identity, the confirmation source and a reason; the retirement record keeps them with the tip. It refuses the delivery checkout, open Git operations and staged changes, and discards other uncommitted work only with --discard. It is the only removal for undelivered work; batch-discard is removed."
+rationale = "Signetum already binds owner authority to exact identities: an approval records actor, date, source and contract digest, and batch-deliver takes the expected base and tip. Binding abandonment to the confirmed tip means a confirmation cannot remove work committed after it. The record keeps the tip so the branch can be recreated while Git retains the objects. batch-discard removed an unpublished batch without any owner authority, which would leave a fourth unproven ending."
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the workspace operations, maintenance parser, Worktrunk inventory use, workspace records and workflow status owners, with fixture-repository tests written first.",
+    "Replace batch-discard and its tests with workspace-abandon.",
+    "Update the Skill, the delivery and recovery reference, the validation and delivery architecture and an unreleased 0.3.4 changelog section without bumping the package version.",
+    "Run focused tests and member ready on this workspace.",
+]
+requires_confirmation = [
+    "Batch admission, final, delivery to main, tagging, pushing or publishing 0.3.4.",
+    "Editing PyReduce or the installed Skill.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["CONTAINED-001", "SWEEP-001", "STATUS-001"]
+action = "Reproduce cherry-picked, batch-landed, uncontained and dirty workspaces in fixture repositories, then extend the one removal predicate with the contained proof and use it from cleanup, the delivery sweep and status."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["ABANDON-001"]
+action = "Add workspace-abandon with exact-tip owner authorization and the retirement record, and remove batch-discard."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["DOC-001"]
+action = "Reconcile the Skill, delivery reference, architecture and changelog."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-04
+source = "The owner, through the coordinating agent, approved the direction that every Signetum workspace ends delivered, contained or abandoned, with automatic cleanup of contained workspaces, owner-authorised abandonment, the delivery-end sweep and the status listing, leaving the authorization form and command naming to this change, and asked for ready without release."
+contract_digest = "sha256:f85398c69121c02aef1b94ea46e48b2cf5b029525e136fd7cdf4da381d33f316"
