@@ -23,6 +23,7 @@ from signetum.validation.repository import configured_validation
 from signetum.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
+    branch_checkouts,
     branch_name,
     exclude_workspaces,
     exclusive_batch,
@@ -512,7 +513,7 @@ def workspace_abandon(
 
 
 def workspace_endings(repository: Path) -> list[dict[str, object]]:
-    """List registered workspaces with the outcome each proves against the fetched branch."""
+    """List branch checkouts with the outcome each proves against the last fetched branch."""
 
     branch = delivery_policy(repository).branch
     delivered = next(
@@ -527,15 +528,18 @@ def workspace_endings(repository: Path) -> list[dict[str, object]]:
         None,
     )
     rows: list[dict[str, object]] = []
-    for item in wt.worktrees(repository):
-        if item.branch == branch:
+    for name, path, head in branch_checkouts(repository):
+        if name == branch:
             continue
-        record = _record(repository, item.branch)
-        ending = (
-            workspace_ending(repository, item, delivered, require_record=True)
-            if delivered is not None
-            else {"reason": "delivery_branch_unavailable"}
-        )
+        # The offline listing has no change state; the ending reads it from Git.
+        item = wt.WorkspaceIdentity(name, path, head, dirty=False)
+        record = _record(repository, name)
+        if not path.is_dir():
+            ending: dict[str, object] = {"reason": "missing_checkout"}
+        elif delivered is None:
+            ending = {"reason": "delivery_branch_unavailable"}
+        else:
+            ending = workspace_ending(repository, item, delivered, require_record=True)
         rows.append(
             {
                 "branch": item.branch,
