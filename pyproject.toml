@@ -59,19 +59,19 @@ select = [
     "S603",
     "S607",
 ]
-"skills/signetum/scripts/engine/signetum/lifecycle.py" = [
+"plugins/signetum/skills/signetum/scripts/engine/signetum/lifecycle.py" = [
     "S603",
 ]
-"skills/signetum/scripts/engine/signetum/worktrunk.py" = [
+"plugins/signetum/skills/signetum/scripts/engine/signetum/worktrunk.py" = [
     "S603",
 ]
-"skills/signetum/scripts/engine/signetum/release/__init__.py" = [
+"plugins/signetum/skills/signetum/scripts/engine/signetum/release/__init__.py" = [
     "S603",
 ]
-"skills/signetum/scripts/engine/signetum/traceability/boundary.py" = [
+"plugins/signetum/skills/signetum/scripts/engine/signetum/traceability/boundary.py" = [
     "S603",
 ]
-"skills/signetum/scripts/engine/signetum/validation/repository.py" = [
+"plugins/signetum/skills/signetum/scripts/engine/signetum/validation/repository.py" = [
     "S603",
 ]
 
@@ -89,7 +89,7 @@ markers = [
 addopts = [
     "--cov=signetum",
     "--cov=tools",
-    "--cov=skills/signetum/scripts",
+    "--cov=plugins/signetum/skills/signetum/scripts",
     "--cov-report=term-missing",
     "--cov-fail-under=0",
 ]
@@ -122,7 +122,7 @@ python-version = "3.12"
 package = false
 
 [tool.uv.sources.signetum]
-path = "skills/signetum/scripts/engine"
+path = "plugins/signetum/skills/signetum/scripts/engine"
 editable = true
 
 [project]
@@ -132,13 +132,13 @@ requires-python = ">=3.12"
 
 [tool.coverage.paths]
 engine = [
-    "skills/signetum/scripts/engine/signetum",
+    "plugins/signetum/skills/signetum/scripts/engine/signetum",
     "*/signetum/scripts/engine/signetum",
     "*/site-packages/signetum",
 ]
 
 skill = [
-    "skills/signetum",
-    "*/installed Skill*/signetum",
+    "plugins/signetum/skills/signetum",
+    "*/installed Skill*/signetum/skills/signetum",
     "signetum",
 ]

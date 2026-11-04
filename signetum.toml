@@ -17,13 +17,13 @@ changes = "changes"
 decisions = "docs/decisions"
 lockfiles = [
     "uv.lock",
-    "skills/signetum/scripts/engine/uv.lock",
+    "plugins/signetum/skills/signetum/scripts/engine/uv.lock",
 ]
 
 [[impact.rules]]
 name = "engine.source"
 paths = [
-    "skills/signetum/scripts/engine/**",
+    "plugins/signetum/skills/signetum/scripts/engine/**",
 ]
 profiles = [
     "python-default@1",
@@ -184,7 +184,7 @@ command = [
     "uv",
     "build",
     "--project",
-    "skills/signetum/scripts/engine",
+    "plugins/signetum/skills/signetum/scripts/engine",
     "--out-dir",
     "dist",
     "--clear",
@@ -297,7 +297,7 @@ command = [
     "--no-sync",
     "bandit",
     "-r",
-    "skills/signetum/scripts/engine/signetum",
+    "plugins/signetum/skills/signetum/scripts/engine/signetum",
     "tools",
 ]
 requires = [

@@ -90,7 +90,7 @@ jobs:
           import re
           import tomllib
           from pathlib import Path
-          version = tomllib.loads(Path("skills/signetum/scripts/engine/pyproject.toml").read_text())["project"]["version"]
+          version = tomllib.loads(Path("plugins/signetum/skills/signetum/scripts/engine/pyproject.toml").read_text())["project"]["version"]
           sections = re.findall(r"(?ms)^## " + re.escape(version) + r"(?:[ \t][^\n]*)?\n(.*?)(?=^## |\Z)", Path("CHANGELOG.md").read_text())
           if len(sections) != 1 or not sections[0].strip():
               raise SystemExit("release requires exactly one nonempty reviewed version section")
