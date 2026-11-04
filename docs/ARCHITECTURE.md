@@ -1,19 +1,23 @@
 # Architecture
 
-Signetum is a standard Skill for reliable agentic development and delivery.
-`skills/signetum` is the public entry for both project initialization and existing
-repository adoption. `main` owns the product source, runtime/setup package,
-schemas, Skill, tests and documentation. Existing consumers update explicitly.
+Signetum is a plugin for reliable agentic development and delivery in Claude
+Code and Codex. `plugins/signetum` carries the standard Skill
+`plugins/signetum/skills/signetum`, the public entry for both project
+initialization and existing repository adoption, and a command guard. `main` owns
+the product source, runtime/setup package, schemas, plugin, tests and
+documentation. Existing consumers update explicitly through their host plugin
+managers.
 
 The installed Skill owns one execution engine and a separately locked local
-environment. Consumer repositories declare commands and delivery policy in
-`signetum.toml`; their application dependencies, instructions and architecture
-remain their own. Adoption does not copy the engine or impose an entry file.
+environment outside the plugin. Consumer repositories declare commands and
+delivery policy in `signetum.toml` and enable the plugin in their project host
+settings; their application dependencies, instructions and architecture remain
+their own. Adoption does not copy the engine or impose an entry file.
 
 Responsibility documents:
 
 - [Implementation and distribution](architecture/repository-signetum.md) owns
-  package, Skill, setup, source and generation boundaries.
+  package, plugin, Skill, guard, setup, source and generation boundaries.
 - [Validation and delivery](architecture/validation-and-delivery.md) owns checks,
   source-bound evidence and explicit delivery.
 

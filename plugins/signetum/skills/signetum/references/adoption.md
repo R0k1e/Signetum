@@ -1,8 +1,15 @@
 # Set up a new or existing project
 
-Install the complete `signetum` Skill folder from an exact reviewed tag or commit.
-It includes instructions, execution source and its dependency lock. Keep cwd in
-the user's project and call `sh <skill-base-dir>/scripts/signetum ...`.
+Install the `signetum` plugin through the host's plugin manager:
+`claude plugin marketplace add R0k1e/Signetum` and `claude plugin install
+signetum@signetum`, or `codex plugin marketplace add R0k1e/Signetum` and
+`codex plugin add signetum@signetum`. The marketplace pins each release to an
+exact commit. The plugin carries this Skill (`signetum:signetum`) with its
+execution source and dependency lock, and a Bash command guard. Remove an earlier
+standalone copy in `~/.claude/skills/signetum` or `~/.codex/skills/signetum`, or
+both Skills stay listed. Codex asks the user to review the plugin hook at its next
+start; until then `codex exec` runs without the guard. Keep cwd in the user's
+project and call `sh <skill-base-dir>/scripts/signetum ...`.
 
 ## Prepare the Skill once
 
@@ -11,7 +18,9 @@ Check Git 2.7 or newer for Signetum's own commands, Mise, Worktrunk 0.74
 Worktrunk 0.75 or newer needs Git 2.43. Report missing tools
 and resolve setup explicitly. Honor the host's Mise trust decision; never trust
 project configuration automatically. Run `setup` to select host Python 3.12 and uv 0.12.2 explicitly through Mise,
-including on hosts with unconfigured shims, and create a locked environment under the installed Skill's ignored `.runtime/` directory. `identity` reports its
+including on hosts with unconfigured shims, and create a locked environment in `${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>`.
+Every installed copy of the same engine shares it, and nothing is written into the
+plugin directory, which Codex hashes for hook trust. `identity` reports its
 code and dependency identities. No Signetum dependency belongs in the application's
 production or development dependency groups. Declared application commands run
 through `mise exec --` after Git repository context and `PYTHONPATH`,
@@ -21,9 +30,8 @@ engine environment is not prepended onto their PATH.
 Prepared operations use the Skill’s own bootstrap interpreter, regardless of
 the application’s Python version or tool selection.
 Ordinary operations refuse an absent, changed or incompatible environment with a
-setup/update action. They never clone, install, sync or repair the Skill. Use a
-writable complete Skill installation; do not copy its generated environment into
-a distribution artifact. An upstream checkout is unnecessary for daily work.
+setup/update action. They never clone, install, sync or repair the Skill. Do not
+copy the generated environment into a distribution artifact. An upstream checkout is unnecessary for daily work.
 
 ## Review project bindings
 
@@ -51,53 +59,48 @@ Both use the same adoption flow:
    fail readiness. The editing worktree stays. An environment failure is not
    permission to weaken application checks.
 
-Normal adoption writes only `signetum.toml`. No required AGENTS/CLAUDE pointer,
+Normal adoption writes `signetum.toml` and enables the plugin at project scope:
+`enabledPlugins` and the `signetum` marketplace in `.claude/settings.json`, and
+`[plugins."signetum@signetum"] enabled = true` in `.codex/config.toml`, keeping
+their other settings. The guard then applies in that repository for every
+collaborator; Codex reads the project layer only for a trusted project and an
+installed plugin. No required AGENTS/CLAUDE pointer,
 architecture scaffolding, wrapper or copied engine is added. Legacy generated
 files may be retired only through explicit exact-hash entries in the same reviewed
 preview; changed and unmanaged files remain untouched. This retirement path does
 not provide an old runtime fallback. Inspect interrupted application before retry.
 
-## Update an installed Skill
+## Update the plugin
 
 This is the only update procedure. Other pages cite it.
 
-Bare `sh <skill-base-dir>/scripts/signetum update` installs the latest eligible
-stable Signetum release and prepares that candidate. It does not ask for a
-separate setup of the old environment. `identity` reports complete Skill content
-and actual engine/dependency identity. Project configuration stays manifest
-format 5 and protocol 2, with no engine implementation pin. Omitted evidence
-fields mean the published evidence protocol and schema digest.
+`sh <skill-base-dir>/scripts/signetum update` reads the release pinned in the
+marketplace on `main`, downloads that Skill and verifies it against the release
+metadata, prepares its environment and checks the project's `signetum.toml`.
+Then it upgrades every host that has `signetum@signetum` installed through its
+own plugin manager: `claude plugin marketplace update signetum` and
+`claude plugin update signetum@signetum`; `codex plugin marketplace upgrade
+signetum` and `codex plugin add signetum@signetum`. If the Codex user setting
+disabled the plugin, it stays disabled. Restart the sessions afterwards and
+review the Codex hook again (`codex_hook_review_required`). Update when no Agent
+session is working: Codex deletes the old version directory at once. `identity`
+reports complete Skill content and actual engine/dependency identity. Project
+configuration stays manifest format 5 and protocol 2, with no engine
+implementation pin. Omitted evidence fields mean the published evidence protocol
+and schema digest.
 
-- `update --check` reads eligible stable release metadata, or compares
-  `--source <complete-skill-directory>`, without preparing or switching.
-  Historical RepoSeal releases, drafts and prereleases do not imply an upgrade.
+- `update --check` compares the pinned release without preparing or upgrading.
   Offline, unavailable and no-release results are not up-to-date claims.
-  A GitHub API rate limit on `--check` stays `unavailable` and names
-  `update --source <skill-directory>`. When `GH_TOKEN` or `GITHUB_TOKEN` is set,
-  update sends it only as a bearer token to `api.github.com` and never prints
-  or records the token.
-- `update --to <version-or-commit>` installs that exact release version or
-  commit. `update --source <complete-skill-directory>` installs a local
-  candidate. Moving branch names are refused; remote versions resolve to
-  immutable commits.
-- An already-current stable release, or an older one, returns without replacing
-  the installation.
-
-Version directories stay immutable outside application repositories. An upgrade
-switches only the install entry, after the candidate is prepared and the current
-project contract is checked. It does not overwrite a Git-managed source checkout
-or rewrite a version directory. A command that already resolved an old version
-keeps that directory; switching the entry does not wait for it to finish.
-Preparation, network or switch failure leaves the old entry usable.
-`previous_entry` identifies the retained version. Do not delete versions used by
-other workspaces. Commands other than `update` never download or upgrade.
+- An installed Skill with the pinned digest, or a newer one, is left unchanged.
+- There is no other install path. Develop against a checkout with
+  `claude --plugin-dir plugins/signetum` or a local Codex marketplace.
 
 Compatible implementation changes require no project edit or commit. Verification
 still records actual runtime identity, so old-runtime evidence cannot qualify a
 new runtime. Changed configuration/protocol contracts return migration_required
-without switching or editing the project. Use the candidate entry for a separately
-approved adoption preview, migrate required bindings/callers, qualify and deliver,
-then explicitly activate the installation. Existing active workspaces and receipts
+before any host is upgraded and without editing the project. Migrate required
+bindings and callers through a separately approved adoption preview, qualify and
+deliver, then run `update` again. Existing active workspaces and receipts
 are not automatically migrated.
 
 For the one-time v4-to-v5 configuration migration, set schema_version to 5 and
