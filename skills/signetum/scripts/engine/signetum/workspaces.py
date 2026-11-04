@@ -232,6 +232,23 @@ def primary_worktree(repository: Path) -> Path:
     return root
 
 
+def branch_checkouts(repository: Path) -> tuple[tuple[str, Path, str], ...]:
+    """Read Git's own checkout listing without running Worktrunk.
+
+    Read-only views use this offline listing; removal still goes through the
+    Worktrunk inventory. A detached checkout is not a workspace.
+    """
+    inventory = git_output(repository, "worktree", "list", "--porcelain", strip=False)
+    checkouts: list[tuple[str, Path, str]] = []
+    for block in inventory.split("\n\n"):
+        fields = dict(line.split(" ", 1) for line in block.splitlines() if " " in line)
+        branch = fields.get("branch", "")
+        if "worktree" in fields and "HEAD" in fields and branch.startswith("refs/heads/"):
+            path = Path(fields["worktree"]).resolve()
+            checkouts.append((branch.removeprefix("refs/heads/"), path, fields["HEAD"]))
+    return tuple(checkouts)
+
+
 def workspace_destination(repository: Path, branch: str) -> Path:
     """Resolve a collision-free contained location before invoking any tool."""
     git_output(repository, "check-ref-format", "--branch", branch)
