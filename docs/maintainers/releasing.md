@@ -1,7 +1,7 @@
 # Release Signetum
 
 `main` is the product source declared by repository delivery policy. One tag
-identifies the standard Skill, package and schemas. Package and Skill share the
+identifies the plugin with its standard Skill, package and schemas. Package and Skill share the
 product version; schemas change only with their formats.
 Release metadata binds their actual versions and digests to the exact source.
 Only the current metadata format is supported. Internal scaffolding has no
@@ -21,8 +21,9 @@ The complete native acceptance suite needs Node/npm and Rust/Cargo as well as
 Git, Python, uv and Mise/Worktrunk. These are repository development dependencies,
 not additional application-language requirements for Skill users.
 
-Before delivery, update the package version and release notes, build the nested engine and complete the normal batch final review. Release preflight requires package and Skill versions to agree with
-`skills/signetum/scripts/engine/pyproject.toml`; choose an unused `v<version>` tag. Historical
+Before delivery, update the package version and release notes, build the nested engine and complete the normal batch final review. Release preflight requires the package, Skill and
+`plugins/signetum/.claude-plugin/plugin.json` versions to agree with
+`plugins/signetum/skills/signetum/scripts/engine/pyproject.toml`; choose an unused `v<version>` tag. Historical
 RepoSeal tags remain unchanged. The 0.3.1 entry is a candidate until published. Keep its reviewed version section
 in CHANGELOG.md concise and focused on user outcomes; do not maintain another
 announcement with the same facts.
@@ -37,11 +38,21 @@ days; inspect the complete artifact when the bounded terminal preview is not eno
 
 ## Distribution
 
-The primary unit is the complete standard `skills/signetum` folder at an exact
-GitHub tag, also provided as `signetum-skill-<version>.zip` with checksums. Its
-instructions, engine source and runtime lock travel together. Exclude `.runtime`,
-environments, bytecode and build output. The launcher prepares its own locked
-noneditable environment once; no separate global engine installation is needed.
+The primary unit is the `plugins/signetum` plugin at an exact release commit,
+installed by the Claude Code and Codex plugin managers from the repository-root
+`.claude-plugin/marketplace.json`. Its standard Skill folder is also provided as
+`signetum-skill-<version>.zip` with checksums. Instructions, guard, engine source
+and runtime lock travel together. Exclude environments, bytecode and build output.
+The launcher prepares its locked noneditable environment once per engine
+fingerprint outside the plugin; no separate global engine installation is needed.
+
+The marketplace pin makes a release installable. Ordinary merges to `main` never
+change it. After the release is published, run
+`uv run python -m tools.cli release pin --source <release-commit> --tag v<version>`
+on an up-to-date `main` checkout; it repeats preflight and writes a `git-subdir`
+entry for `plugins/signetum` with the tag and the exact commit. Committing that
+file is the publication step `update` and both hosts read, so it needs the same
+explicit authorization as the tag.
 Internal wheel/sdist artifacts verify that boundary, rather than adding another
 user setup route. Consumers need no upstream checkout for daily work.
 
@@ -58,8 +69,9 @@ inside the checksum-verified artifact and supply the GitHub release body.
 Publication does not regenerate a description from commit history.
 
 Download the public artifacts and verify checksums, tag/source and component
-identities. Install the complete standard Skill from that tag or archive and run its explicit
-setup in an isolated acceptance area. Complete reviewed adoption and a small authorized change
+identities. Install the plugin from the pinned marketplace in an isolated
+acceptance area (a temporary `CLAUDE_CONFIG_DIR` and `CODEX_HOME`) and run its
+explicit setup. Complete reviewed adoption and a small authorized change
 through ready in both a new project and an existing repository; preserve its
 application metadata and runner.
 Do not claim public installation from a local build or a successful preflight.

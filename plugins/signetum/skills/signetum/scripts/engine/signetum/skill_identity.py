@@ -11,7 +11,7 @@ def skill_files(root: Path) -> tuple[Path, ...]:
     paths = []
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root)
-        if any(part in {".runtime", ".venv", "__pycache__", "dist"} for part in relative.parts):
+        if any(part in {".venv", "__pycache__", "dist"} for part in relative.parts):
             continue
         if path.suffix == ".pyc":
             continue

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import subprocess
+import tomllib
 from dataclasses import replace
 from pathlib import Path
 
@@ -30,10 +31,19 @@ def test_review_apply_and_exact_retry_preserve_application_and_unrelated_work(ad
     before = {p: p.read_bytes() for p in (root / "CLAUDE.md", root / "Justfile")}
     status = git_output(root, "status", "--porcelain")
     proposal = preview(root, request)
-    assert {f.path for f in proposal.files} == {"signetum.toml"}
+    assert {f.path for f in proposal.files} == {
+        "signetum.toml",
+        ".claude/settings.json",
+        ".codex/config.toml",
+    }
     assert git_output(root, "status", "--porcelain") == status
     assert apply(root, proposal, plan_digest(proposal))["status"] == "applied"
     assert apply(root, proposal, plan_digest(proposal))["status"] == "unchanged"
+    claude = json.loads((root / ".claude/settings.json").read_text())
+    assert claude["enabledPlugins"] == {"signetum@signetum": True}
+    assert claude["extraKnownMarketplaces"]["signetum"]["source"]["repo"] == "R0k1e/Signetum"
+    codex = tomllib.loads((root / ".codex/config.toml").read_text())
+    assert codex["plugins"]["signetum@signetum"]["enabled"] is True
     assert (root / "AGENTS.md").is_symlink()
     assert all(p.read_bytes() == content for p, content in before.items())
     assert (root / "user-work").read_text() == "unrelated"
@@ -233,3 +243,38 @@ def test_second_preview_leaves_the_existing_file_unchanged(adoption, tmp_path, c
     assert "Errno" not in captured.out
     assert "File exists" not in captured.out
     assert output.read_bytes() == first
+
+
+def test_project_enablement_keeps_host_settings_and_refuses_an_explicit_disable(adoption):
+    root, request = adoption
+    claude = root / ".claude/settings.json"
+    codex = root / ".codex/config.toml"
+    claude.parent.mkdir()
+    codex.parent.mkdir()
+    claude.write_text('{"permissions": {"allow": ["Bash(ls:*)"]}}\n')
+    codex.write_text('model = "fixture"\n\n[mcp_servers.docs]\ncommand = "docs"\n')
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "existing host settings")
+    proposal = preview(root, request)
+    replaced = {f.path for f in proposal.files if f.before is not None and f.before != f.after}
+    assert replaced == {"signetum.toml", ".claude/settings.json", ".codex/config.toml"}
+    assert apply(root, proposal, plan_digest(proposal))["status"] == "applied"
+    settings = json.loads(claude.read_text())
+    assert settings["permissions"] == {"allow": ["Bash(ls:*)"]}
+    assert settings["enabledPlugins"]["signetum@signetum"] is True
+    config = tomllib.loads(codex.read_text())
+    assert config["model"] == "fixture"
+    assert config["mcp_servers"] == {"docs": {"command": "docs"}}
+    assert config["plugins"]["signetum@signetum"]["enabled"] is True
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "adopted")
+    again = preview(root, request)
+    assert all(f.before == f.after for f in again.files)
+
+    claude.write_text(json.dumps({"enabledPlugins": {"signetum@signetum": False}}))
+    with pytest.raises(ValueError, match="disables"):
+        preview(root, request)
+    claude.write_text("{}")
+    codex.write_text('[plugins."signetum@signetum"]\nenabled = false\n')
+    with pytest.raises(ValueError, match="review that choice"):
+        preview(root, request)
