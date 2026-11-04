@@ -6,7 +6,7 @@ import json
 import pytest
 from signetum import lifecycle
 
-MAINTENANCE = ("workspace-sync", "worktree-prepare", "cleanup", "batch-discard")
+MAINTENANCE = ("workspace-sync", "worktree-prepare", "cleanup", "workspace-abandon")
 
 
 @pytest.mark.parametrize("command", MAINTENANCE)
