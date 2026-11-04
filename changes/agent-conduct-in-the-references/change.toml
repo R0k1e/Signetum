@@ -1,0 +1,69 @@
+[change]
+schema_version = 1
+id = "agent-conduct-in-the-references"
+
+[change.source]
+kind = "human_direction"
+summary = "Working under Signetum in Perdura, Agents created registered worktrees to read old history, ran checks against the owner's real instance, asked the owner several rounds of questions they could have answered by tracing, escalated package splits, wrote rejected options into records and added tests that pin vocabulary, keys or generated sentences. The Skill references do not state the expected conduct, and do not say what the delivery branch is or that every operation reads it from one binding."
+
+[change.contract]
+version = 1
+approved_base = "bd94df9da0d4a57e6111fc877da67dc7ef492af0" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "HYGIENE-001"
+outcome = "The work and validation reference states that only workspace-open creates a registered worktree, that history is read with read-only Git commands or extracted into a scratch directory with git archive or a throwaway shared clone, that another worktree is inspected with git -C, and that the product and tests never run against the owner's real instance, credentials, ports or personal browser."
+acceptance = [
+    "skills/signetum/references/worktree-validation.md contains these rules in a few short lines.",
+]
+
+[[change.contract.requirements]]
+id = "ASK-001"
+outcome = "The change approval reference states that an Agent traces to the root cause before asking, asks related questions together once, decides and reports package splits, ordering and batching as the coordinating Agent, and never writes the owner's rejections into any record."
+acceptance = [
+    "skills/signetum/references/spec-plan-decisions.md contains these four sentences.",
+]
+
+[[change.contract.requirements]]
+id = "TESTS-001"
+outcome = "The work and validation reference states that added tests are functional tests driving observable behavior through a real boundary, not implementation-shape, vocabulary-scan, key or catalog presence or mapping-table tests; that runtime-generated sentences are not asserted verbatim; and that tests never read real credentials or the real home."
+acceptance = [
+    "skills/signetum/references/worktree-validation.md contains these rules in a few short lines.",
+]
+
+[[change.contract.requirements]]
+id = "BRANCH-001"
+outcome = "The Skill guidance states that the delivery branch is the one branch batch-deliver advances, that workspace and batch operations read it from the signetum.toml binding and ready and final check against the bases taken from it so every operation agrees on one base, and that changing it is one edit to that binding."
+acceptance = [
+    "skills/signetum/references/adoption.md states this where the binding is reviewed.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Add the approved short passages to the existing Skill reference files and run member ready on this workspace.",
+]
+requires_confirmation = [
+    "New files, other wording beyond the approved content, batch admission, final, delivery to main, tagging or publishing.",
+    "Editing PyReduce or the installed Skill.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["HYGIENE-001", "TESTS-001"]
+action = "Add workspace hygiene, live-data isolation and test conduct to the work and validation reference."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["ASK-001"]
+action = "Add the four questioning and decision sentences to the change approval reference."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["BRANCH-001"]
+action = "Describe the delivery branch binding in the adoption reference, then run link and static checks through member ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-04
+source = "The owner, through the coordinating agent, approved adding the workspace hygiene and live-data isolation rules, the four questioning and decision sentences, the functional test rules and a short description of the delivery branch binding to the existing Skill references, and asked for ready without batch or release."
+contract_digest = "sha256:f4cfaac6dec8f6b16387f8d3600b616f73f0cfcb0e572cf6542634e4f881520d"
