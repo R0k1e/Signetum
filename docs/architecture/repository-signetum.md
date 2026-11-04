@@ -1,9 +1,12 @@
 # Implementation and distribution
 
-`skills/signetum` is the standard public Skill and the sole distributed execution
-source. Its `scripts/engine` project has its own locked production dependencies;
-the root project is only the maintainer development environment. Application
-runners and delivery targets remain repository-owned. Updates are explicit.
+`plugins/signetum` is the one distributed plugin for Claude Code and Codex. It
+carries `.claude-plugin/plugin.json`, a Bash PreToolUse `hooks/hooks.json` and
+the standard Skill `skills/signetum`, loaded as `signetum:signetum`, which is the
+sole distributed execution source. Its `scripts/engine` project has its own locked
+production dependencies; the root project is only the maintainer development
+environment. Application runners and delivery targets remain repository-owned.
+Host plugin managers install and update the plugin; updates are explicit.
 
 ## Maintained owners
 
@@ -16,15 +19,21 @@ runners and delivery targets remain repository-owned. Updates are explicit.
 | `validation/*`, `preparation`, `worktrunk`, `git` | One supervised execution/verdict owner, preparation, tool identities and Git effects. |
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
 | `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
-| `adoption`, `runtime_identity`, Skill `scripts/launch.py` | Exact reviewed bindings, code identity and isolated locked execution. |
+| `adoption`, `runtime_identity`, Skill `scripts/launch.py` | Exact reviewed bindings and project-scope plugin enablement, code identity and isolated locked execution. |
+| Skill `scripts/command_guard.py`, `scripts/command-guard` | The plugin's stdlib-only PreToolUse guard. |
 | `resources/schemas`, `skill_identity`, `runtime_identity` | Installed schemas, complete Skill identity and runtime identity. |
 | Root `tools/release`, `tools/site`, `tools/product_surface`, `tools/cli` | Repository-only packaging, Pages and public asset checks; excluded from the Skill. |
 
 ## One maintained implementation
 
-`skills/signetum/scripts/engine/signetum` is the only engine source. The Skill
-launcher explicitly prepares a noneditable installation under its own ignored
-`.runtime/` directory using `scripts/engine/uv.lock`. Setup selects host Python 3.12 and uv 0.12.2 through Mise; a prepared launcher uses that
+`plugins/signetum/skills/signetum/scripts/engine/signetum` is the only engine
+source. The Skill launcher explicitly prepares a noneditable installation in
+`${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>` using
+`scripts/engine/uv.lock`. The fingerprint covers the implementation digest, the
+lock and `pyproject.toml`, not the install path, so the Claude copy, the Codex copy
+and an update candidate share one environment; `runtime/host-python` only starts
+the launcher. Nothing is written into the plugin directory, because Codex binds
+hook trust to a hash of its content. Setup selects host Python 3.12 and uv 0.12.2 through Mise; a prepared launcher uses that
 interpreter directly instead of selecting the application’s Python. Normal commands verify
 the installed environment and supported project contracts; they never install or
 repair tooling. The application environment is not the engine environment. The launcher forwards arguments unchanged; `commands` owns the sole public
@@ -33,19 +42,22 @@ are direct; `change`, `test`, `check`, `adopt` and `maintenance` own auxiliary
 work. No public lifecycle/protocol namespace or validate alias remains. Bootstrap
 setup, identity and explicit updates are declared alongside the command table.
 `identity` reports complete Skill and actual engine identities. `scripts/update.py`
-owns release lookup, explicit acquisition, compatibility inspection and entry switching.
-`scripts/installation.py` gives a running command a shared lock on its resolved
-version directory and gives an update a separate exclusive lock on the install entry.
-Version directories stay immutable outside projects. An upgrade switches only the
-install entry. It refuses a Git-managed source checkout and refuses to rewrite
-version storage. A command that already resolved an old version keeps that directory.
-Compatible implementation updates change only the installation; project edits are
-reserved for contract migrations.
+owns release lookup through the marketplace pin on `main`, verified acquisition,
+candidate preparation, compatibility inspection and the host plugin manager
+commands; it never rewrites an installed copy itself. `scripts/installation.py`
+gives running commands a shared lock on their environment and setup an exclusive
+one. Compatible implementation updates change only the installation; project
+edits are reserved for contract migrations.
+
+The guard reads `tool_input.command` and `cwd` from Claude Code and Codex payloads,
+splits the command into simple commands and exits 2 with one JSON line naming the
+category and the Signetum operation to use. It has no repository switch: it applies
+wherever the plugin is enabled. A guard that cannot run allows the command.
 
 
 Root `uv.lock` pins maintainer tools and an editable engine dependency. Internal
-wheel/sdist builds verify the install boundary; the standard Skill folder is the
-user distribution unit. It contains source and the runtime lock, never caches,
+wheel/sdist builds verify the install boundary; the plugin, with its standard Skill
+folder, is the user distribution unit. It contains source and the runtime lock, never caches,
 virtual environments, generated evidence or another bundled Skill copy. Pure
 rules run once in core tests; installed-Skill traversals protect real adoption,
 preparation, hooks, failures, integration and delivery boundaries.
@@ -70,7 +82,9 @@ JSON Lines, invent historical acceptance or maintain another decision summary.
 Inspection and preview execute no application command. Apply requires the exact
 reviewed plan and unchanged source/targets, preserves unrelated files and rolls
 back ordinary write failure. An interrupted write requires inspection and a fresh
-preview. Normal adoption writes only `signetum.toml`. Agent entry files and architecture
+preview. Normal adoption writes `signetum.toml` and enables `signetum@signetum` at
+project scope in `.claude/settings.json` and `.codex/config.toml`, preserving their
+other settings. Agent entry files and architecture
 are optional existing context. Explicit hash-bound retirement may remove known
 old generated files; changed/unmanaged files are preserved. The Skill launcher
 downloads and updates nothing during ordinary work.

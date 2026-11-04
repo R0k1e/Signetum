@@ -8,23 +8,36 @@
 
 Keep key decisions, coordinate independent Agent work, validate the integrated
 result and deliver the source you checked. Signetum supports evolving repositories,
-from one Agent across sessions to parallel Agent development. One standard Skill
-guides new projects and existing repositories using their own application tools.
+from one Agent across sessions to parallel Agent development. One plugin for
+Claude Code and Codex carries the Skill that guides new projects and existing
+repositories using their own application tools, and a guard that refuses shell
+commands which lose work or bypass the protocol.
 
 ## Install and start
 
-Install [`skills/signetum`](https://github.com/R0k1e/Signetum/tree/main/skills/signetum)
-with your agent's standard Skill installer. Select an exact reviewed release tag
-or commit for reproducibility. Skill installation does not update previously
-adopted repositories.
+Install the `signetum` plugin with your host's plugin manager. Each release pins
+an exact commit:
+
+```sh
+claude plugin marketplace add R0k1e/Signetum
+claude plugin install signetum@signetum
+codex plugin marketplace add R0k1e/Signetum
+codex plugin add signetum@signetum
+```
+
+Codex asks you to review the plugin's command hook at its next start. The Skill
+is `signetum:signetum`. If you installed the earlier standalone Skill, remove
+`~/.claude/skills/signetum` and `~/.codex/skills/signetum` so only one remains.
+Installation does not change previously adopted repositories.
 
 Then ask:
 
-> Use $signetum to set up this new project, or inspect and adopt this existing
+> Use Signetum to set up this new project, or inspect and adopt this existing
 > repository. Preserve its tools and show the proposed changes first.
 
 The agent prepares the installed Skill's locked execution environment, inspects
-the project and proposes `signetum.toml` bindings. You review the preview.
+the project and proposes `signetum.toml` bindings and the project settings that
+enable the plugin there. You review the preview.
 Execution stays with the Skill; application dependencies and Agent entry files
 stay unchanged. Daily work needs no upstream checkout or tool downloads.
 See [First use](QUICKSTART.md).
@@ -52,8 +65,9 @@ It provides no remote ledger or automatic consumer updates.
 
 ## Maintained source
 
-`main` owns the standard Skill, including its execution source and lock, plus
-maintainer tests and documentation. The Skill folder is the distribution unit;
+`main` owns the plugin and its standard Skill, including the execution source,
+lock and guard, plus maintainer tests and documentation. The plugin is the
+distribution unit;
 internal package builds verify its isolated installation boundary. Consumer
 projects retain only their reviewed bindings and development records.
 

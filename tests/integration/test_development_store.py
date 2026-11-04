@@ -737,7 +737,7 @@ def _cli(repository, store, *arguments, isolated=None):
             *(["-I", "-S"] if isolated else []),
             "-c",
             script,
-            str(root / "skills/signetum/scripts/engine"),
+            str(root / "plugins/signetum/skills/signetum/scripts/engine"),
             store.__name__.rsplit(".", 1)[0] + ".change_cli",
             *arguments,
             "--repository",
