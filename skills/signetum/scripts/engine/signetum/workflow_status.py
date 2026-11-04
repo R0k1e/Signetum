@@ -1,4 +1,8 @@
-"""Read workflow authorities without checks, network access or another status store."""
+"""Read workflow authorities without checks, network access or another status store.
+
+Open workspaces are listed with the outcome each proves against the last fetched
+delivery branch; cleanup proves it again against a fresh fetch before removal.
+"""
 
 import json
 from pathlib import Path
@@ -9,6 +13,7 @@ from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, Receip
 from signetum.git import git_output, repository_path
 from signetum.serialization import contract_mapping
 from signetum.source_authority import authority_roots, source_path
+from signetum.workspace_operations import workspace_endings
 from signetum.workspaces import current_branch, read_change_owner, read_record, record_path
 
 
@@ -107,6 +112,7 @@ def workflow_status(
         )
     else:
         next_action = "Run targeted feedback as needed, then ready on the committed member tip."
+    workspaces = workspace_endings(repository)
     if git_output(repository, "rev-parse", "HEAD") != source:
         raise ValueError("source changed while reading status")
     return {
@@ -119,6 +125,7 @@ def workflow_status(
         "observations": observations,
         "pending": pending,
         "receipts": receipts,
+        "workspaces": workspaces,
         "qualification": (
             "Recorded evidence only; tools, selection and admission are not re-executed by status."
         ),
