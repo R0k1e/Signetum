@@ -515,6 +515,9 @@ def workspace_abandon(
 def workspace_endings(repository: Path) -> list[dict[str, object]]:
     """List branch checkouts with the outcome each proves against the last fetched branch."""
 
+    if not (repository / "signetum.toml").is_file():
+        # Without a delivery binding there is no branch to prove an outcome against.
+        return []
     branch = delivery_policy(repository).branch
     delivered = next(
         (
