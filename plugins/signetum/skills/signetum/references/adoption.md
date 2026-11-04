@@ -102,9 +102,10 @@ disabled the plugin, it stays disabled. Restart the sessions afterwards and
 review the Codex hook again (`codex_hook_review_required`). Any other folder is
 a plain install: update stages the verified release beside it, swaps the folder
 in place, verifies the result and runs no host command; restart the tool's
-sessions. A plain Skill inside a Git work tree, such as a project-local copy or
-a tool pointed at a checkout, is refused; update it through that repository and
-run `setup`. Update when no Agent session is working: Codex deletes the old
+sessions. A plain Skill inside a Git work tree, such as a copy committed to a
+project, is refused; update it through that repository and run `setup`. A tool
+pointed at a Signetum checkout follows that checkout the same way, through Git
+and `setup` rather than `update`. Update when no Agent session is working: Codex deletes the old
 version directory at once, and a plain swap replaces the running folder. `identity`
 reports complete Skill content and actual engine/dependency identity. Project
 configuration stays manifest format 5 and protocol 2, with no engine
