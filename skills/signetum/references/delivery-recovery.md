@@ -16,6 +16,13 @@ evidence, test changes and their effect on coverage, and unfinished work before
 explicitly authorized delivery. Source journals and
 admitted receipts remain bound to that exact review.
 
+When another batch delivers first, run `maintenance workspace-sync` in the open
+batch. It merges the new delivery tip, advances the recorded batch base, keeps
+every admitted member and runs the batch gate over the merged commits; then run
+final again. A conflict stays open for `batch-continue`. Do not discard and
+reopen the batch. If admission or synchronization refuses a decision clause ID
+claimed by two changes, give one change a distinct ID, commit, run ready, retry.
+
 On failure, inspect the structured result, retained diagnostics and exact local
 and remote identities before acting. Preserve work after conflict or publication
 uncertainty. Resolve an open batch merge through `batch-continue`. Otherwise fix
