@@ -6,7 +6,9 @@ the standard Skill `skills/signetum`, loaded as `signetum:signetum`, which is th
 sole distributed execution source. Its `scripts/engine` project has its own locked
 production dependencies; the root project is only the maintainer development
 environment. Application runners and delivery targets remain repository-owned.
-Host plugin managers install and update the plugin; updates are explicit.
+Host plugin managers install and update the plugin; updates are explicit. Agent
+tools other than Claude Code and Codex install the same Skill folder as a plain
+Skill, without plugin manifest or guard; no second Skill copy exists.
 
 ## Maintained owners
 
@@ -43,8 +45,10 @@ work. No public lifecycle/protocol namespace or validate alias remains. Bootstra
 setup, identity and explicit updates are declared alongside the command table.
 `identity` reports complete Skill and actual engine identities. `scripts/update.py`
 owns release lookup through the marketplace pin on `main`, verified acquisition,
-candidate preparation, compatibility inspection and the host plugin manager
-commands; it never rewrites an installed copy itself. `scripts/installation.py`
+candidate preparation and compatibility inspection. A Skill inside the
+`signetum` plugin tree is upgraded through the host plugin manager commands and
+never rewritten; any other folder is a plain Skill, swapped in place from a
+staged sibling copy and verified, and refused inside a Git work tree. `scripts/installation.py`
 gives running commands a shared lock on their environment and setup an exclusive
 one. Compatible implementation updates change only the installation; project
 edits are reserved for contract migrations.
@@ -52,7 +56,9 @@ edits are reserved for contract migrations.
 The guard reads `tool_input.command` and `cwd` from Claude Code and Codex payloads,
 splits the command into simple commands and exits 2 with one JSON line naming the
 category and the Signetum operation to use. It has no repository switch: it applies
-wherever the plugin is enabled. A guard that cannot run allows the command.
+wherever the plugin is enabled. A guard that cannot run allows the command. The
+guard only refuses early; receipts and `batch-deliver` as the only operation
+that advances the delivery branch carry the guarantees, with or without it.
 
 
 Root `uv.lock` pins maintainer tools and an editable engine dependency. Internal

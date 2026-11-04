@@ -9,6 +9,12 @@ review the plugin's command hook at its next start. The Skill is named
 or `~/.codex/skills/signetum`. Installation supplies instructions and the command
 guard, not a project workflow.
 
+For any other agent tool, install the plain Skill instead: unpack
+`signetum-skill-<version>.zip` from a release into the tool's skills directory as
+`signetum`. Do not add it to Claude Code or Codex next to the plugin. It has no
+command guard; receipts and `batch-deliver` still carry the protocol guarantees,
+and the guard only refuses work-losing commands early.
+
 ## Ask the agent to set up your project
 
 For a new project:
@@ -72,9 +78,10 @@ result before authorizing delivery.
 
 The [documentation map](docs/README.md) routes configuration and operation details.
 
-## Update the plugin
+## Update the plugin or plain Skill
 
 Ask the Agent to run `update`. It checks the released version against your
-project, then upgrades each host through its plugin manager; restart the sessions
-afterwards and review the Codex hook again. The one procedure is
+project, then upgrades each host through its plugin manager, or replaces a plain
+Skill folder in place; restart the sessions afterwards and review the Codex hook
+again. The one procedure is
 [the update section](plugins/signetum/skills/signetum/references/adoption.md).
