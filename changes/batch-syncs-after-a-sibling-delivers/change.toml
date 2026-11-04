@@ -1,0 +1,148 @@
+[change]
+schema_version = 1
+id = "batch-syncs-after-a-sibling-delivers"
+
+[change.source]
+kind = "human_direction"
+summary = "In PyReduce two integration batches were open on one delivery branch. After one delivered, the other could not take the new delivery tip: maintenance workspace-sync accepts only implementation members, final binds the batch's original base, and batch-deliver refuses because the remote moved. The owner's batch ui-wave had to be discarded and reopened as ui-wave-2, re-admitting 21 members and re-resolving every conflict, and an orphaned batch worktree remained. The same wave showed decision clause TOOL-OBJECT-005 claimed by two members concurrently."
+
+[change.contract]
+version = 1
+approved_base = "3cc950f03e1c2d39b1dfcc480979d4be80036822" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "BSYNC-001"
+outcome = "Run in an open batch worktree, maintenance workspace-sync merges the fresh delivery tip into the batch as a merge commit, advances the batch's recorded base to that tip, keeps every admitted member admitted and runs the batch gate over the commits the merge added. A tip already merged is unchanged. Naming --batch from a batch, a delivery tip that does not descend from the batch base, an open merge or a dirty batch is refused."
+acceptance = [
+    "With batches A and B open on one delivery branch, after A is delivered workspace-sync in B merges the delivery tip, records the new base, and final and batch-deliver on B succeed at that base.",
+    "B's admitted members keep their provenance and the ready receipts admission recorded; no member is re-admitted.",
+    "A delivery tip that is not a descendant of the recorded batch base is refused without changing the batch.",
+]
+
+[[change.contract.requirements]]
+id = "BSYNC-002"
+outcome = "A conflicting batch synchronization leaves the merge open and names batch-continue. batch-continue validates the staged resolution with the batch gate, commits it and then advances the batch base, as it does for an admission conflict."
+acceptance = [
+    "When B and the delivered A change one path, workspace-sync refuses with a merge conflict naming batch-continue, and the base is unchanged.",
+    "After the path is resolved and staged, batch-continue commits the synchronization, the base becomes the delivery tip, and final and batch-deliver on B succeed.",
+]
+
+[[change.contract.requirements]]
+id = "BSYNC-003"
+outcome = "Batch provenance accepts admission merges bound to the batch base in effect when they were made and synchronization merges that advance it along delivered history. Final and delivery bind the current recorded base and refuse with a precise diagnostic when the batch history does not end at it."
+acceptance = [
+    "Final on a synchronized batch reads every admitted member's ready receipt and plan.",
+    "batch-deliver with the batch's pre-synchronization base refuses because the recorded base differs.",
+]
+
+[[change.contract.requirements]]
+id = "CLAIM-001"
+outcome = "Batch admission and batch synchronization refuse before merging when two different changes write the same decision clause identity concurrently, naming the clause, both changes and both workspaces."
+acceptance = [
+    "Admitting a member whose change writes a clause ID already written by another admitted change is refused, naming both member workspaces.",
+    "Synchronizing a batch whose change writes a clause ID that the delivered sibling batch wrote is refused before the merge, naming both workspaces.",
+    "Re-admitting the same member with the same clause is not a collision.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "SKILL.md, the delivery and recovery reference, validation and delivery architecture and an unreleased 0.3.4 changelog section describe batch synchronization and the clause collision refusal."
+acceptance = [
+    "CHANGELOG.md has an unreleased 0.3.4 section naming both rules; versions are not bumped and nothing is released.",
+]
+
+[[change.contract.excluded]]
+statement = "Release, tag or deliver 0.3.4."
+reason = "The owner has not authorized a release."
+
+[[change.contract.excluded]]
+statement = "Automatic renumbering of colliding decision clauses."
+reason = "The owner asked for a cheap structural refusal only."
+
+[[change.contract.decisions]]
+id = "batch-syncs-after-a-sibling-delivers/batch-synchronization"
+change_id = "batch-syncs-after-a-sibling-delivers"
+authority = "changes/batch-syncs-after-a-sibling-delivers/change.toml#decisions/batch-syncs-after-a-sibling-delivers/batch-synchronization"
+reason = "The owner directed that an open batch take a sibling's delivery as a merge without re-admitting its members, and that concurrent clause identities be refused at admission and synchronization."
+parents = [
+    "skill-first-and-lean-development/batch-source-preparation",
+    "batch-gates-declare-coverage/gate-coverage",
+]
+
+[[change.contract.decisions.clauses]]
+id = "batch-syncs-after-a-sibling-delivers/amend-batch-base"
+change_id = "batch-syncs-after-a-sibling-delivers"
+action = "amend"
+expected = [
+    { id = "SKILL-BATCH-001", version = 1 },
+]
+reason = "An immutable batch base strands every open batch once a sibling delivers, and reopening loses all admissions and conflict resolutions."
+authority = "changes/batch-syncs-after-a-sibling-delivers/change.toml#decisions/batch-syncs-after-a-sibling-delivers/batch-synchronization"
+
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-BATCH-001"
+version = 2
+topic = "skill-first-development"
+scope = [
+    "Batch assembly",
+]
+statement = "Batch creation records the fresh delivery tip as the batch base without executing its obsolete environment. That base changes only when maintenance workspace-sync in the batch merges a newer delivery tip that descends from it; the merge commit carries Signetum-Batch-Sync and Signetum-Batch-Base for the new base, and a conflict completes through batch-continue before the base advances. Admitted members stay admitted and their admission provenance stays bound to the base in effect when they were merged. Named qualified members must declare prepare and batch gates; after admission or synchronization, the existing owner prepares and runs the batch gate over the commits added since its last pass. Member opening still prepares its approved source."
+rationale = "Delivery publishes onto the exact recorded base, so a batch whose base cannot move is discarded after any sibling delivery, losing every admission and resolution. A merge keeps committed admission history intact, unlike a rebase, and advancing the base only along delivered descendants keeps the record a single authority that commit history can confirm. Re-admitting members would only repeat evidence already bound to their exact tips; final still runs its complete gate on the new base."
+
+[[change.contract.decisions.clauses]]
+id = "batch-syncs-after-a-sibling-delivers/add-clause-claims"
+change_id = "batch-syncs-after-a-sibling-delivers"
+action = "add"
+expected = [
+    { id = "BATCH-CLAIM-001", version = 0 },
+]
+reason = "Two members claimed TOOL-OBJECT-005 concurrently and nothing refused until the decision history projection."
+authority = "changes/batch-syncs-after-a-sibling-delivers/change.toml#decisions/batch-syncs-after-a-sibling-delivers/batch-synchronization"
+
+[[change.contract.decisions.clauses.updates]]
+id = "BATCH-CLAIM-001"
+version = 1
+topic = "skill-first-development"
+scope = [
+    "Batch assembly",
+]
+statement = "Batch admission and batch synchronization read the decision clause identities each change record writes in its contract decisions since the relevant base. When two different changes write one identity, the operation refuses before merging and names the clause, both changes and the workspaces that own them. Renumbering stays with the people and agents who own the changes."
+rationale = "Concurrent writes to one clause cannot both replay, and the projection reports that only after the work is integrated. Comparing committed contract identities at the merge points is cheap and local; automatic renumbering would rewrite approved contracts without review."
+
+[change.contract.autonomy]
+allowed = [
+    "Extend batch synchronization through the existing workspace-sync, admission, continuation, provenance and workspace record owners, with reproducing real-repository tests first.",
+    "Replace the test that pinned a batch's refusal to synchronize.",
+    "Add an unreleased 0.3.4 changelog section and reconcile SKILL.md, the delivery and recovery reference and the validation and delivery architecture.",
+    "Run ready for this workspace.",
+]
+requires_confirmation = [
+    "Release, tag, batch-deliver or version bumps.",
+    "Editing PyReduce or the installed Skill.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["BSYNC-001", "BSYNC-003"]
+action = "Add batch synchronization: merge the fresh delivery tip, advance the recorded base along delivered history, run the batch gate on the increment, and teach provenance the base chain."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["BSYNC-002"]
+action = "Let batch-continue complete a synchronization merge and then advance the base."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["CLAIM-001"]
+action = "Compare clause identities written by change records at admission and synchronization and refuse collisions with both workspaces named."
+
+[[change.execution.steps]]
+id = "STEP-004"
+requirements = ["DOC-001"]
+action = "Reconcile the changelog, SKILL.md, delivery reference and architecture."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-04
+source = "The owner approved the fix after the PyReduce ui-wave batch had to be discarded: an open batch takes a sibling's delivery as a merge without re-admission, concurrent decision clause identities are refused at admission and synchronization, no release."
+contract_digest = "sha256:ea97cd154e132c2a544cc965424f66eeb8ca0672432a9b66b49aa2e431067dff"
