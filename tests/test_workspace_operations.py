@@ -10,8 +10,10 @@ from change_fixtures import approve_change, commit_approval
 from signetum import lifecycle
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
+from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
+from signetum.workflow_status import workflow_status
 from signetum.workspaces import (
     branch_name,
     exclude_workspaces,
@@ -251,15 +253,6 @@ def test_sync_refuses_a_source_without_same_repository_batch_authority(
     assert git_output(member, "rev-parse", "HEAD") == before
 
 
-def test_batch_discard_cannot_remove_an_implementation_member(repository):
-    root, _ = repository
-    member = opened(root, "plan/retain-member")
-    with pytest.raises(AdmissionError, match="batch"):
-        ops.batch_discard(member)
-    assert member.exists()
-    assert branch_name(member) == "plan/retain-member"
-
-
 def commit_file(repository, name, value="work"):
     (repository / name).write_text(value)
     git_output(repository, "add", name)
@@ -270,6 +263,25 @@ def commit_file(repository, name, value="work"):
 def publish_member(repository, member):
     git_output(repository, "merge", "--no-ff", branch_name(member), "-m", "deliver fixture")
     git_output(repository, "push", "origin", "main")
+
+
+def land(repository, *commits):
+    # Diverge first: a cherry-pick onto the unchanged parent recreates the same commit.
+    commit_file(repository, "delivery.txt", "delivered independently")
+    git_output(repository, "cherry-pick", *commits)
+    git_output(repository, "push", "origin", "main")
+
+
+def removed_outcomes(removed):
+    assert isinstance(removed, list)
+    for row in removed:
+        retirement = json.loads(Path(row["retirement"]).read_text())
+        assert retirement["branch"] == row["branch"] and retirement["tip"] == row["tip"]
+        assert retirement["outcome"] == row["outcome"]
+        assert not Path(row["worktree"]).exists()
+        primary = Path(row["worktree"]).parents[1]
+        assert run_git(primary, "rev-parse", "--verify", f"refs/heads/{row['branch']}").returncode
+    return {row["branch"]: row["outcome"] for row in removed}
 
 
 @pytest.mark.parametrize("fails", [False, True])
@@ -433,14 +445,13 @@ def test_cleanup_preserves_protected_fresh_dirty_and_unmerged_workspaces(reposit
     commit_file(advanced, "advanced.txt")
     fresh = opened(root, "plan/fresh")
     result = ops.cleanup(root, all_delivered=True)
-    assert result["removed"] == [str(delivered)]
+    assert removed_outcomes(result["removed"]) == {"plan/delivered": "delivered"}
     retained = result["retained"]
     assert isinstance(retained, list)
     reasons = {row["branch"]: row["reason"] for row in retained}
     assert reasons == {
-        "main": "protected",
         "plan/dirty": "dirty",
-        "plan/advanced": "undelivered",
+        "plan/advanced": "not_contained",
         "plan/fresh": "fresh_workspace",
     }
     assert all(path.exists() for path in (root, dirty, advanced, fresh))
@@ -462,7 +473,7 @@ def test_explicit_discard_never_discards_staged_work(repository, staged):
         assert retained[0]["reason"] == "staged"
         assert member.exists()
     else:
-        assert result["removed"] == [str(member)]
+        assert removed_outcomes(result["removed"]) == {"plan/discard": "delivered"}
         assert not member.exists()
 
 
@@ -476,26 +487,6 @@ def test_explicit_protection_retains_even_delivered_residue(repository):
     assert isinstance(retained, list)
     assert retained[0]["reason"] == "protected"
     assert member.exists()
-
-
-def test_clean_unpublished_batch_can_be_discarded(repository):
-    root, _ = repository
-    base = git_output(root, "rev-parse", "HEAD")
-    batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
-    result = ops.batch_discard(batch)
-    assert result["status"] == "discarded"
-    assert not batch.exists()
-    assert run_git(root, "show-ref", "--verify", "refs/heads/batch/test").returncode != 0
-
-
-def test_published_batch_is_not_discarded(repository):
-    root, _ = repository
-    base = git_output(root, "rev-parse", "HEAD")
-    batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
-    git_output(batch, "push", "origin", "batch/test")
-    with pytest.raises(AdmissionError, match="published batch"):
-        ops.batch_discard(batch)
-    assert batch.exists()
 
 
 def test_sync_does_not_claim_siblings_package_or_charge_its_unchanged_paths(repository):
@@ -621,7 +612,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
         {"branch": "plan/example", "worktree": str(member), "reason": "active_runtime"}
     ]
     cleaned = ops.cleanup(root, worktree=member)
-    assert cleaned["removed"] == [str(member)]
+    assert removed_outcomes(cleaned["removed"]) == {"plan/example": "delivered"}
     assert not member.exists()
 
 
@@ -684,3 +675,204 @@ def test_open_refuses_unsafe_managed_destinations_before_creation(repository, ob
     assert not (state / "attempts").exists()
     if obstruction == "occupied":
         assert (target / "user-file").read_text() == "retain"
+
+
+@pytest.mark.parametrize("landing", ["cherry-pick", "squash"])
+def test_cleanup_removes_a_workspace_whose_commits_reached_delivery(repository, landing):
+    root, _ = repository
+    member = opened(root, "plan/landed")
+    first = commit_file(member, "first.txt", "one\n")
+    second = commit_file(member, "second.txt", "two\n")
+    pending = opened(root, "plan/pending")
+    commit_file(pending, "pending.txt")
+    if landing == "cherry-pick":
+        land(root, first, second)
+        # A later delivery edit defeats the tree comparison; patch identity remains.
+        commit_file(root, "first.txt", "edited after landing\n")
+    else:
+        (root / "first.txt").write_text("one\n")
+        git_output(root, "add", "first.txt")
+        commit_file(root, "second.txt", "two\n")
+    git_output(root, "push", "origin", "main")
+
+    result = ops.cleanup(root, all_delivered=True)
+
+    assert removed_outcomes(result["removed"]) == {"plan/landed": "contained"}
+    removed = result["removed"]
+    assert isinstance(removed, list)
+    if landing == "cherry-pick":
+        assert removed[0]["proof"] == "patch"
+        assert removed[0]["commits"] == sorted((first, second))
+    else:
+        assert removed[0]["proof"] == "tree"
+        assert removed[0]["paths"] == ["first.txt", "second.txt"]
+    assert result["retained"] == [
+        {"branch": "plan/pending", "worktree": str(pending), "reason": "not_contained"}
+    ]
+    assert pending.exists()
+    retired = tuple((state_root(root) / "retired").rglob("*.json"))
+    assert len(retired) == 1
+    assert json.loads(retired[0].read_text())["record"]["branch"] == "plan/landed"
+
+
+@pytest.mark.parametrize("own_content", [False, True])
+def test_cleanup_removes_a_batch_whose_member_landed_through_another_batch(repository, own_content):
+    root, _ = repository
+    base = git_output(root, "rev-parse", "HEAD")
+    member = opened(root, "plan/shared")
+    commit_file(member, "shared.txt")
+    batch = Path(str(ops.open_workspace(root, "batch/superseded", base, kind="batch")["worktree"]))
+    git_output(batch, "merge", "--no-ff", "--no-commit", "plan/shared")
+    if own_content:
+        # A resolution of the merge's own is content outside every commit.
+        (batch / "resolution.txt").write_text("only in this merge")
+        git_output(batch, "add", "resolution.txt")
+    git_output(batch, "commit", "-m", "admit plan/shared")
+    publish_member(root, member)
+
+    result = ops.cleanup(root, all_delivered=True)
+
+    if own_content:
+        assert removed_outcomes(result["removed"]) == {"plan/shared": "delivered"}
+        assert result["retained"] == [
+            {"branch": "batch/superseded", "worktree": str(batch), "reason": "not_contained"}
+        ]
+    else:
+        assert removed_outcomes(result["removed"]) == {
+            "plan/shared": "delivered",
+            "batch/superseded": "contained",
+        }
+
+
+@pytest.mark.parametrize("change", ["untracked", "modified"])
+def test_cleanup_never_removes_a_contained_workspace_with_uncommitted_work(repository, change):
+    root, _ = repository
+    member = opened(root, "plan/unfinished")
+    land(root, commit_file(member, "own.txt"))
+    if change == "untracked":
+        (member / "notes.txt").write_text("keep")
+    else:
+        (member / "own.txt").write_text("keep")
+
+    result = ops.cleanup(root, all_delivered=True)
+
+    assert result["removed"] == []
+    assert result["retained"] == [
+        {"branch": "plan/unfinished", "worktree": str(member), "reason": "dirty"}
+    ]
+    assert member.exists()
+    with pytest.raises(AdmissionError, match="--discard requires one selected"):
+        ops.cleanup(root, all_delivered=True, discard=True)
+
+
+def test_abandonment_requires_the_owners_confirmation_of_the_exact_tip(repository):
+    root, _ = repository
+    member = opened(root, "plan/abandoned")
+    tip = commit_file(member, "own.txt")
+    owner = {"actor": "Owner", "source": "Owner chat 2026-11-04", "reason": "Superseded idea."}
+
+    def abandon(worktree, expected, **override):
+        fields = {**owner, **override}
+        return ops.workspace_abandon(
+            root,
+            worktree,
+            expected,
+            actor=fields["actor"],
+            source=fields["source"],
+            reason=fields["reason"],
+        )
+
+    for missing in owner:
+        with pytest.raises(AdmissionError, match=f"--{missing}"):
+            abandon(member, tip, **{missing: " "})
+    with pytest.raises(AdmissionError, match="full commit"):
+        abandon(member, tip[:12])
+    with pytest.raises(AdmissionError, match="confirmed tip"):
+        abandon(member, git_output(root, "rev-parse", "HEAD"))
+    (member / "notes.txt").write_text("uncommitted")
+    with pytest.raises(AdmissionError, match="dirty"):
+        abandon(member, tip)
+    (member / "notes.txt").unlink()
+    contained = opened(root, "plan/contained")
+    landed = commit_file(contained, "landed.txt")
+    land(root, landed)
+    with pytest.raises(AdmissionError, match="proves contained; use maintenance cleanup"):
+        abandon(contained, landed)
+    assert member.exists() and contained.exists()
+
+    result = abandon(member, tip)
+
+    assert result["status"] == "abandoned"
+    assert not member.exists()
+    assert run_git(root, "rev-parse", "--verify", "refs/heads/plan/abandoned").returncode
+    retirement = json.loads(Path(str(result["retirement"])).read_text())
+    assert retirement["outcome"] == "abandoned"
+    assert retirement["tip"] == tip
+    assert retirement["reason"] == "Superseded idea."
+    assert retirement["authorization"]["actor"] == "Owner"
+    assert retirement["authorization"]["source"] == "Owner chat 2026-11-04"
+    assert retirement["record"]["kind"] == "member"
+
+
+def test_delivery_sweeps_every_workspace_that_proves_its_outcome(repository):
+    root, _ = repository
+    base = git_output(root, "rev-parse", "HEAD")
+    sibling = opened(root, "plan/sibling")
+    landed = commit_file(sibling, "sibling.txt")
+    pending = opened(root, "plan/pending")
+    commit_file(pending, "pending.txt")
+    fresh = opened(root, "plan/fresh")
+    member = opened(root, "plan/example")
+    commit_approval(member, "example")
+    git_output(member, "cherry-pick", landed)
+    commit_file(member, "own.txt")
+    lifecycle.validate(member, "member")
+    batch = Path(str(lifecycle.batch_open(root, (member,))["worktree"]))
+    final = lifecycle.validate(batch, "final")
+    tip = final["source"]
+    assert isinstance(tip, str)
+
+    result = lifecycle.batch_deliver(batch, root, base, tip)
+
+    assert removed_outcomes(result["removed_worktrees"]) == {
+        "plan/example": "delivered",
+        "batch/example": "delivered",
+        "plan/sibling": "contained",
+    }
+    retained = result["retained_worktrees"]
+    assert isinstance(retained, list)
+    assert {row["branch"]: row["reason"] for row in retained} == {
+        "plan/pending": "not_contained",
+        "plan/fresh": "fresh_workspace",
+    }
+    assert pending.exists() and fresh.exists()
+
+
+def test_status_lists_each_workspace_with_the_outcome_it_proves(repository):
+    root, _ = repository
+    landed = opened(root, "plan/landed")
+    tip = commit_file(landed, "landed.txt")
+    pending = opened(root, "plan/pending")
+    commit_file(pending, "pending.txt")
+    land(root, tip)
+    git_output(root, "worktree", "add", "--detach", str(root.parent / "detached"), "HEAD")
+
+    view = workflow_status(root, snapshot(root), source=git_output(root, "rev-parse", "HEAD"))
+
+    assert view["workspaces"] == [
+        {
+            "branch": "plan/landed",
+            "worktree": str(landed),
+            "kind": "member",
+            "outcome": "contained",
+            "reason": None,
+        },
+        {
+            "branch": "plan/pending",
+            "worktree": str(pending),
+            "kind": "member",
+            "outcome": None,
+            "reason": "not_contained",
+        },
+    ]
+    assert landed.exists()

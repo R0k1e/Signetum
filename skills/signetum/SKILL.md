@@ -39,6 +39,10 @@ Follow [work and validation](references/worktree-validation.md) during developme
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
 for integration, review, explicit delivery and cleanup. The coordinating Agent owns
 scope, shared interfaces and integration; Signetum does not schedule Agents.
+Every workspace ends delivered, contained (its content already reached the
+delivery branch) or abandoned. Delivery and `maintenance cleanup --all-delivered`
+remove the first two; `status` lists what each open workspace proves. Use
+`maintenance workspace-abandon` only with the owner's actual confirmation of that tip.
 
 Tell the user which tests change, why, and whether evidence is removed or relaxed.
 Use existing project checks. First failures remain failed after diagnostic retry.

@@ -138,12 +138,23 @@ avoids percent signs that break ELF linkers. Refuse symlink escapes and occupied
 paths before preparation; registrations identify branches, not machine paths.
 
 Existing maintenance owns preparation, authorized synchronization, cleanup and
-batch discard. Cleanup protects delivery/user-selected/active-runtime checkouts,
-fresh bases, dirty or staged state, open operations and unmerged/advanced tips.
-Explicit discard never removes a changed index. Remove eligible residue through
-the shared owner and retire its registration. An `active_runtime` checkout can
-be removed from another checkout after the invoking process finishes. There is
-no background deletion, readiness cleanup or new public lifecycle operation.
+abandonment. Every workspace ends delivered, contained or abandoned. One removal
+predicate serves cleanup, the sweep after every `batch-deliver` and the `status`
+listing: a clean workspace that advanced from its base proves delivered when its
+tip is an ancestor of the fetched delivery branch, and contained when every
+non-merge commit outside that branch is patch-equivalent to one inside it and no
+merge outside it has a dense combined diff, or when every path it changed since
+the merge base has the same content there. Cleanup protects delivery,
+user-selected and active-runtime checkouts, fresh bases, dirty or staged state,
+open operations and uncontained or advanced tips. Explicit discard never removes
+a changed index and needs an explicit selector. `workspace-abandon` removes only
+uncontained work, with the owner's actor, confirmation source and reason bound
+to the exact confirmed tip. Each removal retires the registration and writes a
+retirement record with tip, outcome and proof under `signetum/retired`. An
+`active_runtime` checkout can be removed from another checkout after the
+invoking process finishes. There is no background deletion, readiness cleanup or
+new public lifecycle operation. Status reads the last fetched delivery branch;
+cleanup fetches again before it removes anything.
 
 ## Hosted checks and releases
 
