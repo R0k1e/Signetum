@@ -45,6 +45,9 @@ Use existing project checks. First failures remain failed after diagnostic retry
 Recording a failed test as outside the change's scope does not offset that failure.
 Bring a fix already in the batch into a member through
 `maintenance workspace-sync --batch <batch-worktree>`, not cherry-pick or a manual merge.
+After a sibling batch delivers, run `maintenance workspace-sync` in the open batch to
+merge the new delivery tip; members stay admitted and conflicts use `batch-continue`.
+Admission and that sync refuse two changes claiming one decision clause ID.
 Record consequential discoveries and their reasons through `change record/resolve`;
 current decisions are derived. Ordinary command output stays in local logs. Keep
 no second handwritten decision set, execution diary or delivery report. Use the

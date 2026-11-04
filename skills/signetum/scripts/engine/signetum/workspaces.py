@@ -145,7 +145,8 @@ def write_record(root: Path, record: WorkspaceRecord) -> Path:
     """Write one workspace record, refusing to restate an existing base.
 
     A base is written once. Rewriting it would make the record a second place
-    to claim a base rather than the single place that holds one.
+    to claim a base rather than the single place that holds one. Only batch
+    synchronization advances a batch base, through ``advance_batch_base``.
     """
 
     path = record_path(root, record.branch)
@@ -171,6 +172,40 @@ def write_record(root: Path, record: WorkspaceRecord) -> Path:
         finally:
             Path(temporary).unlink(missing_ok=True)
     return path
+
+
+def advance_batch_base(root: Path, branch: str, previous: str, base: str) -> None:
+    """Move a batch base to the delivery tip its committed synchronization merged.
+
+    This is the one exception to a base being written once. The caller has
+    proven that ``base`` descends from ``previous`` and that the batch history
+    now contains it, so the record still agrees with committed provenance.
+    """
+
+    path = record_path(root, branch)
+    with (path.parent / "records.lock").open("a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        existing = read_record(root, branch)
+        if existing.kind != "batch":
+            raise WorkspaceError(f"only a batch base advances: {branch}")
+        if existing.base == base:
+            return
+        if existing.base != previous:
+            raise WorkspaceError(
+                f"batch {branch} is recorded at base {existing.base}, not {previous}"
+            )
+        advanced = WorkspaceRecord(
+            schema_version=1, branch=branch, base=base, kind="batch", members=existing.members
+        )
+        descriptor, temporary = tempfile.mkstemp(prefix="record-", dir=path.parent)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                stream.write(json.dumps(asdict(advanced), indent=2) + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
 
 
 def read_record(root: Path, branch: str) -> WorkspaceRecord:
