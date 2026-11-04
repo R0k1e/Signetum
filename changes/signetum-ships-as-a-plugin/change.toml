@@ -1,0 +1,252 @@
+[change]
+schema_version = 1
+id = "signetum-ships-as-a-plugin"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approved migrating Signetum from a standalone Skill to one plugin for Claude Code and Codex: the Skill plus a PreToolUse command guard, installed and updated by the host plugin managers. The feasibility study at bd94df9 (Claude Code 2.1.318, codex-cli 0.166.0) showed both hosts read one plugin tree (.claude-plugin/plugin.json, hooks/hooks.json, CLAUDE_PLUGIN_ROOT) and that Codex binds hook trust to a hash of the whole plugin directory, so the Skill-local .runtime environment and its host-python symlink break trust; the current update would replace a host-managed copy with a symlink. Agents in Perdura and Signetum bypassed protocol operations with stash, destructive resets, direct merges and ad-hoc worktree removal, which only repository-specific hooks caught."
+
+[change.contract]
+version = 1
+approved_base = "bd94df9da0d4a57e6111fc877da67dc7ef492af0" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RUNTIME-001"
+outcome = "The locked engine environment lives in ${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>, keyed by the implementation digest, uv.lock and pyproject.toml and independent of the Skill path. setup and every command write nothing into the Skill or plugin directory except interpreter bytecode caches."
+acceptance = [
+    "With a test XDG_DATA_HOME, one Skill copied to two paths prepares one environment path, and identity and status run from both copies.",
+    "After setup and a command, the Skill directory's file set, excluding __pycache__, is unchanged.",
+    "A changed environment receipt or installed engine is still refused without repair.",
+]
+
+[[change.contract.requirements]]
+id = "GUARD-001"
+outcome = "The plugin's PreToolUse guard, a stdlib-only Python script behind a POSIX sh entry, reads Claude Code and Codex Bash payloads and exits 2 with one JSON line naming the category and the Signetum operation to use for stash, destructive reset, restore, clean, checkout -- or checkout ., forced checkout or switch, force push including --force-with-lease, +refspec and git -C forms, recursive forced rm of ., *, ~, / or $HOME, any git merge or rebase, wt step rebase or push, wt merge, git worktree add, move or remove, wt remove, wt switch -c or --create, git branch -D or --delete --force, and pre-commit run on a tree with unstaged changes. Read-only Git commands, git commit, git branch -d and text that only mentions these commands inside quotes or heredocs are allowed. It applies wherever the plugin is enabled, and a guard that cannot run allows the command."
+acceptance = [
+    "Captured-shape Claude and Codex PreToolUse payloads for every listed rule exit 2 with the expected category and an operation hint; git status, git log, git diff, git stash list, git branch -d, git commit and quoted, heredoc and echo mentions exit 0.",
+    "Commands reached through sh -c, bash -lc, eval, env, command substitution, chained operators and git -C are classified like the plain command.",
+    "pre-commit run exits 2 in a repository with an unstaged tracked change and 0 in a clean one, using the payload cwd.",
+    "Without python3 on PATH, with malformed JSON or with a crashing guard, the entry exits 0.",
+    "The guard runs under the system Python 3.9 when that interpreter is present.",
+]
+
+[[change.contract.requirements]]
+id = "PLUGIN-001"
+outcome = "The repository ships one plugin tree at plugins/signetum for both hosts: .claude-plugin/plugin.json with the engine version, hooks/hooks.json running the guard on Bash through ${CLAUDE_PLUGIN_ROOT}, and the Skill moved unchanged in role to plugins/signetum/skills/signetum, loaded as signetum:signetum. Development, release and repository paths follow the move."
+acceptance = [
+    "claude plugin validate accepts plugins/signetum.",
+    "A session-only claude --plugin-dir plugins/signetum -p run in a scratch clone has a sentinel git stash blocked by the plugin hook, lets git status run and lists signetum:signetum, without changing ~/.claude settings.",
+    "In a temporary CODEX_HOME with a scratch local marketplace, hooks/list shows the guard with its expanded plugin path and skills/list shows signetum:signetum.",
+    "The launcher prepares and runs from the plugin's Skill path with the relocated runtime, and the member gate passes with the moved tree.",
+]
+
+[[change.contract.requirements]]
+id = "ENABLE-001"
+outcome = "Adoption enables the plugin at project scope for the adopted repository in the same reviewed preview as signetum.toml: .claude/settings.json gains enabledPlugins signetum@signetum and the signetum GitHub marketplace in extraKnownMarketplaces, and .codex/config.toml gains [plugins.\"signetum@signetum\"] enabled = true, preserving every other setting. Already-enabled files are unchanged and an explicit disable is refused for review."
+acceptance = [
+    "Adopting a repository without host settings previews and applies creation of signetum.toml, .claude/settings.json and .codex/config.toml.",
+    "Existing unrelated Claude and Codex settings survive adoption, and a second preview of an adopted repository proposes no host-setting change.",
+    "A project that disabled the plugin is refused before writing.",
+    "A trusted project's .codex/config.toml enablement loads the plugin hook and skill only in that project in a temporary CODEX_HOME where the user setting disables it.",
+]
+
+[[change.contract.requirements]]
+id = "UPDATE-001"
+outcome = "sh <skill>/scripts/signetum update reads the released marketplace pin from main, verifies the pinned Skill against its release metadata, prepares the candidate environment and checks the project manifest, and then upgrades every host that has signetum@signetum installed through its plugin manager: claude plugin marketplace update signetum and claude plugin update signetum@signetum; codex plugin marketplace upgrade signetum and codex plugin add signetum@signetum. A Codex user setting that disabled the plugin stays disabled. It reports restart_required and, for Codex, codex_hook_review_required. update --check stays read-only. The standalone Skill install, update --to, update --source, version storage and entry switching are removed."
+acceptance = [
+    "With fake claude and codex on PATH and a served pin, metadata and archive for a changed Skill, update prepares the candidate and invokes exactly the four host commands, reporting restart_required and codex_hook_review_required.",
+    "An incompatible project manifest returns migration_required and invokes no host update.",
+    "A pin whose Skill digest equals the installed one returns current and invokes no host update; a host without signetum installed is skipped.",
+    "A disabled Codex user setting is still disabled after the update.",
+    "update --to and update --source are refused.",
+]
+
+[[change.contract.requirements]]
+id = "RELEASE-001"
+outcome = "Release tooling builds the Skill archive and component metadata from the plugin path, requires plugin.json to carry the package version, and writes the repository-root .claude-plugin/marketplace.json pin (git-subdir source, plugins/signetum path, tag ref and exact commit) only when a maintainer runs it for a release. This change commits no pin."
+acceptance = [
+    "Release metadata is built from plugins/signetum/skills/signetum and refused when plugin.json and the package version differ.",
+    "The pin command writes a marketplace document naming the tag and 40-hex commit; the delivered tree has no .claude-plugin/marketplace.json.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "SKILL.md, the adoption reference, the architecture pages, README, QUICKSTART, CONTRIBUTING, the product site, the release guide and an unreleased 0.3.4 changelog section describe plugin installation through the host managers, project-scope enablement, the guard, the relocated runtime and the update path, with migration notes telling users to remove old standalone Skill copies."
+acceptance = [
+    "CHANGELOG.md has an unreleased 0.3.4 entry naming the plugin, guard, runtime location, update path and the removal of ~/.claude/skills/signetum and ~/.codex/skills/signetum copies; versions are not bumped.",
+]
+
+[[change.contract.decisions]]
+id = "signetum-ships-as-a-plugin/plugin-distribution"
+change_id = "signetum-ships-as-a-plugin"
+authority = "changes/signetum-ships-as-a-plugin/change.toml#decisions/signetum-ships-as-a-plugin/plugin-distribution"
+reason = "The owner approved one plugin with a command guard, host-managed installation and updates, project-scope enablement through adoption and a runtime outside the plugin directory."
+parents = [
+    "release-closure/installation-entry",
+    "skill-first-and-lean-development/boundaries",
+]
+
+[[change.contract.decisions.topics]]
+expected_version = 1
+
+[change.contract.decisions.topics.revision]
+id = "skill-installation"
+version = 2
+summary = "One host-managed plugin carries the Skill and its command guard; the engine environment lives outside it."
+boundaries = [
+    "One manifest format and one published evidence schema digest.",
+    "Host plugin managers own installed copies; Signetum never rewrites them.",
+    "The plugin directory receives no generated runtime files.",
+]
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "command-guard"
+version = 1
+summary = "A plugin PreToolUse guard refuses commands that lose work or bypass protocol operations."
+boundaries = [
+    "The guard applies wherever the plugin is enabled; it has no repository switch.",
+    "A guard that cannot run allows the command.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "signetum-ships-as-a-plugin/amend-installation"
+change_id = "signetum-ships-as-a-plugin"
+action = "amend"
+expected = [
+    { id = "INSTALL-ENTRY-001", version = 1 },
+    { id = "SKILL-ENTRY-001", version = 1 },
+    { id = "PRODUCT-DISTRIBUTION-001", version = 1 },
+]
+reason = "A Signetum-owned entry switch and version storage conflict with host plugin managers, and a standalone Skill cannot carry a command hook."
+authority = "changes/signetum-ships-as-a-plugin/change.toml#decisions/signetum-ships-as-a-plugin/plugin-distribution"
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-ENTRY-001"
+version = 2
+topic = "skill-installation"
+scope = [
+    "Repository manifest format",
+    "Plugin update",
+]
+statement = "Manifest format stays 5. Omitted evidence fields mean the published evidence protocol and schema digest, and an explicit digest must equal that schema. update reads the released marketplace pin on the delivery branch, verifies the pinned Skill against its release metadata, prepares that candidate's environment and checks the project manifest, then upgrades every host that has signetum@signetum installed through its own plugin manager and preserves a Codex user setting that disabled it. An equal Skill digest or an older pin changes nothing, an incompatible manifest returns migration_required before any host command, and --check stays read-only. There is no other install or update path: no standalone Skill install, --to, --source, version storage or entry switch. The updater never edits the project. Skill content identity and engine implementation identity stay separate and share one labeled digest function."
+rationale = "Both hosts replace a plugin's versioned cache directory on update and Codex deletes the old one at once, so a Signetum-managed entry switch would point a host at content it did not install. Running the host commands after the compatibility check keeps one path that cannot skip a host; printing them would leave each upgrade to manual commands. Pinning the release commit in marketplace.json keeps ordinary merges to main from becoming releases."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-ENTRY-001"
+version = 2
+topic = "skill-first-development"
+scope = [
+    "Distribution entry",
+]
+statement = "Signetum is distributed as the signetum plugin for Claude Code and Codex from one tree, plugins/signetum, carrying the standard signetum Skill (loaded as signetum:signetum) and the command guard. New and existing projects share one explicit local adoption path. Internal scaffold materials are not a second public product."
+rationale = "Codex reads the Claude manifest, marketplace and hooks files and sets CLAUDE_PLUGIN_ROOT, so one tree serves both hosts; a hook can only ship inside a plugin, and the Skill stays the single instruction and execution entry inside it."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-DISTRIBUTION-001"
+version = 2
+topic = "product-foundations"
+scope = [
+    "Distribution and use",
+]
+statement = "Keep installation, distribution and use simple through one plugin installed by each host's plugin manager, carrying the standard Skill, and repository-owned instructions and commands. Position for reliable development with large agent teams using concrete cases and accurately bounded evidence."
+rationale = "The host plugin manager is the installation path users already have, and it carries the guard that a copied Skill folder cannot."
+
+[[change.contract.decisions.clauses]]
+id = "signetum-ships-as-a-plugin/add-runtime-guard-enablement"
+change_id = "signetum-ships-as-a-plugin"
+action = "add"
+expected = [
+    { id = "INSTALL-RUNTIME-001", version = 0 },
+    { id = "GUARD-RULES-001", version = 0 },
+    { id = "GUARD-SCOPE-001", version = 0 },
+    { id = "CONSUMER-ENABLE-001", version = 0 },
+]
+reason = "Record where the engine environment lives, what the guard refuses, where it applies and how adoption enables it before implementation."
+authority = "changes/signetum-ships-as-a-plugin/change.toml#decisions/signetum-ships-as-a-plugin/plugin-distribution"
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-RUNTIME-001"
+version = 1
+topic = "skill-installation"
+scope = [
+    "Engine environment",
+]
+statement = "The locked engine environment lives in ${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>, where the fingerprint covers the implementation digest, uv.lock and pyproject.toml and not the install path. A shared runtime/host-python link only starts the launcher, which verifies the environment for its own fingerprint. setup and ordinary commands write nothing into the plugin directory except interpreter bytecode caches."
+rationale = "Codex trusts a plugin hook by hashing the plugin directory and excludes only bytecode, virtual environments and egg-info; a receipt written into the Skill marked the hook modified and the host-python symlink made the plugin unhashable. A path-independent fingerprint also lets the Claude copy, the Codex copy and an update candidate share one prepared environment across host version directories."
+
+[[change.contract.decisions.clauses.updates]]
+id = "GUARD-RULES-001"
+version = 1
+topic = "command-guard"
+scope = [
+    "Plugin PreToolUse guard",
+]
+statement = "The guard reads tool_input.command from Claude Code and Codex Bash payloads and the payload cwd, splits the command into simple commands through quotes, operators, newlines, heredocs, command substitution, sh -c, eval and common wrappers, and skips Git global options. It exits 2 with one JSON line naming the category and the Signetum operation to use for stash other than list or show, reset --hard, restore other than --staged alone, clean other than a dry run, checkout -- or ., forced checkout, forced or discarding switch, forced push or +refspec, recursive forced rm of ., *, ~, / or $HOME, any git merge or rebase, wt step rebase or push, wt merge, git worktree add, move or remove, wt remove, wt switch -c or --create, git branch -D or --delete --force, and pre-commit run while git diff reports unstaged changes. Other commands, including read-only Git, git commit and git branch -d, exit 0."
+rationale = "These are the operations that lost work or bypassed workspace-sync, batch admission, cleanup and workspace-open in Perdura and Signetum. Token-level parsing fixes the regex guard's misses on git -C and --force-with-lease and its false positives on quoted mentions. git commit stays allowed because the protocol commits through it."
+
+[[change.contract.decisions.clauses.updates]]
+id = "GUARD-SCOPE-001"
+version = 1
+topic = "command-guard"
+scope = [
+    "Plugin PreToolUse guard",
+]
+statement = "The guard has no internal repository switch: wherever the plugin is enabled the whole rule set applies. A missing interpreter, malformed payload, exception or timeout exits 0 with a diagnostic, and the sh entry maps every status other than 2 to 0."
+rationale = "Enable scope is already a host-owned choice, so a second switch would only duplicate it. Failing open matches both hosts, which block only on exit 2, and keeps a broken guard from stopping every shell command; the owner accepted that trade."
+
+[[change.contract.decisions.clauses.updates]]
+id = "CONSUMER-ENABLE-001"
+version = 1
+topic = "consumer-adoption"
+scope = [
+    "Adoption preview and apply",
+]
+statement = "The adoption preview that writes signetum.toml also enables the plugin at project scope: enabledPlugins signetum@signetum and the signetum GitHub marketplace in .claude/settings.json, and [plugins.\"signetum@signetum\"] enabled = true in .codex/config.toml. Other settings are preserved, enabled files stay unchanged and an explicit disable is refused for review. Codex reads that layer only for trusted projects and only for a plugin installed in the user's Codex home."
+rationale = "Project settings are committed with the repository, so every collaborator's host enables the guard there, and the guard's scope follows the repositories that adopted the protocol. Codex merges trusted project config layers into the plugin set, verified with codex-cli 0.166.0 in a temporary home."
+
+[change.contract.autonomy]
+allowed = [
+    "Move skills/signetum to plugins/signetum/skills/signetum and update every repository path, tool, test and document that names it.",
+    "Rewrite launch.py, installation.py, update.py and the sh launcher for the relocated runtime and host-managed updates, and remove the replaced install modes and their tests.",
+    "Add the guard, plugin manifest and hooks file, extend adoption with project-scope enablement and extend the release tool with the plugin version check and pin writer.",
+    "Replace update and distribution tests with functional ones and add guard payload tests.",
+    "Probe with session-only claude --plugin-dir runs and temporary CODEX_HOME directories, and run ready for this workspace.",
+]
+requires_confirmation = [
+    "Batch admission, final, delivery, release, tagging or committing a marketplace pin.",
+    "Editing PyReduce, ~/.claude, ~/.codex or any installed Skill.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["RUNTIME-001"]
+action = "Move the engine environment and host-python link to data_root()/runtime and stop excluding .runtime from Skill identity; prove path-independent sharing and an unchanged Skill file set."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["GUARD-001"]
+action = "Add command_guard.py and command-guard with payload-driven tests for every rule, the false-positive cases, the dirty-tree check and fail-open behavior."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["PLUGIN-001", "ENABLE-001", "RELEASE-001"]
+action = "Move the Skill into plugins/signetum with plugin.json and hooks.json, follow the move through tools, tests and paths, add project-scope enablement to adoption and the plugin version check and pin writer to release tooling, then probe both hosts."
+
+[[change.execution.steps]]
+id = "STEP-004"
+requirements = ["UPDATE-001"]
+action = "Rewrite update around the marketplace pin and the host plugin managers, removing version storage, entry switching, --to and --source, with a fake-host functional test."
+
+[[change.execution.steps]]
+id = "STEP-005"
+requirements = ["DOC-001"]
+action = "Reconcile SKILL.md, the adoption reference, architecture, README, QUICKSTART, CONTRIBUTING, site, release guide and changelog."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-04
+source = "The owner, through the coordinating agent, approved the Signetum plugin migration plan (steps S1-S4) with seven decisions: the guard follows the plugin's enable scope and adoption enables it at project scope; update runs the host plugin managers after the compatibility check; the standalone Skill install, update --to and update --source are removed; a guard that cannot run allows; the listed guard rules; the runtime moves to ~/.local/share/signetum/runtime/<fingerprint>; one plugin tree serves both hosts as signetum:signetum. The owner asked for ready without batch, release, tag or marketplace pin change."
+contract_digest = "sha256:008b3f52f3079e1eea9b1a9dd83288c9125884d603d79271f07de12cfe405cb6"

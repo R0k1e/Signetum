@@ -1,20 +1,24 @@
 # First use
 
-Install the standard [Signetum Skill](https://github.com/R0k1e/Signetum/tree/main/skills/signetum)
-with your coding agent's Skill installer, choosing an exact reviewed release tag
-or commit. The Skill is named `signetum`. Installation supplies instructions,
-not a project workflow.
+Install the [Signetum plugin](https://github.com/R0k1e/Signetum/tree/main/plugins/signetum)
+with your host's plugin manager: `claude plugin marketplace add R0k1e/Signetum`
+and `claude plugin install signetum@signetum`, or `codex plugin marketplace add
+R0k1e/Signetum` and `codex plugin add signetum@signetum`. Codex asks you to
+review the plugin's command hook at its next start. The Skill is named
+`signetum:signetum`; remove an earlier standalone copy in `~/.claude/skills/signetum`
+or `~/.codex/skills/signetum`. Installation supplies instructions and the command
+guard, not a project workflow.
 
 ## Ask the agent to set up your project
 
 For a new project:
 
-> Use $signetum to initialize [project]. Use [our chosen tools], prepare the
+> Use Signetum to initialize [project]. Use [our chosen tools], prepare the
 > local development protocol, and show the setup changes before applying them.
 
 For an existing repository:
 
-> Use $signetum to inspect and adopt this repository. Preserve our tools,
+> Use Signetum to inspect and adopt this repository. Preserve our tools,
 > architecture and accepted decisions. Show the proposed changes first.
 
 The agent checks prerequisites and explicitly prepares the installed Skill’s locked
@@ -31,13 +35,15 @@ Worktrunk 0.75 or newer needs Git 2.43. Your application's language and test
 framework stay unchanged. The agent reports and resolves required setup before
 promising a usable workspace. You do not copy a template over the project.
 
-Adoption adds the reviewed `signetum.toml` bindings. Agent entry files and application
-dependencies stay unchanged. Daily commands run the installed Skill in its own environment. The upstream checkout is unnecessary; updates require a
+Adoption adds the reviewed `signetum.toml` bindings and enables the plugin for the
+project in `.claude/settings.json` and `.codex/config.toml`, so collaborators get
+the same guard there. Agent entry files and application dependencies stay
+unchanged. Daily commands run the installed Skill in its own environment. The upstream checkout is unnecessary; updates require a
 later explicit preview. No runtime is copied into your project.
 
 ## Develop and deliver reliably
 
-> Use $signetum to implement [behavior]. Show the intended outcome, scope and
+> Use Signetum to implement [behavior]. Show the intended outcome, scope and
 > acceptance first. Stop at ready.
 
 The same process supports a single Agent across sessions and parallel members.
@@ -50,7 +56,7 @@ output stays in local logs.
 
 For parallel work, ask:
 
-> Use $signetum to divide [change] into independent tasks. Propose ownership,
+> Use Signetum to divide [change] into independent tasks. Propose ownership,
 > shared interfaces, dependencies and an integration owner first. Give each
 > coding agent an isolated worktree and bring ready members into one named batch.
 
@@ -66,8 +72,9 @@ result before authorizing delivery.
 
 The [documentation map](docs/README.md) routes configuration and operation details.
 
-## Update an installed Skill
+## Update the plugin
 
-Ask the Agent to run bare `update`, or name a version or commit with `--to`.
-The one procedure, including checks, failure recovery and the project boundary,
-is [the Skill update section](skills/signetum/references/adoption.md).
+Ask the Agent to run `update`. It checks the released version against your
+project, then upgrades each host through its plugin manager; restart the sessions
+afterwards and review the Codex hook again. The one procedure is
+[the update section](plugins/signetum/skills/signetum/references/adoption.md).

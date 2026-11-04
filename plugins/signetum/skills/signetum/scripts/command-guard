@@ -1,0 +1,10 @@
+#!/bin/sh
+# Signetum PreToolUse guard entry. Exit 2 blocks; a guard that cannot run allows.
+python=$(command -v python3 2>/dev/null) || exit 0
+guard="$(dirname -- "$0")/command_guard.py"
+status=0
+"$python" -I -B "$guard" || status=$?
+if [ "$status" -eq 2 ]; then
+    exit 2
+fi
+exit 0

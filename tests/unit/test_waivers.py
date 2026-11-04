@@ -220,7 +220,7 @@ print(json.dumps(result))
             "-S",
             "-c",
             script,
-            str(root / "skills/signetum/scripts/engine"),
+            str(root / "plugins/signetum/skills/signetum/scripts/engine"),
             "signetum.waivers",
             str(tmp_path),
             day,

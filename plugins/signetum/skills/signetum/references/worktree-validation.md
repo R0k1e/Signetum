@@ -11,6 +11,13 @@ removed or replaced authorities. Keep decision rationale in its owning change,
 not repeated in commit messages; omit transcripts and command logs. Commit human
 approval before implementation and preserve commits already bound to evidence.
 
+Only `workspace-open` creates a registered worktree. Read history with read-only
+commands (`git log/show/diff/blame`, `git show <commit>:<path>`). When a full older
+tree is needed, extract it in a scratch directory with `git archive` or a throwaway
+`git clone --shared`, never `git worktree add`. Inspect another worktree with
+`git -C <path>` instead of `cd`. Never run the product or tests against the
+owner's real instance, credentials, ports or personal browser.
+
 Find and extend the existing implementation owner. Reproduce changed behavior
 through its public boundary and validate the approved contract with the existing
 runner. Without a selection provider, run the full declared member gate. An
@@ -36,6 +43,11 @@ before modifying them. Explicitly disclose removed coverage, relaxed assertions,
 new skips and threshold reductions; a green result does not justify weakening an
 approved obligation. Summarize test changes and actual checks in the final user
 review without creating a separate test report.
+
+Add only functional tests that drive observable behavior through a real boundary.
+Do not add implementation-shape, vocabulary-scan, key/catalog-presence or
+mapping-table tests, and do not assert runtime-generated sentences verbatim.
+Tests never read real credentials or the real home.
 
 Do not pin teaching prose or private call order. Keep mutable test resources
 independent and reuse only successful immutable preparation. Independent consumer
