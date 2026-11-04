@@ -3,10 +3,11 @@
 Signetum is a plugin for reliable agentic development and delivery in Claude
 Code and Codex. `plugins/signetum` carries the standard Skill
 `plugins/signetum/skills/signetum`, the public entry for both project
-initialization and existing repository adoption, and a command guard. `main` owns
-the product source, runtime/setup package, schemas, plugin, tests and
-documentation. Existing consumers update explicitly through their host plugin
-managers.
+initialization and existing repository adoption, and a command guard. Other
+agent tools install that same Skill folder as a plain Skill, without the guard.
+`main` owns the product source, runtime/setup package, schemas, plugin, tests and
+documentation. Existing consumers update explicitly: plugins through their host
+plugin managers, plain Skills in place.
 
 The installed Skill owns one execution engine and a separately locked local
 environment outside the plugin. Consumer repositories declare commands and
