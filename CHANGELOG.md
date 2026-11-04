@@ -62,6 +62,13 @@ guard, installed and updated by the host plugin managers.
 - `update` checks the release pinned in the marketplace against the project and
   upgrades each host through its plugin manager. `update --to`, `update --source`,
   version directories and entry switching are removed.
+- Other agent tools, such as OpenClaw, Grok, Gemini CLI or Cursor, install the
+  same Skill folder as a plain Skill from `signetum-skill-<version>.zip`, without
+  the guard; Claude Code and Codex users install only the plugin. Receipts and
+  `batch-deliver` still carry the protocol guarantees without the guard. `update`
+  on a plain Skill replaces the folder in place after the same compatibility
+  check, runs no host command and refuses a folder inside a Git work tree;
+  results report `install` as `plugin` or `plain`.
 
 ## 0.3.3
 

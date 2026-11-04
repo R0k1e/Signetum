@@ -18,7 +18,7 @@ class Command:
 BOOTSTRAP = {
     "setup": "Prepare this installed Skill's isolated environment.",
     "identity": "Show complete Skill and engine identities.",
-    "update": "Upgrade the plugin through each host plugin manager. --check is read-only.",
+    "update": "Upgrade via host plugin managers or a plain Skill in place. --check is read-only.",
 }
 
 
