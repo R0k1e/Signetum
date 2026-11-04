@@ -1,0 +1,128 @@
+[change]
+schema_version = 1
+id = "other-agents-use-the-plain-skill"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner decided that Claude Code and Codex keep their special support through the signetum plugin (Skill, command guard, plugin-manager updates and project-scope enablement) and that every other agent tool, such as OpenClaw, Grok, Gemini CLI or Cursor, uses the plain Skill: the same plugins/signetum/skills/signetum folder installed as an ordinary Agent Skill directory, without the guard, with no second copy in the repository. signetum-ships-as-a-plugin removed the standalone Skill install and update --to/--source, so those tools currently have no supported install or update path; the release already ships that folder as signetum-skill-<version>.zip."
+
+[change.contract]
+version = 1
+approved_base = "dc19813b963b8c9c817d9ed1c7f4c4049ab73431" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "PLAIN-001"
+outcome = "The Skill folder plugins/signetum/skills/signetum, copied on its own into any directory or unpacked from signetum-skill-<version>.zip, is a supported plain Skill install: setup prepares the shared runtime and identity and status run from it, without the plugin manifest, hooks or a host plugin manager. The repository keeps one Skill source."
+acceptance = [
+    "A Skill folder copied alone into a temporary agent skills directory runs setup, identity and status in a Git project and shares the plugin copy's prepared environment.",
+    "The repository contains no second Skill tree.",
+]
+
+[[change.contract.requirements]]
+id = "UPDATE-002"
+outcome = "update decides the install kind from the Skill's location: a Skill inside a signetum plugin tree (../../.claude-plugin/plugin.json naming signetum) is a plugin install and keeps the host plugin manager path unchanged; any other Skill folder is a plain install. A plain update reads the same released marketplace pin and verified archive, prepares the candidate and runs the same project manifest check, then replaces the Skill folder in place through a staged sibling copy and two renames, with rollback when the second rename fails, and verifies the replaced folder's identity. It runs no host command. A plain Skill folder inside a Git work tree is refused before download, so the updater never edits a project or checkout. update and update --check report the install kind. No version storage or entry switch is reintroduced."
+acceptance = [
+    "With a served pin, metadata and archive for a changed Skill and fake claude and codex on PATH that report the plugin installed, update on a plain copy returns updated with install plain, leaves the folder with the candidate's content digest and no staging or backup siblings, invokes no host command, and the replaced folder's identity runs.",
+    "An incompatible project manifest returns migration_required and leaves the plain folder's content unchanged.",
+    "A pin equal to the installed digest returns current; a plain copy inside a Git work tree is refused and unchanged.",
+    "The existing plugin update traversal still drives exactly the four host commands and reports install plugin.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-002"
+outcome = "SKILL.md, the adoption reference, README, QUICKSTART, the architecture pages and the unreleased 0.3.4 changelog describe both install kinds: Claude Code and Codex users install the plugin and must not also install the plain Skill; other agent tools copy or unpack the Skill folder into their skills directory, or point the tool at it, run setup and update with update. They state plainly that without the guard the protocol guarantees still come from receipts and batch-deliver being the only operation that advances the delivery branch, and that the guard only adds early refusal of work-losing commands."
+acceptance = [
+    "The documents name the plain Skill for other tools, the no-duplicate rule for Claude Code and Codex, the in-place update and the guarantee difference.",
+]
+
+[[change.contract.decisions]]
+id = "other-agents-use-the-plain-skill/plain-skill"
+change_id = "other-agents-use-the-plain-skill"
+authority = "changes/other-agents-use-the-plain-skill/change.toml#decisions/other-agents-use-the-plain-skill/plain-skill"
+reason = "The owner approved the plugin for Claude Code and Codex and the plain Skill folder, updated in place, for every other agent tool."
+parents = ["signetum-ships-as-a-plugin/plugin-distribution"]
+
+[[change.contract.decisions.topics]]
+expected_version = 2
+
+[change.contract.decisions.topics.revision]
+id = "skill-installation"
+version = 3
+summary = "The plugin carries the Skill and guard for Claude Code and Codex; other agent tools use the same Skill folder as a plain Skill. The engine environment lives outside both."
+boundaries = [
+    "One manifest format and one published evidence schema digest.",
+    "Host plugin managers own plugin copies; Signetum rewrites only a plain Skill folder, in place, and never one inside a Git work tree.",
+    "The plugin directory receives no generated runtime files.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "other-agents-use-the-plain-skill/amend-installation"
+change_id = "other-agents-use-the-plain-skill"
+action = "amend"
+expected = [
+    { id = "INSTALL-ENTRY-001", version = 2 },
+    { id = "SKILL-ENTRY-001", version = 2 },
+    { id = "PRODUCT-DISTRIBUTION-001", version = 2 },
+]
+reason = "Agent tools without a plugin manager need a supported install and update path for the same Skill."
+authority = "changes/other-agents-use-the-plain-skill/change.toml#decisions/other-agents-use-the-plain-skill/plain-skill"
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-ENTRY-001"
+version = 3
+topic = "skill-installation"
+scope = [
+    "Repository manifest format",
+    "Plugin update",
+    "Plain Skill update",
+]
+statement = "Manifest format stays 5. Omitted evidence fields mean the published evidence protocol and schema digest, and an explicit digest must equal that schema. update reads the released marketplace pin on the delivery branch, verifies the pinned Skill against its release metadata, prepares that candidate's environment and checks the project manifest. A Skill inside a signetum plugin tree is a plugin install: update then upgrades every host that has signetum@signetum installed through its own plugin manager and preserves a Codex user setting that disabled it. Any other Skill folder is a plain install: update replaces that folder in place from a staged sibling copy, rolls back a failed swap, verifies the result and runs no host command; a plain folder inside a Git work tree is refused. An equal Skill digest or an older pin changes nothing, an incompatible manifest returns migration_required before any host command or replacement, and --check stays read-only. There is no --to, --source, version storage or entry switch. The updater never edits the project. Skill content identity and engine implementation identity stay separate and share one labeled digest function."
+rationale = "A plain Skill has no host manager to replace it, so the updater is its only update path; the runtime is keyed by engine fingerprint rather than install path, so an in-place swap needs no version directory or entry link and the candidate's prepared environment serves the replaced folder at once. The plugin marker is part of the shipped tree and absent from the released Skill archive, so location decides the kind without configuration. Refusing a Git work tree keeps a project-local or checkout Skill under the repository's own history."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-ENTRY-001"
+version = 3
+topic = "skill-first-development"
+scope = [
+    "Distribution entry",
+]
+statement = "Signetum is distributed from one tree, plugins/signetum. Claude Code and Codex install it as the signetum plugin, carrying the standard signetum Skill (loaded as signetum:signetum) and the command guard, and must not also install the plain Skill. Every other agent tool uses the plain Skill: the same plugins/signetum/skills/signetum folder installed as an ordinary Agent Skill directory, without the guard. Without the guard, receipts and batch-deliver as the only operation that advances the delivery branch still carry the protocol guarantees; the guard adds early refusal of work-losing commands. New and existing projects share one explicit local adoption path. Internal scaffold materials are not a second public product."
+rationale = "Only Claude Code and Codex have a plugin manager and hook surface Signetum supports; the Skill folder is already a standard Agent Skill, so other tools use it unchanged instead of a second copy. Installing both in one host would list two Skills."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-DISTRIBUTION-001"
+version = 3
+topic = "product-foundations"
+scope = [
+    "Distribution and use",
+]
+statement = "Keep installation, distribution and use simple: one plugin installed by the Claude Code and Codex plugin managers, the same standard Skill folder as a plain Skill for other agent tools, and repository-owned instructions and commands. Position for reliable development with large agent teams using concrete cases and accurately bounded evidence."
+rationale = "The host plugin manager is the installation path Claude Code and Codex users already have and carries the guard; other tools already read standard Skill folders."
+
+[change.contract.autonomy]
+allowed = [
+    "Extend scripts/update.py with install-kind detection and the in-place plain Skill replacement, keeping the plugin path unchanged.",
+    "Extend the installed-copy and update traversals in tests/integration/test_built_distribution.py with plain Skill copies.",
+    "Reconcile SKILL.md, the adoption reference, the command registry help, README, QUICKSTART, architecture pages and the unreleased 0.3.4 changelog.",
+    "Run ready for this workspace.",
+]
+requires_confirmation = [
+    "Batch admission, final, delivery, release, tagging or committing a marketplace pin.",
+    "Editing ~/.claude, ~/.codex, ~/.local/share/signetum-marketplace or any installed Skill.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["PLAIN-001", "UPDATE-002"]
+action = "Detect the install kind in update.py, add the staged in-place plain replacement with its Git work-tree refusal, report the kind, and extend the installed-copy and update traversals with plain copies."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["DOC-002"]
+action = "Reconcile SKILL.md, adoption.md, the command registry help, README, QUICKSTART, architecture and the 0.3.4 changelog with both install kinds and the guarantee difference."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-05
+source = "The owner, through the coordinating agent, decided that Claude Code and Codex get special support through the plugin and every other agent tool uses the plain Skill from the one Skill folder; asked for a supported plain install path, an update that detects plugin versus plain installs and updates a plain folder in place with the same compatibility check, docs forbidding a duplicate plain Skill for Claude Code and Codex users, a plain statement of the guarantee difference without the guard, and functional tests; and asked for ready without batch, release, tag or marketplace pin."
+contract_digest = "sha256:900a6954cedc283e0dcf0e2dedd747f501cf22270f71c13b7125e90e18e6296a"

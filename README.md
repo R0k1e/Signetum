@@ -30,6 +30,15 @@ is `signetum:signetum`. If you installed the earlier standalone Skill, remove
 `~/.claude/skills/signetum` and `~/.codex/skills/signetum` so only one remains.
 Installation does not change previously adopted repositories.
 
+Other agent tools, such as OpenClaw, Grok, Gemini CLI or Cursor, use the plain
+Skill: unpack `signetum-skill-<version>.zip` from a release, or copy
+`plugins/signetum/skills/signetum`, into the tool's skills directory as
+`signetum`. Claude Code and Codex users install the plugin instead and must not
+also install the plain Skill. The plain Skill has no command guard; receipts and
+`batch-deliver`, the only operation that advances the delivery branch, still
+carry the protocol guarantees, and the guard only refuses work-losing commands
+early. `update` replaces a plain Skill folder in place.
+
 Then ask:
 
 > Use Signetum to set up this new project, or inspect and adopt this existing

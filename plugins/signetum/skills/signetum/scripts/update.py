@@ -1,4 +1,4 @@
-"""Upgrade the installed Signetum plugin through each host's plugin manager."""
+"""Upgrade Signetum: a plugin through each host's plugin manager, a plain Skill in place."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import io
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -15,15 +16,18 @@ import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 import zipfile
 from pathlib import Path, PurePosixPath
-from shutil import which
 
 from installation import data_root
 
 SKILL = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL / "scripts/engine"))
-from signetum.skill_identity import content_digest  # noqa: E402 -- stdlib-only content owner
+from signetum.skill_identity import (  # noqa: E402 -- stdlib-only content owner
+    content_digest,
+    skill_files,
+)
 
 REPOSITORY = "R0k1e/Signetum"
 PLUGIN = "signetum@signetum"
@@ -48,6 +52,35 @@ def _read(url: str) -> bytes:
     if len(payload) > MAX_ARCHIVE:
         raise ValueError("update source exceeds the bounded download size")
     return payload
+
+
+def installation_kind(skill: Path) -> str:
+    """A Skill inside the signetum plugin tree is host-managed; any other folder is plain."""
+
+    manifest = skill.parent.parent / ".claude-plugin/plugin.json"
+    if skill.parent.name == "skills" and manifest.is_file():
+        if json.loads(manifest.read_text()).get("name") == "signetum":
+            return "plugin"
+    return "plain"
+
+
+def _refuse_git_managed(skill: Path) -> None:
+    """A plain Skill inside a project or checkout belongs to that repository's history."""
+
+    git = shutil.which("git")
+    if git is None:
+        return
+    completed = subprocess.run(  # noqa: S603 -- resolved Git executable, explicit argv, no shell
+        [git, "-C", str(skill), "rev-parse", "--is-inside-work-tree"],
+        env=_environment(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode == 0 and completed.stdout.strip() == "true":
+        raise ValueError(
+            "plain Skill folder is inside a Git work tree; update it through that repository"
+        )
 
 
 def _version(value: str) -> tuple[int, ...]:
@@ -116,11 +149,13 @@ def _candidate_status(installed: dict[str, str], candidate: dict[str, str]) -> s
 
 def check(current: Path) -> dict[str, object]:
     installed = describe(current)
+    kind = installation_kind(current)
     candidate = released()
     if candidate is None:
-        return {"status": "no_release", "current": installed, "candidate": None}
+        return {"status": "no_release", "install": kind, "current": installed, "candidate": None}
     return {
         "status": _candidate_status(installed, candidate),
+        "install": kind,
         "current": installed,
         "candidate": candidate,
     }
@@ -213,14 +248,14 @@ def _installed_hosts(project: Path) -> list[tuple[str, str]]:
     """Hosts whose plugin manager reports signetum@signetum installed."""
 
     hosts = []
-    claude = which("claude")
+    claude = shutil.which("claude")
     if claude is not None:
         listed = _host([claude, "plugin", "list", "--json"], project)
         if listed.returncode:
             raise ValueError("claude plugin list failed: " + listed.stderr[-1000:])
         if any(entry.get("id") == PLUGIN for entry in json.loads(listed.stdout or "[]")):
             hosts.append(("claude", claude))
-    codex = which("codex")
+    codex = shutil.which("codex")
     if codex is not None:
         listed = _host([codex, "plugin", "list"], project)
         if listed.returncode:
@@ -271,7 +306,41 @@ def _keep_codex_disabled() -> bool:
     return True
 
 
-def upgrade(candidate_root: Path, project: Path) -> dict[str, object]:
+def _replace(skill: Path, candidate_root: Path) -> None:
+    """Swap a plain Skill folder for the verified candidate through a staged sibling copy."""
+
+    token = uuid.uuid4().hex
+    stage = skill.with_name("." + skill.name + ".next-" + token)
+    backup = skill.with_name("." + skill.name + ".previous-" + token)
+    try:
+        for path in skill_files(candidate_root):
+            output = stage / path.relative_to(candidate_root)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, output)
+        if describe(stage) != describe(candidate_root):
+            raise ValueError("staged Skill differs from the verified candidate")
+        os.replace(skill, backup)
+        try:
+            os.replace(stage, skill)
+        except OSError:
+            os.replace(backup, skill)
+            raise
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+    shutil.rmtree(backup, ignore_errors=True)
+
+
+def _replace_plain(skill: Path, candidate_root: Path, project: Path) -> dict[str, object]:
+    _replace(skill, candidate_root)
+    replaced = _invoke(skill, "identity", cwd=project)
+    if replaced.get("skill") != describe(candidate_root):
+        raise ValueError("replaced Skill identity differs from the verified candidate")
+    return {"status": "updated", "skill": str(skill), "restart_required": True}
+
+
+def upgrade(
+    candidate_root: Path, project: Path, *, skill: Path = SKILL, kind: str = "plugin"
+) -> dict[str, object]:
     state = data_root()
     identity = _prepare(candidate_root, state)
     manifest = project / "signetum.toml"
@@ -283,6 +352,9 @@ def upgrade(candidate_root: Path, project: Path) -> dict[str, object]:
             return {"status": "migration_required", "cause": str(error)}
         if manifest.read_bytes() != snapshot:
             raise ValueError("project configuration changed during compatibility inspection")
+    if kind == "plain":
+        outcome = _replace_plain(skill, candidate_root, project)
+        return {**outcome, "candidate_engine": identity.get("engine")}
     hosts = _installed_hosts(project)
     if not hosts:
         raise ValueError(
@@ -322,26 +394,34 @@ def upgrade(candidate_root: Path, project: Path) -> dict[str, object]:
 def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--check", action="store_true", help="Read-only comparison with the released plugin pin"
+        "--check", action="store_true", help="Read-only comparison with the released pin"
     )
     args = parser.parse_args(arguments)
     try:
         if args.check:
             result = check(SKILL)
         else:
+            kind = installation_kind(SKILL)
+            if kind == "plain":
+                _refuse_git_managed(SKILL)
             installed = describe(SKILL)
             candidate = released()
             if candidate is None:
                 raise ValueError("no released Signetum plugin is pinned on main")
             if _candidate_status(installed, candidate) != "available":
-                result = {"status": "current", "current": installed, "candidate": candidate}
+                result = {
+                    "status": "current",
+                    "install": kind,
+                    "current": installed,
+                    "candidate": candidate,
+                }
             else:
                 state = data_root()
                 state.mkdir(parents=True, exist_ok=True)
                 with tempfile.TemporaryDirectory(prefix="download-", dir=state) as temporary:
                     root = _download(candidate, Path(temporary))
-                    outcome = upgrade(root, Path.cwd())
-                result = {"current": installed, "candidate": candidate, **outcome}
+                    outcome = upgrade(root, Path.cwd(), kind=kind)
+                result = {"install": kind, "current": installed, "candidate": candidate, **outcome}
         result = {"schema_version": 1, "operation": "update", "project_changed": False, **result}
         print(json.dumps(result, sort_keys=True))
         return 2 if result["status"] in {"migration_required", "failed"} else 0
