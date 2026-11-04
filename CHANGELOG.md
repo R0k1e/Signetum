@@ -6,7 +6,8 @@ their original release history. Git and accepted change records retain reasoning
 ## 0.3.4 (unreleased)
 
 Every workspace ends delivered, contained or abandoned, and only that proof
-removes it.
+removes it. An open batch takes a sibling's delivery without being reopened, and
+concurrent decision clause identities are refused before they are integrated.
 
 - Contained: a clean workspace whose commits outside the delivery branch are all
   patch-equivalent to delivery commits, with no merge resolution of its own, or
@@ -26,6 +27,16 @@ removes it.
   record under the Git common directory's `signetum/retired`.
 - `status` lists every registered workspace with the outcome it proves against
   the last fetched delivery branch, or the reason it stays.
+- `maintenance workspace-sync` run in an open batch merges the fresh delivery tip
+  as a merge commit and advances the recorded batch base to it. Admitted members
+  stay admitted with their ready receipts and plans, the batch gate runs over the
+  merged commits, and `final` and `batch-deliver` then bind the new base. A
+  conflict stays open for `batch-continue`. Delivery history that does not descend
+  from the batch base, or `--batch` named from a batch, is refused.
+- `batch-admit` and batch synchronization refuse when two different changes write
+  one decision clause ID, naming the clause, both changes and their workspaces.
+- `batch-deliver` onto a delivery branch that moved names batch synchronization
+  as the recovery.
 
 ## 0.3.3
 

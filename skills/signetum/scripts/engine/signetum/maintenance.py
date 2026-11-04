@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from signetum.lifecycle import sync_batch
 from signetum.operation_cli import OperationParser, run_operation
 from signetum.workspace_operations import (
     cleanup,
@@ -11,7 +12,7 @@ from signetum.workspace_operations import (
     workspace_sync,
     worktree_prepare,
 )
-from signetum.workspaces import state_root
+from signetum.workspaces import branch_name, read_record, state_root
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -47,7 +48,11 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     parsed = _parser().parse_args(supplied)
     result: dict[str, object]
     if parsed.command == "workspace-sync":
-        result = workspace_sync(repository, parsed.batch.resolve() if parsed.batch else None)
+        source = parsed.batch.resolve() if parsed.batch else None
+        if read_record(state_root(repository), branch_name(repository)).kind == "batch":
+            result = sync_batch(repository, source)
+        else:
+            result = workspace_sync(repository, source)
     elif parsed.command == "worktree-prepare":
         result = dict(worktree_prepare(parsed.worktree.resolve()))
     elif parsed.command == "cleanup":
