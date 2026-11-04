@@ -5,7 +5,12 @@ import sys
 from pathlib import Path
 
 from signetum.operation_cli import OperationParser, run_operation
-from signetum.workspace_operations import batch_discard, cleanup, workspace_sync, worktree_prepare
+from signetum.workspace_operations import (
+    cleanup,
+    workspace_abandon,
+    workspace_sync,
+    worktree_prepare,
+)
 from signetum.workspaces import state_root
 
 
@@ -22,8 +27,19 @@ def _parser() -> argparse.ArgumentParser:
     clean.add_argument("--all-delivered", action="store_true")
     clean.add_argument("--protected-worktree", type=Path, action="append", default=[])
     clean.add_argument("--discard", action="store_true")
-    discard = commands.add_parser("batch-discard")
-    discard.add_argument("batch", type=Path)
+    abandon = commands.add_parser(
+        "workspace-abandon",
+        description=(
+            "Remove a workspace that is neither delivered nor contained, "
+            "only with the owner's confirmation of its exact tip."
+        ),
+    )
+    abandon.add_argument("worktree", type=Path, help="Existing workspace directory.")
+    abandon.add_argument("expected_tip", help="Full commit the owner confirmed abandoning.")
+    abandon.add_argument("--actor", required=True, help="Owner who confirmed abandonment.")
+    abandon.add_argument("--source", required=True, help="Where the owner confirmed it.")
+    abandon.add_argument("--reason", required=True, help="Why the work is abandoned.")
+    abandon.add_argument("--discard", action="store_true")
     return parser
 
 
@@ -43,8 +59,16 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
             discard=parsed.discard,
             protected_worktrees=tuple(parsed.protected_worktree),
         )
-    elif parsed.command == "batch-discard":
-        result = batch_discard(parsed.batch.resolve())
+    elif parsed.command == "workspace-abandon":
+        result = workspace_abandon(
+            repository,
+            parsed.worktree,
+            parsed.expected_tip,
+            actor=parsed.actor,
+            source=parsed.source,
+            reason=parsed.reason,
+            discard=parsed.discard,
+        )
     return result
 
 

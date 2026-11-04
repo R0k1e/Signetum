@@ -3,6 +3,30 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.3.4 (unreleased)
+
+Every workspace ends delivered, contained or abandoned, and only that proof
+removes it.
+
+- Contained: a clean workspace whose commits outside the delivery branch are all
+  patch-equivalent to delivery commits, with no merge resolution of its own, or
+  whose changed paths all have the same content in the delivery branch. Cleanup
+  removes it like a delivered one, including a batch left over after its members
+  landed through another batch.
+- `batch-deliver` now sweeps every registered workspace after publication, not
+  only the delivered members, and `maintenance cleanup --all-delivered` runs the
+  same sweep. Dirty, fresh, mid-operation and uncontained workspaces stay with a
+  reason. `--discard` requires a selected worktree or branch.
+- `maintenance workspace-abandon <worktree> <confirmed-tip> --actor --source
+  --reason [--discard]` removes undelivered work only with the owner's
+  confirmation of that exact full commit. It refuses delivered or contained
+  workspaces. `maintenance batch-discard` is removed; abandon replaces it.
+- Cleanup and delivery results list each removed workspace with its branch, tip,
+  outcome and proof instead of a bare path. Each removal writes a retirement
+  record under the Git common directory's `signetum/retired`.
+- `status` lists every registered workspace with the outcome it proves against
+  the last fetched delivery branch, or the reason it stays.
+
 ## 0.3.3
 
 Batch gates can declare which member shards they stand for, and a recorded root
