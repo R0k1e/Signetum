@@ -18,6 +18,10 @@ confirmation or reuse its digest after changing behavior, base or autonomy.
 Commit approval before implementation; implementation committed alongside a
 new approval does not qualify as subsequent implementation.
 
+Trace to the root cause before asking. Ask related questions together, once.
+The coordinating Agent decides package splits, ordering and batching and reports
+them. Never write the owner's rejections into any record.
+
 Important architecture, process or security choices require an independently
 identified, accepted decision transaction in the owning contract before implementation.
 Keep its problem, material evidence, chosen rule and applicable boundaries once;
