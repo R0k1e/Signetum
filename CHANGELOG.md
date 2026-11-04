@@ -38,6 +38,31 @@ concurrent decision clause identities are refused before they are integrated.
 - `batch-deliver` onto a delivery branch that moved names batch synchronization
   as the recovery.
 
+Signetum ships as one plugin for Claude Code and Codex: the Skill plus a command
+guard, installed and updated by the host plugin managers.
+
+- Install with `claude plugin marketplace add R0k1e/Signetum` and
+  `claude plugin install signetum@signetum`, or `codex plugin marketplace add
+  R0k1e/Signetum` and `codex plugin add signetum@signetum`. The Skill is now
+  `signetum:signetum`. Remove an earlier standalone copy in
+  `~/.claude/skills/signetum` or `~/.codex/skills/signetum`, or both Skills stay
+  listed, and review the plugin hook in Codex at its next start.
+- The plugin's Bash PreToolUse guard refuses stash, destructive reset, restore,
+  clean and checkout, forced checkout or switch, force push including
+  `--force-with-lease`, unbounded `rm -rf`, any `git merge` or `rebase`,
+  `wt step rebase|push`, `wt merge`, ad-hoc `git worktree add|move|remove`,
+  `wt remove`, `wt switch --create`, `git branch -D` and pre-commit on a tree with
+  unstaged changes, and names the Signetum operation to use. Quoted mentions and
+  read-only Git pass. A guard that cannot run allows the command.
+- Adoption also enables the plugin at project scope in `.claude/settings.json`
+  and `.codex/config.toml`, so the guard follows adopted repositories.
+- The engine environment moves to `~/.local/share/signetum/runtime/<fingerprint>`
+  and is shared by every installed copy; run `setup` once after installing the
+  plugin.
+- `update` checks the release pinned in the marketplace against the project and
+  upgrades each host through its plugin manager. `update --to`, `update --source`,
+  version directories and entry switching are removed.
+
 ## 0.3.3
 
 Batch gates can declare which member shards they stand for, and a recorded root
