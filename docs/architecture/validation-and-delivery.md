@@ -82,7 +82,7 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 | `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. |
 | `changed [--explain]` | Inspect the contribution and planned member checks. |
 | `ready` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. |
-| `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. |
+| `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. Only batch synchronization later advances that base. |
 | `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. |
 | `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge. |
 | `final` | Reconcile and validate a frozen batch; emit source-bound receipt and review. |
@@ -106,6 +106,22 @@ World evidence cannot replace tree evidence. Preparation or batch-gate failure r
 integration state for ordinary repair; merge conflict uses `batch-continue`.
 Member synchronization records authorization before merging a verified source,
 keeps the original base and distinguishes imported work from owned repairs.
+
+Batch synchronization is `maintenance workspace-sync` run in an open batch. It
+merges the fresh delivery tip when that tip descends from the recorded batch base,
+with `Signetum-Batch-Sync`, `Signetum-Batch-Base` and `Signetum-Previous-Batch-Base`
+trailers, then advances the recorded base to that tip. This is the only change to
+a recorded base. Admitted members stay admitted: provenance accepts each admission
+bound to the base in effect when it merged and each synchronization that advances
+it along delivered history, ending at the recorded base. The batch gate then runs
+over the commits the merge added. A conflict stays open for `batch-continue`, which
+advances the base after committing. `--batch` from a batch, rewritten delivery
+history, an open merge or a dirty batch refuse without change.
+
+Admission and batch synchronization compare the decision clause identities that
+change records write in their contract decisions since the relevant base. Two
+different changes writing one identity refuse before merging, naming the clause,
+both changes and their owning workspaces; renumbering stays with those changes.
 
 ## Final review and publication
 

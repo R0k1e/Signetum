@@ -76,7 +76,14 @@ def open_workspace(
             )
         record = read_record(state_root(root), branch)
         if record.base != source or record.kind != kind:
-            raise AdmissionError("existing workspace has a different recorded base or role")
+            raise AdmissionError(
+                "existing workspace has a different recorded base or role",
+                expected=(
+                    f"run maintenance workspace-sync in {workspace.path} to take the delivery tip"
+                    if kind == "batch" == record.kind
+                    else "correct the precondition and retry"
+                ),
+            )
     else:
         if destination.exists():
             raise AdmissionError("workspace destination already exists")

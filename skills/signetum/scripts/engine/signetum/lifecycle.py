@@ -20,6 +20,7 @@ from signetum.change.member import qualify_member
 from signetum.change.scope import (
     delivered_plans,
 )
+from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
 from signetum.delivery import publish_batch
 from signetum.development_store import DevelopmentReviewError
 from signetum.deviations import (
@@ -72,13 +73,15 @@ from signetum.workspace_operations import (
     worktree_prepare,
 )
 from signetum.workspaces import (
+    WorkspaceError,
+    advance_batch_base,
+    read_record,
+)
+from signetum.workspaces import (
     branch_name as _branch,
 )
 from signetum.workspaces import (
     exclusive_batch as _exclusive_batch,
-)
-from signetum.workspaces import (
-    read_record,
 )
 from signetum.workspaces import (
     recorded_base as _recorded_base,
@@ -377,6 +380,12 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
             unchanged.append(record)
             continue
         batch_base = _recorded_base(batch)
+        require_distinct_claims(
+            clause_claims(member, member_manifest, member_base, member_tip),
+            clause_claims(batch, load_manifest(batch / "signetum.toml"), batch_base, batch_tip),
+            incoming_workspace=lambda _, name=member_branch: f"workspace {name}",
+            existing_workspace=owning_workspace(batch, f"batch {batch_branch}"),
+        )
         ready_evidence = _admission_evidence(member, member_tip, member_manifest)
         patch_id = _stable_patch_id(member, batch_base, member_tip)
         message = "\n".join(
@@ -506,6 +515,9 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     if batch_base is None:
         raise AdmissionError("continued admission has no approved batch base")
     record_verified_batch(batch, _branch(batch), committed)
+    body = _git(batch, "show", "-s", "--format=%B", committed)
+    if re.findall(r"^Signetum-Batch-Sync:\s*(\S+)$", body, re.MULTILINE) == [other]:
+        _advance_base(batch, batch_base, other, committed)
     return {
         "schema_version": 1,
         "status": "continued",
@@ -516,6 +528,122 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
         "batch": str(batch),
         "batch_commit": _git(batch, "rev-parse", "HEAD"),
         "admission_commit": committed,
+    }
+
+
+def _advance_base(batch: Path, previous: str, delivered: str, tip: str) -> None:
+    """Rebind the batch record once committed history attests the merged delivery."""
+
+    if _attested_base(batch, tip) != delivered:
+        raise AdmissionError("batch synchronization does not attest the merged delivery tip")
+    _delivery_provenance(batch, delivered, tip)
+    try:
+        advance_batch_base(_state_root(batch), _branch(batch), previous, delivered)
+    except WorkspaceError as error:
+        raise AdmissionError(str(error)) from error
+
+
+def sync_batch(batch: Path, source: Path | None = None) -> dict[str, object]:
+    """Merge the fresh delivery tip into one open batch, exclusively."""
+
+    if source is not None:
+        raise AdmissionError(
+            "a batch synchronizes only from the delivery branch",
+            expected=f"run maintenance workspace-sync without --batch in {batch}",
+        )
+    with _exclusive_batch(batch):
+        return _sync_batch_held(batch)
+
+
+def _sync_batch_held(batch: Path) -> dict[str, object]:
+    _require_no_merge(batch)
+    _require_clean(batch)
+    branch = _branch(batch)
+    record = read_record(_state_root(batch), branch)
+    delivery_branch, delivered = fresh_delivery(batch)
+    if record.kind != "batch" or branch == delivery_branch:
+        raise AdmissionError("batch synchronization requires an integration batch")
+    base = record.base
+    tip = _git(batch, "rev-parse", "HEAD")
+    attested = _attested_base(batch, tip)
+    if attested is not None and attested != base and _is_ancestor(batch, base, attested):
+        # A committed synchronization whose record update was interrupted.
+        _advance_base(batch, base, attested, tip)
+        base = attested
+    if attested != base:
+        raise AdmissionError("batch provenance does not attest to the recorded base")
+    _delivery_provenance(batch, base, tip)
+    if not _is_ancestor(batch, base, delivered):
+        raise AdmissionError(
+            f"delivery tip {delivered} does not descend from the batch base {base}",
+            expected="inspect the delivery branch history; a batch never takes rewritten history",
+        )
+    result: dict[str, object] = {
+        "schema_version": 1,
+        "batch": str(batch),
+        "batch_branch": branch,
+        "previous_base": base,
+        "base": delivered,
+    }
+    if delivered == base:
+        if verified_batch_tip(batch, branch, base) == tip:
+            return {**result, "status": "unchanged", "batch_commit": tip}
+    else:
+        manifest = load_manifest(batch / "signetum.toml")
+        require_distinct_claims(
+            clause_claims(batch, manifest, base, tip),
+            clause_claims(batch, manifest, base, delivered),
+            incoming_workspace=owning_workspace(batch, f"batch {branch}"),
+            existing_workspace=owning_workspace(batch, f"{delivery_branch} at {delivered}"),
+        )
+        message = "\n".join(
+            (
+                f"Merge {delivery_branch} into {branch}",
+                "",
+                f"Signetum-Batch-Sync: {delivered}",
+                f"Signetum-Batch-Base: {delivered}",
+                f"Signetum-Previous-Batch-Base: {base}",
+            )
+        )
+        if _is_ancestor(batch, delivered, tip):
+            # A member already synchronized this tip; record the base move as a merge.
+            merged = _git(
+                batch, "commit-tree", f"{tip}^{{tree}}", "-p", tip, "-p", delivered, "-m", message
+            )
+            command: tuple[str, ...] = ("merge", "--ff-only", merged)
+        else:
+            command = ("merge", "--no-ff", delivered, "-m", message)
+        completed = subprocess.run(  # nosec B603
+            (_git_executable(), "-C", str(batch), *command),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            diagnostic = completed.stderr.strip() or completed.stdout.strip()
+            if _git(batch, "diff", "--name-only", "--diff-filter=U"):
+                raise MergeConflict(
+                    diagnostic or "batch synchronization has an open merge",
+                    expected=f"resolve and stage paths, then batch-continue --batch {batch}",
+                )
+            raise OperationFailed(diagnostic or "batch synchronization merge failed")
+        tip = _git(batch, "rev-parse", "HEAD")
+        _advance_base(batch, base, delivered, tip)
+    try:
+        preparation = worktree_prepare(batch)
+    except InfrastructureError as error:
+        retry = ["maintenance", "workspace-sync"]
+        raise InfrastructureError(
+            str(error), expected=f"run {shlex.join(retry)} in {batch} again"
+        ) from error
+    static = _run_batch_gate(batch, branch, tip, preparation["executed"], selector=batch)
+    return {
+        **result,
+        "status": "synchronized",
+        "admission_base": static.pop("admission_base"),
+        "preparation": preparation,
+        "static": static,
+        "batch_commit": _git(batch, "rev-parse", "HEAD"),
     }
 
 

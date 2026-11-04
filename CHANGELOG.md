@@ -3,6 +3,22 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.3.4 (unreleased)
+
+An open batch takes a sibling's delivery without being reopened, and concurrent
+decision clause identities are refused before they are integrated.
+
+- `maintenance workspace-sync` run in an open batch merges the fresh delivery tip
+  as a merge commit and advances the recorded batch base to it. Admitted members
+  stay admitted with their ready receipts and plans, the batch gate runs over the
+  merged commits, and `final` and `batch-deliver` then bind the new base. A
+  conflict stays open for `batch-continue`. Delivery history that does not descend
+  from the batch base, or `--batch` named from a batch, is refused.
+- `batch-admit` and batch synchronization refuse when two different changes write
+  one decision clause ID, naming the clause, both changes and their workspaces.
+- `batch-deliver` onto a delivery branch that moved names batch synchronization
+  as the recovery.
+
 ## 0.3.3
 
 Batch gates can declare which member shards they stand for, and a recorded root

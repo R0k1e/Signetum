@@ -45,7 +45,13 @@ def publish_batch(
         remote_tree = git(source, "rev-parse", f"{remote_before}^{{tree}}")
         source_tree = git(source, "rev-parse", f"{expected_tip}^{{tree}}")
         if parents != [expected_base, expected_tip] or remote_tree != source_tree:
-            raise AdmissionError("remote delivery branch differs from expected base")
+            raise AdmissionError(
+                "remote delivery branch differs from expected base",
+                expected=(
+                    f"run maintenance workspace-sync in {source} to merge the delivery tip, "
+                    "then final and batch-deliver at the new base"
+                ),
+            )
         resumed_commit = remote_before
     if target_head != expected_base and target_head != resumed_commit:
         raise AdmissionError("target tip differs from expected base or resumed delivery")

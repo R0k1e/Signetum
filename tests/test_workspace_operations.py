@@ -222,15 +222,6 @@ def test_cleanup_refuses_ambiguous_scope_before_contacting_remote(repository, se
     assert git_output(root, "worktree", "list", "--porcelain") == before
 
 
-def test_sync_refuses_a_batch_as_the_receiving_workspace(repository):
-    root, _ = repository
-    batch = Path(str(ops.open_workspace(root, "batch/receiver", "HEAD", kind="batch")["worktree"]))
-    before = git_output(batch, "rev-parse", "HEAD")
-    with pytest.raises(AdmissionError, match="implementation member"):
-        ops.workspace_sync(batch)
-    assert git_output(batch, "rev-parse", "HEAD") == before
-
-
 @pytest.mark.parametrize("foreign_repository", [False, True])
 def test_sync_refuses_a_source_without_same_repository_batch_authority(
     repository, foreign_repository
