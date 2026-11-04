@@ -48,6 +48,10 @@ Both use the same adoption flow:
    Bind supported configuration/protocol versions, delivery branch, record roots, actual tool
    identities, inputs and preparation/member/batch/final commands. Architecture
    is optional context. See the [binding contract](https://github.com/R0k1e/Signetum/blob/main/docs/guides/existing-runners.md).
+   The delivery branch is the one branch `batch-deliver` advances. Workspace and
+   batch operations read it from `[delivery] branch`, and `ready` and `final`
+   check against the bases taken from it, so every operation agrees on one base.
+   Changing it is one edit to that binding.
 3. `adopt preview --repository . --request <request.json> --output <plan.json>`
    captures the source and exact before/after bytes. Show the user that preview.
 4. Apply the approved plan with `adopt apply --repository . --plan <plan.json>
