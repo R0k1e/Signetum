@@ -262,13 +262,43 @@ def exclude_workspaces(repository: Path) -> None:
             )
 
 
-def retire_record(root: Path, branch: str) -> None:
-    """Retire an absent checkout's active registration without rewriting its base."""
+RETIRED_DIRECTORY = "retired"
+
+
+def retire_record(root: Path, branch: str, tip: str, ending: dict[str, object]) -> Path:
+    """Keep the removed workspace's identity and proven outcome, then retire its registration.
+
+    The retirement record is machine-local evidence beside the registrations. It
+    keeps the tip, so an abandoned branch can be recreated while Git retains it.
+    """
     path = record_path(root, branch)
     path.parent.mkdir(parents=True, exist_ok=True)
+    retired = root / RETIRED_DIRECTORY / quote(branch, safe="")
+    retired.mkdir(parents=True, exist_ok=True)
     with (path.parent / "records.lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            record: dict[str, object] | None = asdict(read_record(root, branch))
+        except WorkspaceError:
+            record = None
+        moment = datetime.now(UTC)
+        document = {
+            "schema_version": 1,
+            "branch": branch,
+            "tip": tip,
+            "record": record,
+            "retired_at": moment.isoformat(),
+            **ending,
+        }
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=f"{moment.strftime('%Y%m%dT%H%M%S%fZ')}-", suffix=".json", dir=retired
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
         path.unlink(missing_ok=True)
+    return Path(temporary)
 
 
 def recorded_base(repository: Path, branch: str | None = None) -> str:
