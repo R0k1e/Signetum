@@ -76,10 +76,14 @@ def verified_batch_tip(repository: Path, branch: str, base: str) -> str:
             f"batch verification record is invalid: {path}",
             expected="inspect or remove that machine-local record and rerun the operation",
         )
-    ancestry = run_git(repository, "merge-base", "--is-ancestor", base, verified)
     descent = run_git(repository, "merge-base", "--is-ancestor", verified, "HEAD")
     # A tip outside this batch's history proves nothing about the current one.
-    return verified if ancestry.returncode == 0 and descent.returncode == 0 else base
+    # After synchronization advances the base, a tip verified before it still
+    # sits in the batch history without descending from the new base.
+    behind = verified != base and (
+        run_git(repository, "merge-base", "--is-ancestor", verified, base).returncode == 0
+    )
+    return verified if descent.returncode == 0 and not behind else base
 
 
 def record_verified_batch(repository: Path, branch: str, tip: str) -> None:

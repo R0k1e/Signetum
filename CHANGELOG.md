@@ -3,6 +3,41 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.3.4 (unreleased)
+
+Every workspace ends delivered, contained or abandoned, and only that proof
+removes it. An open batch takes a sibling's delivery without being reopened, and
+concurrent decision clause identities are refused before they are integrated.
+
+- Contained: a clean workspace whose commits outside the delivery branch are all
+  patch-equivalent to delivery commits, with no merge resolution of its own, or
+  whose changed paths all have the same content in the delivery branch. Cleanup
+  removes it like a delivered one, including a batch left over after its members
+  landed through another batch.
+- `batch-deliver` now sweeps every registered workspace after publication, not
+  only the delivered members, and `maintenance cleanup --all-delivered` runs the
+  same sweep. Dirty, fresh, mid-operation and uncontained workspaces stay with a
+  reason. `--discard` requires a selected worktree or branch.
+- `maintenance workspace-abandon <worktree> <confirmed-tip> --actor --source
+  --reason [--discard]` removes undelivered work only with the owner's
+  confirmation of that exact full commit. It refuses delivered or contained
+  workspaces. `maintenance batch-discard` is removed; abandon replaces it.
+- Cleanup and delivery results list each removed workspace with its branch, tip,
+  outcome and proof instead of a bare path. Each removal writes a retirement
+  record under the Git common directory's `signetum/retired`.
+- `status` lists every registered workspace with the outcome it proves against
+  the last fetched delivery branch, or the reason it stays.
+- `maintenance workspace-sync` run in an open batch merges the fresh delivery tip
+  as a merge commit and advances the recorded batch base to it. Admitted members
+  stay admitted with their ready receipts and plans, the batch gate runs over the
+  merged commits, and `final` and `batch-deliver` then bind the new base. A
+  conflict stays open for `batch-continue`. Delivery history that does not descend
+  from the batch base, or `--batch` named from a batch, is refused.
+- `batch-admit` and batch synchronization refuse when two different changes write
+  one decision clause ID, naming the clause, both changes and their workspaces.
+- `batch-deliver` onto a delivery branch that moved names batch synchronization
+  as the recovery.
+
 ## 0.3.3
 
 Batch gates can declare which member shards they stand for, and a recorded root

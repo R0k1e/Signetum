@@ -145,7 +145,8 @@ def write_record(root: Path, record: WorkspaceRecord) -> Path:
     """Write one workspace record, refusing to restate an existing base.
 
     A base is written once. Rewriting it would make the record a second place
-    to claim a base rather than the single place that holds one.
+    to claim a base rather than the single place that holds one. Only batch
+    synchronization advances a batch base, through ``advance_batch_base``.
     """
 
     path = record_path(root, record.branch)
@@ -171,6 +172,40 @@ def write_record(root: Path, record: WorkspaceRecord) -> Path:
         finally:
             Path(temporary).unlink(missing_ok=True)
     return path
+
+
+def advance_batch_base(root: Path, branch: str, previous: str, base: str) -> None:
+    """Move a batch base to the delivery tip its committed synchronization merged.
+
+    This is the one exception to a base being written once. The caller has
+    proven that ``base`` descends from ``previous`` and that the batch history
+    now contains it, so the record still agrees with committed provenance.
+    """
+
+    path = record_path(root, branch)
+    with (path.parent / "records.lock").open("a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        existing = read_record(root, branch)
+        if existing.kind != "batch":
+            raise WorkspaceError(f"only a batch base advances: {branch}")
+        if existing.base == base:
+            return
+        if existing.base != previous:
+            raise WorkspaceError(
+                f"batch {branch} is recorded at base {existing.base}, not {previous}"
+            )
+        advanced = WorkspaceRecord(
+            schema_version=1, branch=branch, base=base, kind="batch", members=existing.members
+        )
+        descriptor, temporary = tempfile.mkstemp(prefix="record-", dir=path.parent)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                stream.write(json.dumps(asdict(advanced), indent=2) + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
 
 
 def read_record(root: Path, branch: str) -> WorkspaceRecord:
@@ -232,6 +267,23 @@ def primary_worktree(repository: Path) -> Path:
     return root
 
 
+def branch_checkouts(repository: Path) -> tuple[tuple[str, Path, str], ...]:
+    """Read Git's own checkout listing without running Worktrunk.
+
+    Read-only views use this offline listing; removal still goes through the
+    Worktrunk inventory. A detached checkout is not a workspace.
+    """
+    inventory = git_output(repository, "worktree", "list", "--porcelain", strip=False)
+    checkouts: list[tuple[str, Path, str]] = []
+    for block in inventory.split("\n\n"):
+        fields = dict(line.split(" ", 1) for line in block.splitlines() if " " in line)
+        branch = fields.get("branch", "")
+        if "worktree" in fields and "HEAD" in fields and branch.startswith("refs/heads/"):
+            path = Path(fields["worktree"]).resolve()
+            checkouts.append((branch.removeprefix("refs/heads/"), path, fields["HEAD"]))
+    return tuple(checkouts)
+
+
 def workspace_destination(repository: Path, branch: str) -> Path:
     """Resolve a collision-free contained location before invoking any tool."""
     git_output(repository, "check-ref-format", "--branch", branch)
@@ -262,13 +314,43 @@ def exclude_workspaces(repository: Path) -> None:
             )
 
 
-def retire_record(root: Path, branch: str) -> None:
-    """Retire an absent checkout's active registration without rewriting its base."""
+RETIRED_DIRECTORY = "retired"
+
+
+def retire_record(root: Path, branch: str, tip: str, ending: dict[str, object]) -> Path:
+    """Keep the removed workspace's identity and proven outcome, then retire its registration.
+
+    The retirement record is machine-local evidence beside the registrations. It
+    keeps the tip, so an abandoned branch can be recreated while Git retains it.
+    """
     path = record_path(root, branch)
     path.parent.mkdir(parents=True, exist_ok=True)
+    retired = root / RETIRED_DIRECTORY / quote(branch, safe="")
+    retired.mkdir(parents=True, exist_ok=True)
     with (path.parent / "records.lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            record: dict[str, object] | None = asdict(read_record(root, branch))
+        except WorkspaceError:
+            record = None
+        moment = datetime.now(UTC)
+        document = {
+            "schema_version": 1,
+            "branch": branch,
+            "tip": tip,
+            "record": record,
+            "retired_at": moment.isoformat(),
+            **ending,
+        }
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=f"{moment.strftime('%Y%m%dT%H%M%S%fZ')}-", suffix=".json", dir=retired
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(document, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
         path.unlink(missing_ok=True)
+    return Path(temporary)
 
 
 def recorded_base(repository: Path, branch: str | None = None) -> str:
