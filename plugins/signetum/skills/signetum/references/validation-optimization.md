@@ -10,7 +10,9 @@ Use the existing `signetum.selection@1` provider interface for project algorithm
 Bind its implementation, configuration and tools as declared inputs. Preserve
 modified tests and explain every changed path. Unknown inputs fall back to the
 full member gate; final always uses complete original commands. No provider
-means full member validation. Core validates identity and target boundaries;
+means full member validation, except eligible passing tests may be inherited
+across a suffix containing only resolved change-journal events. Current source
+admission and static checks still run. Core validates identity and target boundaries;
 the project owns dependency semantics and its observed correctness.
 
 Retain an existing selector rather than copying it into Signetum or nesting a

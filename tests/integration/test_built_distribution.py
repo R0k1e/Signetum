@@ -12,6 +12,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
+from coverage import Coverage
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.cli import app
 from signetum.git import git_output
@@ -154,6 +155,91 @@ def installed_skill(tmp_path_factory):
     assert Path(prepared["environment"]).is_relative_to(directory / "state/signetum/runtime")
     assert _plugin_files(plugin) == copied
     return skill, environment, prepared
+
+
+def test_installed_launcher_coverage_combines_into_maintained_source(installed_skill, tmp_path):
+    skill, environment, _ = installed_skill
+    raw = tmp_path / "installed.coverage"
+    result = subprocess.run(  # noqa: S603 -- real installed launcher and isolated coverage data
+        [
+            sys.executable,
+            "-m",
+            "coverage",
+            "run",
+            "--rcfile",
+            str(ROOT / "pyproject.toml"),
+            "--data-file",
+            str(raw),
+            "--source",
+            str(skill / "scripts"),
+            str(skill / "scripts/launch.py"),
+            "identity",
+        ],
+        cwd=skill.parents[2],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    collected = Coverage(data_file=str(raw), config_file=False)
+    collected.combine(data_paths=[str(tmp_path)], strict=True, keep=True)
+    collected.save()
+    measured = collected.get_data()
+    combined = Coverage(
+        data_file=str(tmp_path / "combined.coverage"), config_file=str(ROOT / "pyproject.toml")
+    )
+    combined.combine(data_paths=[str(raw)], strict=True, keep=True)
+    for name in ("launch.py", "installation.py"):
+        installed = f"signetum/skills/signetum/scripts/{name}"
+        canonical = f"plugins/signetum/skills/signetum/scripts/{name}"
+        lines = measured.lines(installed)
+        assert lines, f"the real installed {name} must execute under coverage"
+        assert set(lines) <= set(combined.get_data().lines(canonical) or ())
+        assert installed not in combined.get_data().measured_files()
+        assert (ROOT / canonical).is_file()
+    combined.report(file=io.StringIO())
+
+
+def test_installed_python_launcher_requires_preparation_and_rejects_changed_identity(
+    installed_skill, tmp_path
+):
+    skill, original, expected = installed_skill
+    environment = {**original, "XDG_DATA_HOME": str(tmp_path / "isolated state")}
+
+    def launch(*arguments):
+        return subprocess.run(  # noqa: S603 -- actual installed launcher, isolated runtime state
+            [sys.executable, str(skill / "scripts/launch.py"), *arguments],
+            cwd=skill.parents[2],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    refused = launch("identity")
+    assert refused.returncode == 2
+    assert "not prepared" in json.loads(refused.stderr)["cause"]
+    prepared = launch("setup")
+    assert prepared.returncode == 0, prepared.stderr
+    observed = json.loads(prepared.stdout)
+    assert observed["engine"]["implementation"] == expected["engine"]["implementation"]
+    identity = launch("identity")
+    assert identity.returncode == 0, identity.stderr
+    assert json.loads(identity.stdout)["engine"] == observed["engine"]
+    help_result = launch("--help")
+    assert help_result.returncode == 0, help_result.stderr
+    assert "workspace-open" in help_result.stdout
+    receipt = Path(observed["environment"]) / "installed.json"
+    record = json.loads(receipt.read_text())
+    record["environment"] = "changed"
+    receipt.write_text(json.dumps(record))
+    changed = launch("identity")
+    assert changed.returncode == 2
+    assert "environment identity changed" in json.loads(changed.stderr)["cause"]
+    repaired = launch("setup")
+    assert repaired.returncode == 0, repaired.stderr
+    assert json.loads(repaired.stdout)["engine"] == observed["engine"]
 
 
 def test_copies_of_one_engine_share_one_environment_and_leave_the_plugin_unchanged(

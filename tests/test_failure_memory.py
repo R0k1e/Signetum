@@ -137,8 +137,29 @@ def _record_root_cause(member: Path, node: str) -> None:
             }
         ],
     }
-    store.append_transaction(
+    observed = store.append_transaction(
         member, store.parse_request(request), expected_history=store.snapshot(member).history_digest
+    )
+    store.append_transaction(
+        member,
+        store.parse_request(
+            {
+                **request,
+                "id": "example/close-contract-root-cause",
+                "operation": "resolve",
+                "observations": [],
+                "resolutions": [
+                    {
+                        "id": "example/contract-root-cause-answer",
+                        "target": "example/flaky-contract/observation",
+                        "status": "resolved",
+                        "reason": "The selection no longer carries the faulty contract test.",
+                        "evidence": ["feature.txt"],
+                    }
+                ],
+            }
+        ),
+        expected_history=observed.history_digest,
     )
     _commit(member, "record the contract failure root cause")
 

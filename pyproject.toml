@@ -140,5 +140,6 @@ engine = [
 skill = [
     "plugins/signetum/skills/signetum",
     "*/installed Skill*/signetum/skills/signetum",
+    "signetum/skills/signetum",
     "signetum",
 ]

@@ -243,7 +243,8 @@ def observed_bases(repository):
         "-c",
         "import json, os, sys\n"
         "with open(sys.argv[1], 'a') as stream:\n"
-        "    names = ('SIGNETUM_BASE', 'SIGNETUM_RATCHET_BASELINE')\n"
+        "    names = ('SIGNETUM_BASE', 'SIGNETUM_RATCHET_BASELINE', "
+        "'SIGNETUM_CONTRIBUTION_PATHS')\n"
         "    stream.write(json.dumps([os.environ.get(name) for name in names]) + '\\n')\n",
         str(log),
     ]
@@ -270,13 +271,17 @@ def test_member_shards_receive_bases_that_bind_their_receipt(repository, monkeyp
     commit_file(member, "work.txt")
     base = lifecycle._recorded_base(member)
     lifecycle.validate(member, "member")
-    assert last() == [base, base]
+    assert last()[:2] == [base, base]
+    assert "work.txt" in json.loads(last()[2])
 
     source = commit_file(root, "published.txt", "published source")
     git_output(root, "push", "origin", "main")
     ops.workspace_sync(member)
     lifecycle.validate(member, "member")
-    assert last() == [base, source]
+    assert last()[:2] == [base, source]
+    paths = json.loads(last()[2])
+    assert "work.txt" in paths
+    assert "published.txt" not in paths
     tip = git_output(member, "rev-parse", "HEAD")
     assert admission(lifecycle, member, tip)
 
@@ -287,12 +292,12 @@ def test_member_shards_receive_bases_that_bind_their_receipt(repository, monkeyp
     with pytest.raises(AdmissionError, match="no evidence"):
         admission(lifecycle, member, tip)
     lifecycle.validate(member, "member")
-    assert last() == [base, base]
+    assert last()[:2] == [base, base]
     assert admission(lifecycle, member, tip)
 
     graph, inputs = lifecycle._runtime_validation(lifecycle.load_manifest(member / "signetum.toml"))
     run_repository_gate(member, graph, "final", inputs, root.parent / "final-receipts")
-    assert last() == [None, None]
+    assert last() == [None, None, None]
 
 
 def test_archive_attributes_cannot_silently_remove_baseline_inputs(repository, runtime):

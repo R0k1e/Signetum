@@ -1,0 +1,126 @@
+[change]
+schema_version = 1
+id = "one-admission-rule"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approved wave-three change N, relayed by the coordinating agent: one source admission rule at ready, batch-admit, batch-continue and final, early rejection of unresolved observations and invalid journal ancestry, reuse of matching tests after journal-only edits, own-contribution selection after synchronization, and actual merged integration validation at admission rather than deferring semantic failures to final."
+
+[change.contract]
+version = 2
+approved_base = "39a4d0503163bde3f7456807f283289a1521c9e4" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "ADMISSION-001"
+outcome = "Ready, admission, conflict continuation and final apply one current-source admission verdict for approval ancestry, change packages and open source observations, and preserve the same owed-node accounting before executing checks. A staged conflict resolution is judged before its merge is committed."
+acceptance = ["Public lifecycle traversals reject invalid ancestry, packages and unresolved observations before checks, naming the same substantive cause at each applicable boundary.", "A repaired conflict with a foreign patch whose approval is outside its ancestry is refused before committing.", "A valid resolved journal passes all applicable boundaries; owed first failures remain selected or journal-accounted."]
+
+[[change.contract.requirements]]
+id = "JOURNAL-REUSE-002"
+outcome = "A genuinely journal-only committed edit after a successful member receipt reuses eligible successful test evidence without a repository selection provider, while rerunning current admission and non-test checks. Changed source, configuration, tools, engine, base or unresolved failures never qualifies for that reuse."
+acceptance = ["A journal resolution after ready produces new readiness without executing the already matched inherited test shard.", "An open observation still refuses despite prior passing tests.", "Source/input/tool/engine changes and first-failure receipts requalify tests; world evidence is never inherited."]
+
+[[change.contract.requirements]]
+id = "OWN-PATHS-003"
+outcome = "After supported workspace synchronization, member selection and native-runner inputs describe only the member's owned contribution and repairs, not unrelated imported batch changes. Immutable opening-base and synchronization evidence remain authoritative."
+acceptance = ["A member syncing an independent batch invokes its provider/native runner with owned changes only; an owned repair to an imported path remains selected.", "Forged trailers or unrecorded merges cannot narrow qualification or move its baseline."]
+
+[[change.contract.requirements]]
+id = "MERGED-TESTS-004"
+outcome = "Batch admission and continuation actually execute the test validation selected for the admitted merged increment. A covers declaration alone cannot replace that test execution, and complete final remains required."
+acceptance = ["Two individually ready members whose merged behavior fails are refused during admission.", "A staged conflict resolution is tested before commit.", "Documentation-only increments retain their declared inexpensive selection; full member-safe selection remains the default without a provider."]
+
+[[change.contract.requirements]]
+id = "DOC-005"
+outcome = "The Skill and validation architecture describe the unified rule, journal-only test reuse, own-contribution selection, actual merged testing, repair through a member and never amending journal-bound commits."
+acceptance = ["Current instructions agree with observed CLI behavior; historical authorities remain immutable."]
+
+[[change.contract.requirements]]
+id = "COVERAGE-006"
+outcome = "Installed Skill launcher and installation measurements resolve to their actual maintained repository source during cross-platform coverage aggregation. All declared native targets, representative installed execution and the existing 90 percent aggregate threshold remain required."
+acceptance = ["Real installed launcher execution reproduces the missing-source report before the fix and combines into canonical repository source afterward.", "Coverage retains measured launcher and installation lines, removes no denominator or evidence, and aggregate reporting succeeds without ignore-errors or omitted files."]
+
+[change.contract.autonomy]
+allowed = ["Extend the existing lifecycle/source authority, journal reconciliation, failure memory, contribution selection and evidence inheritance owners, and remove replaced checks.", "Extend existing public lifecycle and native-runner adapter traversals before changing production, reconcile current Skill/architecture, and run ready.", "Repair the existing coverage source-path mapping and collector boundary required by the hosted candidate checks, preserving installed execution evidence and all existing coverage requirements."]
+requires_confirmation = ["Change unrelated product outcomes, activate an installed plugin, edit Perdura source, integrate a batch, publish or deliver."]
+
+[[change.contract.decisions]]
+id = "one-admission-rule/current-source-verdict"
+change_id = "one-admission-rule"
+authority = "changes/one-admission-rule/change.toml#decisions/one-admission-rule/current-source-verdict"
+reason = "Wave-two exposed journal authority only at later lifecycle stages and repeated tests after source-journal fixes. The owner approved early identical admission, narrowly reusable tests and actual merged validation."
+parents = ["batch-gates-declare-coverage/gate-coverage", "streamline-development-operations/boundaries"]
+
+[[change.contract.decisions.clauses]]
+id = "one-admission-rule/selection-exception"
+change_id = "one-admission-rule"
+action = "amend"
+expected = [{id = "ADOPTION-SEL-001", version = 3}]
+authority = "changes/one-admission-rule/change.toml#decisions/one-admission-rule/current-source-verdict"
+reason = "A source-journal-only edit can be proved not to change test inputs without a repository provider, while current admission still runs."
+
+[[change.contract.decisions.clauses.updates]]
+id = "ADOPTION-SEL-001"
+version = 4
+topic = "repository-adoption"
+scope = ["Repository validation and evidence"]
+statement = "Structured repository selection is optional. Changed explains without checks. Without a provider, readiness selects the complete member-safe gate; only a proved journal-only suffix may reuse successful matching test evidence after current admission. Other paths require a provider for narrowing or inheritance. Final always executes its complete declared gate."
+rationale = "Journal-only reuse removes duplicate testing without guessing source impacts or weakening source approval, failure accounting and input identity."
+
+[[change.contract.decisions.clauses]]
+id = "one-admission-rule/admission-clause"
+change_id = "one-admission-rule"
+action = "add"
+expected = [{id = "SOURCE-ADMISSION-001", version = 0}]
+authority = "changes/one-admission-rule/change.toml#decisions/one-admission-rule/current-source-verdict"
+reason = "Invalid source authority and open observations must be rejected when first eligible, not only at final."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SOURCE-ADMISSION-001"
+version = 1
+topic = "skill-first-development"
+scope = ["Member readiness", "Batch admission and continuation", "Final validation"]
+statement = "One current-source verdict checks approved package authority, journal ancestry and unresolved observations at ready, admission, continuation and final before checks. Gate-specific selected-shard resolution supplies the same owed-node accounting. Neither inherited tests nor covers declarations waive source admission. Staged conflict resolutions are judged before commit."
+rationale = "The same invalid source cannot become acceptable merely because a different lifecycle operation reads it."
+
+[[change.contract.decisions.clauses]]
+id = "one-admission-rule/merged-execution"
+change_id = "one-admission-rule"
+action = "amend"
+expected = [{id = "EFFICIENCY-RUN-001", version = 3}]
+authority = "changes/one-admission-rule/change.toml#decisions/one-admission-rule/current-source-verdict"
+reason = "Declared coverage alone cannot establish semantic compatibility of the merged source."
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-RUN-001"
+version = 4
+topic = "validation-efficiency"
+scope = ["Validation execution, diagnostics and CI"]
+statement = "Diagnostics, readiness and CI share supervised execution and allocation. Admission and continuation prepare the exact merged increment since the last passing batch tip and execute its selected member test validation as well as declared batch checks. Declared covers alone cannot substitute for selected test execution. Without a provider the full member-safe gate is selected. Final remains complete."
+rationale = "Actually testing the merged increment detects cross-member semantic breakage when it enters a batch, rather than at final."
+
+[[change.execution.steps]]
+id = "STEP-REPRODUCE"
+requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-TESTS-004"]
+action = "Extend public lifecycle and native-runner traversals to reproduce late source refusal, redundant journal-only tests, synchronized sibling selection and merged semantic failure."
+
+[[change.execution.steps]]
+id = "STEP-IMPLEMENT"
+requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-TESTS-004"]
+action = "Unify current-source admission, independently qualify journal-only successful test inheritance, bind native selection to owned contribution, and execute selected merged test validation without replacing complete final."
+
+[[change.execution.steps]]
+id = "STEP-COVERAGE"
+requirements = ["COVERAGE-006"]
+action = "Reproduce the hosted missing-source failure from real installed launcher measurements, fix the existing source alias mapping, verify canonical line evidence and run fresh ready before returning to the coordinator."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-TESTS-004", "DOC-005"]
+action = "Reconcile Skill and architecture, extend retained functional tests, build and validate the exact source, resolve findings and stop at passing ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-05
+source = "Relayed by the coordinating agent from the owner-approved wave-three plan and the owner's request to proceed after wave-two delivery: implement N with unified early admission, journal-only test evidence reuse, own-contribution selection and actual merged integration validation; stop at ready, do not update the installed plugin or deliver a batch. On 2026-11-05 the coordinator relayed the owner's authorization for repairs required to deliver the complete batch, explicitly directing a coverage source-path correction after hosted run 42014095022 failed aggregation while all native targets passed. This version adds that correction with the installed launcher evidence and 90 percent threshold preserved; no plugin activation or publication is delegated. This implementing session did not hear the approval independently."
+contract_digest = "sha256:172d436dd84e021c1d023087f345b4981888fd713c6a7ff44497ef74acc8a0fa"
