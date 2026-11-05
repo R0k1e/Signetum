@@ -110,6 +110,11 @@ requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-T
 action = "Unify current-source admission, independently qualify journal-only successful test inheritance, bind native selection to owned contribution, and execute selected merged test validation without replacing complete final."
 
 [[change.execution.steps]]
+id = "STEP-COVERAGE"
+requirements = ["COVERAGE-006"]
+action = "Reproduce the hosted missing-source failure from real installed launcher measurements, fix the existing source alias mapping, verify canonical line evidence and run fresh ready before returning to the coordinator."
+
+[[change.execution.steps]]
 id = "STEP-VERIFY"
 requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-TESTS-004", "DOC-005"]
 action = "Reconcile Skill and architecture, extend retained functional tests, build and validate the exact source, resolve findings and stop at passing ready."
@@ -118,4 +123,4 @@ action = "Reconcile Skill and architecture, extend retained functional tests, bu
 actor = "Repository owner"
 recorded_at = 2026-11-05
 source = "Relayed by the coordinating agent from the owner-approved wave-three plan and the owner's request to proceed after wave-two delivery: implement N with unified early admission, journal-only test evidence reuse, own-contribution selection and actual merged integration validation; stop at ready, do not update the installed plugin or deliver a batch. On 2026-11-05 the coordinator relayed the owner's authorization for repairs required to deliver the complete batch, explicitly directing a coverage source-path correction after hosted run 42014095022 failed aggregation while all native targets passed. This version adds that correction with the installed launcher evidence and 90 percent threshold preserved; no plugin activation or publication is delegated. This implementing session did not hear the approval independently."
-contract_digest = "sha256:aa3cdc01bf4fee223c825c5b4f73c08635e664b41ecc7fe9289ec865b278a419"
+contract_digest = "sha256:d48378ac358474f7d71b789950ea1b09174fa9faba4293d6f7f08d07e2cbe247"
