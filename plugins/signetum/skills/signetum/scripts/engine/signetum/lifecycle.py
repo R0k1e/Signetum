@@ -104,7 +104,9 @@ from signetum.workspaces import (
 
 
 def _receipt_root(repository: Path) -> Path:
-    return _state_root(repository) / "validation"
+    root = _state_root(repository) / "validation"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 def _selection(repository: Path, base: str, manifest: RepositoryManifest) -> ValidationSelection:
