@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from signetum.evidence.receipts import (
     ArtifactIdentity,
@@ -14,7 +14,7 @@ from signetum.evidence.receipts import (
     verify_gate_evidence,
 )
 from signetum.git import GitError, git_output
-from signetum.impact import ImpactRuleLike, select_paths
+from signetum.impact import ImpactRuleLike
 from signetum.serialization import ValueDecodeError, load_json
 from signetum.validation import ValidationGraph
 from signetum.validation.execution import (
@@ -48,6 +48,7 @@ def find_test_inheritance(
     receipt_root: Path,
     *,
     selector: Callable[[tuple[str, ...], str, str], ValidationSelection] | None = None,
+    journal_root: str | None = None,
 ) -> InheritedEvidence | None:
     """A malformed or incompatible nearest receipt never falls back to an older one."""
     member_names = set(graph.execution_order("member"))
@@ -107,12 +108,26 @@ def find_test_inheritance(
             }
         )
     )
-    selected = selector(paths, nearest, current.commit) if selector else select_paths(paths, rules)
-    if selected.unexplained or selected.modified_tests:
-        return None
-    affected = set(selected.shards)
-    for gate in selected.gates:
-        affected.update(graph.execution_order(gate))
+    journal_only = (
+        bool(paths)
+        and journal_root is not None
+        and all(
+            PurePosixPath(path).parent.parent == PurePosixPath(journal_root)
+            and PurePosixPath(path).name == "events.jsonl"
+            for path in paths
+        )
+    )
+    if journal_only:
+        affected: set[str] = set()
+    else:
+        if selector is None:
+            return None
+        selected = selector(paths, nearest, current.commit)
+        if selected.unexplained or selected.modified_tests:
+            return None
+        affected = set(selected.shards)
+        for gate in selected.gates:
+            affected.update(graph.execution_order(gate))
     declarations = {shard.name: shard for shard in graph.shards}
     pending = list(affected)
     while pending:
@@ -143,7 +158,14 @@ def find_test_inheritance(
                 for detail in (details.values() if isinstance(details, dict) else ())
                 if isinstance(detail, dict)
             ]
-            expected_environment = member_environment(repository, inputs.base, current.commit)
+            expected_environment = member_environment(repository, inputs.base, nearest)
+            current_environment = member_environment(repository, inputs.base, current.commit)
+            if any(
+                value != current_environment.get(key)
+                for key, value in expected_environment.items()
+                if key != "SIGNETUM_CONTRIBUTION_PATHS"
+            ):
+                return None
             if not observed or any(item != expected_environment for item in observed):
                 return None
             outcomes = {outcome.name: outcome for outcome in receipt.execution.shards}

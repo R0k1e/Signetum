@@ -62,6 +62,11 @@ Bring a fix already in the batch into a member through
 After a sibling batch delivers, run `maintenance workspace-sync` in the open batch to
 merge the new delivery tip; members stay admitted and conflicts use `batch-continue`.
 Admission and that sync refuse two changes claiming one decision clause ID.
+Ready, admission, continuation and final require approved source packages, intact
+journal ancestry and resolved source observations. Repair an admitted defect in
+a member and admit its new ready tip; never amend a commit bound by a journal.
+Journal-only follow-up commits may reuse eligible passing tests, including without
+an impact provider. Admission and current static or world checks remain required.
 Record consequential discoveries and their reasons through `change record/resolve`;
 current decisions are derived. Ordinary command output stays in local logs. Keep
 no second handwritten decision set, execution diary or delivery report. Use the

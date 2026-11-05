@@ -13,7 +13,11 @@ from collections import Counter
 from pathlib import Path
 
 from signetum.git import git_output, repository_path, run_git
-from signetum.synchronization import unrecorded_merges, verified_sync_sources
+from signetum.synchronization import (
+    member_contribution_paths,
+    unrecorded_merges,
+    verified_sync_sources,
+)
 from signetum.validation import ValidationShard
 from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.execution import ShardExecution, ValidationInfrastructureError
@@ -91,6 +95,9 @@ def member_environment(repository: Path, recorded_base: str, tip: str) -> dict[s
     return {
         "SIGNETUM_BASE": recorded_base,
         "SIGNETUM_RATCHET_BASELINE": ratchet_baseline(repository, recorded_base, tip),
+        "SIGNETUM_CONTRIBUTION_PATHS": json.dumps(
+            member_contribution_paths(repository, recorded_base, tip), separators=(",", ":")
+        ),
     }
 
 
