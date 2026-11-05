@@ -908,6 +908,10 @@ def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_
     (member / "implemented.txt").write_text("implementation after approval")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement and retain significant events")
+    if not resolved:
+        with pytest.raises(lifecycle.AdmissionError, match="unresolved source observations"):
+            lifecycle.validate(member, "member")
+        return
     lifecycle.validate(member, "member")
     lifecycle.admit(batch, (member,))
     tip = _git(batch, "rev-parse", "HEAD")
@@ -1007,7 +1011,49 @@ def test_a_batch_shard_that_covers_the_member_shard_satisfies_admission(tmp_path
         result = lifecycle.admit(batch, (member,))
         static = result["static"]
         assert isinstance(static, dict)
-        assert static["executed"] == ["repo:selected"]
+        assert static["executed"] == ["repo:check"]
     else:
         with pytest.raises(lifecycle.AdmissionError, match="repo:check"):
             lifecycle.admit(batch, (member,))
+
+
+def test_admission_executes_the_selected_check_on_the_combined_member_behaviour(tmp_path):
+    repository = _repository(tmp_path / "repository")
+    path = repository / "signetum.toml"
+    probe = [
+        sys.executable,
+        "-c",
+        "from pathlib import Path; import sys; "
+        "sys.exit(1 if Path('left.txt').exists() and Path('right.txt').exists() else 0)",
+    ]
+    source = path.read_text().replace('command = ["true"]', "command = " + json.dumps(probe))
+    source = source.replace(
+        'name = "prepare"\nshards = ["repo:check"]', 'name = "prepare"\nshards = []'
+    )
+    source = source.replace(
+        'name = "batch"\nshards = ["repo:check"]', 'name = "batch"\nshards = ["repo:static"]'
+    )
+    source += (
+        '\n[[validation.shards]]\nname = "repo:static"\ncommand = ["true"]\n'
+        'covers = ["repo:check"]\n'
+    )
+    path.write_text(source)
+    _git(repository, "commit", "-am", "observe combined semantics")
+    base = _git(repository, "rev-parse", "HEAD")
+    batch = tmp_path / "batch"
+    _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(batch, "batch/test", base, "batch")
+    members = []
+    for name in ("left", "right"):
+        member = tmp_path / name
+        _git(repository, "worktree", "add", "-b", f"impl/{name}", str(member), base)
+        _record(member, f"impl/{name}", base)
+        commit_approval(member, name)
+        (member / f"{name}.txt").write_text(name)
+        _git(member, "add", ".")
+        _git(member, "commit", "-m", f"implement {name}")
+        assert lifecycle.validate(member, "member")["status"] == "ready"
+        members.append(member)
+    lifecycle.admit(batch, (members[0],))
+    with pytest.raises(lifecycle.ValidationExecutionError):
+        lifecycle.admit(batch, (members[1],))
