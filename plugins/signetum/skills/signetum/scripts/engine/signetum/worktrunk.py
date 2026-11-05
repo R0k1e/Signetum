@@ -52,6 +52,7 @@ def declared_environment(
             "PYTHONPATH",
             "SIGNETUM_BASE",
             "SIGNETUM_RATCHET_BASELINE",
+            "SIGNETUM_CONTRIBUTION_PATHS",
             "UV_PROJECT_ENVIRONMENT",
             "VIRTUAL_ENV",
         }:

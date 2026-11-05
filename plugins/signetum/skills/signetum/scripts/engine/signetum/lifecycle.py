@@ -49,8 +49,14 @@ from signetum.policy import delivery_policy
 from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.repository_selection import select_repository
+from signetum.source_admission import require_source_admission
 from signetum.synchronization import member_contribution_paths
-from signetum.validation import ValidationGraph
+from signetum.validation import (
+    GateDeclaration,
+    GraphContribution,
+    ValidationGraph,
+    resolve_validation_graph,
+)
 from signetum.validation.admission import find_member_evidence
 from signetum.validation.configuration import member_shards as _member_shards
 from signetum.validation.configuration import with_deferred_world
@@ -97,8 +103,12 @@ from signetum.workspaces import (
 )
 
 
+def _receipt_directory(repository: Path) -> Path:
+    return _state_root(repository) / "validation"
+
+
 def _receipt_root(repository: Path) -> Path:
-    root = _state_root(repository) / "validation"
+    root = _receipt_directory(repository)
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -170,6 +180,9 @@ def _ready_member(repository: Path) -> dict[str, object]:
 
     _require_clean(repository)
     source = _git(repository, "rev-parse", "HEAD")
+    qualify_member(
+        repository, load_manifest(repository / "signetum.toml"), _recorded_base(repository), source
+    )
     parent = Path(tempfile.mkdtemp(prefix="signetum-ready-"))
     execution = parent / "tree"
     try:
@@ -215,6 +228,7 @@ def _validate_held(
         configure=_runtime_validation,
         adapter_factory=RepositoryValidationAdapter,
         receipt_root=_receipt_root,
+        receipt_directory=_receipt_directory,
         proposal_paths=_proposal_paths,
         check_numbering_base=_require_numbering_base,
         execute=execute_gate,
@@ -478,7 +492,6 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     staged = _git(batch, "diff", "--cached", "--name-only")
     if not staged:
         raise AdmissionError("batch continuation has no staged resolution")
-    preparation = worktree_prepare(batch, allow_merge=True)
     before = _git(batch, "rev-parse", "HEAD")
     staged_tree = _git(batch, "write-tree")
     other = _git(batch, "rev-parse", "MERGE_HEAD")
@@ -488,6 +501,11 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     resolution = _git(
         batch, "commit-tree", staged_tree, "-p", before, "-p", other, "-m", "batch resolution"
     )
+    with _selection_checkout(batch, resolution, prepare=False) as selector:
+        require_source_admission(
+            selector, load_manifest(selector / "signetum.toml"), _recorded_base(batch), resolution
+        )
+    preparation = worktree_prepare(batch, allow_merge=True)
     with _selection_checkout(batch, resolution) as selector:
         static = _run_batch_gate(
             batch,
@@ -653,15 +671,15 @@ def _admission_paths(batch: Path, before: str, source: str) -> tuple[str, ...]:
 
 
 @contextmanager
-def _selection_checkout(batch: Path, resolution: str) -> Iterator[Path]:
-    """Give a provider the exact resolved merge as a clean detached checkout.
+def _selection_checkout(batch: Path, resolution: str, *, prepare: bool = True) -> Iterator[Path]:
+    """Give admission and selection the resolved merge as a clean detached checkout.
 
     A conflict resolution is staged, not committed, so only a temporary checkout
     of its synthetic merge can be the committed source a provider requires.
-    Without a provider, selection reads only paths and needs no checkout.
+    Current-source journal admission also requires this exact committed source.
     """
 
-    if load_manifest(batch / "signetum.toml").impact.provider is None:
+    if _git(batch, "rev-parse", "HEAD") == resolution:
         yield batch
         return
     parent = Path(tempfile.mkdtemp(prefix="signetum-selection-"))
@@ -669,7 +687,7 @@ def _selection_checkout(batch: Path, resolution: str) -> Iterator[Path]:
     try:
         _git(batch, "worktree", "add", "--detach", str(execution), resolution)
         graph, _ = _runtime_validation(load_manifest(execution / "signetum.toml"))
-        if any(gate.name == "prepare" for gate in graph.gates):
+        if prepare and any(gate.name == "prepare" for gate in graph.gates):
             worktree_prepare(execution)
         yield execution
     finally:
@@ -711,7 +729,13 @@ def _batch_graph(
             "batch gate does not run the shards its admission selects: " + ", ".join(missing),
             expected="declare them in the batch gate, commit that, and rerun the batch operation",
         )
-    return graph
+    batch_gate = graph.gate("batch")
+    merged_shards = tuple(dict.fromkeys((*batch_gate.shards, *graph.gate("member").shards)))
+    gates = tuple(
+        GateDeclaration(gate.name, merged_shards if gate.name == "batch" else gate.shards)
+        for gate in graph.gates
+    )
+    return resolve_validation_graph((GraphContribution("merged-selection", graph.shards, gates),))
 
 
 def _run_batch_gate(
@@ -726,6 +750,7 @@ def _run_batch_gate(
     base = _recorded_base(batch)
     if base is None:
         raise AdmissionError("batch has no recorded base")
+    require_source_admission(selector, load_manifest(selector / "signetum.toml"), base, source)
     declared, _ = _runtime_validation(load_manifest(batch / "signetum.toml"))
     prepared = frozenset(shard.digest for shard in declared.shards if shard.name in prepared_names)
     before = verified_batch_tip(batch, branch, base)
@@ -740,6 +765,7 @@ def _run_batch_gate(
             advisory_world=True,
             remembered=owed,
             admission_base=before,
+            member_base=before,
         )
     except ValidationExecutionError as error:
         remember_failure(
