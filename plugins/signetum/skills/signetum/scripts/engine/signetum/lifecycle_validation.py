@@ -73,6 +73,7 @@ def validate_workspace(
     configure: ValidationConfiguration,
     adapter_factory: AdapterFactory,
     receipt_root: Callable[[Path], Path],
+    receipt_directory: Callable[[Path], Path],
     proposal_paths: Callable[[Path], tuple[str, ...]],
     check_numbering_base: Callable[[Path, str | None, str], None],
     execute: Callable[..., EvidenceReceipt] = execute_gate,
@@ -180,7 +181,7 @@ def validate_workspace(
             graph,
             inputs,
             adapter,
-            receipt_root(repository),
+            receipt_directory(repository),
             selector=(
                 lambda paths, ancestor, tip: (
                     select_repository(
