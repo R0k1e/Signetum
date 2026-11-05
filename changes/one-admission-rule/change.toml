@@ -7,7 +7,7 @@ kind = "human_direction"
 summary = "The owner approved wave-three change N, relayed by the coordinating agent: one source admission rule at ready, batch-admit, batch-continue and final, early rejection of unresolved observations and invalid journal ancestry, reuse of matching tests after journal-only edits, own-contribution selection after synchronization, and actual merged integration validation at admission rather than deferring semantic failures to final."
 
 [change.contract]
-version = 1
+version = 2
 approved_base = "32372899282b2854608e1ba7e64e196ca1932e19" # pragma: allowlist secret
 
 [[change.contract.requirements]]
@@ -35,8 +35,13 @@ id = "DOC-005"
 outcome = "The Skill and validation architecture describe the unified rule, journal-only test reuse, own-contribution selection, actual merged testing, repair through a member and never amending journal-bound commits."
 acceptance = ["Current instructions agree with observed CLI behavior; historical authorities remain immutable."]
 
+[[change.contract.requirements]]
+id = "COVERAGE-006"
+outcome = "Installed Skill launcher and installation measurements resolve to their actual maintained repository source during cross-platform coverage aggregation. All declared native targets, representative installed execution and the existing 90 percent aggregate threshold remain required."
+acceptance = ["Real installed launcher execution reproduces the missing-source report before the fix and combines into canonical repository source afterward.", "Coverage retains measured launcher and installation lines, removes no denominator or evidence, and aggregate reporting succeeds without ignore-errors or omitted files."]
+
 [change.contract.autonomy]
-allowed = ["Extend the existing lifecycle/source authority, journal reconciliation, failure memory, contribution selection and evidence inheritance owners, and remove replaced checks.", "Extend existing public lifecycle and native-runner adapter traversals before changing production, reconcile current Skill/architecture, and run ready."]
+allowed = ["Extend the existing lifecycle/source authority, journal reconciliation, failure memory, contribution selection and evidence inheritance owners, and remove replaced checks.", "Extend existing public lifecycle and native-runner adapter traversals before changing production, reconcile current Skill/architecture, and run ready.", "Repair the existing coverage source-path mapping and collector boundary required by the hosted candidate checks, preserving installed execution evidence and all existing coverage requirements."]
 requires_confirmation = ["Change unrelated product outcomes, activate an installed plugin, edit Perdura source, integrate a batch, publish or deliver."]
 
 [[change.contract.decisions]]
@@ -105,6 +110,11 @@ requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-T
 action = "Unify current-source admission, independently qualify journal-only successful test inheritance, bind native selection to owned contribution, and execute selected merged test validation without replacing complete final."
 
 [[change.execution.steps]]
+id = "STEP-COVERAGE"
+requirements = ["COVERAGE-006"]
+action = "Reproduce the hosted missing-source failure from real installed launcher measurements, fix the existing source alias mapping, verify canonical line evidence and run fresh ready before returning to the coordinator."
+
+[[change.execution.steps]]
 id = "STEP-VERIFY"
 requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-TESTS-004", "DOC-005"]
 action = "Reconcile Skill and architecture, extend retained functional tests, build and validate the exact source, resolve findings and stop at passing ready."
@@ -112,5 +122,5 @@ action = "Reconcile Skill and architecture, extend retained functional tests, bu
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-05
-source = "Relayed by the coordinating agent from the owner-approved wave-three plan and the owner's request to proceed after wave-two delivery: implement N with unified early admission, journal-only test evidence reuse, own-contribution selection and actual merged integration validation; stop at ready, do not update the installed plugin or deliver a batch. This implementing session did not hear the approval independently."
-contract_digest = "sha256:aa3cdc01bf4fee223c825c5b4f73c08635e664b41ecc7fe9289ec865b278a419"
+source = "Relayed by the coordinating agent from the owner-approved wave-three plan and the owner's request to proceed after wave-two delivery: implement N with unified early admission, journal-only test evidence reuse, own-contribution selection and actual merged integration validation; stop at ready, do not update the installed plugin or deliver a batch. On 2026-11-05 the coordinator relayed the owner's authorization for repairs required to deliver the complete batch, explicitly directing a coverage source-path correction after hosted run 42014095022 failed aggregation while all native targets passed. This version adds that correction with the installed launcher evidence and 90 percent threshold preserved; no plugin activation or publication is delegated. This implementing session did not hear the approval independently."
+contract_digest = "sha256:d48378ac358474f7d71b789950ea1b09174fa9faba4293d6f7f08d07e2cbe247"
