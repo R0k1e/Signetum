@@ -110,6 +110,11 @@ requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-T
 action = "Unify current-source admission, independently qualify journal-only successful test inheritance, bind native selection to owned contribution, and execute selected merged test validation without replacing complete final."
 
 [[change.execution.steps]]
+id = "STEP-COVERAGE"
+requirements = ["COVERAGE-006"]
+action = "Reproduce the hosted missing-source failure from real installed launcher measurements, fix the existing source alias mapping, verify canonical line evidence and run fresh ready before returning to the coordinator."
+
+[[change.execution.steps]]
 id = "STEP-VERIFY"
 requirements = ["ADMISSION-001", "JOURNAL-REUSE-002", "OWN-PATHS-003", "MERGED-TESTS-004", "DOC-005"]
 action = "Reconcile Skill and architecture, extend retained functional tests, build and validate the exact source, resolve findings and stop at passing ready."
