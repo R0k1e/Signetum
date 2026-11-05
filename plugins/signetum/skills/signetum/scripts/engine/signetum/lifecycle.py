@@ -103,8 +103,12 @@ from signetum.workspaces import (
 )
 
 
+def _receipt_directory(repository: Path) -> Path:
+    return _state_root(repository) / "validation"
+
+
 def _receipt_root(repository: Path) -> Path:
-    root = _state_root(repository) / "validation"
+    root = _receipt_directory(repository)
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -224,6 +228,7 @@ def _validate_held(
         configure=_runtime_validation,
         adapter_factory=RepositoryValidationAdapter,
         receipt_root=_receipt_root,
+        receipt_directory=_receipt_directory,
         proposal_paths=_proposal_paths,
         check_numbering_base=_require_numbering_base,
         execute=execute_gate,

@@ -106,14 +106,21 @@ def test_changed_does_not_run_a_working_file_mutator(diagnostic):
 
 
 @pytest.mark.parametrize("failure", ["check", "tool", "configuration"])
+@pytest.mark.parametrize("inherit", [False, True])
 def test_native_cli_observes_real_failure_without_granting_readiness(
-    diagnostic, failure, monkeypatch, capsys
+    diagnostic, failure, inherit, monkeypatch, capsys
 ):
     runtime, open_member, _ = diagnostic
     member = open_member(
         code="print('native check diagnostic'); raise SystemExit(9)", approved=True
     )
     manifest = member / "signetum.toml"
+    if inherit:
+        manifest.write_text(
+            manifest.read_text().replace(
+                'name = "test:check"', 'name = "test:check"\ninherit = true'
+            )
+        )
     if failure == "tool":
         manifest.write_text(
             manifest.read_text() + '\n[[validation.tools]]\nname = "absent"\n'
