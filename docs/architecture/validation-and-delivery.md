@@ -184,7 +184,10 @@ CI and release share one reusable workflow and run the declared complete gate
 against clean exact source without private workspace/approval/receipt setup.
 Linux Python 3.12/3.13 and macOS Python 3.13 must all pass. Require every expected
 coverage fragment from the current source/run before enforcing 90% project
-coverage; a local or selected fragment is not that verdict. Retain failed output
+coverage; a local or selected fragment is not that verdict.
+Installed plugin and plain Skill source aliases resolve measured launcher and
+installation paths to their maintained repository files before reporting; these
+measurements remain in the coverage denominator. Retain failed output
 for seven days with a bounded terminal preview.
 
 Require passing hosted checks for the exact candidate before delivery. Tags,
