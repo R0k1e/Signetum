@@ -192,7 +192,7 @@ def validate_workspace(
             else None,
             journal_root=changes_root(manifest),
         )
-        if kind == "member"
+        if kind == "member" and any(shard.inherit for shard in graph.shards)
         else None
     )
     branch = branch_name(repository)
