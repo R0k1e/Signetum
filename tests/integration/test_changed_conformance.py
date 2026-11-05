@@ -105,8 +105,14 @@ def test_changed_does_not_run_a_working_file_mutator(diagnostic):
     assert not (state_root(member) / "validation").exists()
 
 
-@pytest.mark.parametrize("failure", ["check", "tool", "configuration"])
-@pytest.mark.parametrize("inherit", [False, True])
+@pytest.mark.parametrize(
+    ("failure", "inherit"),
+    [
+        pytest.param(failure, inherit, id=f"inherit-{failure}" if inherit else failure)
+        for inherit in (False, True)
+        for failure in ("check", "tool", "configuration")
+    ],
+)
 def test_native_cli_observes_real_failure_without_granting_readiness(
     diagnostic, failure, inherit, monkeypatch, capsys
 ):
