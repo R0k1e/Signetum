@@ -35,7 +35,9 @@ against verified source; missing baseline is explicit and never cached. Only a
 `maintenance workspace-sync` merge with its trailer and local record moves that
 baseline. A failed ratchet lists unrecorded merges and names `workspace-sync` and
 `workspace-sync --batch`. Member gate shards receive `SIGNETUM_BASE` and
-`SIGNETUM_RATCHET_BASELINE`; each shard's receipt details record them, and
+`SIGNETUM_RATCHET_BASELINE` and `SIGNETUM_CONTRIBUTION_PATHS`, a JSON array of
+repository-relative paths owned by the member, excluding synchronized upstream
+changes. The opening base remains immutable. Each shard's receipt details record them, and
 admission and test inheritance require their current values. Other shards never
 receive them. Final
 and batch checks remain strict.
@@ -60,7 +62,10 @@ No provider means the full declared member gate. An explicit provider binds
 source, exact contribution, targets, tools and explanation; unexplained inputs
 fall back, changed tests run whole and final never narrows. Test inheritance
 requires matching input identities and a verified nearest ancestor receipt with
-all intervening paths explained. Otherwise tests rerun. Static checks still run.
+all intervening paths explained. A suffix consisting only of change journal
+events may reuse eligible tests without a provider. Otherwise tests rerun.
+Source admission still requires approved packages, intact journal ancestry and
+resolved observations at ready, admission, continuation and final. Static checks still run.
 Weighted scheduling and CI partitions are optional diagnostics; complete partition
 aggregation checks exact membership/source and creates no lifecycle authority.
 
@@ -69,7 +74,8 @@ passing gate, starting at its recorded base, not the cumulative batch. The decla
 batch gate, resolved with any provider targets, must cover the member shards that
 selection requires, which without a provider is the complete member gate, either by
 running them or through a batch-gate shard that declares `covers` for them, directly
-or transitively. Otherwise the operation refuses before batch checks run. Only a passing batch gate advances
+or transitively. Coverage declares the obligation; the selected member checks
+also execute on the merged tree. Otherwise the operation refuses before batch checks run. Only a passing batch gate advances
 that verified tip, so a refused or failed increment stays owed. One admission of
 several members is one increment. Batch shards receive its start commit as
 `SIGNETUM_ADMISSION_BASE`, so a project selector can use the same range. A provider

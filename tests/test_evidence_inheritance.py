@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 from change_fixtures import commit_approval
 from pydantic import JsonValue
+from signetum import development_store as store
 from signetum import lifecycle
+from signetum.change_record import contract_digest, parse_change_record
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.git import git_output
 from signetum.resources.schemas import evidence_schema_digest
@@ -21,7 +23,7 @@ def runtime():
     return lifecycle
 
 
-def configured(repository, runtime):
+def configured(repository, runtime, *, provider=True):
     root, state = repository
     manifest = root / "signetum.toml"
 
@@ -88,13 +90,14 @@ for p in q["files"]:
 print(json.dumps(dict(protocol="signetum.selection@1",request_digest=q["request_digest"],
                      coverage=coverage,targets=[])))
 """)
-    text += '\n[impact.provider]\nprotocol="signetum.selection@1"\nentrypoint="selector.py"\n'
-    text += "command=" + json.dumps([sys.executable, "{selector}"]) + "\n"
-    text += (
-        'tools=[{name="selector-python",identity_command='
-        + json.dumps([sys.executable, "--version"])
-        + "}]\n"
-    )
+    if provider:
+        text += '\n[impact.provider]\nprotocol="signetum.selection@1"\nentrypoint="selector.py"\n'
+        text += "command=" + json.dumps([sys.executable, "{selector}"]) + "\n"
+        text += (
+            'tools=[{name="selector-python",identity_command='
+            + json.dumps([sys.executable, "--version"])
+            + "}]\n"
+        )
     manifest.write_text(text)
     (state / "tool").write_text("v1")
     git_output(root, "add", ".")
@@ -118,6 +121,57 @@ def test_documentation_fixup_inherits_tests_but_reruns_static(repository, runtim
     evidence = current["evidence"]
     assert isinstance(evidence, dict)
     inherited = evidence["extensions"]["inherited_test_evidence_from"]
+    assert inherited["commit"] == first["source"]
+
+
+def test_resolved_journal_only_fixup_reuses_tests_without_a_provider(repository, runtime):
+    member, state, first = configured(repository, runtime, provider=False)
+    record = parse_change_record((member / "changes/example/change.toml").read_text())
+    request = {
+        "id": "example/observed",
+        "change_id": "example",
+        "operation": "record",
+        "approval_digest": contract_digest(record.contract),
+        "reason": "Record a verified contract observation.",
+        "observations": [
+            {
+                "id": "example/finding",
+                "requirements": ["REQ-1"],
+                "summary": "The contract behavior was observed.",
+                "reason": "The existing source proves the requirement.",
+            }
+        ],
+    }
+    observed = store.append_transaction(
+        member, store.parse_request(request), expected_history=store.snapshot(member).history_digest
+    )
+    store.append_transaction(
+        member,
+        store.parse_request(
+            {
+                **request,
+                "id": "example/resolved",
+                "operation": "resolve",
+                "observations": [],
+                "resolutions": [
+                    {
+                        "id": "example/answer",
+                        "target": "example/finding",
+                        "status": "resolved",
+                        "reason": "The source implements the observed contract.",
+                        "evidence": ["src/feature.py"],
+                    }
+                ],
+            }
+        ),
+        expected_history=observed.history_digest,
+    )
+    git_output(member, "add", "changes/example/events.jsonl")
+    git_output(member, "commit", "-m", "retain the resolved contract finding")
+    second = runtime.validate(member, "member")
+    assert (state / "tests").read_text() == "x"
+    assert (state / "static").read_text() == "xx"
+    inherited = second["evidence"]["extensions"]["inherited_test_evidence_from"]
     assert inherited["commit"] == first["source"]
 
 

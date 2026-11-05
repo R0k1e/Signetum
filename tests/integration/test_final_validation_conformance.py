@@ -76,7 +76,10 @@ def test_final_reviews_first_delivered_change_and_lists_historical_plan_edit(
 
 
 def test_final_refuses_rewriting_delivered_commitments(repository, final_runtime):
-    _, batch, _ = assembled(repository, historical=True, rewrite=True)
+    _, batch, _ = assembled(repository, historical=True)
+    path = batch / "changes/old/review.toml"
+    path.write_text(path.read_text() + "\n# Historical edit\n")
+    git_output(batch, "commit", "-am", "rewrite a delivered commitment after admission")
     with pytest.raises(final_runtime.AdmissionError, match="rewrites delivered commitments"):
         final_runtime.validate(batch, "final")
     assert not list(final_runtime._receipt_root(batch).glob("final-*.json"))
