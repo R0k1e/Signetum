@@ -20,6 +20,7 @@ from signetum.git import git_output
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.operations import AdmissionError
 from signetum.repository_selection import select_repository
+from signetum.source_admission import require_source_admission
 from signetum.synchronization import member_contribution_paths
 from signetum.validation import ValidationGraph
 from signetum.validation.configuration import member_shards as select_member_shards
@@ -95,6 +96,7 @@ def validate_workspace(
     if kind == "final":
         if evidence_base is None:
             raise AdmissionError("final has no recorded batch base")
+        require_source_admission(repository, manifest, evidence_base, source)
         proposals = proposal_paths(repository)
         if proposals:
             raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
@@ -179,13 +181,18 @@ def validate_workspace(
             inputs,
             adapter,
             receipt_root(repository),
-            selector=lambda paths, ancestor, tip: (
-                select_repository(
-                    repository, declared_manifest, paths, base=ancestor, source=tip
-                ).selection
-            ),
+            selector=(
+                lambda paths, ancestor, tip: (
+                    select_repository(
+                        repository, declared_manifest, paths, base=ancestor, source=tip
+                    ).selection
+                )
+            )
+            if declared_manifest.impact.provider is not None
+            else None,
+            journal_root=changes_root(manifest),
         )
-        if kind == "member" and declared_manifest.impact.provider is not None
+        if kind == "member"
         else None
     )
     branch = branch_name(repository)
