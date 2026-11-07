@@ -1,6 +1,6 @@
 {
   "name": "signetum",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Reliable Agent development and delivery: the Signetum Skill and a command guard that refuses work-losing and protocol-bypassing shell commands.",
   "author": {
     "name": "R0k1e"
