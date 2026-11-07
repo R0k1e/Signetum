@@ -293,8 +293,21 @@ class ValidationGraph:
         raise ValidationGraphError(f"unknown gate: {name}")
 
     def execution_order(self, gate: str) -> tuple[str, ...]:
+        """The listed shards and their requires producers, in dependency order.
+
+        An after prerequisite only orders a shard the gate already runs.
+        """
+
         selected = self.gate(gate)
         shards = {shard.name: shard for shard in self.shards}
+        members = set(selected.shards)
+        pending = list(members)
+        while pending:
+            shard = shards.get(pending.pop())
+            for dependency in shard.requires if shard is not None else ():
+                if dependency not in members:
+                    members.add(dependency)
+                    pending.append(dependency)
         ordered: list[str] = []
         visiting: set[str] = set()
 
@@ -308,7 +321,8 @@ class ValidationGraph:
                 raise ValidationGraphError(f"unknown shard: {name}")
             visiting.add(name)
             for dependency in sorted((*shard.requires, *shard.after)):
-                visit(dependency)
+                if dependency in members:
+                    visit(dependency)
             visiting.remove(name)
             ordered.append(name)
 

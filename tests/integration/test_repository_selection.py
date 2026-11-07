@@ -517,6 +517,8 @@ def test_without_provider_executes_full_member_checks_despite_no_check_impact_ru
     manifest = member / "signetum.toml"
     text = manifest.read_text().split("[impact.provider]")[0]
     text = text.replace('shards = ["test:check"]', "shards = []", 1)
+    # No rule explains test files, so a modified one reruns every inheritable shard.
+    text = text.replace('paths = ["source.py", "tests/**"]', 'paths = ["source.py"]', 1)
     manifest.write_text(text)
     git_output(member, "commit", "-am", "use full default validation")
     changed = runtime.explain_ready(member)

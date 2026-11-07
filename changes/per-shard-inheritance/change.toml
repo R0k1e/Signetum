@@ -1,0 +1,107 @@
+[change]
+schema_version = 1
+id = "per-shard-inheritance"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approved on 2026-11-07, relayed by the coordinating session, per-shard evidence inheritance driven by impact rules, as part of splitting validation into area shards so that a front-end-only fix reruns only the front-end shard. Without a selection provider the member gate ignored impact rules, and inheritance was all-or-nothing: any affected inheritable shard, unexplained path or modified test file reran every shard."
+
+[change.contract]
+version = 1
+approved_base = "9eb523e5fbe3e56c69089a61de046c224b414c55" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "INHERIT-SHARD-001"
+outcome = "At member readiness the paths changed since the nearest ancestor commit with a member receipt are resolved per shard by the impact rules ([[impact.rules]] paths, shards and gates), with or without a selection provider; a declared provider's coverage also explains paths and names shards. Each member-gate shard with inherit = true that no changed path affects reuses that receipt's evidence; an affected shard reruns. A shard is affected when a matching rule or the provider names it, names a gate listing it, or it is a requires prerequisite of an affected shard; an after prerequisite of an affected shard is not affected. A stacked member compares only commits after its recorded base, the parent tip; paths a parent synchronization merged count as changed."
+acceptance = ["Without a provider, a member whose fixup changes only a path whose rule names the front-end shard reruns that shard and static checks, and the other inheritable shard inherits from the previous ready.", "The receipt names the source commit and exactly the inherited shards."]
+
+[[change.contract.requirements]]
+id = "INHERIT-UNEXPLAINED-002"
+outcome = "A changed path that no impact rule, and no declared provider, explains reruns every inheritable shard."
+acceptance = ["A fixup adding a path no rule matches reruns every inheritable shard."]
+
+[[change.contract.requirements]]
+id = "INHERIT-TESTS-003"
+outcome = "A modified test file is an ordinary changed path: it reruns only the shards its matching rules, or the provider's coverage, name. A test file nothing explains is unexplained and reruns every inheritable shard."
+acceptance = ["A fixup changing a test file named by the front-end rule reruns only the front-end shard; a test file no rule names reruns every inheritable shard."]
+
+[[change.contract.requirements]]
+id = "INHERIT-EVIDENCE-004"
+outcome = "Inheritance reuses only passing tree evidence of the exact current command from the nearest verified successful member receipt whose source, inputs, tools, engine, schema and bases match, as before; a shard without such evidence reruns. A failed gate leaves no evidence, and a nearest receipt that cannot be verified never falls back to an older one. Final, batch admission and continuation never inherit, final stays complete and requires_final is unchanged. A shard that owes remembered nodes reruns."
+acceptance = ["After a ready that failed in one area shard, the next ready reruns every inheritable shard even if the fix touched only the other area.", "Final executes every declared shard after members inherited."]
+
+[[change.contract.requirements]]
+id = "GATE-LIST-005"
+outcome = "A gate runs the shards it lists and the requires prerequisites whose output they need. An after prerequisite only orders a shard among the shards the gate already runs and never adds one, so a gate listing an area shard does not pull in the shards it is ordered after; a failed after prerequisite still does not skip its dependent."
+acceptance = ["A gate listing a shard whose after prerequisite it omits runs only that shard and its requires prerequisites.", "A gate listing both runs the after prerequisite first."]
+
+[[change.contract.requirements]]
+id = "DOC-006"
+outcome = "The validation architecture, structured selection guide, repository bindings guide, Skill validation reference and unreleased changelog describe per-shard inheritance and gate membership."
+acceptance = ["Current instructions agree with observed behavior; historical authorities remain unchanged."]
+
+[change.contract.autonomy]
+allowed = ["Extend the inheritance, selection configuration and validation graph owners, the manifest schema description and existing functional lifecycle tests with throwaway repositories and fake runners.", "Reconcile current architecture, guides, Skill reference and the unreleased changelog section without a version bump.", "Synchronize the workspace with the delivery branch or batch through maintenance workspace-sync and run narrow tests with two workers before one ready."]
+requires_confirmation = ["Let batch admission or final inherit, narrow final, change selection provider protocol, change Perdura source or the installed plugin, integrate a batch, publish or deliver."]
+
+
+[[change.contract.decisions]]
+id = "per-shard-inheritance/per-shard-inheritance"
+change_id = "per-shard-inheritance"
+authority = "changes/per-shard-inheritance/change.toml#decisions/per-shard-inheritance/per-shard-inheritance"
+reason = "Validation is being split into area shards so that an area-only fix reruns only that area. All-or-nothing inheritance, available beyond journal-only suffixes only through a provider, reran every shard after any affected one, and order-only prerequisites pulled extra shards into a gate. The owner approved per-shard inheritance decided by the impact rules with or without a provider, conservative on unexplained paths, and gates that do not pull in shards an area change does not need. requires prerequisites still join a gate because they produce output their dependents need, and existing configurations list preparation only in the prepare gate."
+parents = ["one-admission-rule/current-source-verdict", "owed-nodes-run-first/runner-feedback"]
+
+[[change.contract.decisions.clauses]]
+id = "per-shard-inheritance/rules-decide-inheritance"
+change_id = "per-shard-inheritance"
+action = "add"
+expected = [{id = "INHERIT-SHARD-001", version = 0}]
+authority = "changes/per-shard-inheritance/change.toml#decisions/per-shard-inheritance/per-shard-inheritance"
+reason = "Impact rules already explain which shards a path affects; reusing them keeps one explanation for selection and inheritance."
+
+[[change.contract.decisions.clauses.updates]]
+id = "INHERIT-SHARD-001"
+version = 1
+topic = "validation-efficiency"
+scope = ["Repository validation and evidence"]
+statement = "Readiness reuses, per inheritable member shard and with or without a selection provider, the passing evidence of the nearest verified member receipt when no path changed since it affects that shard. Impact rules, and a declared provider's coverage, decide which shards a path affects; a requires prerequisite of an affected shard is affected; a modified test file is an ordinary path; an unexplained path affects every shard; a journal-only suffix affects none. A shard without passing evidence of its exact command and matching inputs there reruns. Final always executes its complete declared gate, and batch admission and continuation never inherit. This governs member test inheritance wherever an earlier clause limits it to a provider or a journal-only suffix."
+rationale = "Per-shard reuse lets an area-only fix rerun only its area while the conservative unexplained fallback and exact evidence identity keep reuse safe."
+
+[[change.contract.decisions.clauses]]
+id = "per-shard-inheritance/after-never-adds"
+change_id = "per-shard-inheritance"
+action = "amend"
+expected = [{id = "SHARD-AFTER-001", version = 1}]
+authority = "changes/per-shard-inheritance/change.toml#decisions/per-shard-inheritance/per-shard-inheritance"
+reason = "A dependent cannot run without its producer, while an order-only prerequisite adds nothing a dependent needs."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SHARD-AFTER-001"
+version = 2
+topic = "validation-efficiency"
+scope = ["Validation execution, diagnostics and CI", "Repository configuration"]
+statement = "A gate runs the shards it lists and the requires prerequisites whose output they need. A shard's after prerequisites only order it among shards the gate already runs and never add one. They do not gate it: it runs after their validation failure, all failures are reported together and the verdict stays failed. requires still gates, and an infrastructure error in either kind of prerequisite skips dependents."
+rationale = "Only producers join a gate, so an area gate stays to its listed shards and what they consume."
+
+[[change.execution.steps]]
+id = "STEP-INHERIT"
+requirements = ["INHERIT-SHARD-001", "INHERIT-UNEXPLAINED-002", "INHERIT-TESTS-003", "INHERIT-EVIDENCE-004"]
+action = "Resolve intervening paths with the impact rules when no provider is declared, drop the modified-test veto and return per-shard inheritable evidence from the nearest verified receipt."
+
+[[change.execution.steps]]
+id = "STEP-GATE"
+requirements = ["GATE-LIST-005"]
+action = "Let execution order add only requires prerequisites to the listed shards and order after prerequisites only among them."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["INHERIT-SHARD-001", "INHERIT-UNEXPLAINED-002", "INHERIT-TESTS-003", "INHERIT-EVIDENCE-004", "GATE-LIST-005", "DOC-006"]
+action = "Extend functional inheritance tests with two area shards, reconcile current documentation, run narrow tests and ready."
+
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-07
+source = "Relayed by the coordinating session on 2026-11-07: the owner approved per-shard evidence inheritance decided by impact rules with or without a selection provider, unexplained paths invalidating every shard, a modified test file invalidating only the shards whose rules name it, reuse only of matching successful evidence with final and requires_final complete and batch admission and final not inheriting, and gates that include only the shards they list. The last item means after prerequisites never add a shard to a gate while requires producers still run, because refusing gates that omit a requires prerequisite breaks existing configurations; the owner confirmed this reading, relayed by the coordinator later on 2026-11-07. The coordinator later asked that this change not claim ADOPTION-SEL-001, which a sibling change amends, so inheritance has its own clause. This implementing session did not hear the approval independently."
+contract_digest = "sha256:391107a35b0c6e4b5fd686240da99b06a01d07ab8e7692f6e1627977539d3f30"

@@ -4,9 +4,10 @@ An existing repository can retain its fine test selection without embedding its
 old gate, retry loop or receipt writer. The optional `signetum.selection@1`
 boundary supplies a plan to Signetum's existing execution and evidence owners.
 Without a provider declaration, `ready` runs the full declared member-safe gate
-and required checks; `ready --explain` only explains that plan. Impact rules cannot narrow this default,
-and tests are not skipped using ancestor evidence. Final always runs its complete
-declared gate, including final-only checks.
+and required checks; `ready --explain` only explains that plan. Impact rules cannot
+narrow which shards that gate lists, but they decide which `inherit = true` shards
+a fixup affects, so an unaffected shard reuses the previous ready's evidence. Final
+always runs its complete declared gate, including final-only checks.
 
 ```toml
 [impact.provider]
@@ -84,9 +85,16 @@ Selected argv determines the actual graph and command proof. The receipt retains
 the request/response identities in selection reasons, and admission recomputes
 and compares the exact selection. No second gate or receipt store is introduced.
 
-Inheritance still requires the existing exact input and graph proof, plus the
-provider's explanation of intervening changes. Unknown coverage or changed tests
-rerun the required checks. Final always executes original complete commands;
+Inheritance is per shard. The paths changed since the nearest ancestor with a
+member receipt are resolved by the impact rules and, when declared, the
+provider's coverage. Each `inherit = true` member shard that no path affects
+reuses that receipt's passing evidence for its exact command; a shard is affected
+when a matching rule or the provider names it or a gate listing it, or when it is
+a `requires` prerequisite of an affected shard. `after` prerequisites are not
+affected. A modified test file affects only the shards its explanation names. An
+unexplained path reruns every shard, and a shard without passing evidence in
+that receipt reruns. Inheritance still requires the existing exact input, graph,
+tool, engine and base proof. Final always executes original complete commands;
 member targets never narrow it. Admission and conflict continuation run the provider
 over the commits added since the batch's last passing gate; the batch gate must
 cover what it selects, with its targets, or the operation refuses before checks.

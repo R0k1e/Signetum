@@ -190,7 +190,8 @@ def _ordered_graph() -> ValidationGraph:
                         "core:tests", ("tests",), ("core:prepare",), after=("core:static",)
                     ),
                 ),
-                gates=(GateDeclaration("final", ("core:tests",)),),
+                # after only orders shards the gate runs, so the gate lists core:static.
+                gates=(GateDeclaration("final", ("core:static", "core:tests")),),
             ),
         )
     )
@@ -218,8 +219,8 @@ def test_an_order_only_prerequisite_failure_still_runs_its_dependent(
     with pytest.raises(ValidationExecutionError) as failure:
         execute_gate(_ordered_graph(), "final", _inputs(), adapter)
 
-    # The after prerequisite joins the gate closure and runs first either way.
-    assert adapter.executed[:2] == ["core:prepare", "core:static"]
+    # The listed after prerequisite runs first either way.
+    assert set(adapter.executed[:2]) == {"core:prepare", "core:static"}
     assert ("core:tests" in adapter.executed) is tests_run
     for name in failing:
         assert f"{name} " in str(failure.value)

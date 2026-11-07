@@ -120,6 +120,14 @@ owed, and one failing check no longer hides the others.
   refused.
 - `after = [...]` on a shard orders it after other shards without skipping it
   when they fail, so one round reports every failure. `requires` still gates.
+- `ready` inherits test evidence per shard. Impact rules decide, with or without
+  a selection provider, which `inherit = true` shards the paths changed since
+  the previous ready affect; each unaffected shard reuses that ready's passing
+  evidence and the affected ones rerun. A modified test file reruns only the
+  shards its rules name. A path no rule explains still reruns every shard, and
+  final, batch admission and continuation never inherit.
+- `after` no longer adds its prerequisite to a gate: it only orders shards the
+  gate already runs. `requires` prerequisites still run with their dependents.
 - When no implementation commit follows the latest approval, `ready` refuses
   naming the approval commit, and its expected action and the `status` next
   action give the remedy.

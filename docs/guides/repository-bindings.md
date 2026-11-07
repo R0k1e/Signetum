@@ -98,10 +98,26 @@ requires = ["app:prepare"]
 after = ["app:static"]
 ```
 
-`after` orders and selects like `requires` but does not skip the shard when the
-prerequisite fails; the gate still fails and reports both. Keep prerequisites
-that produce something the shard needs in `requires`. An infrastructure error
-in either kind still skips the shard.
+`after` orders like `requires` but does not skip the shard when the prerequisite
+fails; the gate still fails and reports both. Keep prerequisites that produce
+something the shard needs in `requires`. An infrastructure error in either kind
+still skips the shard. A gate also runs the `requires` prerequisites of the
+shards it lists, but `after` never adds a shard: an `after` prerequisite the gate
+does not list is ignored.
+
+Declare `inherit = true` on a tree test shard whose passing evidence may be reused
+at ready, and name it in the impact rules for the paths that affect it:
+
+```toml
+[[impact.rules]]
+name = "app.web"
+paths = ["web/**", "tests/web/**"]
+shards = ["app:web-tests"]
+```
+
+A fixup changing only `web/` then reruns `app:web-tests` and reuses the other
+inheritable shards' evidence from the previous ready. A path no rule names reruns
+them all.
 
 ## Declaring a check which depends on the outside world
 
