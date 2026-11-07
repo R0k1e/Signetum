@@ -84,6 +84,30 @@ scope = ["Validation execution, diagnostics and CI", "Repository configuration"]
 statement = "A gate runs the shards it lists and the requires prerequisites whose output they need. A shard's after prerequisites only order it among shards the gate already runs and never add one. They do not gate it: it runs after their validation failure, all failures are reported together and the verdict stays failed. requires still gates, and an infrastructure error in either kind of prerequisite skips dependents."
 rationale = "Only producers join a gate, so an area gate stays to its listed shards and what they consume."
 
+
+[[change.contract.decisions]]
+id = "per-shard-inheritance/selection-defers-inheritance"
+change_id = "per-shard-inheritance"
+authority = "changes/per-shard-inheritance/change.toml#decisions/per-shard-inheritance/selection-defers-inheritance"
+reason = "Composed in one batch, ADOPTION-SEL-001 v5 still limited inheritance to a provider or a journal-only suffix while INHERIT-SHARD-001 and RECORDS-READY-001 generalize it, so the current decision set contradicted itself."
+parents = ["per-shard-inheritance/per-shard-inheritance", "one-loop-light-admit-batch-fixes/one-loop", "records-keep-readiness/records-keep-readiness"]
+
+[[change.contract.decisions.clauses]]
+id = "per-shard-inheritance/selection-defers"
+change_id = "per-shard-inheritance"
+action = "amend"
+expected = [{id = "ADOPTION-SEL-001", version = 5}]
+authority = "changes/per-shard-inheritance/change.toml#decisions/per-shard-inheritance/selection-defers-inheritance"
+reason = "Selection states what runs; inheritance and records-only readiness have their own clauses."
+
+[[change.contract.decisions.clauses.updates]]
+id = "ADOPTION-SEL-001"
+version = 6
+topic = "repository-adoption"
+scope = ["Repository validation and evidence"]
+statement = "Structured repository selection is optional. ready --explain explains the selection without checks. Without a provider, readiness selects the complete member-safe gate. Reuse of earlier evidence follows INHERIT-SHARD-001 for member test inheritance and RECORDS-READY-001 for records-only ranges. Final always executes its complete declared gate."
+rationale = "One owner per rule keeps the composed decision set free of contradictions."
+
 [[change.execution.steps]]
 id = "STEP-INHERIT"
 requirements = ["INHERIT-SHARD-001", "INHERIT-UNEXPLAINED-002", "INHERIT-TESTS-003", "INHERIT-EVIDENCE-004"]
@@ -103,5 +127,5 @@ action = "Extend functional inheritance tests with two area shards, reconcile cu
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-07
-source = "Relayed by the coordinating session on 2026-11-07: the owner approved per-shard evidence inheritance decided by impact rules with or without a selection provider, unexplained paths invalidating every shard, a modified test file invalidating only the shards whose rules name it, reuse only of matching successful evidence with final and requires_final complete and batch admission and final not inheriting, and gates that include only the shards they list. The last item means after prerequisites never add a shard to a gate while requires producers still run, because refusing gates that omit a requires prerequisite breaks existing configurations; the owner confirmed this reading, relayed by the coordinator later on 2026-11-07. The coordinator later asked that this change not claim ADOPTION-SEL-001, which a sibling change amends, so inheritance has its own clause. This implementing session did not hear the approval independently."
-contract_digest = "sha256:391107a35b0c6e4b5fd686240da99b06a01d07ab8e7692f6e1627977539d3f30"
+source = "Relayed by the coordinating session on 2026-11-07: the owner approved per-shard evidence inheritance decided by impact rules with or without a selection provider, unexplained paths invalidating every shard, a modified test file invalidating only the shards whose rules name it, reuse only of matching successful evidence with final and requires_final complete and batch admission and final not inheriting, and gates that include only the shards they list. The last item means after prerequisites never add a shard to a gate while requires producers still run, because refusing gates that omit a requires prerequisite breaks existing configurations; the owner confirmed this reading, relayed by the coordinator later on 2026-11-07. The coordinator later asked that this change not claim ADOPTION-SEL-001, which a sibling change amends, so inheritance has its own clause. On 2026-11-07 the coordinator added the ADOPTION-SEL-001 amendment in the batch: composition contradiction found at batch; owner directed all Signetum fixes into this batch. This implementing session did not hear the approval independently."
+contract_digest = "sha256:76079a3534594130cbac03806ce473867769f7bd1ac755115209d5a7b5ec4761"
