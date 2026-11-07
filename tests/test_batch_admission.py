@@ -9,10 +9,9 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 from shutil import which
-from typing import Any, Literal
+from typing import Literal
 
 import pytest
-import signetum.change_record as change_record
 import signetum.lifecycle as lifecycle
 from change_fixtures import approve_change as _approve_change
 from change_fixtures import approved_record_source, commit_approval, consolidated_approval
@@ -726,46 +725,30 @@ def test_member_with_only_an_approved_package_is_plan_stage(tmp_path):
         lifecycle.validate(member, "member")
 
 
-def test_a_reapproval_after_implementation_names_the_remedy_everywhere(
-    tmp_path, monkeypatch, capsys
-):
+def test_a_reapproval_after_implementation_names_the_remedy(tmp_path, monkeypatch, capsys):
     member, _, base = _member_and_batch(tmp_path, approved=True)
     consolidated_approval(member, base, outcome="Implement the revised confirmed behavior.")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "re-approve the revised outcome")
     approval = _git(member, "rev-parse", "HEAD")
-    record = member / "changes/example/change.toml"
     monkeypatch.chdir(member)
 
-    def views() -> tuple[dict, Any, dict[str, object]]:
-        capsys.readouterr()
-        assert change_record.main([str(record), "--review"]) == 0
-        view = json.loads(capsys.readouterr().out)
-        status = workflow_status(
-            member, development_snapshot(member), source=_git(member, "rev-parse", "HEAD")
-        )
-        return view["approval_order"], status["approval_order"], status
-
-    viewed, reported, status = views()
-    assert viewed == reported
-    assert viewed["approval_commit"] == approval
-    assert viewed["implementation_follows_approval"] is False
-    assert viewed["remedy"] and status["next"] == viewed["remedy"]
+    def next_action() -> object:
+        source = _git(member, "rev-parse", "HEAD")
+        return workflow_status(member, development_snapshot(member), source=source)["next"]
 
     assert lifecycle.main(["ready"]) == 2
     refusal = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert refusal["status"] == "invalid"
-    assert refusal["approval_order"] == viewed
-    assert refusal["expected"] == viewed["remedy"]
+    assert approval in refusal["cause"]
+    # Status and the refusal give one remedy, distinct from the generic retry advice.
+    assert refusal["expected"] == next_action()
+    assert refusal["expected"] != lifecycle.AdmissionError("x").expected
 
     (member / "src/feature.txt").write_text("revised work\n", encoding="utf-8")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement the revised outcome")
-    viewed, reported, status = views()
-    assert viewed == reported
-    assert viewed["implementation_follows_approval"] is True
-    assert viewed["approval_commit"] == approval and viewed["remedy"] is None
-    assert status["next"] != viewed["remedy"]
+    assert next_action() != refusal["expected"]
     assert lifecycle.validate(member, "member")["status"] == "ready"
 
 

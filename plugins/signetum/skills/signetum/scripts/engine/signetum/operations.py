@@ -28,17 +28,9 @@ class OperationError(ValueError):
 
     status = OperationStatus.INVALID
 
-    def __init__(
-        self,
-        cause: str,
-        *,
-        expected: str = "correct the precondition and retry",
-        fields: dict[str, object] | None = None,
-    ):
+    def __init__(self, cause: str, *, expected: str = "correct the precondition and retry"):
         super().__init__(cause)
         self.expected = expected
-        # Structured detail a refusal projects beside its cause, never over the envelope.
-        self.fields = dict(fields or {})
 
 
 class AdmissionError(OperationError):

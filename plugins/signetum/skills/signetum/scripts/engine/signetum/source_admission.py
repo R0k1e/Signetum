@@ -39,6 +39,6 @@ def require_source_admission(
         reconciliation_summary(repository, changes, commit=tip)
         return changes
     except ChangeError as error:
-        raise AdmissionError(str(error), expected=error.expected, fields=error.fields) from error
+        raise AdmissionError(str(error), expected=error.expected) from error
     except DevelopmentReviewError as error:
         raise AdmissionError(str(error)) from error

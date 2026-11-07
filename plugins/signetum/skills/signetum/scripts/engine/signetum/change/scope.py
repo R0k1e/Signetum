@@ -15,7 +15,7 @@ from signetum.change_record import (
 from signetum.decision_identity import numbered_targets
 from signetum.development_store import DevelopmentReviewError, decision_application_commits
 from signetum.git import GitError, git_output, run_git
-from signetum.manifest import ManifestError, RepositoryManifest, load_manifest
+from signetum.manifest import RepositoryManifest
 from signetum.operations import OperationError
 from signetum.source_authority import committed_blob
 from signetum.synchronization import member_contribution_paths
@@ -230,14 +230,6 @@ class ApprovalOrder:
     def satisfied(self) -> bool:
         return self.implementation_commit is not None
 
-    def projection(self) -> dict[str, object]:
-        return {
-            "approval_commit": self.approval_commit,
-            "implementation_commit": self.implementation_commit,
-            "implementation_follows_approval": self.satisfied,
-            "remedy": None if self.satisfied else APPROVAL_ORDER_REMEDY,
-        }
-
 
 def approval_order(
     repository: Path,
@@ -347,38 +339,4 @@ def require_member_changes(
         "member is plan stage: no own implementation commit follows the latest approval"
         + (f" {order.approval_commit}" if order.approval_commit else ""),
         expected=APPROVAL_ORDER_REMEDY,
-        fields={"approval_order": order.projection()},
     )
-
-
-def recorded_approval_order(path: Path) -> dict[str, object] | None:
-    """Project approval order for an approved record path inside its repository.
-
-    Returns ``None`` outside a configured repository. An approval that differs
-    from the committed record has no approval commit yet.
-    """
-
-    directory = path.resolve().parent
-    found = run_git(directory, "rev-parse", "--show-toplevel")
-    if found.returncode:
-        return None
-    repository = Path(found.stdout.strip())
-    try:
-        manifest = load_manifest(repository / "signetum.toml")
-        relative = path.resolve().relative_to(repository).as_posix()
-        record = parse_change_record(path.read_text(encoding="utf-8"))
-        tip = git_output(repository, "rev-parse", "HEAD")
-    except (ManifestError, ValueError, GitError, OSError):
-        return None
-    if relative != f"{changes_root(manifest)}/{record.id}/change.toml":
-        return None
-    base = record.contract.approved_base
-    if run_git(repository, "merge-base", "--is-ancestor", base, tip).returncode:
-        return None
-    committed = committed_blob(repository, tip, relative)
-    if committed is None or committed[1] != path.read_text(encoding="utf-8"):
-        return ApprovalOrder(None, None).projection()
-    try:
-        return approval_order(repository, manifest, base, tip, (record.id,)).projection()
-    except ChangeError:
-        return ApprovalOrder(None, None).projection()

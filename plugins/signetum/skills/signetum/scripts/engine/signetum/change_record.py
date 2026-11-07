@@ -235,11 +235,6 @@ def main(arguments: list[str] | None = None) -> int:
         result = (
             review_view(record, require_approval=False) if parsed.review else approval_view(record)
         )
-        if record.approval is not None and record.status == "active":
-            from signetum.change.scope import recorded_approval_order  # noqa: PLC0415
-
-            if (order := recorded_approval_order(parsed.record)) is not None:
-                result["approval_order"] = order
     except (OSError, ValueError, TypeError) as error:
         return utility_failure("view", error)
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
