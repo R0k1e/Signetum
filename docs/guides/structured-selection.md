@@ -91,7 +91,8 @@ provider's coverage. Each `inherit = true` member shard that no path affects
 reuses that receipt's passing evidence for its exact command; a shard is affected
 when a matching rule or the provider names it or a gate listing it, or when it is
 a `requires` prerequisite of an affected shard. `after` prerequisites are not
-affected. A modified test file affects only the shards its explanation names. An
+affected. A modified test file affects only the shards its explanation names. A
+path inside a change directory affects none. An
 unexplained path reruns every shard, and a shard without passing evidence in
 that receipt reruns. Inheritance still requires the existing exact input, graph,
 tool, engine and base proof. Final always executes original complete commands;

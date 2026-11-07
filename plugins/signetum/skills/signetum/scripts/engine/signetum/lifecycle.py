@@ -17,9 +17,8 @@ from pathlib import Path
 from shutil import which
 
 from signetum.change.member import qualify_member
-from signetum.change.scope import (
-    delivered_plans,
-)
+from signetum.change.paths import changes_root
+from signetum.change.scope import delivered_plans, records_only, records_only_ancestors
 from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
 from signetum.delivery import publish_batch
 from signetum.development_store import DevelopmentReviewError
@@ -179,9 +178,28 @@ def _ready_member(repository: Path) -> dict[str, object]:
 
     _require_clean(repository)
     source = _git(repository, "rev-parse", "HEAD")
-    qualify_member(
-        repository, load_manifest(repository / "signetum.toml"), _recorded_base(repository), source
-    )
+    manifest = load_manifest(repository / "signetum.toml")
+    base = _recorded_base(repository)
+    approvals = qualify_member(repository, manifest, base, source)
+    if records_only_ancestors(repository, changes_root(manifest), base, source):
+        try:
+            receipt = _admission_evidence(repository, source, manifest)
+        except AdmissionError:
+            receipt = None
+        if receipt is not None:
+            # Only change records changed since that evidence; source admission,
+            # which judges them, has just passed. No check reads anything else new.
+            return {
+                "schema_version": 2,
+                "kind": "member",
+                "source": source,
+                "base": base,
+                "status": "ready",
+                "valid": True,
+                "checks_started": False,
+                "changes": list(approvals),
+                "receipt": str(_receipt_root(repository) / receipt),
+            }
     parent = Path(tempfile.mkdtemp(prefix="signetum-ready-"))
     execution = parent / "tree"
     try:
@@ -256,14 +274,33 @@ def _is_ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
 
 
 def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) -> str:
-    """Require successful tree evidence for this exact member and its inputs."""
+    """Require successful tree evidence for this exact member and its inputs.
+
+    Evidence of an ancestor stands for ``tip`` when only change records changed since.
+    """
 
     base = _recorded_base(member)
     if not _is_ancestor(member, base, tip):
         raise AdmissionError("member does not descend from its recorded base")
+    try:
+        return _evidence_at(member, base, tip, manifest)
+    except AdmissionError as missing:
+        for ancestor in records_only_ancestors(member, changes_root(manifest), base, tip):
+            try:
+                return _evidence_at(member, base, ancestor, manifest)
+            except AdmissionError:
+                continue
+        raise missing
+
+
+def _evidence_at(member: Path, base: str, commit: str, manifest: RepositoryManifest) -> str:
     declared_manifest = manifest
     resolved = select_repository(
-        member, manifest, member_contribution_paths(member, base, tip), base=base, source=tip
+        member,
+        manifest,
+        member_contribution_paths(member, base, commit),
+        base=base,
+        source=commit,
     )
     manifest, selection = resolved.manifest, resolved.selection
     required_names, deferred = _member_shards(manifest, selection)
@@ -272,19 +309,23 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
     closure = set(graph.execution_order("member"))
     required = frozenset(shard.digest for shard in graph.shards if shard.name in closure)
     adapter = RepositoryValidationAdapter(member)
-    member_identity = build_evidence_identity(graph, replace(inputs, base=base), adapter)
+    member_identity = replace(
+        build_evidence_identity(graph, replace(inputs, base=base), adapter),
+        commit=commit,
+        tree=_git(member, "rev-parse", f"{commit}^{{tree}}"),
+    )
     final_graph, _ = _runtime_validation(declared_manifest)
     final_required = frozenset(
         shard.digest for shard in final_graph.shards if shard.name in closure
     )
     return find_member_evidence(
         _receipt_root(member),
-        tip=tip,
+        tip=commit,
         schema_digest=manifest.signetum.evidence_schema_digest,
         member_identity=member_identity,
         final_graph_digest=final_graph.digest,
         required_digests=required,
-        member_values=member_values(member, base, tip),
+        member_values=member_values(member, base, commit),
         inputs=inputs,
         expected_selection=selection if manifest.impact.provider is not None else None,
         final_required_digests=final_required,
@@ -738,6 +779,13 @@ def _run_batch_gate(
     declared, _ = _runtime_validation(load_manifest(batch / "signetum.toml"))
     prepared = frozenset(shard.digest for shard in declared.shards if shard.name in prepared_names)
     before = verified_batch_tip(batch, branch, base)
+    if records_only(
+        selector, changes_root(load_manifest(selector / "signetum.toml")), before, source
+    ):
+        # Source admission above judged the only changes; no check reads them.
+        if recorded_tip:
+            record_verified_batch(batch, branch, source)
+        return {"status": "records-only", "executed": [], "admission_base": before}
     graph = _batch_graph(batch, selector, before, source)
     selected = graph.execution_order("batch")
     owed = require_accounted(batch, branch, base, selected, defer_unselected=True)

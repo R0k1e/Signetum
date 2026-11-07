@@ -90,16 +90,26 @@ any provider coverage, and each `inherit = true` member shard none of them affec
 reuses that receipt's passing evidence for its exact command and matching input
 identities. A rule or coverage affects the shards and gates it names and their
 `requires` prerequisites; a modified test file is an ordinary path; an unexplained
-path reruns every shard; a suffix of change journal events affects none. A shard
+path reruns every shard; a path inside a change directory affects none. A shard
 without such evidence, or one owing remembered nodes, reruns. Batch admission,
 continuation and final never inherit.
 Source admission still requires approved packages, intact journal ancestry and
 resolved observations at ready, admission, continuation and final. Static checks still run.
+
+A records-only range changes only paths inside change directories and keeps the
+contract digest of every change record it changes: journal events, or approval
+text that leaves the contract alone. Member evidence of a commit stands for each
+descendant reached by a records-only first-parent range. `ready` there runs source
+admission and no check and names the earlier receipt; admission, `status` and the
+final review accept that receipt for the later tip. A contract change is not
+records-only and needs a fresh ready, where inheritance still reuses every shard
+the rest of the change leaves unaffected.
 Weighted scheduling and CI partitions are optional diagnostics; complete partition
 aggregation checks exact membership/source and creates no lifecycle authority.
 
 Admission and continuation select over the commits added since the batch's last
-passing gate, starting at its recorded base, not the cumulative batch. They run
+passing gate, starting at its recorded base, not the cumulative batch. A
+records-only increment runs source admission and no batch gate check. Otherwise they run
 only the declared batch gate, resolved with any provider targets; it may run no
 integration checks. Final stays complete, so cross-member failures surface there
 rather than at admission. A remembered node whose shard the batch gate does not
@@ -192,8 +202,10 @@ delivered records a verified synchronization brought into it.
 Final rejects Proposed decisions added or modified within the declared decision
 directory against its registered base; unchanged historical proposals remain
 read-only context. Final reconciles selected source journals and affected standing answers. Pending
-findings, inactive follow-ups, missing effective evidence or uncommitted source
-suffixes refuse. Historical statements retain original proof without another
+findings, effective evidence that is neither in the reviewed tree nor a known
+validation receipt, or uncommitted source suffixes refuse. A deferral carries its
+reason and an optional follow-up change, judged only when written; the review lists
+every deferred item in its top-level `unfinished_work`. Historical statements retain original proof without another
 active workflow. Exact retirements preserve earlier answers. Final does not
 append its own success to source.
 
@@ -201,7 +213,10 @@ A defect that appears only when members combine may be fixed by commits made
 directly in the batch under the batch's own change record. Final attributes each
 first-parent non-merge batch commit to the batch-owned changes approved before
 it, unchanged at the tip; a commit touching only change records and decisions is
-authority history. Any other direct commit refuses. Member-owned defects are fixed
+authority history, attributed to the changes whose records it touches. The batch
+may write journals of the changes it integrates this way, without claiming them, so
+a finding is recorded, resolved or deferred where its evidence is; such a commit
+needs no ready, admission or batch gate. Any other direct commit refuses. Member-owned defects are fixed
 in the member and admitted again; conflict resolution stays with `batch-continue`.
 After a failed final on the current tip, status names both repairs.
 

@@ -98,8 +98,14 @@ Use the returned observation ID as the exact resolution target. `--id` is a
 stable retry identity: the same content is idempotent; changed content needs a
 new identity. Add `--change` when more than one approved change matches the
 workspace base. `--expected-history` can explicitly bind a previously reviewed
-view; a stale write refuses. A deferred resolution uses `--disposition deferred`
-and `--followup change-id#REQ-ID`, with the exact approved requirement transfer.
+view; a stale write refuses. Evidence is a path in the current tree or the name of
+a validation receipt. A deferred resolution uses `--disposition deferred` with a
+`--reason` that says who decided and what remains owed; an optional `--followup
+change-id[#REQ-ID]` names an approved change on any local branch. The final
+review lists every deferral under `unfinished_work`. A commit that changes only
+change records keeps the member's ready evidence: `ready` starts no check, and
+re-admission runs no batch gate. In a batch, the same commands record, resolve or
+defer findings of the changes it integrates; commit them there, and final checks them.
 `change retract` takes the target and exact prior `--resolution` ID.
 
 ### Conditional atomic edits

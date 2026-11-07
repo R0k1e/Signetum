@@ -39,7 +39,7 @@ from signetum.source_authority import (
     source_path,
 )
 from signetum.traceability.loading import parse_decision
-from signetum.workspaces import claim_change, read_record
+from signetum.workspaces import claim_change, read_record, state_root
 
 
 def _digest(data: bytes) -> str:
@@ -57,7 +57,7 @@ def parse_request(value: object) -> DevelopmentTransaction:
 
 
 def approved_authority(
-    repository: Path, change_id: str, commit: str, *, approved: bool = True
+    repository: Path, change_id: str, commit: str
 ) -> tuple[ChangeRecord, ApprovalProof]:
     root, _ = authority_roots(repository, commit=commit, historical=True)
     relative = f"{root}/{change_id}/change.toml"
@@ -67,7 +67,7 @@ def approved_authority(
     record = parse_change_record(blob[1])
     if record.id != change_id or record.status != "active":
         raise ValueError("journal requires an active owning change record")
-    if approved and record.approval is None:
+    if record.approval is None:
         raise ValueError("journal requires committed human-confirmed approval")
     require_ancestor(repository, record.contract.approved_base, commit)
     return record, ApprovalProof(commit=commit, path=relative, blob=blob[0])
@@ -342,15 +342,12 @@ def reconciliation_summary(
     try:
         for state in states:
             for evidence in state.effective_evidence:
-                if committed_blob_identity(repository, commit, evidence) is None:
+                if committed_blob_identity(
+                    repository, commit, evidence
+                ) is None and not known_receipt(repository, evidence):
                     raise ValueError(
                         f"standing resolution evidence is absent from reviewed source: {evidence}"
                     )
-            if state.resolution is not None and state.resolution.status == "deferred":
-                change, _, requirement = (state.resolution.followup or "").partition("#")
-                following, _ = approved_authority(repository, change, commit, approved=False)
-                if requirement not in {item.id for item in following.contract.requirements}:
-                    raise ValueError("standing deferral has no active follow-up requirement")
     except (OSError, ValueError) as error:
         raise DevelopmentReviewError(str(error)) from error
     return {
@@ -367,6 +364,7 @@ def reconciliation_summary(
                         "summary": item.observation.summary,
                         "status": item.status,
                         "reason": item.resolution.reason if item.resolution else None,
+                        "followup": item.resolution.followup if item.resolution else None,
                         "evidence": list(item.effective_evidence),
                         "source_event": item.source_event,
                         "approval": contract_mapping(item.approval),
@@ -399,6 +397,36 @@ def _writer(repository: Path) -> Iterator[Path]:
             fcntl.flock(lock, fcntl.LOCK_UN)
 
 
+def known_receipt(repository: Path, name: str) -> bool:
+    """A validation receipt this repository keeps machine-locally, named exactly."""
+    return (
+        PurePosixPath(name).name == name
+        and (state_root(repository) / "validation" / name).is_file()
+    )
+
+
+def _require_known_followup(repository: Path, followup: str) -> None:
+    """Find an approved change, and the named requirement, on any local branch."""
+    change_id, separator, requirement = followup.partition("#")
+    root, _ = authority_roots(repository)
+    commits = git_output(repository, "for-each-ref", "--format=%(objectname)", "refs/heads")
+    for commit in dict.fromkeys(commits.split()):
+        blob = committed_blob(repository, commit, f"{root}/{change_id}/change.toml")
+        if blob is None:
+            continue
+        try:
+            record = parse_change_record(blob[1])
+        except ValueError:
+            continue
+        if record.approval is not None and (
+            not separator or requirement in {item.id for item in record.contract.requirements}
+        ):
+            return
+    raise ValueError(
+        f"follow-up names no approved change requirement on a local branch: {followup}"
+    )
+
+
 def _resolution_targets(
     repository: Path,
     transaction: DevelopmentTransaction,
@@ -409,7 +437,6 @@ def _resolution_targets(
     historical: bool = False,
     standing: frozenset[str] | None = None,
 ) -> None:
-    observed = {item.id: item for entry in entries for item in entry.transaction.observations}
     resolutions = resolution_index(entries)
     withdrawn = withdrawn_resolution_ids(entries)
     for resolution in transaction.resolutions:
@@ -417,22 +444,15 @@ def _resolution_targets(
             continue
         for evidence in resolution.evidence:
             require_relative_path(evidence)
-            if not historical and not source_path(repository, evidence).is_file():
-                raise ValueError(f"acceptance evidence target is absent: {evidence}")
-        if resolution.status == "deferred":
-            change_id, separator, requirement = (resolution.followup or "").partition("#")
-            if not separator or change_id == transaction.change_id:
-                raise ValueError("deferral requires another active follow-up change requirement")
-            following, _ = approved_authority(repository, change_id, commit, approved=False)
-            if requirement not in {item.id for item in following.contract.requirements}:
-                raise ValueError("follow-up requirement is absent")
-            original = observed.get(resolution.target)
-            transfers = {item.id: item.target for item in record.contract.transferred}
-            target = f"{change_id}/{requirement}"
-            if original is None or any(
-                transfers.get(identity) != target for identity in original.requirements
+            if (
+                not historical
+                and not source_path(repository, evidence).is_file()
+                and not known_receipt(repository, evidence)
             ):
-                raise ValueError("deferral requires the exact human-approved requirement transfer")
+                raise ValueError(f"acceptance evidence target is absent: {evidence}")
+        # A follow-up is judged once, when written; it may live on any branch.
+        if not historical and resolution.followup is not None:
+            _require_known_followup(repository, resolution.followup)
     if not historical:
         for retraction in transaction.retractions:
             previous = resolutions.get(retraction.resolution_id)
@@ -485,8 +505,6 @@ def append_transaction(
     with _writer(repository) as root:
         branch = git_output(repository, "symbolic-ref", "--quiet", "--short", "HEAD")
         workspace = read_record(root, branch)
-        if workspace.kind != "member":
-            raise ValueError("source history can only be written by a member workspace")
         current = read_sources(repository)
         existing = [item for item in current.entries if item.transaction.id == transaction.id]
         if existing:
@@ -498,7 +516,8 @@ def append_transaction(
         commit = git_output(repository, "rev-parse", "HEAD")
         require_committed_bindings(repository, commit)
         record, proof = approved_authority(repository, transaction.change_id, commit)
-        if record.contract.approved_base != workspace.base:
+        # A batch records for the changes it integrates; it never owns them.
+        if workspace.kind == "member" and record.contract.approved_base != workspace.base:
             raise ValueError("approved change base differs from the registered workspace base")
         working = parse_change_record(source_path(repository, proof.path).read_text())
         if (
@@ -538,7 +557,8 @@ def append_transaction(
             {**current.authorities, (transaction.change_id, proof.commit): (record, proof)},
         )
         judge_sources(repository, candidate)
-        claim_change(root, transaction.change_id, branch)
+        if workspace.kind == "member":
+            claim_change(root, transaction.change_id, branch)
         if git_output(repository, "rev-parse", "HEAD") != commit:
             raise ValueError("source commit changed during journal validation")
         if read_sources(repository).history_digest != current.history_digest:

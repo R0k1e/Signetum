@@ -71,6 +71,20 @@ concurrent decision clause identities are refused before they are integrated.
   directly in the batch under the batch's own approved change record. Final
   attributes each such commit in the review and refuses an unattributed direct
   implementation commit; after a failed final, `status` names both repairs.
+- Recording a decision no longer costs a validation round. A commit that changes
+  only change records, keeping every contract digest, keeps the member's ready
+  evidence: `ready` runs source admission and no check, and admission, `status`
+  and final accept the earlier receipt. A records-only batch increment runs no
+  batch gate check. In test inheritance a change-record path affects no shard.
+- `change record`, `resolve`, `retract` and `retire` work in a batch for the
+  changes it integrates, without claiming them; final attributes such record-only
+  batch commits to those changes.
+- Breaking: `change resolve --disposition deferred` needs only a reason; the
+  follow-up requirement and its approved transfer are no longer required. An
+  optional `--followup change-id[#REQ-ID]` may name an approved change on any
+  local branch and is judged only when written. The final review lists every
+  deferred item in a top-level `unfinished_work`.
+- Resolution evidence may also name a machine-local validation receipt.
 
 Signetum ships as one plugin for Claude Code and Codex: the Skill plus a command
 guard, installed and updated by the host plugin managers.
