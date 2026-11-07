@@ -94,6 +94,30 @@ def test_graph_rejects_missing_and_cyclic_dependencies() -> None:
         )
 
 
+def test_an_after_prerequisite_never_adds_a_shard_to_a_gate() -> None:
+    static = ValidationShard("repository:static", ("static",))
+    build = ValidationShard("repository:build", ("build",))
+    web = ValidationShard(
+        "repository:web", ("web",), ("repository:build",), after=("repository:static",)
+    )
+
+    def order(*listed: str) -> tuple[str, ...]:
+        return resolve_validation_graph(
+            (
+                GraphContribution(
+                    "repository", (static, build, web), (GateDeclaration("member", listed),)
+                ),
+            )
+        ).execution_order("member")
+
+    assert order("repository:web") == ("repository:build", "repository:web")
+    assert order("repository:web", "repository:static") == (
+        "repository:static",
+        "repository:build",
+        "repository:web",
+    )
+
+
 def test_tool_composition_rejects_ambiguous_ownership() -> None:
     first = ValidationConfiguration.from_mapping(
         "core",
