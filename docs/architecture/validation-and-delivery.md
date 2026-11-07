@@ -172,6 +172,8 @@ Admission and batch synchronization compare the decision clause identities that
 change records write in their contract decisions since the relevant base. Two
 different changes writing one identity refuse before merging, naming the clause,
 both changes and their owning workspaces; renumbering stays with those changes.
+A member's claims come only from change records in its own contribution, not from
+delivered records a verified synchronization brought into it.
 
 ## Final review and publication
 

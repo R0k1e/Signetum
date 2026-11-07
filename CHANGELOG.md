@@ -35,6 +35,8 @@ concurrent decision clause identities are refused before they are integrated.
   from the batch base, or `--batch` named from a batch, is refused.
 - `batch-admit` and batch synchronization refuse when two different changes write
   one decision clause ID, naming the clause, both changes and their workspaces.
+- A member that synchronized delivered change records no longer claims their
+  decision clauses at admission, so a batch sibling may amend those clauses.
 - `batch-deliver` onto a delivery branch that moved names batch synchronization
   as the recovery.
 - A member that changes the engine or the manifest schema no longer strands its

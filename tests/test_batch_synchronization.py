@@ -27,19 +27,34 @@ def commit_file(repository, name, value="work"):
     git_output(repository, "commit", "-m", f"implement {name}")
 
 
-def ready_member(root, change_id, name, value="work", *, clause=None):
+def ready_member(root, change_id, name, value="work", *, clause=None, amends=None):
     member = opened(root, f"change/{change_id}")
     if clause is None:
         commit_approval(member, change_id)
     else:
-        claim_clause(member, change_id, clause)
+        claim_clause(member, change_id, clause, amends=amends)
     commit_file(member, name, value)
     lifecycle.validate(member, "member")
     return member
 
 
-def claim_clause(member, change_id, clause):
+def claim_clause(member, change_id, clause, *, amends=None):
+    """Add ``clause``, or amend it when ``amends`` names the change that added it."""
     base = lifecycle._recorded_base(member)
+    action, version = ("add", 0) if amends is None else ("amend", 1)
+    parents = f'parents = ["{amends}/rule"]\n' if amends else ""
+    topic = f"{amends or change_id}-topic"
+    revision = (
+        ""
+        if amends
+        else f"""[[change.contract.decisions.topics]]
+expected_version = 0
+[change.contract.decisions.topics.revision]
+id = "{topic}"
+version = 1
+summary = "Fixture rules."
+"""
+    )
     authority = f"changes/{change_id}/change.toml#decisions/{change_id}/rule"
     text = f'''[change]
 schema_version = 1
@@ -59,23 +74,17 @@ id = "{change_id}/rule"
 change_id = "{change_id}"
 authority = "{authority}"
 reason = "Record the rule."
-[[change.contract.decisions.topics]]
-expected_version = 0
-[change.contract.decisions.topics.revision]
-id = "{change_id}-topic"
-version = 1
-summary = "Fixture rules."
-[[change.contract.decisions.clauses]]
-id = "{change_id}/add-rule"
+{parents}{revision}[[change.contract.decisions.clauses]]
+id = "{change_id}/{action}-rule"
 change_id = "{change_id}"
-action = "add"
-expected = [{{ id = "{clause}", version = 0 }}]
+action = "{action}"
+expected = [{{ id = "{clause}", version = {version} }}]
 reason = "Add the rule."
 authority = "{authority}"
 [[change.contract.decisions.clauses.updates]]
 id = "{clause}"
-version = 1
-topic = "{change_id}-topic"
+version = {version + 1}
+topic = "{topic}"
 scope = ["Fixture"]
 statement = "The {change_id} rule."
 rationale = "Fixture."
@@ -393,3 +402,23 @@ def test_operations_name_the_supported_path_for_a_newer_batch_manifest(
     assert code == 2, result
     assert "future" in result["cause"]
     assert "batch workspace" in result["expected"]
+
+
+def test_a_member_that_synchronized_a_delivered_record_is_admitted_beside_its_amendment(
+    repository,
+):
+    root, _ = repository
+    batch_a = open_batch(root, ready_member(root, "first", "first.txt", clause="RULE-001"))
+    synchronized = opened(root, "change/synchronized")
+    deliver(root, batch_a)
+    commit_approval(synchronized, "synchronized")
+    commit_file(synchronized, "synchronized.txt")
+    ops.workspace_sync(synchronized)
+    lifecycle.validate(synchronized, "member")
+    amending = ready_member(root, "amending", "amending.txt", clause="RULE-001", amends="first")
+    batch = open_batch(root, amending)
+
+    result: Any = lifecycle.admit(batch, (synchronized,))
+
+    assert [item["branch"] for item in result["admitted"]] == ["change/synchronized"]
+    assert (batch / "synchronized.txt").exists()
