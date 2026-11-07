@@ -15,6 +15,7 @@ from signetum.validation import (
 from signetum.validation.execution import (
     ShardExecution,
     ValidationExecutionError,
+    ValidationInfrastructureError,
     ValidationInputs,
     execute_diagnostic_gate,
     execute_gate,
@@ -40,7 +41,9 @@ class Adapter:
     def identify_tool(self, tool: ToolDeclaration) -> str:
         return "uv 0.8.14"
 
-    def run_shard(self, shard: ValidationShard) -> ShardExecution:
+    def run_shard(
+        self, shard: ValidationShard, *, priority_nodes: tuple[str, ...] = ()
+    ) -> ShardExecution:
         self.executed.append(shard.name)
         return ShardExecution(shard.name != self.failed)
 
@@ -78,7 +81,7 @@ def _inputs() -> ValidationInputs:
 @pytest.mark.parametrize("gate", ["member", "final", "diagnostic"])
 def test_an_adapter_cannot_report_a_failed_original_as_success(gate):
     class RetriedAdapter(Adapter):
-        def run_shard(self, shard):
+        def run_shard(self, shard, *, priority_nodes=()):
             return ShardExecution(
                 True,
                 recovered=(
@@ -173,6 +176,54 @@ def test_a_failed_shard_does_not_hide_independent_problems() -> None:
         execute_diagnostic_gate(graph, "final", diagnostic, inputs=_inputs())
     assert str(diagnostic_failure.value) == str(failure.value)
     assert diagnostic.executed == adapter.executed
+
+
+def _ordered_graph() -> ValidationGraph:
+    return resolve_validation_graph(
+        (
+            GraphContribution(
+                "core",
+                shards=(
+                    ValidationShard("core:prepare", ("prepare",)),
+                    ValidationShard("core:static", ("static",)),
+                    ValidationShard(
+                        "core:tests", ("tests",), ("core:prepare",), after=("core:static",)
+                    ),
+                ),
+                gates=(GateDeclaration("final", ("core:tests",)),),
+            ),
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("failing", "infrastructure", "tests_run"),
+    [
+        ({"core:static", "core:tests"}, False, True),
+        ({"core:static"}, True, False),
+        ({"core:prepare"}, False, False),
+    ],
+)
+def test_an_order_only_prerequisite_failure_still_runs_its_dependent(
+    failing: set[str], infrastructure: bool, tests_run: bool
+) -> None:
+    class FailingAdapter(Adapter):
+        def run_shard(self, shard, *, priority_nodes=()):
+            self.executed.append(shard.name)
+            if shard.name in failing and infrastructure:
+                raise ValidationInfrastructureError(f"{shard.name} unavailable")
+            return ShardExecution(shard.name not in failing, f"{shard.name} failed")
+
+    adapter = FailingAdapter()
+    with pytest.raises(ValidationExecutionError) as failure:
+        execute_gate(_ordered_graph(), "final", _inputs(), adapter)
+
+    # The after prerequisite joins the gate closure and runs first either way.
+    assert adapter.executed[:2] == ["core:prepare", "core:static"]
+    assert ("core:tests" in adapter.executed) is tests_run
+    for name in failing:
+        assert f"{name} " in str(failure.value)
+    assert isinstance(failure.value, ValidationInfrastructureError) is infrastructure
 
 
 _WORLD_DOCUMENT = (

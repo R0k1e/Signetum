@@ -70,6 +70,26 @@ guard, installed and updated by the host plugin managers.
   check, runs no host command and refuses a folder inside a Git work tree;
   results report `install` as `plugin` or `plain`.
 
+A long validation round loses less work: owed nodes run first, unrun nodes stay
+owed, and one failing check no longer hides the others.
+
+- Breaking: `SIGNETUM_NODE_REPORT` is removed. A runner that reports node
+  outcomes must declare `{signetum.node_report_file}` as a whole argument of its
+  shard command; the packaged pytest runner takes it as
+  `--node-report {signetum.node_report_file}` before `--`. The report keeps
+  `{"failed": [...], "passed": [...]}` and may add `"unreached": [...]`, read even
+  after the shard's time bound. Unreached entries fail the gate, the result
+  reports their count, and the next gate owes them.
+- `{signetum.priority_nodes_file}` is replaced by a file,
+  `{"schema_version": 1, "nodes": [...]}`, listing the entries that shard owes
+  from an earlier failed gate, to run first. Unknown `{signetum.*}` arguments are
+  refused.
+- `after = [...]` on a shard orders it after other shards without skipping it
+  when they fail, so one round reports every failure. `requires` still gates.
+- When no implementation commit follows the latest approval, `ready` refuses
+  naming the approval commit, and its expected action and the `status` next
+  action give the remedy.
+
 ## 0.3.3
 
 Batch gates can declare which member shards they stand for, and a recorded root

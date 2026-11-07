@@ -10,6 +10,9 @@ Use concise specific change bullets when the project requires them, and explain
 removed or replaced authorities. Keep decision rationale in its owning change,
 not repeated in commit messages; omit transcripts and command logs. Commit human
 approval before implementation and preserve commits already bound to evidence.
+If ready refuses as plan stage, add an implementation commit after the named
+approval commit, as its expected action and `status` say; changes inside that
+commit do not count. Never amend, rebase or reorder history to fix it.
 
 Only `workspace-open` creates a registered worktree. Read history with read-only
 commands (`git log/show/diff/blame`, `git show <commit>:<path>`). When a full older
@@ -111,7 +114,13 @@ nodes for the workspace. A committed `change record` observation that names a no
 with `--evidence <node-id>` and states its root cause in `--reason` releases it,
 even when its shard is still selected. Otherwise the next gate refuses before checks
 unless the node is selected again, and then it must pass. Moving a failed test out
-of scope never offsets that failure, and neither does a retry-only pass. Process settlement checks only positively owned
+of scope never offsets that failure, and neither does a retry-only pass. A shard
+command that declares `{signetum.priority_nodes_file}` receives those owed nodes
+as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
+through a declared `{signetum.node_report_file}`, whose optional `unreached` list
+fails the gate and makes those entries owed. See the
+[repository binding guide](https://github.com/R0k1e/Signetum/blob/main/docs/guides/repository-bindings.md)
+for the runner contract and order-only `after` prerequisites. Process settlement checks only positively owned
 jobs and refuses successful commands that leave owned children behind.
 
 Preserve unrelated files and processes. Stop at a clean ready unless integration

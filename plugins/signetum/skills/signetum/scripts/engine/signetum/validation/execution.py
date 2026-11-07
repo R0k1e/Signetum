@@ -41,11 +41,13 @@ class ValidationExecutionError(ValueError):
         failed_nodes: tuple[NodeIdentity, ...] = (),
         recovered_nodes: tuple[NodeIdentity, ...] = (),
         passed_shards: tuple[str, ...] = (),
+        unreached_nodes: tuple[NodeIdentity, ...] = (),
     ) -> None:
         super().__init__(message)
         self.failed_nodes = failed_nodes
         self.recovered_nodes = recovered_nodes
         self.passed_shards = passed_shards
+        self.unreached_nodes = unreached_nodes
 
 
 class ValidationInfrastructureError(ValidationExecutionError):
@@ -62,6 +64,8 @@ class ShardExecution:
     details: dict[str, JsonValue] = field(default_factory=dict)
     failed_nodes: tuple[str, ...] = ()
     passed_nodes: tuple[str, ...] = ()
+    unreached_nodes: tuple[str, ...] = ()
+    """Selected nodes the runner reported it did not run; they fail the shard."""
 
 
 @dataclass(frozen=True)
@@ -88,8 +92,14 @@ class ValidationAdapter(Protocol):
     def identify_tool(self, tool: ToolDeclaration) -> str:
         """Execute the declared identity command and return its stable output."""
 
-    def run_shard(self, shard: ValidationShard) -> ShardExecution:
-        """Execute one shard command and return its verdict."""
+    def run_shard(
+        self, shard: ValidationShard, *, priority_nodes: tuple[str, ...] = ()
+    ) -> ShardExecution:
+        """Execute one shard command and return its verdict.
+
+        ``priority_nodes`` are owed node ids the runner may schedule first; they
+        never change what the shard selects or what makes it pass.
+        """
 
     def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
         """Execute a world shard's findings command and parse its document."""
@@ -162,10 +172,15 @@ def _resolve_outcome(
     """Execute one shard and decide whether it produced reusable evidence."""
 
     observed_at = datetime.now(UTC).isoformat() if shard.evidence == "world" else None
-    execution = adapter.run_shard(shard)
+    execution = adapter.run_shard(shard, priority_nodes=tuple(sorted(required_nodes)))
     if execution.details:
         details[shard.name] = execution.details
     nodes.observe(shard.name, execution)
+    if execution.unreached_nodes:
+        raise ValidationExecutionError(
+            (execution.diagnostic or f"{shard.name} reported unreached nodes")
+            + f"\n{shard.name}: {len(execution.unreached_nodes)} selected nodes unreached"
+        )
     if execution.succeeded:
         require_original_success(
             [{**defect, "shard": shard.name} for defect in execution.recovered]
@@ -207,8 +222,14 @@ class _NodeObservations:
 
     failed: list[NodeIdentity] = field(default_factory=list)
     recovered: list[NodeIdentity] = field(default_factory=list)
+    unreached: list[NodeIdentity] = field(default_factory=list)
 
     def observe(self, shard: str, execution: ShardExecution) -> None:
+        self.unreached.extend(
+            node
+            for node in ((shard, item) for item in execution.unreached_nodes)
+            if node not in self.unreached
+        )
         recovered = [(shard, str(item["node_id"])) for item in execution.recovered]
         for node in [*((shard, item) for item in execution.failed_nodes), *recovered]:
             if node not in self.failed:
@@ -255,11 +276,17 @@ def _execute_shards(
     failures: list[str] = []
     validation_failed = False
     unproven: set[str] = set()
+    # Infrastructure stops dependents of either kind; a failed verdict gates only requires.
+    unavailable: set[str] = set()
     for name in graph.execution_order(gate):
         shard = shard_by_name[name]
-        blocked = sorted(unproven.intersection(shard.requires))
+        blocked = sorted(
+            unproven.intersection(shard.requires) | unavailable.intersection(shard.after)
+        )
         if blocked:
             unproven.add(name)
+            if unavailable.intersection(blocked):
+                unavailable.add(name)
             failures.append(f"{name}: skipped after {', '.join(blocked)}")
             continue
         required_nodes = remembered.get(name, frozenset())
@@ -301,7 +328,10 @@ def _execute_shards(
                 continue
             unproven.add(name)
             failures.append(str(error))
-            validation_failed |= not isinstance(error, ValidationInfrastructureError)
+            if isinstance(error, ValidationInfrastructureError):
+                unavailable.add(name)
+            else:
+                validation_failed = True
             continue
         outcomes.append(outcome)
         passed.append(name)
@@ -311,11 +341,18 @@ def _execute_shards(
         failure_type = (
             ValidationExecutionError if validation_failed else ValidationInfrastructureError
         )
+        if nodes.unreached:
+            # Stated last so a truncated diagnostic still shows it.
+            failures.append(
+                f"{len(nodes.unreached)} selected nodes unreached; "
+                "remembered as owed for the next gate, which schedules them first"
+            )
         raise failure_type(
             "; ".join(failures),
             failed_nodes=tuple(nodes.failed),
             recovered_nodes=tuple(nodes.recovered),
             passed_shards=tuple(passed),
+            unreached_nodes=tuple(nodes.unreached),
         )
     return result
 
