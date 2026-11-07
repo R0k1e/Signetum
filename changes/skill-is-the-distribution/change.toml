@@ -1,0 +1,289 @@
+[change]
+schema_version = 1
+id = "skill-is-the-distribution"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner reopened plugin distribution on 2026-11-08 after review of its costs: the plugin exists mainly because a hook could only ship inside a plugin, yet Codex re-reviews the plugin hook after every update and deletes the old cache directory at once, a plain Skill next to the plugin lists two Skills, hosts other than Claude Code and Codex get no guard, a local-folder marketplace cannot fetch new versions, and every release needs a second pin change because the marketplace pin records the release commit itself. The guard fails open; it prevents mistakes and is not a security boundary. Codex-cli 0.167.0 in a temporary CODEX_HOME lists a Skill folder in $CODEX_HOME/skills and a PreToolUse entry in $CODEX_HOME/hooks.json, trusted by the hash of its definition rather than of the Skill content, and Claude Code reads hooks from settings.json, so the Skill can carry the guard script and one command can register it. The owner asked for one change, an optional install command with guidance when it is not run, and to fix the process rather than keep the second release change."
+
+[change.contract]
+version = 1
+approved_base = "33a48dfa74731132f1193df212eb8b94bbb4efd7" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "LAYOUT-001"
+outcome = "The standard Skill lives at skills/signetum and is the only distributed unit. The plugin manifest, plugin hooks file and plugins/ tree are removed and every repository path, tool, check, lockfile and document follows the move. A Skill folder copied or unpacked on its own into any directory is a complete install that runs setup, identity and status."
+acceptance = [
+    "The delivered tree has no plugins/ directory, .claude-plugin directory or marketplace file, and release build, bandit, coverage, lockfiles and impact rules name skills/signetum.",
+    "Skill folders copied to several directories share one prepared environment and run setup, identity and status in a Git project without changing their file sets.",
+]
+
+[[change.contract.requirements]]
+id = "INSTALL-001"
+outcome = "sh <skill>/scripts/signetum install places the Skill and registers the command guard as INSTALL-HOOK-001 states: host targets claude and codex, a --skills-dir target for any other tool, the running Skill, a local Skill folder or archive, or a verified published release as source, --preview and --remove, and removal of an earlier user-scope signetum@signetum plugin after the Skill and hook are in place."
+acceptance = [
+    "With a temporary HOME, CLAUDE_CONFIG_DIR and CODEX_HOME, install --host claude --host codex places the Skill in both user skills directories and adds exactly one guard entry to settings.json and hooks.json while preserving unrelated settings and hooks; a second run reports unchanged and changes no byte.",
+    "--preview reports the same plan and changes no file; --remove deletes the guard entries and placed Skills and preserves the other settings.",
+    "--skills-dir places only the Skill; a target folder that is not a Signetum Skill or lies inside a Git work tree, and host configuration that is not a JSON object, are refused and left unchanged.",
+    "--release latest and --release v<version> install a served release only after its archive and metadata checksums and the extracted Skill digest match; a mismatch fails without placing anything.",
+    "With fake claude and codex reporting signetum@signetum installed, install runs claude plugin uninstall for a user-scope Claude plugin and codex plugin remove, and reports a project-scope Claude plugin with its removal command without running it.",
+    "The hook command written into settings.json, run through sh with a captured Bash payload, refuses git stash in an adopted repository through the installed copy.",
+]
+
+[[change.contract.requirements]]
+id = "UPDATE-003"
+outcome = "update resolves the newest published release and replaces the installed Skill folder in place as INSTALL-ENTRY-001 version 4 states, with no plugin, marketplace, pin or host plugin manager path."
+acceptance = [
+    "With a served latest release, checksums, metadata and archive for a changed Skill, update replaces the folder, leaves no staging or backup sibling, keeps the host hook configuration byte-identical, invokes no host command and the replaced folder's identity runs.",
+    "An incompatible project manifest returns migration_required and leaves the folder unchanged.",
+    "A release with the installed digest or an older version returns current and changes nothing; a checksum or metadata mismatch fails and changes nothing; an offline --check reports unavailable.",
+    "A Skill folder inside a Git work tree is refused and unchanged.",
+]
+
+[[change.contract.requirements]]
+id = "GUARD-002"
+outcome = "The guard applies its rules only when the payload cwd lies in a Git work tree whose root holds signetum.toml, as GUARD-SCOPE-001 version 2 states; every rule, wrapper traversal and fail-open behavior is otherwise unchanged."
+acceptance = [
+    "A git stash payload exits 0 in a Git repository without signetum.toml and exits 2 in one with it, including from a subdirectory and a linked worktree.",
+    "The existing rule, wrapper, dirty-tree and fail-open payload tests pass in an adopted repository.",
+]
+
+[[change.contract.requirements]]
+id = "GUIDE-001"
+outcome = "status tells the agent once per output, concisely and without blocking, how to enable the guard when the running Skill sits in a Claude Code or Codex user skills directory and no hook runs its guard, as INSTALL-GUIDE-001 states."
+acceptance = [
+    "With the Skill in a temporary Claude user skills directory and no hook, status passes and reports guard with host claude, the install command and the exact hook entry; after install it reports no guard entry.",
+    "A Skill outside the host skills directories reports no guard entry.",
+]
+
+[[change.contract.requirements]]
+id = "ADOPT-002"
+outcome = "Adoption writes only the reviewed signetum.toml and exact-hash retirements; it no longer enables a plugin in .claude/settings.json or .codex/config.toml."
+acceptance = [
+    "Adopting a repository with and without host settings previews and applies only signetum.toml and leaves existing .claude/settings.json and .codex/config.toml byte-identical.",
+]
+
+[[change.contract.requirements]]
+id = "RELEASE-002"
+outcome = "A release is one change that sets the product version plus the tag, as RELEASE-TAG-001 states. Release tooling drops the plugin manifest check, the marketplace pin writer and the release pin command, and the release guide drops the pin step."
+acceptance = [
+    "Release preflight requires the package and Skill versions to agree without a plugin manifest; tools.cli has no release pin command and tools.release no marketplace writer.",
+    "docs/maintainers/releasing.md describes the version change and the tag as the whole release and verifies installation through install --release in an isolated home.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-003"
+outcome = "SKILL.md, the adoption reference, README, QUICKSTART, CONTRIBUTING, the guide, architecture pages, product site, repository policy references, command help and the unreleased changelog describe the Skill folder install, the optional install command, the guard scope and guidance, update from published releases, and the migration from the plugin: install the Skill and hook, remove the plugin and its marketplace, and remove project plugin enablement through the project's own process."
+acceptance = [
+    "No current document instructs a plugin or marketplace install, and each named page states the guarantee without the guard and the migration commands where it covers installation.",
+]
+
+[[change.contract.decisions]]
+id = "skill-is-the-distribution/skill-distribution"
+change_id = "skill-is-the-distribution"
+authority = "changes/skill-is-the-distribution/change.toml#decisions/skill-is-the-distribution/skill-distribution"
+reason = "The owner reopened plugin distribution: the Skill folder becomes the unit of distribution, an optional install command registers the guard in each host's own hook configuration, and a release is its tag alone."
+parents = [
+    "signetum-ships-as-a-plugin/plugin-distribution",
+    "other-agents-use-the-plain-skill/plain-skill",
+]
+
+[[change.contract.decisions.topics]]
+expected_version = 3
+
+[change.contract.decisions.topics.revision]
+id = "skill-installation"
+version = 4
+summary = "One standard Skill folder is the distribution; an optional install command places it and registers the guard hook in a host's own configuration. The engine environment lives outside it."
+boundaries = [
+    "One manifest format and one published evidence schema digest.",
+    "Signetum writes only a Skill folder outside any Git work tree and its own guard entries in a host's user hook configuration; it never edits a project.",
+    "The Skill directory receives no generated runtime files.",
+    "No plugin manifest, marketplace or release pin.",
+]
+
+[[change.contract.decisions.topics]]
+expected_version = 1
+
+[change.contract.decisions.topics.revision]
+id = "command-guard"
+version = 2
+summary = "An optional PreToolUse hook refuses commands that lose work or bypass protocol operations in repositories that adopted Signetum."
+boundaries = [
+    "The guard applies in Git work trees whose root holds signetum.toml and allows every other command.",
+    "A guard that cannot run allows the command.",
+    "A missing guard yields guidance, never a refusal.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "skill-is-the-distribution/amend-distribution"
+change_id = "skill-is-the-distribution"
+action = "amend"
+expected = [
+    { id = "INSTALL-ENTRY-001", version = 3 },
+    { id = "INSTALL-RUNTIME-001", version = 1 },
+    { id = "SKILL-ENTRY-001", version = 3 },
+    { id = "PRODUCT-DISTRIBUTION-001", version = 3 },
+    { id = "GUARD-SCOPE-001", version = 1 },
+]
+reason = "The plugin carried the guard at the cost of host-specific updates, duplicate Skills and a second release change; the Skill folder with a host hook entry carries the same guard without them."
+authority = "changes/skill-is-the-distribution/change.toml#decisions/skill-is-the-distribution/skill-distribution"
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-ENTRY-001"
+version = 4
+topic = "skill-installation"
+scope = [
+    "Repository manifest format",
+    "Skill update",
+]
+statement = "Manifest format stays 5. Omitted evidence fields mean the published evidence protocol and schema digest, and an explicit digest must equal that schema. update resolves the newest published GitHub release of R0k1e/Signetum, downloads its Skill archive, release-source.json and SHA256SUMS, verifies both files against the checksums and the extracted Skill's version and content digest against the release metadata, prepares that candidate's environment and checks the project manifest, then replaces the installed Skill folder in place from a staged sibling copy, rolls back a failed swap and verifies the result. A Skill folder inside a Git work tree is refused; a checkout follows Git and setup. An equal Skill digest or an older release changes nothing, an incompatible manifest returns migration_required before replacement, and --check stays read-only. update runs no host command and never edits a project or hook configuration; a hook names the stable Skill path and survives an update. Skill content identity and engine implementation identity stay separate and share one labeled digest function."
+rationale = "The published release already carries the Skill archive, its source metadata and checksums, so reading it directly removes the marketplace pin and its second release change. Replacing the folder in place keeps every hook path stable, so no host re-reviews or reinstalls anything after an update."
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-RUNTIME-001"
+version = 2
+topic = "skill-installation"
+scope = [
+    "Engine environment",
+]
+statement = "The locked engine environment lives in ${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>, where the fingerprint covers the implementation digest, uv.lock and pyproject.toml and not the install path. A shared runtime/host-python link only starts the launcher, which verifies the environment for its own fingerprint. setup and ordinary commands write nothing into the Skill directory except interpreter bytecode caches."
+rationale = "A path-independent fingerprint lets every installed copy and an update candidate share one prepared environment, and a Skill directory without generated files keeps the content digest that update and install verify."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-ENTRY-001"
+version = 4
+topic = "skill-first-development"
+scope = [
+    "Distribution entry",
+]
+statement = "Signetum is distributed as one standard Agent Skill folder, skills/signetum, published with each release as signetum-skill-<version>.zip. Copying or unpacking that folder into any agent tool's skills directory is a complete install, and every protocol operation works without the command guard: receipts and batch-deliver as the only operation that advances the delivery branch carry the protocol guarantees, and the guard adds early refusal of work-losing commands. A host loads one Signetum Skill. New and existing projects share one explicit local adoption path. Internal scaffold materials are not a second public product."
+rationale = "The plugin existed mainly because a hook could only ship inside one. Hosts read hook entries from their own configuration, and the Skill already carries the guard script, so one folder serves every tool; this removes the Codex hook re-review and cache deletion on every update, the duplicate Skill next to a plain copy and the marketplace that a local folder could not refresh."
+
+[[change.contract.decisions.clauses.updates]]
+id = "PRODUCT-DISTRIBUTION-001"
+version = 4
+topic = "product-foundations"
+scope = [
+    "Distribution and use",
+]
+statement = "Keep installation, distribution and use simple: one standard Skill folder for every agent tool, an optional deterministic install command that places it and registers the guard where a host reads hooks, and repository-owned instructions and commands. Position for reliable development with large agent teams using concrete cases and accurately bounded evidence."
+rationale = "One folder to copy works in every tool; the optional command only automates placement and hook registration, so skipping it loses early refusal and nothing else."
+
+[[change.contract.decisions.clauses.updates]]
+id = "GUARD-SCOPE-001"
+version = 2
+topic = "command-guard"
+scope = [
+    "Command guard hook",
+]
+statement = "The guard is an optional PreToolUse Bash hook entry in a host's configuration that runs an installed Skill's scripts/command-guard. It applies the whole rule set when the payload cwd lies in a Git work tree whose root holds signetum.toml and allows every command elsewhere. A missing interpreter, malformed payload, exception or timeout exits 0 with a diagnostic, and the sh entry maps every status other than 2 to 0. It prevents mistakes and is not a security boundary."
+rationale = "A user-level hook reaches every repository, so the adopted-repository check replaces the per-project plugin enablement that used to bound it without committing machine-specific hook paths into projects. Failing open keeps a broken guard from stopping every shell command; the owner accepted that trade."
+
+[[change.contract.decisions.clauses]]
+id = "skill-is-the-distribution/withdraw-plugin-enablement"
+change_id = "skill-is-the-distribution"
+action = "withdraw"
+expected = [
+    { id = "CONSUMER-ENABLE-001", version = 1 },
+]
+reason = "There is no plugin to enable; install registers the guard per host and signetum.toml bounds where it applies."
+authority = "changes/skill-is-the-distribution/change.toml#decisions/skill-is-the-distribution/skill-distribution"
+
+[[change.contract.decisions.clauses.updates]]
+id = "CONSUMER-ENABLE-001"
+version = 2
+topic = "consumer-adoption"
+scope = [
+    "Adoption preview and apply",
+]
+statement = "The adoption preview that writes signetum.toml also enables the plugin at project scope: enabledPlugins signetum@signetum and the signetum GitHub marketplace in .claude/settings.json, and [plugins.\"signetum@signetum\"] enabled = true in .codex/config.toml. Other settings are preserved, enabled files stay unchanged and an explicit disable is refused for review. Codex reads that layer only for trusted projects and only for a plugin installed in the user's Codex home."
+rationale = "Project settings are committed with the repository, so every collaborator's host enables the guard there, and the guard's scope follows the repositories that adopted the protocol. Codex merges trusted project config layers into the plugin set, verified with codex-cli 0.166.0 in a temporary home."
+status = "withdrawn"
+
+[[change.contract.decisions.clauses]]
+id = "skill-is-the-distribution/add-install-and-release"
+change_id = "skill-is-the-distribution"
+action = "add"
+expected = [
+    { id = "INSTALL-HOOK-001", version = 0 },
+    { id = "INSTALL-GUIDE-001", version = 0 },
+    { id = "RELEASE-TAG-001", version = 0 },
+]
+reason = "Record the optional install command, the guidance when the guard is absent and the tag-only release before implementation."
+authority = "changes/skill-is-the-distribution/change.toml#decisions/skill-is-the-distribution/skill-distribution"
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-HOOK-001"
+version = 1
+topic = "skill-installation"
+scope = [
+    "Install command",
+    "Hook registration",
+]
+statement = "sh <skill>/scripts/signetum install places the Skill at each target: --host claude at ${CLAUDE_CONFIG_DIR:-~/.claude}/skills/signetum, --host codex at ${CODEX_HOME:-~/.codex}/skills/signetum, and --skills-dir DIR at DIR/signetum for any other tool. The source is the running Skill by default, a local Skill folder or release archive with --source, or a published release with --release <tag> or latest, verified like update. For each host target it writes one PreToolUse Bash entry running that copy's scripts/command-guard into the host's user hook configuration, settings.json for Claude Code and hooks.json for Codex, preserving every other setting and replacing only Signetum guard entries. It is idempotent; --preview reports the exact plan and writes nothing; --remove deletes the Signetum guard entries and the placed Skill. It refuses a target folder that is not a Signetum Skill or lies inside a Git work tree and never edits a project. When a host target also has the signetum@signetum plugin installed at user scope, install removes it through that host's plugin manager after the Skill and hook are in place, and reports a project-scope plugin with its removal command instead of running it."
+rationale = "A deterministic, previewable and reversible command replaces the plugin manager for the one thing the plugin added, the hook entry; placing the Skill and registering the hook together keeps the path the hook names correct. Removing an earlier user-scope plugin in the same step avoids two Skills, while project settings stay under the project's own review. Project-scope hook entries were not chosen because they would commit one machine's Skill path into the project."
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-GUIDE-001"
+version = 1
+topic = "command-guard"
+scope = [
+    "Status guidance",
+]
+statement = "When the running Skill sits in a Claude Code or Codex user skills directory and no hook entry in that host's user configuration or in the project's .claude/settings.json, .claude/settings.local.json or .codex/hooks.json runs its scripts/command-guard, status reports one guard entry naming the host, the install command and the exact hook entry to add by hand. The guidance never blocks or changes an operation, and a Skill anywhere else reports nothing about the guard."
+rationale = "Without a plugin nothing enables the guard implicitly, so the one command an agent runs first states how to enable it; tying detection to the Skill's own location keeps it deterministic, and tools without a known hook surface are not nagged."
+
+[[change.contract.decisions.clauses.updates]]
+id = "RELEASE-TAG-001"
+version = 1
+topic = "distribution-authorities"
+scope = [
+    "Release publication",
+]
+statement = "A release is one delivered change that sets the product version and its notes, followed by an annotated v<version> tag on the delivered main commit; the release workflow publishes the Skill archive, internal wheel and sdist, release-source.json, release notes and SHA256SUMS. No file on main records a release, and update and install --release read published releases."
+rationale = "A pin recording the release commit cannot be part of that commit, so it forced a second change after every release; the published release already binds the exact source and checksums."
+
+[change.contract.autonomy]
+allowed = [
+    "Move plugins/signetum/skills/signetum to skills/signetum, delete the plugin manifest and hooks file, follow the move through tools, tests, checks, workflows, lockfiles and documents, and relock without upgrading dependencies.",
+    "Replace scripts/update.py with one stdlib distribution script for install and update, route both through the sh launcher, add a stdlib host configuration module to the engine, add the guard's adopted-repository check and the status guard entry, and remove adoption's plugin enablement and the release pin machinery.",
+    "Delete the pin, plugin-update and enablement tests and replace them with functional install, update, guard-scope and status tests on temporary directories with a fake HOME, CLAUDE_CONFIG_DIR and CODEX_HOME and fake host CLIs.",
+    "Probe hook and Skill discovery with codex app-server in a temporary HOME and CODEX_HOME and with claude using a temporary settings file.",
+    "Run ready, open a batch, admit this member, run final and deliver the batch to main.",
+]
+requires_confirmation = [
+    "Tagging or publishing a release, or abandoning the change/pin-0-4-0 workspace.",
+    "Editing ~/.claude, ~/.codex, ~/.local/share/signetum*, any installed Skill or plugin, or a consumer project such as PyReduce.",
+]
+
+[[change.execution.steps]]
+id = "STEP-LAYOUT"
+requirements = ["LAYOUT-001"]
+action = "Move the Skill to skills/signetum, remove the plugin files and follow every path."
+
+[[change.execution.steps]]
+id = "STEP-DISTRIBUTION"
+requirements = ["INSTALL-001", "UPDATE-003"]
+action = "Write the distribution script with install and update over shared release verification and staged replacement, the engine host configuration module and the launcher routing, with fake-home functional tests."
+
+[[change.execution.steps]]
+id = "STEP-GUARD"
+requirements = ["GUARD-002", "GUIDE-001"]
+action = "Add the adopted-repository check to the guard and the guard entry to status, with payload and installed-copy tests."
+
+[[change.execution.steps]]
+id = "STEP-ADOPT-RELEASE"
+requirements = ["ADOPT-002", "RELEASE-002"]
+action = "Remove adoption's plugin enablement and the release pin machinery and their tests, and rewrite the release guide."
+
+[[change.execution.steps]]
+id = "STEP-DOCS"
+requirements = ["DOC-003"]
+action = "Reconcile the Skill, references, entry documents, architecture, site, policy references, command help and changelog, including the migration commands."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-08
+source = "Repository owner approved one Skill distribution with an optional installation command and guard setup, replacing the incompatible plugin workflow (2026-11-08), relayed by the coordinating session. The coordinator authorized this redesign as one change through ready, batch and delivery to main, without tagging or publishing a release. This implementing session did not receive approval independently."
+contract_digest = "sha256:d06f86a49afda401c74cfad224be78e94408456e36c5771fb50e62469068fea8"

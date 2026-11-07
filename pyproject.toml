@@ -59,19 +59,19 @@ select = [
     "S603",
     "S607",
 ]
-"plugins/signetum/skills/signetum/scripts/engine/signetum/lifecycle.py" = [
+"skills/signetum/scripts/engine/signetum/lifecycle.py" = [
     "S603",
 ]
-"plugins/signetum/skills/signetum/scripts/engine/signetum/worktrunk.py" = [
+"skills/signetum/scripts/engine/signetum/worktrunk.py" = [
     "S603",
 ]
-"plugins/signetum/skills/signetum/scripts/engine/signetum/release/__init__.py" = [
+"skills/signetum/scripts/engine/signetum/release/__init__.py" = [
     "S603",
 ]
-"plugins/signetum/skills/signetum/scripts/engine/signetum/traceability/boundary.py" = [
+"skills/signetum/scripts/engine/signetum/traceability/boundary.py" = [
     "S603",
 ]
-"plugins/signetum/skills/signetum/scripts/engine/signetum/validation/repository.py" = [
+"skills/signetum/scripts/engine/signetum/validation/repository.py" = [
     "S603",
 ]
 
@@ -100,9 +100,9 @@ patch = [
 ]
 omit = [
     "*/signetum/lifecycle.py",
-    # The scripts tree is measured so installation locks count. The update entry
-    # stays outside that set; it is not part of the engine coverage denominator.
-    "*/scripts/update.py",
+    # The scripts tree is measured so installation locks count. The install and
+    # update entry stays outside that set; it is not part of the engine coverage denominator.
+    "*/scripts/distribution.py",
 ]
 
 [tool.coverage.report]
@@ -115,7 +115,7 @@ python-version = "3.12"
 package = false
 
 [tool.uv.sources.signetum]
-path = "plugins/signetum/skills/signetum/scripts/engine"
+path = "skills/signetum/scripts/engine"
 editable = true
 
 [project]
@@ -125,14 +125,13 @@ requires-python = ">=3.12"
 
 [tool.coverage.paths]
 engine = [
-    "plugins/signetum/skills/signetum/scripts/engine/signetum",
+    "skills/signetum/scripts/engine/signetum",
     "*/signetum/scripts/engine/signetum",
     "*/site-packages/signetum",
 ]
 
 skill = [
-    "plugins/signetum/skills/signetum",
-    "*/installed Skill*/signetum/skills/signetum",
-    "signetum/skills/signetum",
+    "skills/signetum",
+    "*/installed Skill*/signetum",
     "signetum",
 ]

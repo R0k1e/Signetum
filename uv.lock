@@ -1128,7 +1128,7 @@ wheels = [
 [[package]]
 name = "signetum"
 version = "0.4.0"
-source = { editable = "plugins/signetum/skills/signetum/scripts/engine" }
+source = { editable = "skills/signetum/scripts/engine" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -1176,7 +1176,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.0" },
     { name = "pytest-xdist", specifier = ">=3.8,<4" },
     { name = "ruff", specifier = ">=0.14" },
-    { name = "signetum", editable = "plugins/signetum/skills/signetum/scripts/engine" },
+    { name = "signetum", editable = "skills/signetum/scripts/engine" },
     { name = "ty", specifier = ">=0.0.1a25" },
     { name = "typos", specifier = ">=1.42" },
 ]

@@ -18,9 +18,7 @@ ROOT = Path(__file__).parents[3]
 def documents():
     return {
         name: (
-            ROOT
-            / "plugins/signetum/skills/signetum/scripts/engine/signetum/resources/profiles"
-            / name
+            ROOT / "skills/signetum/scripts/engine/signetum/resources/profiles" / name
         ).read_text()
         for name in PROFILE_RESOURCE_NAMES
     }

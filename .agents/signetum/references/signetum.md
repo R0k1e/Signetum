@@ -39,7 +39,7 @@ and outcomes. Perdura is both an experience source and an intended consumer.
 Validate downstream use through the normal adoption path, retaining its product
 policy and selector. Do not claim downstream adoption from engine tests alone.
 For changes introducing concurrent, lazy or background paths, load
-`plugins/signetum/skills/signetum/references/stability.md` and use its conditional evidence rules.
+`skills/signetum/references/stability.md` and use its conditional evidence rules.
 
 Preserve consequential reasoning with material alternatives, evidence and reopening
 conditions. Refer to original rationale rather than copy it across documents.

@@ -12,20 +12,20 @@ work and explicitly deliver the exact checked source. People confirm key choices
 Agents execute and maintain concise records.
 
 Keep cwd in the project. Invoke `sh <skill-base-dir>/scripts/signetum ...`.
-In Claude Code and Codex the `signetum` plugin installs this Skill and its
-command guard; do not also install the plain Skill there. Other agent tools use
-this folder as a plain Skill, without the guard. The Skill owns a locked
-environment under `~/.local/share/signetum/runtime`, and no Signetum
-dependency belongs in the application. Prerequisites are Git 2.7 or newer for Signetum's
+This folder is the complete install in any agent tool; a host loads one copy.
+The Skill owns a locked environment under `~/.local/share/signetum/runtime`, and
+no Signetum dependency belongs in the application. Prerequisites are Git 2.7 or newer for Signetum's
 own commands, Mise, Worktrunk 0.74, uv and host Python 3.12+. Cleanup through
 Worktrunk needs Git 2.17. Worktrunk 0.75 or newer needs Git 2.43. Resolve
 missing tools before promising a usable workspace.
 Read [adoption](references/adoption.md) for setup and the one update procedure.
-`update` checks the latest pinned release against the project, then upgrades
-each host through its plugin manager, or replaces a plain Skill folder in place;
-`update --check` is read-only. Ordinary commands other than `update` stay offline.
-The guard refuses stash, destructive reset, restore, clean and checkout, force
-push, unbounded `rm -rf`, direct merge or rebase, ad-hoc worktree creation or
+`update` checks the newest published release against the project and replaces
+this folder in place; `update --check` is read-only. Ordinary commands other than
+`update` and `install --release` stay offline. The optional guard is a host
+PreToolUse hook that `install --host claude|codex` registers; when `status`
+reports a `guard` entry, tell the user once how to enable it and continue.
+In repositories with `signetum.toml` the guard refuses stash, destructive reset,
+restore, clean and checkout, force push, unbounded `rm -rf`, direct merge or rebase, ad-hoc worktree creation or
 removal, `branch -D` and pre-commit on a dirty tree. Use the operation its
 refusal names; do not work around it. Without the guard, follow the same rules:
 the protocol guarantees still come from receipts and from `batch-deliver` being
