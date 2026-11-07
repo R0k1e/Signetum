@@ -266,4 +266,4 @@ def settle_failures(
         path.unlink(missing_ok=True)
         return
     document = json.loads(path.read_text(encoding="utf-8"))
-    _write(path, {**document, "failed": remaining, "recovered": []})
+    _write(path, {**document, "failed": remaining, "recovered": [], "unreached": []})
