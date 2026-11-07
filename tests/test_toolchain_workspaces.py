@@ -79,17 +79,15 @@ def test_shard_keeps_its_exit_code_under_the_declared_resolver(monkeypatch, tmp_
     monkeypatch.setenv("PYTHONPATH", "/unsafe")
 
     execution = RepositoryValidationAdapter(tmp_path).run_shard(
-        ValidationShard("test:check", ("uv", "run", "false"))
+        ValidationShard("test:check", ("uv", "run", "false", "{signetum.validation_workers}"))
     )
 
     assert execution.succeeded is False
-    assert seen["command"] == ("/fixture/mise", "exec", "--", "uv", "run", "false")
+    assert seen["command"] == ("/fixture/mise", "exec", "--", "uv", "run", "false", "0")
     environment = seen["environment"]
     assert isinstance(environment, dict)
     assert "GIT_DIR" not in environment
     assert "PYTHONPATH" not in environment
-    assert "SIGNETUM_RECOVERY_REPORT" in environment
-    assert environment["SIGNETUM_VALIDATION_WORKERS"] == "0"
 
 
 def test_tool_identity_uses_the_declared_resolver(monkeypatch, tmp_path: Path) -> None:
@@ -132,13 +130,14 @@ def test_ratchet_diagnostic_uses_the_declared_resolver(monkeypatch, tmp_path: Pa
     monkeypatch.setenv("GIT_DIR", "/unsafe")
     monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", "/explicitly-reviewed")
 
-    output = ratchet._measure(tmp_path, ("uv", "run", "diag"), time.monotonic() + 5, 3)
+    output = ratchet._measure(
+        tmp_path, ("uv", "run", "diag", "{signetum.validation_workers}"), time.monotonic() + 5, 3
+    )
 
     assert output == '{"schema_version":1,"diagnostics":[]}'
-    assert seen["command"] == ("/fixture/mise", "exec", "--", "uv", "run", "diag")
+    assert seen["command"] == ("/fixture/mise", "exec", "--", "uv", "run", "diag", "3")
     environment = seen["environment"]
     assert isinstance(environment, dict)
-    assert environment["SIGNETUM_VALIDATION_WORKERS"] == "3"
     assert environment["MISE_TRUSTED_CONFIG_PATHS"] == f"/explicitly-reviewed:{tmp_path}"
     assert "GIT_DIR" not in environment
 

@@ -166,20 +166,19 @@ def test_native_template_accepts_complete_final_evidence(admission_member):
 
 def test_template_passes_actual_bounded_worker_count_to_its_command(tmp_path, monkeypatch):
     # This case supplies standalone host capacity; nested-lane behavior has its own public case.
-    monkeypatch.delenv("SIGNETUM_VALIDATION_WORKERS", raising=False)
     monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
     runtime = lifecycle
     resources = importlib.import_module("signetum.validation.resources")
     monkeypatch.setattr(
         resources, "observe_resources", lambda: resources.ResourceObservation(2, 3000)
     )
-    script = (
-        "import os; from pathlib import Path; "
-        "Path('workers').write_text(os.environ['SIGNETUM_VALIDATION_WORKERS'])"
-    )
+    script = "import sys; from pathlib import Path; Path('workers').write_text(sys.argv[1])"
     result = runtime.RepositoryValidationAdapter(tmp_path).run_shard(
         importlib.import_module("signetum.validation").ValidationShard(
-            "test:bounded", (sys.executable, "-c", script), workers=8, worker_memory_mb=1000
+            "test:bounded",
+            (sys.executable, "-c", script, "{signetum.validation_workers}"),
+            workers=8,
+            worker_memory_mb=1000,
         )
     )
     assert result.succeeded, result.diagnostic

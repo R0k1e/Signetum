@@ -66,7 +66,7 @@ from signetum.validation.execution import (
     build_evidence_identity,
     execute_gate,
 )
-from signetum.validation.ratchet import member_environment
+from signetum.validation.ratchet import member_values
 from signetum.validation.repository import (
     RepositoryValidationAdapter,
     run_diagnostic_gate,
@@ -286,7 +286,7 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
         member_identity=member_identity,
         final_graph_digest=final_graph.digest,
         required_digests=required,
-        member_environment=member_environment(member, base, tip),
+        member_values=member_values(member, base, tip),
         inputs=inputs,
         expected_selection=selection if manifest.impact.provider is not None else None,
         final_required_digests=final_required,

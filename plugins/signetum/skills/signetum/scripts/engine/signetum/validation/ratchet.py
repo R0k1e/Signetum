@@ -18,7 +18,7 @@ from signetum.synchronization import (
     unrecorded_merges,
     verified_sync_sources,
 )
-from signetum.validation import ValidationShard
+from signetum.validation import VALIDATION_WORKERS, ValidationShard, substitute
 from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.execution import ShardExecution, ValidationInfrastructureError
 from signetum.validation.process import run_command
@@ -47,13 +47,10 @@ def _measure(repository: Path, command: tuple[str, ...], deadline: float, worker
     try:
         result = run_command(
             repository,
-            declared_argv(tuple(command)),
+            declared_argv(substitute(command, {VALIDATION_WORKERS: str(workers)})),
             timeout_seconds=remaining,
             environment=declared_environment(
-                extra={
-                    "SIGNETUM_VALIDATION_WORKERS": str(workers),
-                    "MISE_TRUSTED_CONFIG_PATHS": _trusted_paths(repository),
-                }
+                extra={"MISE_TRUSTED_CONFIG_PATHS": _trusted_paths(repository)}
             ),
         )
     except (OSError, subprocess.TimeoutExpired) as error:
@@ -89,13 +86,13 @@ def ratchet_baseline(repository: Path, recorded_base: str, tip: str) -> str:
     return sources[0] if sources else recorded_base
 
 
-def member_environment(repository: Path, recorded_base: str, tip: str) -> dict[str, str]:
-    """The bases a member shard receives and its receipt details record."""
+def member_values(repository: Path, recorded_base: str, tip: str) -> dict[str, str]:
+    """The range values member shards may declare and their receipt details record."""
 
     return {
-        "SIGNETUM_BASE": recorded_base,
-        "SIGNETUM_RATCHET_BASELINE": ratchet_baseline(repository, recorded_base, tip),
-        "SIGNETUM_CONTRIBUTION_PATHS": json.dumps(
+        "base": recorded_base,
+        "ratchet_baseline": ratchet_baseline(repository, recorded_base, tip),
+        "contribution_paths": json.dumps(
             member_contribution_paths(repository, recorded_base, tip), separators=(",", ":")
         ),
     }
@@ -116,14 +113,14 @@ def _unrecorded_merge_guidance(repository: Path, recorded_base: str, tip: str) -
 def run_ratchet(
     repository: Path,
     shard: ValidationShard,
-    environment: dict[str, str],
+    values: dict[str, str],
     tools: tuple[tuple[str, str], ...],
     *,
     workers: int = 0,
 ) -> ShardExecution:
     deadline = time.monotonic() + shard.timeout_seconds
-    recorded_base = environment["SIGNETUM_BASE"]
-    baseline = environment["SIGNETUM_RATCHET_BASELINE"]
+    recorded_base = values["base"]
+    baseline = values["ratchet_baseline"]
     driver = hashlib.sha256(
         Path(__file__).read_bytes()
         + Path(__file__).with_name("diagnostic_protocol.py").read_bytes()

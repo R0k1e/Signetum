@@ -231,6 +231,10 @@
         "member_required": {
           "$ref": "#/$defs/uniqueStrings"
         },
+        "schedule_file": {
+          "type": "string",
+          "minLength": 1
+        },
         "tools": {
           "type": "array",
           "items": {
