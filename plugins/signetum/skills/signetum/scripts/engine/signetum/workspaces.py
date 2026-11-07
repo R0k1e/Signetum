@@ -34,6 +34,8 @@ class WorkspaceRecord:
     base: str
     kind: Literal["member", "batch"]
     members: tuple[str, ...] = ()
+    # A stacked member names the member branch whose tip is its base.
+    parent: str | None = None
 
     def __post_init__(self) -> None:
         if type(self.schema_version) is not int or self.schema_version != 1:
@@ -53,6 +55,22 @@ class WorkspaceRecord:
             raise WorkspaceError("declared members must be non-empty strings")
         if len(self.members) != len(set(self.members)):
             raise WorkspaceError("declared members must be unique")
+        if self.parent is not None and (
+            not isinstance(self.parent, str)
+            or not self.parent
+            or self.kind != "member"
+            or self.parent == self.branch
+        ):
+            raise WorkspaceError("only a member names another member as its parent")
+
+
+def record_document(record: WorkspaceRecord) -> dict[str, object]:
+    """Serialize a record, omitting the parent of an ordinary workspace."""
+
+    document = asdict(record)
+    if record.parent is None:
+        del document["parent"]
+    return document
 
 
 def parse_record(document: object) -> WorkspaceRecord:
@@ -61,7 +79,7 @@ def parse_record(document: object) -> WorkspaceRecord:
     if (
         not isinstance(document, dict)
         or not required.issubset(document)
-        or set(document) - (required | {"members"})
+        or set(document) - (required | {"members", "parent"})
     ):
         raise WorkspaceError("workspace record fields are invalid")
     members = document.get("members", ())
@@ -73,6 +91,7 @@ def parse_record(document: object) -> WorkspaceRecord:
         base=cast(str, document["base"]),
         kind=cast(Literal["member", "batch"], document["kind"]),
         members=cast(tuple[str, ...], members),
+        parent=cast(str | None, document.get("parent")),
     )
 
 
@@ -165,7 +184,7 @@ def write_record(root: Path, record: WorkspaceRecord) -> Path:
         descriptor, temporary = tempfile.mkstemp(prefix="record-", dir=path.parent)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-                stream.write(json.dumps(asdict(record), indent=2) + "\n")
+                stream.write(json.dumps(record_document(record), indent=2) + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, path)
@@ -330,7 +349,7 @@ def retire_record(root: Path, branch: str, tip: str, ending: dict[str, object]) 
     with (path.parent / "records.lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         try:
-            record: dict[str, object] | None = asdict(read_record(root, branch))
+            record: dict[str, object] | None = record_document(read_record(root, branch))
         except WorkspaceError:
             record = None
         moment = datetime.now(UTC)

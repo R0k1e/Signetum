@@ -245,3 +245,40 @@ def test_coverage_declarations_are_checked_at_load(
 ) -> None:
     with pytest.raises(ManifestError, match=message):
         load_manifest(_coverage_manifest(tmp_path, shards))
+
+
+@pytest.mark.parametrize(
+    ("declaration", "accepted"),
+    [
+        (
+            'command = ["run", "--priority", "{signetum.priority_nodes_file}", '
+            '"--node-report", "{signetum.node_report_file}"]\n',
+            True,
+        ),
+        ('command = ["run", "{signetum.unknown_file}"]\n', False),
+        ('command = ["run", "--priority={signetum.priority_nodes_file}"]\n', False),
+        (
+            'command = ["true"]\nevidence = "world"\n'
+            'findings_command = ["audit", "{signetum.node_report_file}"]\n',
+            False,
+        ),
+    ],
+)
+def test_engine_placeholders_are_checked_at_load(
+    tmp_path: Path, declaration: str, accepted: bool
+) -> None:
+    shards = _shard("repo:member") + '[[validation.shards]]\nname = "repo:other"\n' + declaration
+    path = _coverage_manifest(tmp_path, shards)
+    if accepted:
+        load_manifest(path)
+    else:
+        with pytest.raises(ManifestError, match="placeholder"):
+            load_manifest(path)
+
+
+def test_an_order_only_prerequisite_must_be_declared(tmp_path: Path) -> None:
+    shards = _shard("repo:member") + (
+        '[[validation.shards]]\nname = "repo:tests"\ncommand = ["true"]\nafter = ["repo:absent"]\n'
+    )
+    with pytest.raises(ManifestError, match="undeclared"):
+        load_manifest(_coverage_manifest(tmp_path, shards))

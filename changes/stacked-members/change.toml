@@ -1,0 +1,232 @@
+[change]
+schema_version = 1
+id = "stacked-members"
+
+[change.source]
+kind = "human_direction"
+summary = "In Perdura one change touched 1296 files across 500 commits. Every member and batch gate selected almost the whole integration suite because the member's contribution was the whole change, and every failure meant another full rerun. Members can only base on the delivery branch or a delivered commit, so one large change cannot be split into smaller changes that build on each other and are delivered together. The owner approved approach B: stacked members, a chain of member workspaces where each one bases on the tip of its parent member and all of them are delivered through one batch."
+
+[change.contract]
+version = 1
+approved_base = "b847d736d6137466728ebfe22ef5efbab54d3306" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "STACK-OPEN-001"
+outcome = "workspace-open <branch> <base> accepts as base the branch of another registered member workspace. The new member records that branch as its parent and the parent's exact current tip as its immutable base. Retrying the same command resumes the same workspace even after the parent advanced. A base given as a commit or naming the delivery branch or a batch keeps today's behaviour and records no parent."
+acceptance = [
+    "Opening a member on a parent member's branch records the parent branch and the parent tip as base, and the new worktree starts at that tip.",
+    "Opening a member on the delivery branch records no parent.",
+]
+
+[[change.contract.requirements]]
+id = "STACK-READY-001"
+outcome = "A stacked member's ready selects and qualifies only its own contribution against its recorded base and later parent synchronizations, never against the delivery branch, while the checks still run on its complete committed tree. Its approval binds that recorded base. ready and admission refuse a stacked member whose open parent branch has moved past the parent tip the member last incorporated, and name maintenance workspace-sync."
+acceptance = [
+    "A stacked member's ready receipt and SIGNETUM_CONTRIBUTION_PATHS list only the member's own paths, not the parent's.",
+    "After the parent commits again, ready in the stacked member refuses before checks and names the parent synchronization.",
+]
+
+[[change.contract.requirements]]
+id = "STACK-SYNC-001"
+outcome = "maintenance workspace-sync, run in a stacked member without --batch, takes the member's recorded parent as its source while the parent branch exists and is not yet in the fetched delivery branch, otherwise the delivery branch as before. It merges the parent's current tip as an ordinary merge commit with the Signetum-Sync trailer and a machine-local sync record of kind parent. Paths that arrive from the parent are not the member's contribution. It reports unchanged when the member already holds the parent tip and refuses a parent tip that does not descend from the parent tip the member last incorporated. It never rebases or rewrites history. A conflict stays open for an ordinary resolved commit as with other member synchronizations."
+acceptance = [
+    "After the parent advances, workspace-sync in the child merges the new parent tip, ready passes again and the parent's new paths are not in the member's contribution.",
+    "Repeating workspace-sync in the child reports unchanged.",
+]
+
+[[change.contract.requirements]]
+id = "STACK-ADMIT-001"
+outcome = "batch-admit refuses a stacked member unless its parent was admitted to that batch, earlier in the same invocation's --member order or before, and the parent's latest admission in the batch is exactly the parent tip the member last incorporated, or that tip is already contained in the batch base. The refusal names the parent and the admission order. The batch gate runs over the merged commits as today."
+acceptance = [
+    "Naming the child before its parent in one batch-admit, or admitting the child alone, is refused before merging and names the parent.",
+    "Naming the parent before the child in one batch-admit admits both and runs the batch gate.",
+]
+
+[[change.contract.requirements]]
+id = "STACK-REVIEW-001"
+outcome = "The member workspace record, holding the parent and its tip as base, is the single source of the chain. The final delivery review lists each admitted member with its own changes and, for a stacked member, its parent and recorded parent tip. Every member of a delivered chain then proves delivered or contained and is removed by the delivery sweep as today."
+acceptance = [
+    "A final review over a two-member chain lists both members, their own change records and the child's parent.",
+    "After batch-deliver, both chain workspaces are removed as delivered.",
+]
+
+[[change.contract.requirements]]
+id = "STACK-STATUS-001"
+outcome = "status in a stacked member folds the chain into its existing next action: when the open parent has moved past the parent tip the member holds, it names maintenance workspace-sync; after ready, it names the admission order from the root of the chain."
+acceptance = [
+    "status in a stacked member whose parent advanced names workspace-sync as the next action, and after ready names the parent before the child.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "The Skill, its work and delivery references, the validation and delivery architecture and the unreleased 0.3.4 changelog section describe stacked members, the parent synchronization, the admission order and the review chain."
+acceptance = [
+    "Current instructions agree with the observed CLI behaviour; historical authorities remain unchanged.",
+]
+
+[[change.contract.decisions]]
+id = "stacked-members/stacked-members"
+change_id = "stacked-members"
+authority = "changes/stacked-members/change.toml#decisions/stacked-members/stacked-members"
+reason = "The owner approved stacked members so one large change can be split into a chain of smaller members delivered through one batch."
+parents = ["sync-is-only-workspace-sync/member-synchronization"]
+
+[[change.contract.decisions.topics]]
+expected_version = 0
+
+[change.contract.decisions.topics.revision]
+id = "stacked-members"
+version = 1
+summary = "A member can base on another open member's tip and is validated, admitted and reviewed as its own change in that chain."
+boundaries = [
+    "A stacked member's base is immutable; only workspace-sync --parent brings later parent work and never rewrites history.",
+    "Admission never lets a child carry unadmitted parent work into a batch.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "stacked-members/add-stacking"
+change_id = "stacked-members"
+action = "add"
+expected = [
+    { id = "STACK-MEMBER-001", version = 0 },
+    { id = "STACK-ADMIT-001", version = 0 },
+]
+reason = "Record the approved stacked member rules before implementation."
+authority = "changes/stacked-members/change.toml#decisions/stacked-members/stacked-members"
+
+[[change.contract.decisions.clauses.updates]]
+id = "STACK-MEMBER-001"
+version = 1
+topic = "stacked-members"
+scope = [
+    "Member opening, synchronization, readiness and status",
+]
+statement = "workspace-open given the branch of another registered member workspace as base records that branch as the member's parent and its exact tip as the immutable base. The member's contribution and selection run from that base, excluding paths later merged from the parent by maintenance workspace-sync --parent, which records a sync of kind parent and requires the new parent tip to descend from the last incorporated one. ready and admission refuse while the open parent branch has moved past the last incorporated parent tip. status reports the parent, both tips, whether a sync is needed and the admission order."
+rationale = "The member's own diff is the honest unit of selection: the parent's diff is qualified by the parent's own ready, and checks still run on the complete tree, so a small child no longer selects the whole chain. Reusing the verified synchronization record keeps one rule for which paths a member owns and one ratchet baseline, instead of a second ownership mechanism. Requiring the latest parent tip before ready and admission keeps a child from qualifying against parent work that the batch will not receive."
+
+[[change.contract.decisions.clauses.updates]]
+id = "STACK-ADMIT-001"
+version = 1
+topic = "stacked-members"
+scope = [
+    "Batch admission, final review and delivery",
+]
+statement = "batch-admit admits a stacked member only when its parent's latest admission in that batch, made earlier in the same invocation or before, is exactly the parent tip the member last incorporated, or that tip is already in the batch base. The admission merge carries Signetum-Parent and Signetum-Parent-Tip. Admission provenance, the final review and the delivery result name each member's parent, and cleanup applies the ordinary delivered or contained proof to every member of the chain."
+rationale = "A child's merge would otherwise bring the parent's commits into the batch without the parent's own evidence or approval binding. Checking the batch history at the moment each member merges covers both an earlier invocation and earlier members of the same invocation with one rule, and the batch gate still runs on the merged commits."
+
+[[change.contract.decisions.clauses]]
+id = "stacked-members/parent-sync-guidance"
+change_id = "stacked-members"
+action = "amend"
+expected = [{ id = "SYNC-RECORD-001", version = 1 }]
+reason = "A parent synchronization is a third verified workspace-sync source, and the ratchet recovery names it."
+authority = "changes/stacked-members/change.toml#decisions/stacked-members/stacked-members"
+
+[[change.contract.decisions.clauses.updates]]
+id = "SYNC-RECORD-001"
+version = 2
+topic = "member-synchronization"
+scope = [
+    "Member synchronization and ratchet baselines",
+]
+statement = "A member is synchronized only by a maintenance workspace-sync merge carrying both its Signetum-Sync trailer and the machine-local sync record, from the delivery branch, a batch or, for a stacked member, its parent. The ratchet baseline is the latest such source, otherwise the recorded base. A failed ratchet lists unrecorded first-parent merges and names maintenance workspace-sync, maintenance workspace-sync --batch and maintenance workspace-sync --parent as the recovery."
+rationale = "Parent synchronization is the same verified merge as the other two sources, so it shares the baseline and the contribution rule."
+
+[[change.contract.decisions]]
+id = "stacked-members/simplify"
+change_id = "stacked-members"
+authority = "changes/stacked-members/change.toml#decisions/stacked-members/simplify"
+reason = "The owner asked to keep Signetum general and simple: the member record is the one source of the chain and workspace-sync keeps its existing form."
+parents = ["stacked-members/stacked-members"]
+
+[[change.contract.decisions.topics]]
+expected_version = 1
+
+[change.contract.decisions.topics.revision]
+id = "stacked-members"
+version = 2
+summary = "A member can base on another open member's tip and is validated, admitted and reviewed as its own change in that chain."
+boundaries = [
+    "A stacked member's base is immutable; only workspace-sync brings later parent work and never rewrites history.",
+    "Admission never lets a child carry unadmitted parent work into a batch.",
+    "The member workspace record is the only source of the parent; commits and status carry no second copy.",
+]
+
+[[change.contract.decisions.clauses]]
+id = "stacked-members/simplify-clauses"
+change_id = "stacked-members"
+action = "amend"
+expected = [
+    { id = "STACK-MEMBER-001", version = 1 },
+    { id = "STACK-ADMIT-001", version = 1 },
+    { id = "SYNC-RECORD-001", version = 2 },
+]
+reason = "Use the record as the one source of the chain and the existing workspace-sync form."
+authority = "changes/stacked-members/change.toml#decisions/stacked-members/simplify"
+
+[[change.contract.decisions.clauses.updates]]
+id = "STACK-MEMBER-001"
+version = 2
+topic = "stacked-members"
+scope = [
+    "Member opening, synchronization, readiness and status",
+]
+statement = "workspace-open given the branch of another registered member workspace as base records that branch as the member's parent and its exact tip as the immutable base; that record is the only source of the chain. The member's contribution and selection run from that base, excluding paths later merged from the parent by maintenance workspace-sync, whose default source for a stacked member is its parent while the parent branch exists and is not in the fetched delivery branch; it records a sync of kind parent and requires the new parent tip to descend from the last incorporated one. ready and admission refuse while the open parent branch has moved past the last incorporated parent tip. The status next action names that synchronization or the admission order."
+rationale = "The member's own diff is the honest unit of selection: the parent's diff is qualified by the parent's own ready, and checks still run on the complete tree. Reusing the verified synchronization record and the existing workspace-sync form keeps one ownership rule, one ratchet baseline and no new option; a member's natural upstream is its parent until the parent is delivered, then the delivery branch."
+
+[[change.contract.decisions.clauses.updates]]
+id = "STACK-ADMIT-001"
+version = 2
+topic = "stacked-members"
+scope = [
+    "Batch admission, final review and delivery",
+]
+statement = "batch-admit admits a stacked member only when its parent's latest admission in that batch, made earlier in the same invocation or before, is exactly the parent tip the member last incorporated, or that tip is already in the batch base. The final review names each member's parent from its workspace record, and cleanup applies the ordinary delivered or contained proof to every member of the chain."
+rationale = "A child's merge would otherwise bring the parent's commits into the batch without the parent's own evidence or approval binding. Checking the batch history at the moment each member merges covers both an earlier invocation and earlier members of the same invocation with one rule. Reading the parent from the record avoids a second copy in commit trailers."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SYNC-RECORD-001"
+version = 3
+topic = "member-synchronization"
+scope = [
+    "Member synchronization and ratchet baselines",
+]
+statement = "A member is synchronized only by a maintenance workspace-sync merge carrying both its Signetum-Sync trailer and the machine-local sync record, from the delivery branch, a batch or, for a stacked member, its parent. The ratchet baseline is the latest such source, otherwise the recorded base. A failed ratchet lists unrecorded first-parent merges and names maintenance workspace-sync and maintenance workspace-sync --batch as the recovery."
+rationale = "Parent synchronization is the same verified merge as the other sources, so it shares the baseline and the contribution rule; plain workspace-sync already reaches it."
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the workspace record, workspace operations, synchronization, member qualification, admission provenance, execution review, workflow status and ratchet guidance owners, with functional fixture-repository tests through the lifecycle commands.",
+    "Update the Skill, its work and delivery references, the validation and delivery architecture and the unreleased 0.3.4 changelog section without bumping the package version.",
+    "Run focused tests with just test on the changed paths.",
+]
+requires_confirmation = [
+    "Running ready, batch admission, final, delivery to main, tagging, pushing or publishing.",
+    "Editing Perdura, PyReduce or the installed Skill.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["STACK-OPEN-001", "STACK-READY-001", "STACK-SYNC-001"]
+action = "Record the parent in the workspace record at opening, make the recorded parent the default workspace-sync source and require the current parent tip in member qualification."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["STACK-ADMIT-001", "STACK-REVIEW-001"]
+action = "Check the parent admission order in batch-admit and name each member's parent from its record in the final review."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["STACK-STATUS-001"]
+action = "Fold the needed synchronization and admission order into the status next action."
+
+[[change.execution.steps]]
+id = "STEP-004"
+requirements = ["DOC-001"]
+action = "Reconcile the Skill, references, architecture and changelog."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-07
+source = "The owner approved approach B, stacked members, on 2026-11-07, relayed by the coordinating session, which specified the parent base, own-diff readiness, parent synchronization, admission order, chain review, cleanup and status behaviour. Before ready the owner, through the coordinating session, asked to keep Signetum general and simple: the member record's parent and tip is the single source of truth, no parent merge trailers, no separate status field or workspace-list column, the needed sync and admission order folded into the status next action, and the existing workspace-sync taking the recorded parent as its default source instead of a dedicated option. This contract records that simplified behaviour; running ready still waits until told."
+contract_digest = "sha256:9116f02edee2f774bac6250edc24d05a0557319b5cebd1774825bd7ab4569840"
