@@ -9,9 +9,11 @@ tracked source. Diagnostics can inspect dirty work and never issue readiness.
 One dependency/verdict core serves diagnostics, member qualification and final.
 Dependencies run in order, failed `requires` dependencies block descendants, independent
 failures are collected, and a successful retry cannot clear a first failure.
-A shard's `after` prerequisites order it and join its gate closure like `requires`,
-but their failed verdict does not skip it, so one round reports every failure;
-an infrastructure error in either kind still skips dependents.
+A gate runs the shards it lists and the `requires` prerequisites whose output
+they need. A shard's `after` prerequisites only order it among shards the gate
+already runs and never add one; their failed verdict does not skip it, so one
+round reports every failure. An infrastructure error in either kind still skips
+dependents.
 A shard command exchanges node data only through declared whole-argument
 placeholders, replaced by absolute paths; configuration refuses any other
 `{signetum.*}` argument and placeholders in findings or ratchet commands, which
@@ -71,10 +73,16 @@ verify clean source plus input identities before and after execution.
 
 No provider means the full declared member gate. An explicit provider binds
 source, exact contribution, targets, tools and explanation; unexplained inputs
-fall back, changed tests run whole and final never narrows. Test inheritance
-requires matching input identities and a verified nearest ancestor receipt with
-all intervening paths explained. A suffix consisting only of change journal
-events may reuse eligible tests without a provider. Otherwise tests rerun.
+fall back, changed tests run whole and final never narrows. Member test
+inheritance is per shard, with or without a provider: the paths changed since
+the nearest verified ancestor member receipt are resolved by the impact rules and
+any provider coverage, and each `inherit = true` member shard none of them affects
+reuses that receipt's passing evidence for its exact command and matching input
+identities. A rule or coverage affects the shards and gates it names and their
+`requires` prerequisites; a modified test file is an ordinary path; an unexplained
+path reruns every shard; a suffix of change journal events affects none. A shard
+without such evidence, or one owing remembered nodes, reruns. Batch admission,
+continuation and final never inherit.
 Source admission still requires approved packages, intact journal ancestry and
 resolved observations at ready, admission, continuation and final. Static checks still run.
 Weighted scheduling and CI partitions are optional diagnostics; complete partition
