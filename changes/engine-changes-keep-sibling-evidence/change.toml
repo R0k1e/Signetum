@@ -27,6 +27,14 @@ acceptance = [
     "A baseline command that cannot execute fails the shard, naming the cause, even when the current tree has no diagnostics.",
 ]
 
+[[change.contract.requirements]]
+id = "CLAIM-SCOPE-001"
+outcome = "Admission counts a member's decision clause claims only from the member's own contribution, excluding verified synchronized upstream content, so a member that synchronized delivered change records is not refused when a batch sibling amends one of their clauses."
+acceptance = [
+    "A member that synchronized a delivery tip carrying a delivered change record is admitted into a batch whose sibling amends a clause that record wrote.",
+    "Two members whose own change records write one clause identity are still refused before merging.",
+]
+
 [change.contract.autonomy]
 allowed = [
     "Extend the existing admission, evidence identity, workspace synchronization, ratchet and environment owners, and remove checks they replace.",
@@ -46,8 +54,13 @@ id = "STEP-002"
 requirements = ["RATCHET-BASELINE-001"]
 action = "Reproduce the empty baseline through the ratchet traversal, measure the baseline in a project environment and fail on an unavailable baseline; reconcile current instructions."
 
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["CLAIM-SCOPE-001"]
+action = "Reproduce the refused admission of a member that synchronized delivered change records, then restrict member clause claims to the member's own contribution."
+
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-07
-source = "The owner approved a follow-up change fixing the sibling-evidence gap and the silent ratchet baseline, relayed by the coordinating session on 2026-11-07."
-contract_digest = "sha256:03b4e4216f7d8c33913c7a80f25e4d4f0afb0aa93a39eb5b81bca9f3ec8c1a0c"
+source = "The owner approved a follow-up change fixing the sibling-evidence gap and the silent ratchet baseline, and on 2026-11-07 decided to fold in the decision clause claim false positive found while admitting this member, both relayed by the coordinating session."
+contract_digest = "sha256:cb7ffeb9a0dde4890e3d671f5eeca7919ede85bc6fc7a4bfb599615978012896"
