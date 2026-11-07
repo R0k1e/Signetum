@@ -12,13 +12,16 @@ import time
 from collections import Counter
 from pathlib import Path
 
+from signetum import worktrunk as wt
 from signetum.git import git_output, repository_path, run_git
+from signetum.operations import OperationError
+from signetum.preparation import prepare_workspace
 from signetum.synchronization import (
     member_contribution_paths,
     unrecorded_merges,
     verified_sync_sources,
 )
-from signetum.validation import ValidationShard
+from signetum.validation import ValidationGraph, ValidationShard
 from signetum.validation.diagnostic_protocol import diagnostic_multiset
 from signetum.validation.execution import ShardExecution, ValidationInfrastructureError
 from signetum.validation.process import run_command
@@ -84,6 +87,42 @@ def _materialize(repository: Path, base: str, destination: Path) -> None:
         raise ValidationInfrastructureError("archived baseline differs from the committed tree")
 
 
+def _preparation_commands(graph: ValidationGraph) -> list[list[str]]:
+    if not any(gate.name == "prepare" for gate in graph.gates):
+        return []
+    commands = {item.name: list(item.command) for item in graph.shards}
+    return [commands[name] for name in graph.execution_order("prepare")]
+
+
+def _prepare(root: Path, graph: ValidationGraph, deadline: float) -> None:
+    """Prepare the baseline tree as ready prepares its own checkout.
+
+    The declared prepare gate installs the project environment the diagnostic
+    command needs; a materialized tree has none of its own.
+    """
+
+    if not _preparation_commands(graph):
+        return
+
+    def runner(
+        repository: Path, command: tuple[str, ...], *, timeout_seconds: float
+    ) -> subprocess.CompletedProcess[str]:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValidationInfrastructureError("ratchet baseline deadline exhausted")
+        return wt.run_tool(
+            repository,
+            command,
+            timeout_seconds=min(timeout_seconds, remaining),
+            environment={**os.environ, "MISE_TRUSTED_CONFIG_PATHS": _trusted_paths(repository)},
+        )
+
+    try:
+        prepare_workspace(root, lambda: graph, runner)
+    except OperationError as error:
+        raise ValidationInfrastructureError(f"baseline preparation failed: {error}") from error
+
+
 def ratchet_baseline(repository: Path, recorded_base: str, tip: str) -> str:
     sources = verified_sync_sources(repository, recorded_base, tip)
     return sources[0] if sources else recorded_base
@@ -118,9 +157,17 @@ def run_ratchet(
     shard: ValidationShard,
     environment: dict[str, str],
     tools: tuple[tuple[str, str], ...],
+    preparation: ValidationGraph,
     *,
     workers: int = 0,
 ) -> ShardExecution:
+    """Compare current diagnostics with a measured baseline.
+
+    The baseline is measured in a prepared checkout of the baseline commit and
+    cached only once measured. A baseline that cannot be measured fails the
+    shard instead of comparing against an empty baseline.
+    """
+
     deadline = time.monotonic() + shard.timeout_seconds
     recorded_base = environment["SIGNETUM_BASE"]
     baseline = environment["SIGNETUM_RATCHET_BASELINE"]
@@ -134,13 +181,13 @@ def run_ratchet(
         "baseline": baseline,
         "command": list(shard.ratchet_command),
         "tools": list(tools),
+        "preparation": _preparation_commands(preparation),
         "driver": driver,
     }
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     cache = state_root(repository) / "validation/ratchets" / f"{key}.json"
     current = diagnostic_multiset(_measure(repository, shard.ratchet_command, deadline, workers))
     previous: Counter[tuple[str, str, str]] = Counter()
-    unavailable = None
     cached = False
     try:
         record = json.loads(cache.read_text(encoding="utf-8"))
@@ -155,6 +202,7 @@ def run_ratchet(
             with tempfile.TemporaryDirectory(prefix="signetum-ratchet-") as scratch:
                 root = Path(scratch) / "source"
                 _materialize(repository, baseline, root)
+                _prepare(root, preparation, deadline)
                 document = _measure(root, shard.ratchet_command, deadline, workers)
                 previous = diagnostic_multiset(document)
             cache.parent.mkdir(parents=True, exist_ok=True)
@@ -170,7 +218,9 @@ def run_ratchet(
             finally:
                 temporary.unlink(missing_ok=True)
         except ValidationInfrastructureError as error:
-            unavailable = str(error)
+            raise ValidationInfrastructureError(
+                f"{shard.name}: ratchet baseline {baseline} could not be measured: {error}"
+            ) from error
     added = current - previous
     details = {
         "baseline": baseline,
@@ -178,7 +228,6 @@ def run_ratchet(
         "baseline_count": previous.total(),
         "new_count": added.total(),
         "baseline_cached": cached,
-        "baseline_unavailable": unavailable,
     }
     tip = git_output(repository, "rev-parse", "HEAD")
     if added:
@@ -188,7 +237,7 @@ def run_ratchet(
         ]
         return ShardExecution(
             False,
-            f"{shard.name}: baseline={baseline} unavailable={unavailable}; "
+            f"{shard.name}: baseline={baseline}; "
             f"new diagnostics: {json.dumps(findings, sort_keys=True)}"
             + _unrecorded_merge_guidance(repository, recorded_base, tip),
             details={"ratchet": details},

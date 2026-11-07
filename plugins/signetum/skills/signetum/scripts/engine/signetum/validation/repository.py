@@ -163,6 +163,7 @@ class RepositoryValidationAdapter:
                 shard,
                 environment,
                 tuple(sorted(self.observed_tools.items())),
+                configured_validation(load_manifest(self.repository / "signetum.toml"))[0],
                 workers=allocation["workers"],
             )
         else:
