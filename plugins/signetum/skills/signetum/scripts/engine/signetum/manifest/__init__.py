@@ -93,22 +93,6 @@ class ImpactConfiguration:
             raise ManifestError("impact.rules names must be unique")
 
 
-def _require_acyclic_coverage(covers: dict[str, tuple[str, ...]]) -> None:
-    finished: set[str] = set()
-
-    def visit(name: str, path: tuple[str, ...]) -> None:
-        if name in path:
-            raise ManifestError("cyclic shard coverage: " + " -> ".join((*path, name)))
-        if name in finished:
-            return
-        for covered in covers.get(name, ()):
-            visit(covered, (*path, name))
-        finished.add(name)
-
-    for name in covers:
-        visit(name, ())
-
-
 @dataclass(frozen=True, kw_only=True)
 class ValidationCommands:
     tools: tuple[ValidationTool, ...] = ()
@@ -124,15 +108,6 @@ class ValidationCommands:
             raise ManifestError("validation.gates must contain unique member and final gates")
         world = {item.name for item in self.shards if item.evidence == "world"}
         declared = {item.name for item in self.shards}
-        covers = {item.name: item.covers for item in self.shards}
-        for name, covered in covers.items():
-            unknown = sorted(set(covered) - declared)
-            if unknown:
-                raise ManifestError(f"{name} covers undeclared shards: {', '.join(unknown)}")
-            outside = sorted(set(covered) & world)
-            if outside:
-                raise ManifestError(f"{name} covers non-tree shards: {', '.join(outside)}")
-        _require_acyclic_coverage(covers)
         for item in self.shards:
             unknown = sorted(set(item.after) - declared)
             if unknown:

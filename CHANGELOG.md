@@ -49,9 +49,11 @@ concurrent decision clause identities are refused before they are integrated.
   the development loop (commit, ready, fix, ready), and `ready --explain` shows its
   selection without running checks.
 - Admission and `batch-continue` run only the declared batch gate, which may run
-  no integration check; they no longer refuse a gate that does not run or cover
-  the member shards an increment selects. Final stays complete, so cross-member
-  failures surface there.
+  no integration check; they no longer refuse a gate that does not run the member
+  shards an increment selects. Final stays complete, so cross-member failures
+  surface there.
+- Breaking: the shard field `covers` is removed; a manifest that declares it is
+  refused at load. Delete it from `signetum.toml`.
 - A defect that appears only when members combine may be fixed by commits made
   directly in the batch under the batch's own approved change record. Final
   attributes each such commit in the review and refuses an unattributed direct

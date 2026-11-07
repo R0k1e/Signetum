@@ -33,21 +33,6 @@ added since its last pass. That gate may run no integration check: final stays
 complete, so a failure that appears only when members combine surfaces at final.
 Batch shards receive the increment's start commit as `SIGNETUM_ADMISSION_BASE`.
 
-A batch shard that runs the project's own member selection over that range
-may declare the member shards it stands for:
-
-```toml
-[[validation.shards]]
-name = "app:batch"
-command = ["./scripts/check", "batch"]
-covers = ["app:member"]
-```
-
-Admission runs the declared batch gate either way; `covers` records the relation
-for review. It names only declared tree shards, never the shard itself,
-and cannot form a cycle; manifest load rejects anything else. Keep it reviewable:
-the covering command must really execute the covered shards' selected checks.
-
 A runner exchanges node data with the engine only through placeholders declared
 as whole arguments of its shard command:
 
