@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import sys
+from pathlib import Path
 
 import pytest
 from change_fixtures import commit_approval
@@ -39,11 +40,13 @@ def admission(runtime, member, tip):
     return runtime._admission_evidence(member, tip, runtime.load_manifest(member / "signetum.toml"))
 
 
-def configured(repository, *, baseline_report=None):
+def configured(repository, *, baseline_report=None, prepared=False):
     root, state = repository
     script = (
         "import json, sys\nfrom pathlib import Path\n"
-        f"log=Path({str(state / 'runs')!r})\n"
+        # Like a project environment, the report needs what preparation installs.
+        + ("if not Path('.prepared').exists(): sys.exit(9)\n" if prepared else "")
+        + f"log=Path({str(state / 'runs')!r})\n"
         "with log.open('a') as stream: stream.write(str(Path.cwd())+'\\n')\n"
         "raw=Path('diagnostics.json').read_text() if Path('diagnostics.json').exists() "
         "else json.dumps({'schema_version':1,'diagnostics':[]})\n"
@@ -169,23 +172,33 @@ def test_latest_supported_sync_source_replaces_the_old_ratchet_baseline(reposito
         runtime.validate(member, "member")
 
 
-def test_unavailable_baseline_is_explicit_and_is_not_cached(repository, runtime):
+def test_unavailable_baseline_fails_the_shard_and_is_not_cached(repository, runtime):
     _, member, state = configured(repository, baseline_report="not JSON")
     commit_file(member, "diagnostics.json", document())
     for _ in range(2):
-        ready = runtime.validate(member, "member")
-        evidence = ready["evidence"]
-        assert isinstance(evidence, dict)
-        assert evidence["extensions"]["shard_details"]["test:check"]["ratchet"][
-            "baseline_unavailable"
-        ]
+        with pytest.raises(ValidationInfrastructureError, match="test:check") as failure:
+            runtime.validate(member, "member")
+        assert lifecycle._recorded_base(member) in str(failure.value)
     assert len((state / "runs").read_text().splitlines()) == 4
 
 
-def test_unavailable_baseline_does_not_waive_current_findings(repository, runtime):
-    _, member, _ = configured(repository, baseline_report="not JSON")
-    with pytest.raises(execution_failure(runtime), match="new diagnostics"):
-        runtime.validate(member, "member")
+def test_baseline_is_measured_in_a_prepared_checkout(repository, runtime):
+    root, _ = repository
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            "sys.exit(13 if (p/'fail').exists() else 0)",
+            "Path('.prepared').write_text('installed'); sys.exit(13 if (p/'fail').exists() else 0)",
+        )
+    )
+    (root / ".gitignore").write_text(".prepared\n")
+    _, member, _ = configured(repository, prepared=True)
+    ready = runtime.validate(member, "member")
+    evidence = ready["evidence"]
+    assert isinstance(evidence, dict)
+    details = evidence["extensions"]["shard_details"]["test:check"]["ratchet"]
+    assert details["baseline_count"] == 1
+    assert details["new_count"] == 0
 
 
 def test_tool_identity_change_invalidates_baseline_cache(repository, runtime):
@@ -241,12 +254,18 @@ def observed_bases(repository):
     command = [
         sys.executable,
         "-c",
-        "import json, os, sys\n"
-        "with open(sys.argv[1], 'a') as stream:\n"
-        "    names = ('SIGNETUM_BASE', 'SIGNETUM_RATCHET_BASELINE', "
-        "'SIGNETUM_CONTRIBUTION_PATHS')\n"
-        "    stream.write(json.dumps([os.environ.get(name) for name in names]) + '\\n')\n",
+        "import json, pathlib, sys\n"
+        "log, base, baseline, paths = sys.argv[1:]\n"
+        "if paths:\n"
+        "    document = json.loads(pathlib.Path(paths).read_text())\n"
+        "    assert document['schema_version'] == 1\n"
+        "    paths = document['paths']\n"
+        "with open(log, 'a') as stream:\n"
+        "    stream.write(json.dumps([base, baseline, paths]) + '\\n')\n",
         str(log),
+        "{signetum.base}",
+        "{signetum.ratchet_baseline}",
+        "{signetum.contribution_paths_file}",
     ]
     manifest = root / "signetum.toml"
     manifest.write_text(
@@ -260,26 +279,23 @@ def observed_bases(repository):
     return lambda: json.loads(log.read_text().splitlines()[-1])
 
 
-def test_member_shards_receive_bases_that_bind_their_receipt(repository, monkeypatch):
+def test_member_shards_receive_bases_that_bind_their_receipt(repository):
     root, _ = repository
     last = observed_bases(repository)
-    # An enclosing gate's values never reach a nested repository's shards.
-    monkeypatch.setenv("SIGNETUM_BASE", "f" * 40)
-    monkeypatch.setenv("SIGNETUM_RATCHET_BASELINE", "f" * 40)
     member = opened(root, "plan/bases")
     commit_approval(member, "example")
     commit_file(member, "work.txt")
     base = lifecycle._recorded_base(member)
     lifecycle.validate(member, "member")
     assert last()[:2] == [base, base]
-    assert "work.txt" in json.loads(last()[2])
+    assert "work.txt" in last()[2]
 
     source = commit_file(root, "published.txt", "published source")
     git_output(root, "push", "origin", "main")
     ops.workspace_sync(member)
     lifecycle.validate(member, "member")
     assert last()[:2] == [base, source]
-    paths = json.loads(last()[2])
+    paths = last()[2]
     assert "work.txt" in paths
     assert "published.txt" not in paths
     tip = git_output(member, "rev-parse", "HEAD")
@@ -297,7 +313,76 @@ def test_member_shards_receive_bases_that_bind_their_receipt(repository, monkeyp
 
     graph, inputs = lifecycle._runtime_validation(lifecycle.load_manifest(member / "signetum.toml"))
     run_repository_gate(member, graph, "final", inputs, root.parent / "final-receipts")
-    assert last() == [None, None, None]
+    # The final gate has no range; declared range values are explicit empty arguments.
+    assert last() == ["", "", ""]
+
+
+PROBE = """import json, os, sys
+from pathlib import Path
+log, *values = sys.argv[1:]
+engine = ("BASE", "RATCHET_BASELINE", "CONTRIBUTION_PATHS", "ADMISSION_BASE",
+          "VALIDATION_WORKERS", "RECOVERY_REPORT", "SCHEDULE_FILE")
+inherited = sorted(name for name in engine if "SIGNETUM_" + name in os.environ)
+with open(log, "a") as stream:
+    texts = [Path(value).read_text() if Path(value).is_file() else None for value in values]
+    stream.write(json.dumps({"values": values, "texts": texts, "environment": inherited}) + "\\n")
+"""
+
+
+def test_engine_values_reach_a_runner_only_through_declared_placeholders(repository):
+    root, state = repository
+    declared, plain = state / "declared", state / "plain"
+    (root / "probe.py").write_text(PROBE)
+    (root / "weights.json").write_text('{"tests/test_example.py::test_example": 3}')
+    check = [
+        sys.executable,
+        "probe.py",
+        str(declared),
+        "{signetum.validation_workers}",
+        "{signetum.schedule_file}",
+        "{signetum.recovery_report_file}",
+        "{signetum.admission_base}",
+    ]
+    manifest = root / "signetum.toml"
+    text = manifest.read_text()
+    text = text.replace("[validation]\n", '[validation]\nschedule_file = "weights.json"\n')
+    text = text.replace(
+        'changes = "changes"\n', 'changes = "changes"\nlockfiles = ["weights.json"]\n'
+    )
+    text = text.replace(
+        'name = "test:check"\ncommand = ["true"]',
+        f'name = "test:check"\ncommand = {json.dumps(check)}\n'
+        '[[validation.shards]]\nname = "test:plain"\n'
+        f"command = {json.dumps([sys.executable, 'probe.py', str(plain), 'literal'])}",
+    )
+    text = text.replace(
+        'name = "member"\nshards = ["test:check"]',
+        'name = "member"\nshards = ["test:check", "test:plain"]',
+    )
+    manifest.write_text(text)
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "declare engine values")
+    member = opened(root, "plan/values")
+    commit_approval(member, "example")
+    commit_file(member, "work.txt")
+
+    lifecycle.validate(member, "member")
+
+    observed = json.loads(declared.read_text().splitlines()[-1])
+    workers, schedule, recovery, admission_base = observed["values"]
+    assert workers.isdecimal()
+    assert Path(schedule).is_absolute() and Path(schedule).name == "weights.json"
+    assert observed["texts"][1] == (root / "weights.json").read_text()
+    assert Path(recovery).is_absolute()
+    # The batch increment does not exist in a member gate; the declared value is empty.
+    assert admission_base == ""
+    # An undeclared value is never substituted or supplied through the environment.
+    assert json.loads(plain.read_text().splitlines()[-1]) == {
+        "values": ["literal"],
+        "texts": [None],
+        "environment": [],
+    }
+    assert observed["environment"] == []
 
 
 def test_archive_attributes_cannot_silently_remove_baseline_inputs(repository, runtime):
@@ -305,13 +390,8 @@ def test_archive_attributes_cannot_silently_remove_baseline_inputs(repository, r
     (root / ".gitattributes").write_text("diagnostics.json export-ignore\n")
     _, member, _ = configured(repository)
     commit_file(member, "diagnostics.json", document())
-    ready = runtime.validate(member, "member")
-    evidence = ready["evidence"]
-    assert isinstance(evidence, dict)
-    assert (
-        "committed tree"
-        in evidence["extensions"]["shard_details"]["test:check"]["ratchet"]["baseline_unavailable"]
-    )
+    with pytest.raises(ValidationInfrastructureError, match="committed tree"):
+        runtime.validate(member, "member")
 
 
 def test_ty_adapter_ignores_positions_but_retains_repeated_diagnostics(tmp_path):
@@ -352,7 +432,6 @@ def test_traceability_adapter_compares_real_git_inventories(repository):
     assert isinstance(evidence, dict)
     details = evidence["extensions"]["shard_details"]["test:check"]["ratchet"]
     assert details["baseline_count"] == details["current_count"] > 0
-    assert details["baseline_unavailable"] is None
 
 
 @pytest.mark.parametrize(

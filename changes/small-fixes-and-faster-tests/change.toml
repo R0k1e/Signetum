@@ -1,0 +1,91 @@
+[change]
+schema_version = 1
+id = "small-fixes-and-faster-tests"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approved on 2026-11-07, relayed by the coordinating session, small repairs found while running Signetum on itself and a faster engine test shard. A conflicted workspace-sync committed with an edited message lost its Signetum-Sync trailer, so ready counted the source's paths as the member's and only a history rewrite fixed it. The Justfile split free-form arguments, so a quoted --reason reached the shell in fragments. Batch synchronization merge subjects doubled the batch prefix. The engine:pytest shard took about 690 seconds at four workers while every other shard took under ten."
+
+[change.contract]
+version = 1
+approved_base = "9eb523e5fbe3e56c69089a61de046c224b414c55" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "SYNC-CONFLICT-001"
+outcome = "When maintenance workspace-sync stops on a conflict, its expected action tells the user to resolve the paths and commit with git commit --no-edit, which keeps the pre-filled Signetum-Sync trailer. If a resolved sync merge lost its trailer, rerunning maintenance workspace-sync with the same source recognizes that exact merge from its machine-local sync record, records the recognition, and from then on ready, admission and the ratchet treat it as a verified synchronization."
+acceptance = ["A conflicted sync committed with git commit --no-edit is a verified synchronization: the source's paths are not the member's contribution.", "A conflicted sync committed with a replacement message counts the source's paths as the member's until maintenance workspace-sync is rerun with the same source, which reports the recognized merge; afterwards they are not the member's contribution.", "A merge of that source without a sync record is still not recognized."]
+
+[[change.contract.requirements]]
+id = "JUST-ARGS-002"
+outcome = "Every Justfile recipe that forwards arguments passes each argument to the engine as one argument, so values with spaces or shell metacharacters reach it intact and are never executed by the shell."
+acceptance = ["just maintenance with --reason \"a; b c\" hands the engine exactly that value as one argument and runs nothing else."]
+
+[[change.contract.requirements]]
+id = "SYNC-SUBJECT-003"
+outcome = "A synchronization merge names its source branch once: a batch sync subject is Merge <batch-branch> into <member-branch>, never with the batch prefix doubled."
+acceptance = ["Syncing a member from batch/test produces the subject Merge batch/test into the member branch."]
+
+[[change.contract.requirements]]
+id = "TEST-SPEED-004"
+outcome = "The engine test shard runs faster on the same host without dropping tests or assertions: the top duration offenders are measured first, tests are made safe for more workers (no shared mutable temporary directories, ports or global state), the shard declares about twelve workers, tests that build Git repositories copy a session-built template where fixtures allow instead of initializing and committing per test, tests start engine subprocesses through the current interpreter rather than uv run where they do so, and coverage is measured only by the final gate, whose hosted run alone enforces the threshold."
+acceptance = ["The member gate's test shard passes at the new worker count with the same collected tests.", "The final gate still produces the coverage data the hosted threshold reads.", "Before and after shard wall times on this host are reported with the top offenders."]
+
+[[change.contract.requirements]]
+id = "DOC-005"
+outcome = "The validation architecture, the Skill work reference and the unreleased changelog describe conflicted sync recovery, and the validation architecture states where coverage is measured."
+acceptance = ["Current instructions agree with observed behavior; historical authorities remain unchanged."]
+
+[change.contract.autonomy]
+allowed = ["Extend the synchronization, workspace operation and test fixture owners, the Justfile, the repository manifest's shard declarations, pytest configuration and the hosted workflow where coverage arguments move.", "Add functional tests with throwaway repositories and a fake mise for the Justfile; convert existing tests to shared fixtures without weakening their assertions.", "Synchronize the workspace with the delivery branch or batch through maintenance workspace-sync, measure the shard in a throwaway clone, run one ready and admit into the open batch."]
+requires_confirmation = ["Lower or remove the hosted coverage threshold, remove or skip tests, change Perdura source or the installed plugin, publish or deliver."]
+
+[[change.contract.decisions]]
+id = "small-fixes-and-faster-tests/sync-recovery"
+change_id = "small-fixes-and-faster-tests"
+authority = "changes/small-fixes-and-faster-tests/change.toml#decisions/small-fixes-and-faster-tests/sync-recovery"
+reason = "Git pre-fills the sync trailer in a conflicted merge, but an edited commit message dropped it and left no recovery short of rewriting history. The machine-local sync record already proves that workspace-sync authorized exactly that before tip and source, so rerunning the same sync can bind it to the merge without trusting a copied trailer or a manual merge."
+parents = ["stacked-members/simplify"]
+
+[[change.contract.decisions.clauses]]
+id = "small-fixes-and-faster-tests/recognize-lost-trailer"
+change_id = "small-fixes-and-faster-tests"
+action = "amend"
+expected = [{ id = "SYNC-RECORD-001", version = 3 }]
+reason = "A rerun of the same workspace-sync is the recovery for a lost trailer; a merge without a sync record stays unverified."
+authority = "changes/small-fixes-and-faster-tests/change.toml#decisions/small-fixes-and-faster-tests/sync-recovery"
+
+[[change.contract.decisions.clauses.updates]]
+id = "SYNC-RECORD-001"
+version = 4
+topic = "member-synchronization"
+scope = [
+    "Member synchronization and ratchet baselines",
+]
+statement = "A member is synchronized only by a maintenance workspace-sync merge carrying the machine-local sync record and its Signetum-Sync trailer, from the delivery branch, a batch or, for a stacked member, its parent. A conflicted sync is committed with git commit --no-edit to keep the trailer; when the trailer was lost, rerunning maintenance workspace-sync with the same source records a recognition of that exact merge, which then stands in for the trailer. The ratchet baseline is the latest such source, otherwise the recorded base. A failed ratchet lists unrecorded first-parent merges and names maintenance workspace-sync and maintenance workspace-sync --batch as the recovery."
+rationale = "The sync record already binds the authorized before tip and source; recognizing a merge only through a rerun of that same sync keeps manual merges and copied trailers unverified while removing the need to rewrite history."
+
+[[change.execution.steps]]
+id = "STEP-SYNC"
+requirements = ["SYNC-CONFLICT-001", "SYNC-SUBJECT-003"]
+action = "Name git commit --no-edit in conflict guidance, recognize a recorded sync merge without its trailer on a rerun of the same sync and label batch syncs by their branch."
+
+[[change.execution.steps]]
+id = "STEP-JUST"
+requirements = ["JUST-ARGS-002"]
+action = "Forward recipe arguments as positional arguments."
+
+[[change.execution.steps]]
+id = "STEP-SPEED"
+requirements = ["TEST-SPEED-004"]
+action = "Measure durations, isolate shared state, share template repositories and the current interpreter in tests, raise workers and move coverage to a final-only shard; measure again."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["SYNC-CONFLICT-001", "JUST-ARGS-002", "SYNC-SUBJECT-003", "TEST-SPEED-004", "DOC-005"]
+action = "Add functional tests on throwaway repositories, reconcile current documentation, run narrow tests and ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-07
+source = "Relayed by the coordinating session on 2026-11-07: the owner approved workspace-sync conflict guidance naming git commit --no-edit and recovery of a lost sync trailer by rerunning workspace-sync, quoted Justfile argument forwarding, merge subjects without a doubled prefix, and a measured engine test speedup with about twelve workers, isolated tests, template repositories, direct interpreter subprocesses and coverage only in final. This implementing session did not hear the approval independently."
+contract_digest = "sha256:c6b61a61eba2b8ca1973909e11376c9d21ef5a4c449fbf26312243a72d97c893"

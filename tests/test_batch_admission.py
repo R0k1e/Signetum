@@ -17,9 +17,10 @@ from change_fixtures import approve_change as _approve_change
 from change_fixtures import approved_record_source, commit_approval, consolidated_approval
 from pydantic import JsonValue
 from signetum.development_store import snapshot as development_snapshot
+from signetum.operations import OperationError
 from signetum.validation import command_digest
 from signetum.validation.execution import ShardExecution, build_evidence_identity
-from signetum.validation.ratchet import member_environment
+from signetum.validation.ratchet import member_values
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import WorkspaceRecord, write_record
 
@@ -135,7 +136,7 @@ def _evidence_receipt(
     identity = build_evidence_identity(
         graph, replace(inputs, base=base), lifecycle.RepositoryValidationAdapter(member)
     )
-    environment = member_environment(member, base, identity.commit)
+    values = member_values(member, base, identity.commit)
     evidence = {
         "schema_version": 3,
         "protocol": "reposeal.validation-evidence@3",
@@ -167,8 +168,7 @@ def _evidence_receipt(
         "provenance": {"stable_patch_id": None},
         "extensions": {
             "shard_details": {
-                f"repo:proven-{index}": {"environment": environment}
-                for index in range(len(commands))
+                f"repo:proven-{index}": {"member_values": values} for index in range(len(commands))
             }
         }
         if gate == "member"
@@ -438,7 +438,7 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
         return ShardExecution(
             True,
             passed_nodes=(str(defect["node_id"]),),
-            details={"environment": self.member_environment()},
+            details={"member_values": self.member_values()},
         )
 
     monkeypatch.setattr(adapter, "run_shard", retried)
@@ -981,9 +981,9 @@ def test_one_admission_of_several_members_hands_its_whole_range_to_batch_shards(
     probe = [
         sys.executable,
         "-c",
-        "import os,pathlib,sys; "
-        "pathlib.Path(sys.argv[1]).write_text(os.environ.get('SIGNETUM_ADMISSION_BASE', ''))",
+        "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text(sys.argv[2])",
         str(seen),
+        "{signetum.admission_base}",
     ]
     text = manifest.read_text().replace('command = ["true"]', "command = " + json.dumps(probe))
     text = text.replace(
@@ -1016,53 +1016,49 @@ def test_one_admission_of_several_members_hands_its_whole_range_to_batch_shards(
     assert seen.read_text() == base
 
 
-@pytest.mark.parametrize("declared", [True, False])
-def test_a_batch_shard_that_covers_the_member_shard_satisfies_admission(tmp_path, declared):
+@pytest.mark.parametrize("batch_shards", [["repo:selected"], []], ids=["light", "empty"])
+def test_admission_runs_only_the_declared_batch_gate(tmp_path, batch_shards):
     member, batch, _ = _member_and_batch(tmp_path, approved=True)
     for worktree in (member, batch):
         manifest = worktree / "signetum.toml"
         text = manifest.read_text() + (
             '\n[[validation.shards]]\nname = "repo:selected"\ncommand = ["true"]\n'
-            + ('covers = ["repo:check"]\n' if declared else "")
         )
         text = text.replace(
             'name = "prepare"\nshards = ["repo:check"]', 'name = "prepare"\nshards = []'
         )
         text = text.replace(
-            'name = "batch"\nshards = ["repo:check"]', 'name = "batch"\nshards = ["repo:selected"]'
+            'name = "batch"\nshards = ["repo:check"]',
+            'name = "batch"\nshards = ' + json.dumps(batch_shards),
         )
         manifest.write_text(text)
-        _git(worktree, "commit", "-am", "run member selection from one batch shard")
+        _git(worktree, "commit", "-am", "declare a light batch gate")
     lifecycle.validate(member, "member")
-    if declared:
-        result = lifecycle.admit(batch, (member,))
-        static = result["static"]
-        assert isinstance(static, dict)
-        assert static["executed"] == ["repo:check"]
-    else:
-        with pytest.raises(lifecycle.AdmissionError, match="repo:check"):
-            lifecycle.admit(batch, (member,))
+
+    result = lifecycle.admit(batch, (member,))
+
+    static = result["static"]
+    assert isinstance(static, dict)
+    assert static["executed"] == batch_shards
 
 
-def test_admission_executes_the_selected_check_on_the_combined_member_behaviour(tmp_path):
+def _combined_batch(tmp_path):
+    """Two members that pass alone and fail together under a light batch gate."""
     repository = _repository(tmp_path / "repository")
     path = repository / "signetum.toml"
     probe = [
         sys.executable,
         "-c",
         "from pathlib import Path; import sys; "
-        "sys.exit(1 if Path('left.txt').exists() and Path('right.txt').exists() else 0)",
+        "sys.exit(1 if Path('left.txt').exists() and Path('right.txt').exists() "
+        "and not Path('reconciled.txt').exists() else 0)",
     ]
     source = path.read_text().replace('command = ["true"]', "command = " + json.dumps(probe))
     source = source.replace(
         'name = "prepare"\nshards = ["repo:check"]', 'name = "prepare"\nshards = []'
     )
     source = source.replace(
-        'name = "batch"\nshards = ["repo:check"]', 'name = "batch"\nshards = ["repo:static"]'
-    )
-    source += (
-        '\n[[validation.shards]]\nname = "repo:static"\ncommand = ["true"]\n'
-        'covers = ["repo:check"]\n'
+        'name = "batch"\nshards = ["repo:check"]', 'name = "batch"\nshards = []'
     )
     path.write_text(source)
     _git(repository, "commit", "-am", "observe combined semantics")
@@ -1081,6 +1077,46 @@ def test_admission_executes_the_selected_check_on_the_combined_member_behaviour(
         _git(member, "commit", "-m", f"implement {name}")
         assert lifecycle.validate(member, "member")["status"] == "ready"
         members.append(member)
-    lifecycle.admit(batch, (members[0],))
+    lifecycle.admit(batch, tuple(members))
+    return batch
+
+
+def _next(batch):
+    source = _git(batch, "rev-parse", "HEAD")
+    return workflow_status(batch, development_snapshot(batch), source=source)["next"]
+
+
+def test_cross_member_failure_surfaces_at_final_and_a_batch_owned_fix_repairs_it(tmp_path):
+    batch = _combined_batch(tmp_path)
+    run_final = _next(batch)
     with pytest.raises(lifecycle.ValidationExecutionError):
-        lifecycle.admit(batch, (members[1],))
+        lifecycle.validate(batch, "final")
+    assert _next(batch) != run_final
+
+    _approve_change(batch, "reconcile")
+    _git(batch, "add", ".")
+    _git(batch, "commit", "-m", "approve the batch-owned reconciliation")
+    assert _next(batch) == run_final
+    (batch / "reconciled.txt").write_text("both members together\n")
+    _git(batch, "add", ".")
+    _git(batch, "commit", "-m", "reconcile the combined members")
+    fix = _git(batch, "rev-parse", "HEAD")
+
+    final = lifecycle.validate(batch, "final")
+
+    review = final["delivery_review"]
+    assert isinstance(review, dict)
+    assert {"commit": fix, "changes": ["reconcile"]} in review["inputs"]["batch_commits"]
+    assert "reconcile" in review["inputs"]["source_journals"]["changes"]
+    assert "reconcile" in [item["change_id"] for item in review["approvals"]]
+
+
+def test_final_refuses_an_unattributed_direct_batch_commit(tmp_path):
+    batch = _combined_batch(tmp_path)
+    (batch / "reconciled.txt").write_text("unapproved repair\n")
+    _git(batch, "add", ".")
+    _git(batch, "commit", "-m", "repair without a change record")
+    unattributed = _git(batch, "rev-parse", "HEAD")
+
+    with pytest.raises(OperationError, match=unattributed):
+        lifecycle.validate(batch, "final")

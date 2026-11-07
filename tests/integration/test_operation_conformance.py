@@ -44,18 +44,18 @@ def test_native_cli_classifies_failure_and_retains_one_result(
     def fail(*args, **kwargs):
         raise error
 
-    monkeypatch.setattr(frontend, "changed", fail)
+    monkeypatch.setattr(frontend, "validate", fail)
     monkeypatch.setattr(frontend, "_state_root", lambda repository: tmp_path)
-    assert frontend.main(["changed"]) == exit_code
+    assert frontend.main(["ready"]) == exit_code
     captured = capsys.readouterr()
     assert len(captured.out.splitlines()) == 1
     result = json.loads(captured.out)
     assert result["schema_version"] == 1
-    assert result["operation"] == "changed"
+    assert result["operation"] == "ready"
     assert result["status"] == status
     assert result["exit_code"] == exit_code
     assert result["cause"] == str(error)
-    assert result["context"] == {"operation": "changed"}
+    assert result["context"] == {"operation": "ready"}
     assert result["expected"]
     assert Path(result["log"]).read_text() == str(error) + "\n"
     assert str(error) in captured.err
@@ -63,13 +63,13 @@ def test_native_cli_classifies_failure_and_retains_one_result(
 
 def test_native_cli_preserves_business_outcome_inside_success(frontend, monkeypatch, capsys):
     monkeypatch.setattr(
-        frontend, "changed", lambda *a, **k: {"status": "selection-only", "executed": []}
+        frontend, "explain_ready", lambda *a, **k: {"status": "selection-only", "executed": []}
     )
-    assert frontend.main(["changed", "--explain"]) == 0
+    assert frontend.main(["ready", "--explain"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result == {
         "schema_version": 1,
-        "operation": "changed",
+        "operation": "ready",
         "status": "passed",
         "exit_code": 0,
         "outcome": "selection-only",
@@ -90,7 +90,7 @@ def test_native_cli_invalid_arguments_are_one_json_refusal(frontend, tmp_path, m
 def test_missing_git_is_infrastructure_without_a_log_authority(frontend, monkeypatch, capsys):
     git = importlib.import_module("signetum.git")
     monkeypatch.setattr(git, "which", lambda executable: None)
-    assert frontend.main(["changed"]) == 4
+    assert frontend.main(["ready"]) == 4
     result = json.loads(capsys.readouterr().out)
     assert result["status"] == "infrastructure_error"
     assert "Git executable is unavailable" in result["cause"]
@@ -101,9 +101,9 @@ def test_missing_host_launcher_is_infrastructure(frontend, tmp_path, monkeypatch
     launcher = importlib.import_module("signetum.worktrunk")
     monkeypatch.setattr(launcher, "which", lambda executable: None)
     run = launcher.run_tool
-    monkeypatch.setattr(frontend, "changed", lambda *a, **k: run(tmp_path, ("wt", "--version")))
+    monkeypatch.setattr(frontend, "validate", lambda *a, **k: run(tmp_path, ("wt", "--version")))
     monkeypatch.setattr(frontend, "_state_root", lambda repository: tmp_path)
-    assert frontend.main(["changed"]) == 4
+    assert frontend.main(["ready"]) == 4
     result = json.loads(capsys.readouterr().out)
     assert result["status"] == "infrastructure_error"
     assert "Mise executable is unavailable" in result["cause"]

@@ -58,8 +58,9 @@ fixtures isolate caller-only test/interpreter configuration while retaining
 enclosing allocation and process-ownership markers.
 
 Use `status` for the current workspace, findings, recorded evidence and next step.
-`changed --explain` displays the check plan without executing it; it is optional,
-not a required prelude to ready. Status does not requalify tools or grant readiness.
+`ready --explain` displays the check plan without executing it. Status does not
+requalify tools or grant readiness. `ready` is the feedback loop: commit, run it,
+fix, commit and rerun until it passes on the current tip.
 
 For explicit development feedback, use the repository's configured diagnostic
 utility: `test run --shard <declared-shard> -- <native-test-arguments>`. It appends
@@ -72,6 +73,11 @@ Use observed setup/call/teardown and phase cost to decide whether a wider shard
 or grouping helps. Do not introduce a permanent timing/count gate or handwritten
 test inventory. Stop repeating verification once relevant checks pass unless a
 new change or unresolved concern requires another run.
+
+When `maintenance workspace-sync` stops on a conflict, resolve the paths and
+commit with `git commit --no-edit`, which keeps the pre-filled `Signetum-Sync`
+trailer. If the trailer was lost, rerun the same `workspace-sync`: it recognizes
+the merge it recorded, so the source's paths stop counting as the member's own.
 
 ## Significant records
 
@@ -92,8 +98,14 @@ Use the returned observation ID as the exact resolution target. `--id` is a
 stable retry identity: the same content is idempotent; changed content needs a
 new identity. Add `--change` when more than one approved change matches the
 workspace base. `--expected-history` can explicitly bind a previously reviewed
-view; a stale write refuses. A deferred resolution uses `--disposition deferred`
-and `--followup change-id#REQ-ID`, with the exact approved requirement transfer.
+view; a stale write refuses. Evidence is a path in the current tree or the name of
+a validation receipt. A deferred resolution uses `--disposition deferred` with a
+`--reason` that says who decided and what remains owed; an optional `--followup
+change-id[#REQ-ID]` names an approved change on any local branch. The final
+review lists every deferral under `unfinished_work`. A commit that changes only
+change records keeps the member's ready evidence: `ready` starts no check, and
+re-admission runs no batch gate. In a batch, the same commands record, resolve or
+defer findings of the changes it integrates; commit them there, and final checks them.
 `change retract` takes the target and exact prior `--resolution` ID.
 
 ### Conditional atomic edits
@@ -118,7 +130,10 @@ of scope never offsets that failure, and neither does a retry-only pass. A shard
 command that declares `{signetum.priority_nodes_file}` receives those owed nodes
 as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
 through a declared `{signetum.node_report_file}`, whose optional `unreached` list
-fails the gate and makes those entries owed. See the
+fails the gate and makes those entries owed. Every other engine value, such as
+the base, ratchet baseline, contribution paths, admission base, worker cap,
+recovery report and schedule file, is also a declared `{signetum.*}` argument;
+Signetum sets no environment variable for a runner. See the
 [repository binding guide](https://github.com/R0k1e/Signetum/blob/main/docs/guides/repository-bindings.md)
 for the runner contract and order-only `after` prerequisites. Process settlement checks only positively owned
 jobs and refuses successful commands that leave owned children behind.

@@ -13,6 +13,7 @@ from signetum import worktrunk as wt
 from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
+from signetum.synchronization import member_contribution_paths
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import (
     branch_name,
@@ -295,7 +296,7 @@ def test_changed_explains_selected_checks_without_executing_or_granting_readines
     git_output(root, "commit", "-m", "declare observable diagnostic")
     member = opened(root, "plan/diagnostic")
     tip = commit_file(member, "implementation.txt")
-    result = lifecycle.changed(member, True)
+    result = lifecycle.explain_ready(member)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert not marker.exists()
@@ -310,14 +311,14 @@ def test_changed_refuses_dirty_files_before_running_checks(repository, path):
     commit_file(member, "implementation.txt")
     (member / path).write_text("not selected by committed diff")
     with pytest.raises(AdmissionError, match="not clean"):
-        lifecycle.changed(member, True)
+        lifecycle.explain_ready(member)
 
 
 def test_changed_refuses_workspace_without_committed_contribution(repository):
     root, _ = repository
     member = opened(root, "plan/no-contribution")
     with pytest.raises(AdmissionError, match="no committed contribution"):
-        lifecycle.changed(member, True)
+        lifecycle.explain_ready(member)
 
 
 def test_changed_without_provider_plans_full_checks_for_unexplained_paths(repository):
@@ -328,7 +329,7 @@ def test_changed_without_provider_plans_full_checks_for_unexplained_paths(reposi
     )
     member = opened(root, "plan/no-selection")
     commit_file(member, "unexplained.md")
-    result = lifecycle.changed(member, True)
+    result = lifecycle.explain_ready(member)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert result["requires_final"] is True
@@ -342,12 +343,12 @@ def test_changed_selection_only_does_not_execute_the_selected_command(
     commit_file(root, "signetum.toml", manifest.read_text().replace('["true"]', '["false"]'))
     member = opened(root, "plan/selection-only")
     commit_file(member, "implementation.txt")
-    result = lifecycle.changed(member, True)
+    result = lifecycle.explain_ready(member)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert result["shards"] == ("test:check",)
     monkeypatch.chdir(member)
-    assert lifecycle.main(["changed", "--explain"]) == 0
+    assert lifecycle.main(["ready", "--explain"]) == 0
     document = json.loads(capsys.readouterr().out)
     assert document["outcome"] == "selection-only"
     assert document["checks_started"] is False
@@ -407,6 +408,9 @@ def test_unadmitted_member_can_sync_verified_batch(repository):
     member = opened(root, "plan/dependent")
     result = ops.workspace_sync(member, batch)
     assert result["source"] == git_output(batch, "rev-parse", "HEAD")
+    assert git_output(member, "show", "-s", "--format=%s", "HEAD") == (
+        "Merge batch/test into plan/dependent"
+    )
     assert (member / "sibling.txt").is_file()
     assert read_record(state_root(member), "plan/dependent").base == base
 
@@ -419,8 +423,57 @@ def test_sync_conflict_keeps_git_state_and_names_member_recovery(repository):
     git_output(root, "push", "origin", "main")
     with pytest.raises(MergeConflict) as refusal:
         ops.workspace_sync(member)
-    assert "prepare and validate" in refusal.value.expected
+    assert "git commit --no-edit" in refusal.value.expected
     assert run_git(member, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
+
+
+def conflicted_sync(repository, branch):
+    root, _ = repository
+    member = opened(root, branch)
+    base = read_record(state_root(member), branch).base
+    commit_file(member, "seed.txt", "member\n")
+    commit_file(root, "seed.txt", "delivery\n")
+    commit_file(root, "delivered.txt")
+    git_output(root, "push", "origin", "main")
+    with pytest.raises(MergeConflict):
+        ops.workspace_sync(member)
+    (member / "seed.txt").write_text("resolved\n")
+    git_output(member, "add", "seed.txt")
+    return member, base
+
+
+def test_conflicted_sync_committed_without_editing_is_verified(repository):
+    member, base = conflicted_sync(repository, "plan/no-edit")
+    git_output(member, "commit", "--no-edit")
+    owned = member_contribution_paths(member, base, git_output(member, "rev-parse", "HEAD"))
+    assert set(owned) == {"seed.txt"}
+
+
+def test_rerunning_sync_recognizes_a_recorded_merge_that_lost_its_trailer(repository):
+    member, base = conflicted_sync(repository, "plan/lost-trailer")
+    git_output(member, "commit", "-m", "resolve the sync conflict")
+    tip = git_output(member, "rev-parse", "HEAD")
+    assert "delivered.txt" in member_contribution_paths(member, base, tip)
+    result = ops.workspace_sync(member)
+    assert result["status"] == "recognized"
+    assert result["merge"] == tip
+    assert git_output(member, "rev-parse", "HEAD") == tip
+    assert set(member_contribution_paths(member, base, tip)) == {"seed.txt"}
+    assert ops.workspace_sync(member)["status"] != "recognized"
+
+
+def test_rerunning_sync_does_not_recognize_a_manual_merge(repository):
+    root, _ = repository
+    member = opened(root, "plan/manual")
+    base = read_record(state_root(member), "plan/manual").base
+    commit_file(member, "own.txt")
+    commit_file(root, "delivered.txt")
+    git_output(root, "push", "origin", "main")
+    git_output(member, "fetch", "origin", "main")
+    git_output(member, "merge", "--no-ff", "FETCH_HEAD", "-m", "manual merge")
+    assert ops.workspace_sync(member)["status"] != "recognized"
+    tip = git_output(member, "rev-parse", "HEAD")
+    assert "delivered.txt" in member_contribution_paths(member, base, tip)
 
 
 def test_cleanup_preserves_protected_fresh_dirty_and_unmerged_workspaces(repository):
@@ -499,7 +552,7 @@ def test_sync_does_not_claim_siblings_package_or_charge_its_unchanged_paths(repo
     ops.workspace_sync(member, batch)
     result = lifecycle.validate(member, "member")
     assert result["status"] == "ready"
-    changed = lifecycle.changed(member, True)["files"]
+    changed = lifecycle.explain_ready(member)["files"]
     assert isinstance(changed, tuple)
     assert set(changed) == {
         "own.txt",

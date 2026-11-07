@@ -8,16 +8,20 @@ from tomllib import loads
 from signetum.profiles.catalog import validate_selection
 from signetum.resources.schemas import evidence_schema_digest as published_evidence_schema_digest
 from signetum.selection_contracts import SelectionProvider, repository_file
-from signetum.serialization import dataclass_from_mapping
+from signetum.serialization import UnknownFieldsError, dataclass_from_mapping
+from signetum.validation import SCHEDULE_FILE, ValidationShard
 from signetum.validation import GateDeclaration as ValidationGate
 from signetum.validation import ToolDeclaration as ValidationTool
-from signetum.validation import ValidationShard
 
 SCHEMA_VERSION = 5
 
 
 class ManifestError(ValueError):
     """A repository configuration violates the supported public contract."""
+
+
+class UnsupportedManifestError(ManifestError):
+    """The manifest uses a schema or fields this engine does not know, as a newer one may."""
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -93,28 +97,14 @@ class ImpactConfiguration:
             raise ManifestError("impact.rules names must be unique")
 
 
-def _require_acyclic_coverage(covers: dict[str, tuple[str, ...]]) -> None:
-    finished: set[str] = set()
-
-    def visit(name: str, path: tuple[str, ...]) -> None:
-        if name in path:
-            raise ManifestError("cyclic shard coverage: " + " -> ".join((*path, name)))
-        if name in finished:
-            return
-        for covered in covers.get(name, ()):
-            visit(covered, (*path, name))
-        finished.add(name)
-
-    for name in covers:
-        visit(name, ())
-
-
 @dataclass(frozen=True, kw_only=True)
 class ValidationCommands:
     tools: tuple[ValidationTool, ...] = ()
     shards: tuple[ValidationShard, ...]
     gates: tuple[ValidationGate, ...]
     member_required: tuple[str, ...] = ()
+    schedule_file: str = ""
+    """Repository-relative scheduling weights, offered as {signetum.schedule_file}."""
 
     def __post_init__(self) -> None:
         if not self.shards or len(self.shards) != len({item.name for item in self.shards}):
@@ -124,15 +114,6 @@ class ValidationCommands:
             raise ManifestError("validation.gates must contain unique member and final gates")
         world = {item.name for item in self.shards if item.evidence == "world"}
         declared = {item.name for item in self.shards}
-        covers = {item.name: item.covers for item in self.shards}
-        for name, covered in covers.items():
-            unknown = sorted(set(covered) - declared)
-            if unknown:
-                raise ManifestError(f"{name} covers undeclared shards: {', '.join(unknown)}")
-            outside = sorted(set(covered) & world)
-            if outside:
-                raise ManifestError(f"{name} covers non-tree shards: {', '.join(outside)}")
-        _require_acyclic_coverage(covers)
         for item in self.shards:
             unknown = sorted(set(item.after) - declared)
             if unknown:
@@ -175,16 +156,25 @@ class RepositoryManifest:
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
             raise ManifestError(f"unsupported manifest schema: {self.schema_version}")
+        schedule = self.validation.schedule_file
+        if schedule and schedule not in self.repository.lockfiles:
+            raise ManifestError("validation.schedule_file must be listed in repository.lockfiles")
+        if not schedule and any(SCHEDULE_FILE in shard.command for shard in self.validation.shards):
+            raise ManifestError(f"placeholder {SCHEDULE_FILE} requires validation.schedule_file")
 
 
 def manifest_from_mapping(data: object) -> RepositoryManifest:
     if not isinstance(data, dict):
         raise ManifestError("manifest must be an object")
     version = data.get("schema_version")
+    if type(version) is int and version > SCHEMA_VERSION:
+        raise UnsupportedManifestError(f"unsupported manifest schema: {version}")
     if type(version) is not int or version != SCHEMA_VERSION:
         raise ManifestError(f"unsupported manifest schema: {version}")
     try:
         return dataclass_from_mapping(RepositoryManifest, data, use_defaults=True)
+    except UnknownFieldsError as error:
+        raise UnsupportedManifestError(str(error)) from error
     except (ValueError, TypeError, RecursionError) as error:
         raise ManifestError(str(error)) from error
 
@@ -192,6 +182,8 @@ def manifest_from_mapping(data: object) -> RepositoryManifest:
 def parse_manifest(text: str) -> RepositoryManifest:
     try:
         return manifest_from_mapping(loads(text))
+    except ManifestError:
+        raise
     except (ValueError, TypeError, RecursionError) as error:
         raise ManifestError(str(error)) from error
 
@@ -215,6 +207,7 @@ __all__ = [
     "RepositoryBindings",
     "RepositoryManifest",
     "SignetumIdentity",
+    "UnsupportedManifestError",
     "ValidationCommands",
     "ValidationGate",
     "ValidationShard",

@@ -8,16 +8,14 @@ import pytest
 
 
 @pytest.fixture
-def command_owner(monkeypatch):
-    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", "0")
+def command_owner():
     return importlib.import_module("signetum.validation.process")
 
 
 @pytest.mark.parametrize("workers", [0, 2])
 def test_default_pytest_scratch_finds_environment_scrubbed_detached_leak(
-    tmp_path, command_owner, workers, monkeypatch
+    tmp_path, command_owner, workers
 ):
-    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", str(workers))
     case = tmp_path / "test_leak.py"
     observed = tmp_path / "observed-scratch"
     width = tmp_path / "observed-width"
@@ -34,7 +32,7 @@ def test_default_pytest_scratch_finds_environment_scrubbed_detached_leak(
     runner = Path(command_owner.__file__).with_name("pytest_runner.py")
     result = command_owner.run_command(
         tmp_path,
-        [sys.executable, str(runner), "--", "-q", "-n", str(workers), str(case)],
+        [sys.executable, str(runner), "--workers", str(workers), "--", "-q", str(case)],
         timeout_seconds=90,
     )
     assert result.returncode == 1, result.stdout + result.stderr
@@ -58,7 +56,7 @@ def test_explicit_pytest_basetemp_keeps_repository_precedence(tmp_path, command_
         "[pytest]\n" + (f"addopts = --basetemp={expected}\n" if location == "configuration" else "")
     )
     runner = Path(command_owner.__file__).with_name("pytest_runner.py")
-    arguments = [sys.executable, str(runner), "--", "-q", str(case)]
+    arguments = [sys.executable, str(runner), "--workers", "0", "--", "-q", str(case)]
     if location == "cli":
         arguments.extend(["--basetemp", str(expected)])
     result = command_owner.run_command(tmp_path, arguments, timeout_seconds=15)

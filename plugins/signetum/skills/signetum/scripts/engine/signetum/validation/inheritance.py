@@ -1,11 +1,12 @@
-"""Verify nearest-ancestor test evidence across non-selecting member fixups."""
+"""Reuse nearest-ancestor test evidence for each shard no intervening change affects."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
+from signetum.change.paths import is_record_path
 from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceReceipt,
@@ -14,7 +15,7 @@ from signetum.evidence.receipts import (
     verify_gate_evidence,
 )
 from signetum.git import GitError, git_output
-from signetum.impact import ImpactRuleLike
+from signetum.impact import ImpactRuleLike, select_paths
 from signetum.serialization import ValueDecodeError, load_json
 from signetum.validation import ValidationGraph
 from signetum.validation.execution import (
@@ -23,7 +24,7 @@ from signetum.validation.execution import (
     ValidationInputs,
     build_evidence_identity,
 )
-from signetum.validation.ratchet import member_environment
+from signetum.validation.ratchet import member_values
 
 
 def verify_committed_inputs(repository: Path, receipt: EvidenceReceipt) -> None:
@@ -48,7 +49,7 @@ def find_test_inheritance(
     receipt_root: Path,
     *,
     selector: Callable[[tuple[str, ...], str, str], ValidationSelection] | None = None,
-    journal_root: str | None = None,
+    records_root: str | None = None,
 ) -> InheritedEvidence | None:
     """A malformed or incompatible nearest receipt never falls back to an older one."""
     member_names = set(graph.execution_order("member"))
@@ -108,27 +109,27 @@ def find_test_inheritance(
             }
         )
     )
-    journal_only = (
-        bool(paths)
-        and journal_root is not None
-        and all(
-            PurePosixPath(path).parent.parent == PurePosixPath(journal_root)
-            and PurePosixPath(path).name == "events.jsonl"
-            for path in paths
-        )
+    # Change records feed no inheritable check; source admission judges them.
+    paths = tuple(
+        path for path in paths if records_root is None or not is_record_path(path, records_root)
     )
-    if journal_only:
-        affected: set[str] = set()
-    else:
-        if selector is None:
+    affected: set[str] = set()
+    if paths:
+        # Impact rules decide per shard; a provider, when declared, refines them.
+        selected = (
+            select_paths(paths, rules)
+            if selector is None
+            else selector(paths, nearest, current.commit)
+        )
+        # A path nothing explains may affect anything; a test file is a path like
+        # any other and affects only the shards its explanation names.
+        if selected.unexplained:
             return None
-        selected = selector(paths, nearest, current.commit)
-        if selected.unexplained or selected.modified_tests:
-            return None
-        affected = set(selected.shards)
+        affected.update(selected.shards)
         for gate in selected.gates:
-            affected.update(graph.execution_order(gate))
+            affected.update(graph.gate(gate).shards)
     declarations = {shard.name: shard for shard in graph.shards}
+    # A rerun shard needs fresh output from what it requires; after only orders.
     pending = list(affected)
     while pending:
         name = pending.pop()
@@ -136,7 +137,8 @@ def find_test_inheritance(
             if dependency not in affected:
                 affected.add(dependency)
                 pending.append(dependency)
-    if affected & inheritable:
+    candidates = inheritable - affected
+    if not candidates:
         return None
     for path, text in by_commit[nearest]:
         try:
@@ -154,30 +156,31 @@ def find_test_inheritance(
             # Inherited tests saw the ancestor's bases; a moved baseline reruns them.
             details = receipt.extensions.get("shard_details", {})
             observed = [
-                detail.get("environment")
+                detail.get("member_values")
                 for detail in (details.values() if isinstance(details, dict) else ())
                 if isinstance(detail, dict)
             ]
-            expected_environment = member_environment(repository, inputs.base, nearest)
-            current_environment = member_environment(repository, inputs.base, current.commit)
+            expected_values = member_values(repository, inputs.base, nearest)
+            current_values = member_values(repository, inputs.base, current.commit)
             if any(
-                value != current_environment.get(key)
-                for key, value in expected_environment.items()
-                if key != "SIGNETUM_CONTRIBUTION_PATHS"
+                value != current_values.get(key)
+                for key, value in expected_values.items()
+                if key != "contribution_paths"
             ):
                 return None
-            if not observed or any(item != expected_environment for item in observed):
+            if not observed or any(item != expected_values for item in observed):
                 return None
             outcomes = {outcome.name: outcome for outcome in receipt.execution.shards}
-            if any(
-                name not in outcomes
-                or outcomes[name].command_digest != declarations[name].digest
-                or outcomes[name].evidence != "tree"
-                or outcomes[name].status != "passed"
-                for name in inheritable
-            ):
-                return None
-            return InheritedEvidence(receipt, path.name, inheritable)
+            # A shard without passing evidence of its exact command here reruns.
+            reusable = frozenset(
+                name
+                for name in candidates
+                if name in outcomes
+                and outcomes[name].command_digest == declarations[name].digest
+                and outcomes[name].evidence == "tree"
+                and outcomes[name].status == "passed"
+            )
+            return InheritedEvidence(receipt, path.name, reusable) if reusable else None
         except (GitError, ReceiptError):
             return None
     return None

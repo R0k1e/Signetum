@@ -1,7 +1,6 @@
 """Subprocess evidence for failed-node-only serial recovery."""
 
 import json
-import os
 import subprocess
 import sys
 
@@ -49,13 +48,14 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
             *runner_command,
             "--node-report",
             str(nodes),
+            "--recovery-report",
+            str(report),
             "--",
             "-q",
             "-o",
             "addopts=",
             str(test),
         ],
-        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report)),
         capture_output=True,
         text=True,
         check=False,
@@ -86,17 +86,16 @@ def test_collection_failure_is_not_retried(tmp_path, workers, runner_command):
         [
             sys.executable,
             *runner_command,
+            "--recovery-report",
+            str(report),
+            "--workers",
+            str(workers),
             "--",
             "-q",
             "-o",
             "addopts=",
             str(tmp_path),
         ],
-        env=dict(
-            os.environ,
-            SIGNETUM_RECOVERY_REPORT=str(report),
-            SIGNETUM_VALIDATION_WORKERS=str(workers),
-        ),
         capture_output=True,
         text=True,
         check=False,
@@ -129,6 +128,12 @@ def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
         [
             sys.executable,
             *runner_command,
+            "--recovery-report",
+            str(report),
+            "--workers",
+            "2",
+            "--schedule-file",
+            str(weights),
             "--",
             "-q",
             "-o",
@@ -136,12 +141,6 @@ def test_parallel_failure_retries_without_a_worker(tmp_path, runner_command):
             "-n2",
             str(test),
         ],
-        env=dict(
-            os.environ,
-            SIGNETUM_RECOVERY_REPORT=str(report),
-            SIGNETUM_VALIDATION_WORKERS="2",
-            SIGNETUM_SCHEDULE_FILE=str(weights),
-        ),
         capture_output=True,
         text=True,
         check=False,
@@ -214,8 +213,7 @@ def test_failed_original_never_writes_success_on_repeated_runs(tmp_path):
         assert not tuple(receipts.glob("member-*.json"))
 
 
-def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path, monkeypatch):
-    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKERS", "0")
+def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path):
     observed = tmp_path / "order"
     test = tmp_path / "test_order.py"
     test.write_text(
@@ -234,6 +232,10 @@ def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path, monke
         sys.executable,
         "-m",
         "signetum.validation.pytest_runner",
+        "--workers",
+        "0",
+        "--schedule-file",
+        str(weights),
         "--",
         "-q",
         "-o",
@@ -247,7 +249,6 @@ def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path, monke
         capture_output=True,
         text=True,
         check=False,
-        env=dict(os.environ, SIGNETUM_SCHEDULE_FILE=str(weights)),
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert observed.read_text().splitlines() == ["heavy", "light"]
@@ -259,7 +260,6 @@ def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path, monke
         capture_output=True,
         text=True,
         check=False,
-        env=dict(os.environ, SIGNETUM_SCHEDULE_FILE=str(weights)),
     )
     assert conflict.returncode != 0
     assert observed.read_text().splitlines() == ["heavy", "light"]

@@ -7,8 +7,11 @@ import json
 import re
 from pathlib import Path
 
+from signetum.change.paths import changes_root
+from signetum.change.scope import records_only
 from signetum.evidence.receipts import EvidenceReceipt, ReceiptError
 from signetum.git import GitError, git_output
+from signetum.manifest import load_manifest
 from signetum.operations import AdmissionError
 from signetum.provenance import members_and_plans
 from signetum.serialization import JsonValue, load_json
@@ -40,6 +43,7 @@ def member_recovery_review(
     if not git_output(repository, "rev-list", "--first-parent", "--merges", f"{base}..{tip}"):
         return []
     members, _ = members_and_plans(repository, base, tip)
+    root = changes_root(load_manifest(repository / "signetum.toml"))
     result: list[dict[str, JsonValue]] = []
     for member in members:
         name = member["ready_evidence"]
@@ -51,10 +55,12 @@ def member_recovery_review(
             if not isinstance(payload, dict):
                 raise ReceiptError("admitted evidence must be an object")
             receipt = EvidenceReceipt.from_json(json.dumps(payload["evidence"]))
-            if receipt.identity.commit != member["original"] or receipt.execution.gates not in (
-                ("member",),
-                ("final",),
+            # Evidence of an ancestor stands while only change records changed since.
+            if receipt.identity.commit != member["original"] and not records_only(
+                repository, root, receipt.identity.commit, member["original"]
             ):
+                raise ReceiptError("admitted receipt does not bind the original member")
+            if receipt.execution.gates not in (("member",), ("final",)):
                 raise ReceiptError("admitted receipt does not bind the original member")
             if match := re.fullmatch(r"(?:member|final)-lifecycle-([0-9a-f]{64})\.json", name):
                 if hashlib.sha256(receipt.to_json().encode()).hexdigest() != match[1]:

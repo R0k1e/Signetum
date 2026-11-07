@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 from collections import defaultdict
+from collections.abc import Mapping
 from functools import cache
 from pathlib import Path
 
@@ -18,10 +19,17 @@ def _path(repository: Path, base: str, before: str, source: str) -> Path:
     return state_root(repository) / "synchronization" / f"{digest}.json"
 
 
+def _recognition_path(repository: Path, merge: str) -> Path:
+    return state_root(repository) / "synchronization" / "recognized" / f"{merge}.json"
+
+
 def authorize_source(repository: Path, base: str, source: str, kind: str) -> None:
     before = git_output(repository, "rev-parse", "HEAD")
-    destination = _path(repository, base, before, source)
     record = {"schema_version": 1, "base": base, "before": before, "source": source, "kind": kind}
+    _write(_path(repository, base, before, source), record)
+
+
+def _write(destination: Path, record: Mapping[str, object]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", dir=destination.parent, delete=False
@@ -50,26 +58,63 @@ def _verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, s
         if len(parents) != 2:
             continue
         before, source = parents
-        body = git_output(repository, "show", "-s", "--format=%B", merge)
-        if re.findall(r"^Signetum-Sync:\s*(\S+)$", body, re.MULTILINE) != [source]:
+        if not _trailer(repository, merge, source) and not _recognized(
+            repository, merge, base, source
+        ):
             continue
-        try:
-            record = json.loads(_path(repository, base, before, source).read_text(encoding="utf-8"))
-            if (
-                record
-                == {
-                    "schema_version": 1,
-                    "base": base,
-                    "before": before,
-                    "source": source,
-                    "kind": record.get("kind"),
-                }
-                and record["kind"] in SYNC_KINDS
-            ):
-                sources.append((merge, source, record["kind"]))
-        except (OSError, ValueError, TypeError, AttributeError):
-            continue
+        if (kind := _sync_kind(repository, base, before, source)) is not None:
+            sources.append((merge, source, kind))
     return tuple(sources)
+
+
+def _trailer(repository: Path, merge: str, source: str) -> bool:
+    body = git_output(repository, "show", "-s", "--format=%B", merge)
+    return re.findall(r"^Signetum-Sync:\s*(\S+)$", body, re.MULTILINE) == [source]
+
+
+def _read(path: Path) -> object:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _sync_kind(repository: Path, base: str, before: str, source: str) -> str | None:
+    """The kind of the sync record workspace-sync wrote for exactly these commits."""
+
+    record = _read(_path(repository, base, before, source))
+    if not isinstance(record, dict) or record.get("kind") not in SYNC_KINDS:
+        return None
+    expected = {"schema_version": 1, "base": base, "before": before, "source": source}
+    return record["kind"] if record == {**expected, "kind": record["kind"]} else None
+
+
+def _recognized(repository: Path, merge: str, base: str, source: str) -> bool:
+    expected = {"schema_version": 1, "merge": merge, "base": base, "source": source}
+    return _read(_recognition_path(repository, merge)) == expected
+
+
+def recognize_sync(repository: Path, base: str, source: str) -> str | None:
+    """Bind the recorded sync merge of ``source`` whose trailer was lost.
+
+    Only a first-parent merge of exactly ``source`` with the sync record
+    workspace-sync wrote is recognized; a manual merge stays unverified.
+    """
+
+    for merge in git_output(
+        repository, "rev-list", "--first-parent", "--merges", f"{base}..HEAD"
+    ).splitlines():
+        parents = git_output(repository, "show", "-s", "--format=%P", merge).split()
+        if len(parents) != 2 or parents[1] != source:
+            continue
+        if _trailer(repository, merge, source) or _recognized(repository, merge, base, source):
+            return None
+        if _sync_kind(repository, base, parents[0], source) is None:
+            return None
+        record = {"schema_version": 1, "merge": merge, "base": base, "source": source}
+        _write(_recognition_path(repository, merge), record)
+        return merge
+    return None
 
 
 def verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, str], ...]:

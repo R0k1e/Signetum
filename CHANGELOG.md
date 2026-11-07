@@ -35,8 +35,21 @@ concurrent decision clause identities are refused before they are integrated.
   from the batch base, or `--batch` named from a batch, is refused.
 - `batch-admit` and batch synchronization refuse when two different changes write
   one decision clause ID, naming the clause, both changes and their workspaces.
+- A member that synchronized delivered change records no longer claims their
+  decision clauses at admission, so a batch sibling may amend those clauses.
 - `batch-deliver` onto a delivery branch that moved names batch synchronization
   as the recovery.
+- A member that changes the engine or the manifest schema no longer strands its
+  ready siblings. `batch-admit` run with the batch's engine accepts a sibling's
+  ready receipt produced by an older engine without rerunning its checks, as long
+  as the sibling's own inputs are unchanged; the batch gate then runs over the
+  merged result. An engine that cannot read a newer manifest names this path
+  instead of reporting only an unknown field.
+- Member ratchets measure their baseline in a checkout prepared by the declared
+  prepare gate, so a baseline command that needs the project environment runs.
+  A baseline that cannot be measured now fails the shard with its cause instead
+  of passing against an empty baseline; `baseline_unavailable` is removed from
+  the ratchet details.
 - Stacked members split one large change into a chain delivered through one
   batch. `workspace-open <branch> <parent-branch>` bases a member on another open
   member's tip and records that parent; its `ready` selects only its own diff.
@@ -45,6 +58,33 @@ concurrent decision clause identities are refused before they are integrated.
   does. `batch-admit` requires the parent admitted first at the exact tip the child
   holds. The final review names each member's parent, and the `status` next action
   names the needed sync or the admission order.
+- Breaking: `changed` is removed; the lifecycle has seven operations. `ready` is
+  the development loop (commit, ready, fix, ready), and `ready --explain` shows its
+  selection without running checks.
+- Admission and `batch-continue` run only the declared batch gate, which may run
+  no integration check; they no longer refuse a gate that does not run the member
+  shards an increment selects. Final stays complete, so cross-member failures
+  surface there.
+- Breaking: the shard field `covers` is removed; a manifest that declares it is
+  refused at load. Delete it from `signetum.toml`.
+- A defect that appears only when members combine may be fixed by commits made
+  directly in the batch under the batch's own approved change record. Final
+  attributes each such commit in the review and refuses an unattributed direct
+  implementation commit; after a failed final, `status` names both repairs.
+- Recording a decision no longer costs a validation round. A commit that changes
+  only change records, keeping every contract digest, keeps the member's ready
+  evidence: `ready` runs source admission and no check, and admission, `status`
+  and final accept the earlier receipt. A records-only batch increment runs no
+  batch gate check. In test inheritance a change-record path affects no shard.
+- `change record`, `resolve`, `retract` and `retire` work in a batch for the
+  changes it integrates, without claiming them; final attributes such record-only
+  batch commits to those changes.
+- Breaking: `change resolve --disposition deferred` needs only a reason; the
+  follow-up requirement and its approved transfer are no longer required. An
+  optional `--followup change-id[#REQ-ID]` may name an approved change on any
+  local branch and is judged only when written. The final review lists every
+  deferred item in a top-level `unfinished_work`.
+- Resolution evidence may also name a machine-local validation receipt.
 
 Signetum ships as one plugin for Claude Code and Codex: the Skill plus a command
 guard, installed and updated by the host plugin managers.
@@ -94,9 +134,51 @@ owed, and one failing check no longer hides the others.
   refused.
 - `after = [...]` on a shard orders it after other shards without skipping it
   when they fail, so one round reports every failure. `requires` still gates.
+- `ready` inherits test evidence per shard. Impact rules decide, with or without
+  a selection provider, which `inherit = true` shards the paths changed since
+  the previous ready affect; each unaffected shard reuses that ready's passing
+  evidence and the affected ones rerun. A modified test file reruns only the
+  shards its rules name. A path no rule explains still reruns every shard, and
+  final, batch admission and continuation never inherit.
+- `after` no longer adds its prerequisite to a gate: it only orders shards the
+  gate already runs. `requires` prerequisites still run with their dependents.
 - When no implementation commit follows the latest approval, `ready` refuses
   naming the approval commit, and its expected action and the `status` next
   action give the remedy.
+
+Every engine value now reaches a runner through a declared command placeholder.
+
+- Breaking: `SIGNETUM_BASE`, `SIGNETUM_RATCHET_BASELINE`,
+  `SIGNETUM_CONTRIBUTION_PATHS`, `SIGNETUM_ADMISSION_BASE`,
+  `SIGNETUM_VALIDATION_WORKERS`, `SIGNETUM_RECOVERY_REPORT` and
+  `SIGNETUM_SCHEDULE_FILE` are removed. A shard that needs one must declare
+  `{signetum.base}`, `{signetum.ratchet_baseline}`,
+  `{signetum.contribution_paths_file}` (a file holding
+  `{"schema_version": 1, "paths": [...]}`), `{signetum.admission_base}`,
+  `{signetum.validation_workers}` or `{signetum.recovery_report_file}` as a whole
+  command argument. Range values outside the member and batch gates, and the
+  admission base outside a batch gate, are explicit empty arguments.
+- Breaking: the scheduling weights file is the `[validation] schedule_file`
+  setting, which must be listed in `repository.lockfiles`, and reaches a runner as
+  `{signetum.schedule_file}`. Declaring that placeholder without the setting is
+  refused.
+- Breaking: the packaged pytest runner takes `--recovery-report`, `--workers` and
+  `--schedule-file` before `--`, next to `--node-report`; repositories using it
+  must declare `--workers {signetum.validation_workers}` and
+  `--recovery-report {signetum.recovery_report_file}` to keep worker allocation
+  and retry recovery evidence.
+- A ratchet command may declare `{signetum.validation_workers}`; no other
+  placeholder. An engine run inside an outer pytest-xdist worker still runs one
+  lane.
+
+Small synchronization repairs.
+
+- A conflicted `maintenance workspace-sync` names `git commit --no-edit` as the
+  way to keep its `Signetum-Sync` trailer. If the trailer was lost, rerunning the
+  same sync recognizes the merge it recorded and reports `recognized`, so the
+  source's paths no longer count as the member's own.
+- A batch synchronization merge subject names the batch branch once instead of
+  `batch/batch/...`.
 
 ## 0.3.3
 

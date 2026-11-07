@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 from change_fixtures import commit_approval
 from signetum import lifecycle
+from signetum.development_store import snapshot
 from signetum.git import git_output
+from signetum.workflow_status import workflow_status
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
 
@@ -58,7 +60,7 @@ def test_changed_plans_without_executing_or_granting_readiness(diagnostic):
         code=f"from pathlib import Path; Path({str(marker)!r}).touch(); raise SystemExit(7)"
     )
     tip = commit_contribution(member)
-    result = runtime.changed(member, True)
+    result = runtime.explain_ready(member)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert result["checks_started"] is False
@@ -75,7 +77,7 @@ def test_changed_requires_a_clean_committed_contribution(diagnostic, dirty):
         commit_contribution(member)
         (member / "untracked.txt").write_text("retained state")
     with pytest.raises(runtime.AdmissionError, match="not clean" if dirty else "no committed"):
-        runtime.changed(member, True)
+        runtime.explain_ready(member)
     assert not (state_root(member) / "validation").exists()
 
 
@@ -99,7 +101,7 @@ def test_changed_does_not_run_a_working_file_mutator(diagnostic):
     runtime, open_member, _ = diagnostic
     member = open_member(code="from pathlib import Path; Path('seed.txt').write_text('changed')")
     commit_contribution(member)
-    result = runtime.changed(member, True)
+    result = runtime.explain_ready(member)
     assert result["checks_started"] is False
     assert (member / "seed.txt").read_text() != "changed"
     assert not (state_root(member) / "validation").exists()
@@ -152,4 +154,19 @@ def test_native_cli_observes_real_failure_without_granting_readiness(
     if failure == "check":
         assert "native check diagnostic" in captured.err
         assert "exited 9" in result["cause"]
+    assert not (state_root(member) / "validation").exists()
+
+
+def test_ready_is_the_one_loop_and_changed_is_not_an_operation(diagnostic, monkeypatch, capsys):
+    runtime, open_member, _ = diagnostic
+    member = open_member(approved=True)
+    commit_contribution(member)
+    source = git_output(member, "rev-parse", "HEAD")
+    sentence = workflow_status(member, snapshot(member), source=source)["next"]
+    assert isinstance(sentence, str) and "ready" in sentence.split()
+    monkeypatch.chdir(member)
+    assert runtime.main(["changed"]) == 2
+    assert json.loads(capsys.readouterr().out)["status"] == "invalid"
+    assert runtime.main(["ready", "--explain"]) == 0
+    assert json.loads(capsys.readouterr().out)["outcome"] == "selection-only"
     assert not (state_root(member) / "validation").exists()

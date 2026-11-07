@@ -125,10 +125,8 @@ def transaction_identities(transaction: DevelopmentTransaction) -> tuple[str, ..
 
 
 def validate_resolution(resolution: DevelopmentResolution) -> None:
-    if resolution.status == "deferred" and not resolution.followup:
-        raise ValueError("deferred work requires an active follow-up requirement")
     if resolution.status != "deferred" and resolution.followup is not None:
-        raise ValueError("only deferred work can name a follow-up requirement")
+        raise ValueError("only deferred work can name a follow-up change")
     if resolution.status == "resolved" and not resolution.evidence:
         raise ValueError("resolved work requires acceptance evidence")
 

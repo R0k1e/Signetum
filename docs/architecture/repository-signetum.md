@@ -39,7 +39,7 @@ hook trust to a hash of its content. Setup selects host Python 3.12 and uv 0.12.
 interpreter directly instead of selecting the application’s Python. Normal commands verify
 the installed environment and supported project contracts; they never install or
 repair tooling. The application environment is not the engine environment. The launcher forwards arguments unchanged; `commands` owns the sole public
-registry used by CLI/help and installed acceptance. Eight lifecycle operations
+registry used by CLI/help and installed acceptance. Seven lifecycle operations
 are direct; `change`, `test`, `check`, `adopt` and `maintenance` own auxiliary
 work. No public lifecycle/protocol namespace or validate alias remains. Bootstrap
 setup, identity and explicit updates are declared alongside the command table.

@@ -231,6 +231,10 @@
         "member_required": {
           "$ref": "#/$defs/uniqueStrings"
         },
+        "schedule_file": {
+          "type": "string",
+          "minLength": 1
+        },
         "tools": {
           "type": "array",
           "items": {
@@ -275,9 +279,6 @@
               },
               "ratchet_command": {
                 "$ref": "#/$defs/argv"
-              },
-              "covers": {
-                "$ref": "#/$defs/uniqueStrings"
               },
               "after": {
                 "$ref": "#/$defs/uniqueStrings"
