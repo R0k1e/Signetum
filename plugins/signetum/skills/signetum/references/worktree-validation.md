@@ -118,7 +118,10 @@ of scope never offsets that failure, and neither does a retry-only pass. A shard
 command that declares `{signetum.priority_nodes_file}` receives those owed nodes
 as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
 through a declared `{signetum.node_report_file}`, whose optional `unreached` list
-fails the gate and makes those entries owed. See the
+fails the gate and makes those entries owed. Every other engine value, such as
+the base, ratchet baseline, contribution paths, admission base, worker cap,
+recovery report and schedule file, is also a declared `{signetum.*}` argument;
+Signetum sets no environment variable for a runner. See the
 [repository binding guide](https://github.com/R0k1e/Signetum/blob/main/docs/guides/repository-bindings.md)
 for the runner contract and order-only `after` prerequisites. Process settlement checks only positively owned
 jobs and refuses successful commands that leave owned children behind.

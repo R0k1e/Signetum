@@ -12,12 +12,17 @@ failures are collected, and a successful retry cannot clear a first failure.
 A shard's `after` prerequisites order it and join its gate closure like `requires`,
 but their failed verdict does not skip it, so one round reports every failure;
 an infrastructure error in either kind still skips dependents.
-A shard command exchanges node data only through declared whole-argument
-placeholders, replaced by absolute paths; configuration refuses any other
-`{signetum.*}` argument and placeholders in findings or ratchet commands, which
-are never substituted. `{signetum.node_report_file}` receives first-attempt
+A shard command receives every engine value only through declared whole-argument
+`{signetum.*}` placeholders; no engine value travels in the environment.
+Configuration refuses unknown names, partial-argument use, placeholders in
+findings commands, any but `{signetum.validation_workers}` in ratchet commands, and
+`{signetum.schedule_file}` without `[validation] schedule_file`, a declared
+validation input. `{signetum.recovery_report_file}` receives the runner's
+retry-recovered nodes and `{signetum.validation_workers}` the allocated worker cap.
+`{signetum.node_report_file}` receives first-attempt
 `{"failed": [...], "passed": [...]}` with an optional `"unreached": [...]`; the
-packaged pytest runner takes it as `--node-report`. The engine reads it after the
+packaged pytest runner takes these as `--node-report`, `--recovery-report`,
+`--workers` and `--schedule-file`. The engine reads it after the
 shard ends, including after its time bound. Unreached entries fail the shard and
 the result states their count. `{signetum.priority_nodes_file}` always exists and
 holds the shard's owed entries as `{"schema_version": 1, "nodes": [...]}` for the
@@ -45,13 +50,15 @@ format or ty owners. Member ratchets compare structured diagnostic multisets
 against verified source; missing baseline is explicit and never cached. Only a
 `maintenance workspace-sync` merge with its trailer and local record moves that
 baseline. A failed ratchet lists unrecorded merges and names `workspace-sync` and
-`workspace-sync --batch`. Member gate shards receive `SIGNETUM_BASE` and
-`SIGNETUM_RATCHET_BASELINE` and `SIGNETUM_CONTRIBUTION_PATHS`, a JSON array of
-repository-relative paths owned by the member, excluding synchronized upstream
-changes. The opening base remains immutable. Each shard's receipt details record them, and
-admission and test inheritance require their current values. Other shards never
-receive them. Final
-and batch checks remain strict.
+`workspace-sync --batch`. Member and batch gate shards may declare
+`{signetum.base}`, `{signetum.ratchet_baseline}` and
+`{signetum.contribution_paths_file}`, a file holding
+`{"schema_version": 1, "paths": [...]}` of repository-relative paths owned by the
+member, excluding synchronized upstream changes; in a batch gate the base is the
+increment start. The opening base remains immutable. Each member shard's receipt
+details record these values, and admission and test inheritance require their
+current values. In final and diagnostic runs a declared range value is an explicit
+empty argument, meaning no range.
 
 Resource allocation bounds nested workers. Settlement confirms an empty inventory
 with a fresh snapshot inside its existing deadline. The supervisor settles positively
@@ -88,8 +95,9 @@ running them or through a batch-gate shard that declares `covers` for them, dire
 or transitively. Coverage declares the obligation; the selected member checks
 also execute on the merged tree. Otherwise the operation refuses before batch checks run. Only a passing batch gate advances
 that verified tip, so a refused or failed increment stays owed. One admission of
-several members is one increment. Batch shards receive its start commit as
-`SIGNETUM_ADMISSION_BASE`, so a project selector can use the same range. A provider
+several members is one increment. A batch shard declaring
+`{signetum.admission_base}` receives its start commit, so a project selector can
+use the same range; elsewhere it is an explicit empty argument. A provider
 selects a staged conflict resolution from a temporary detached checkout of its merge.
 
 ## Eight lifecycle operations
