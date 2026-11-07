@@ -17,8 +17,8 @@ acceptance = ["ready --explain on a committed contribution reports the selection
 
 [[change.contract.requirements]]
 id = "LIGHT-ADMIT-002"
-outcome = "Admission and conflict continuation run only the declared batch gate over the admitted increment. A batch gate that runs no integration checks is accepted, deferring cross-member failures to final, which stays complete. The trade-off is documented."
-acceptance = ["A batch gate that does not run or cover the member checks admits a ready member without executing them.", "A batch gate declaring no shards admits a ready member.", "Final still executes its complete gate and fails on a cross-member defect that admission did not run."]
+outcome = "Admission and conflict continuation run only the declared batch gate over the admitted increment. A batch gate that runs no integration checks is accepted, deferring cross-member failures to final, which stays complete. The trade-off is documented. The shard field covers, which only served the removed member-coverage refusal, is no longer accepted in the manifest; there is no compatibility path."
+acceptance = ["A batch gate that does not run or cover the member checks admits a ready member without executing them.", "A batch gate declaring no shards admits a ready member.", "Final still executes its complete gate and fails on a cross-member defect that admission did not run.", "A manifest whose shard declares covers is refused at load."]
 
 [[change.contract.requirements]]
 id = "BATCH-FIX-003"
@@ -26,7 +26,7 @@ outcome = "A defect that appears only when members combine may be fixed by commi
 acceptance = ["Through the lifecycle: an approved batch-owned fix committed in the batch passes final, and the review attributes its commit and lists its change and source journal.", "An unattributed direct batch implementation commit is refused by final.", "After a failed final on the batch tip, status names both repairs."]
 
 [change.contract.autonomy]
-allowed = ["Extend the existing lifecycle CLI, command registry, batch gate resolution, final review, change scope and status owners; remove replaced changed paths; reconcile Skill, architecture, guides, contributor and repository policy text; extend existing lifecycle tests on throwaway repositories; run ready."]
+allowed = ["Extend the existing lifecycle CLI, command registry, batch gate resolution, manifest shard model and schema (removing covers), final review, change scope and status owners; remove replaced changed paths; reconcile Skill, architecture, guides, contributor and repository policy text; extend existing lifecycle tests on throwaway repositories; run ready."]
 requires_confirmation = ["Change unrelated product outcomes, change merge-conflict resolution, edit Perdura, integrate, publish or deliver."]
 
 [[change.contract.decisions]]
@@ -113,7 +113,7 @@ action = "Move the selection explanation to ready --explain, remove changed from
 [[change.execution.steps]]
 id = "STEP-LIGHT-ADMIT"
 requirements = ["LIGHT-ADMIT-002"]
-action = "Resolve the batch gate from its declaration only, without the member-coverage refusal or added member shards, and document the final trade-off."
+action = "Resolve the batch gate from its declaration only, without the member-coverage refusal or added member shards, remove the covers shard field from the shard model, manifest schema, documentation and tests, and document the final trade-off."
 
 [[change.execution.steps]]
 id = "STEP-BATCH-FIX"
@@ -128,5 +128,5 @@ action = "Extend existing lifecycle tests on throwaway repositories, reconcile c
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-07
-source = "Owner decisions A and B of 2026-11-07, relayed by the coordinating session: abandon change/changed-before-ready; one validation loop with ready as the only checking operation and ready --explain replacing changed; light admission running only the declared batch gate with final complete; batch-owned fixes under their own change record validated by final, with status naming both repairs after a failed final. Stop at ready without admission. This implementing session did not hear the approval independently."
-contract_digest = "sha256:bd2b0e95c3e7e6737d4cfec839e04fdb925404639bcc5ca066fd4f46714ef188"
+source = "Owner decisions A and B of 2026-11-07, relayed by the coordinating session: abandon change/changed-before-ready; one validation loop with ready as the only checking operation and ready --explain replacing changed; light admission running only the declared batch gate with final complete; batch-owned fixes under their own change record validated by final, with status naming both repairs after a failed final. Stop at ready without admission. After the sync onto main carrying owed-nodes-run-first and stacked-members, the owner, relayed by the coordinating session on 2026-11-07, approved removing the covers shard field this change made inert, with no compatibility path. This implementing session did not hear the approval independently."
+contract_digest = "sha256:8bf7fc388d2342ada06e6b2cad73d1c96aeab62a0317a91c0709d5b014219b75"
