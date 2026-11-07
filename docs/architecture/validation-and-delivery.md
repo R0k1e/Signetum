@@ -7,14 +7,26 @@ tracked source. Diagnostics can inspect dirty work and never issue readiness.
 ## Check execution
 
 One dependency/verdict core serves diagnostics, member qualification and final.
-Dependencies run in order, failed dependencies block descendants, independent
+Dependencies run in order, failed `requires` dependencies block descendants, independent
 failures are collected, and a successful retry cannot clear a first failure.
+A shard's `after` prerequisites order it and join its gate closure like `requires`,
+but their failed verdict does not skip it, so one round reports every failure;
+an infrastructure error in either kind still skips dependents.
 A shard runner may write first-attempt node outcomes, `{"failed": [...], "passed": [...]}`,
-to `SIGNETUM_NODE_REPORT`; the packaged pytest runner does. A failed member, batch
+to `SIGNETUM_NODE_REPORT`; the packaged pytest runner does. A shard command may
+declare the whole-argument placeholders `{signetum.priority_nodes_file}` and
+`{signetum.unreached_nodes_file}`; only declared placeholders are replaced by
+absolute paths, and configuration refuses any other `{signetum.*}` argument or a
+placeholder outside `command`. The priority file always exists and holds the shard's
+owed nodes as `{"schema_version": 1, "nodes": [...]}` for the runner to schedule
+first; it never selects or satisfies a node. The runner may write the same shape
+to the unreached path; the engine reads it after the shard ends, including after
+its time bound, and absent or empty means none. Unreached nodes fail the shard and
+the result states their count. A failed member, batch
 or final gate writes a failure receipt for its workspace under the Git common
 directory's `signetum/failures`, beside synchronization records. It names the
-workspace, its changes, base, tip, first-attempt failed nodes and nodes that passed
-only on retry. The next gate in that workspace releases a remembered node that an
+workspace, its changes, base, tip, first-attempt failed nodes, nodes that passed
+only on retry and unreached nodes, all owed to the next gate. The next gate in that workspace releases a remembered node that an
 observation in a change journal the workspace changed names as evidence with its
 root cause, whether or not its shard is selected. Before checks start, it refuses
 any other node whose shard is not selected again, and such a reselected node must
@@ -96,7 +108,11 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 
 Scope comes from actual committed paths and immutable registrations, never a
 trailer inventing ownership. Qualification requires current approved contracts
-and their implementation after exact approval. Competing retired formats supply
+and their implementation after exact approval: an own commit after the latest
+approval commit binding the current contract. When none follows, ready refuses
+and `change view` and `status` show an `approval_order` block naming that
+approval commit and the remedy: commit implementation after it, without counting
+the approval commit's own changes or rewriting history. Competing retired formats supply
 no fallback. Previously delivered intent remains protected; new intent needs its
 own change. Ordinary execution refinements cannot reduce approved outcomes.
 
