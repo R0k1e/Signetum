@@ -9,7 +9,7 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 from shutil import which
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 import signetum.change_record as change_record
@@ -737,7 +737,7 @@ def test_a_reapproval_after_implementation_names_the_remedy_everywhere(
     record = member / "changes/example/change.toml"
     monkeypatch.chdir(member)
 
-    def views() -> tuple[dict, dict, dict]:
+    def views() -> tuple[dict, Any, dict[str, object]]:
         capsys.readouterr()
         assert change_record.main([str(record), "--review"]) == 0
         view = json.loads(capsys.readouterr().out)
