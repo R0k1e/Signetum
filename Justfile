@@ -1,32 +1,33 @@
 set positional-arguments
 
+# Recipes forward "$@" so each argument reaches the engine as one argument.
 _lifecycle *args:
-    mise exec -- uv run signetum {{args}}
+    mise exec -- uv run signetum "$@"
 
 workspace-open branch base:
-    just _lifecycle workspace-open {{branch}} {{base}}
+    just _lifecycle workspace-open "$@"
 
 ready *args:
-    just _lifecycle ready {{args}}
+    just _lifecycle ready "$@"
 
 batch-open *args:
-    just _lifecycle batch-open {{args}}
+    just _lifecycle batch-open "$@"
 
 batch-admit batch *args:
-    just _lifecycle batch-admit --batch {{batch}} {{args}}
+    just _lifecycle batch-admit --batch "$@"
 
 batch-continue batch:
-    just _lifecycle batch-continue --batch {{batch}}
+    just _lifecycle batch-continue --batch "$@"
 
 final:
     just _lifecycle final
 
 batch-deliver source target expected-base expected-batch-tip:
-    just _lifecycle batch-deliver {{source}} {{target}} {{expected-base}} {{expected-batch-tip}}
+    just _lifecycle batch-deliver "$@"
 
 # Local support utility; not a lifecycle operation.
 maintenance *args:
-    mise exec -- uv run signetum maintenance {{args}}
+    mise exec -- uv run signetum maintenance "$@"
 
 # Local authoring and journal utility; not a lifecycle operation.
 change *args:
