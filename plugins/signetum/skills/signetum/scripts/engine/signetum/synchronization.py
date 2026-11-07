@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 from collections import defaultdict
+from collections.abc import Mapping
 from functools import cache
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def authorize_source(repository: Path, base: str, source: str, kind: str) -> Non
     _write(_path(repository, base, before, source), record)
 
 
-def _write(destination: Path, record: dict[str, object]) -> None:
+def _write(destination: Path, record: Mapping[str, object]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", dir=destination.parent, delete=False
