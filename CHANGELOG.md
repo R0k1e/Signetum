@@ -3,7 +3,7 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## 0.3.4 (unreleased)
+## 0.4.0
 
 Every workspace ends delivered, contained or abandoned, and only that proof
 removes it. An open batch takes a sibling's delivery without being reopened, and

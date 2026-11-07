@@ -1,0 +1,57 @@
+[change]
+schema_version = 1
+id = "release-0-4-0"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner directed a Signetum release from main on 2026-11-08. The unreleased changelog section on main collects the plugin distribution, owed-node scheduling, stacked members, declared runner placeholders and record-only readiness, and several of its entries are breaking: changed, covers and the SIGNETUM_* runner environment variables are removed. The release procedure makes a minor release the place for incompatible contract refinements before 1.0, so this release is 0.4.0."
+
+[change.contract]
+version = 1
+approved_base = "f56eea9fa2b651bb4aedf68ea16b756da012d0bc" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RELEASE-001"
+outcome = "The package, the Skill, the plugin manifest and the nested engine all carry product version 0.4.0, and both lockfiles record that engine version."
+acceptance = [
+    "uv run python -m tools.cli release preflight on the delivered commit reports status valid with every component at 0.4.0.",
+    "plugins/signetum/.claude-plugin/plugin.json, the Skill metadata and plugins/signetum/skills/signetum/scripts/engine/pyproject.toml name 0.4.0 and no current version location names 0.3.3.",
+]
+
+[[change.contract.requirements]]
+id = "NOTES-002"
+outcome = "CHANGELOG.md finalizes the unreleased section as the 0.4.0 version section, unchanged in content, so the release workflow extracts it as the release notes, and the maintainer release page no longer names an older candidate version."
+acceptance = [
+    "CHANGELOG.md has a ## 0.4.0 section holding the former unreleased entries and no unreleased section.",
+    "docs/maintainers/releasing.md states the candidate rule without naming a specific older version.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Edit the three version locations, refresh both lockfiles for the engine version only, rename the changelog section and adjust the release page sentence.",
+    "Run ready, open a batch, admit this member, run final and deliver to main under the owner's release direction, then tag the delivered commit v0.4.0 after CI on it passes.",
+]
+requires_confirmation = [
+    "Change any changelog entry's content, upgrade a dependency, or publish a version other than 0.4.0.",
+]
+
+[[change.execution.steps]]
+id = "STEP-VERSION"
+requirements = ["RELEASE-001"]
+action = "Set 0.4.0 in the engine pyproject, Skill metadata and plugin manifest and relock both lockfiles without upgrading dependencies."
+
+[[change.execution.steps]]
+id = "STEP-NOTES"
+requirements = ["NOTES-002"]
+action = "Rename the unreleased changelog heading to 0.4.0 and make the release page candidate sentence version-neutral."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["RELEASE-001", "NOTES-002"]
+action = "Run release preflight and ready, integrate and deliver, then tag after CI."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-08
+source = "Repository owner approved a Signetum release from main with the version selected by documented versioning policy (2026-11-08), relayed by the coordinating session. This implementing session did not receive approval independently."
+contract_digest = "sha256:9eade93ecca5d5ce039b2dc3bd5d028f89dc59d346b89dc8db7c8a270d290dd1"
