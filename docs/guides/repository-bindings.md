@@ -28,13 +28,13 @@ them for a project-owned ratchet or diff instead of reading Signetum state files
 Both are absent outside a member gate, so a check without them stays strict. The
 receipt records both, and a receipt is not reused after either moves.
 
-Declare a batch gate that covers what an admission can select. Without a provider
-that is the complete member gate. A static-only batch gate refuses any admission
-whose commits select a test shard. Batch shards receive the increment's start
-commit as `SIGNETUM_ADMISSION_BASE`.
+Admission and `batch-continue` run only the declared batch gate over the commits
+added since its last pass. That gate may run no integration check: final stays
+complete, so a failure that appears only when members combine surfaces at final.
+Batch shards receive the increment's start commit as `SIGNETUM_ADMISSION_BASE`.
 
 A batch shard that runs the project's own member selection over that range
-declares the member shards it stands for:
+may declare the member shards it stands for:
 
 ```toml
 [[validation.shards]]
@@ -43,8 +43,8 @@ command = ["./scripts/check", "batch"]
 covers = ["app:member"]
 ```
 
-Admission then accepts a selected `app:member` when `app:batch` is in the batch
-gate and passes. `covers` names only declared tree shards, never the shard itself,
+Admission runs the declared batch gate either way; `covers` records the relation
+for review. It names only declared tree shards, never the shard itself,
 and cannot form a cycle; manifest load rejects anything else. Keep it reviewable:
 the covering command must really execute the covered shards' selected checks.
 
