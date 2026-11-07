@@ -1,4 +1,4 @@
-"""Verify nearest-ancestor test evidence across non-selecting member fixups."""
+"""Reuse nearest-ancestor test evidence for each shard no intervening change affects."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from signetum.evidence.receipts import (
     verify_gate_evidence,
 )
 from signetum.git import GitError, git_output
-from signetum.impact import ImpactRuleLike
+from signetum.impact import ImpactRuleLike, select_paths
 from signetum.serialization import ValueDecodeError, load_json
 from signetum.validation import ValidationGraph
 from signetum.validation.execution import (
@@ -120,15 +120,21 @@ def find_test_inheritance(
     if journal_only:
         affected: set[str] = set()
     else:
-        if selector is None:
-            return None
-        selected = selector(paths, nearest, current.commit)
-        if selected.unexplained or selected.modified_tests:
+        # Impact rules decide per shard; a provider, when declared, refines them.
+        selected = (
+            select_paths(paths, rules)
+            if selector is None
+            else selector(paths, nearest, current.commit)
+        )
+        # A path nothing explains may affect anything; a test file is a path like
+        # any other and affects only the shards its explanation names.
+        if selected.unexplained:
             return None
         affected = set(selected.shards)
         for gate in selected.gates:
-            affected.update(graph.execution_order(gate))
+            affected.update(graph.gate(gate).shards)
     declarations = {shard.name: shard for shard in graph.shards}
+    # A rerun shard needs fresh output from what it requires; after only orders.
     pending = list(affected)
     while pending:
         name = pending.pop()
@@ -136,7 +142,8 @@ def find_test_inheritance(
             if dependency not in affected:
                 affected.add(dependency)
                 pending.append(dependency)
-    if affected & inheritable:
+    candidates = inheritable - affected
+    if not candidates:
         return None
     for path, text in by_commit[nearest]:
         try:
@@ -169,15 +176,16 @@ def find_test_inheritance(
             if not observed or any(item != expected_environment for item in observed):
                 return None
             outcomes = {outcome.name: outcome for outcome in receipt.execution.shards}
-            if any(
-                name not in outcomes
-                or outcomes[name].command_digest != declarations[name].digest
-                or outcomes[name].evidence != "tree"
-                or outcomes[name].status != "passed"
-                for name in inheritable
-            ):
-                return None
-            return InheritedEvidence(receipt, path.name, inheritable)
+            # A shard without passing evidence of its exact command here reruns.
+            reusable = frozenset(
+                name
+                for name in candidates
+                if name in outcomes
+                and outcomes[name].command_digest == declarations[name].digest
+                and outcomes[name].evidence == "tree"
+                and outcomes[name].status == "passed"
+            )
+            return InheritedEvidence(receipt, path.name, reusable) if reusable else None
         except (GitError, ReceiptError):
             return None
     return None
