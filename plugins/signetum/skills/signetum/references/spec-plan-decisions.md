@@ -17,8 +17,8 @@ with actor, date, source and the generated contract digest. Do not invent a
 confirmation or reuse its digest after changing behavior, base or autonomy.
 Commit approval before implementation; implementation committed alongside a
 new approval does not qualify as subsequent implementation. A re-approval resets
-this: `change view` and `status` show `approval_order` with the approval commit,
-and the next step is a new implementation commit after it, never rewritten history.
+this: ready refuses naming the approval commit, `status` gives the remedy, and the
+next step is a new implementation commit after it, never rewritten history.
 
 Trace to the root cause before asking. Ask related questions together, once.
 The coordinating Agent decides package splits, ordering and batching and reports

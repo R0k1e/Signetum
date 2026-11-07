@@ -21,8 +21,8 @@ from signetum.git import GitError, git_output
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.profiles import builtin_catalog
 from signetum.validation import (
+    NODE_REPORT_FILE,
     PRIORITY_NODES_FILE,
-    UNREACHED_NODES_FILE,
     ToolDeclaration,
     ValidationGraph,
     ValidationShard,
@@ -40,7 +40,7 @@ from signetum.validation.execution import (
 from signetum.validation.process import run_command
 from signetum.validation.ratchet import member_environment, run_ratchet
 from signetum.validation.receipt_store import ReceiptStore
-from signetum.validation.recovery import read_node_list, shard_execution, write_node_list
+from signetum.validation.recovery import node_outcomes, shard_execution, write_node_list
 from signetum.waivers import WaiverError, load_waivers
 from signetum.worktrunk import declared_argv, declared_environment
 
@@ -208,13 +208,12 @@ class RepositoryValidationAdapter:
         priority_nodes: tuple[str, ...] = (),
     ) -> ShardExecution:
         priority = report.with_name("priority-nodes.json")
-        unreached = report.with_name("unreached-nodes.json")
+        nodes = report.with_name("nodes.json")
         if PRIORITY_NODES_FILE in shard.command:
             # Always present when declared, so a runner never guesses about absence.
             write_node_list(priority, priority_nodes)
-        files = {PRIORITY_NODES_FILE: str(priority), UNREACHED_NODES_FILE: str(unreached)}
+        files = {PRIORITY_NODES_FILE: str(priority), NODE_REPORT_FILE: str(nodes)}
         command = tuple(files.get(argument, argument) for argument in shard.command)
-        declared_unreached = unreached if UNREACHED_NODES_FILE in shard.command else None
         try:
             _require_executable(command)
             completed = run_command(
@@ -224,7 +223,6 @@ class RepositoryValidationAdapter:
                 environment=declared_environment(
                     extra={
                         "SIGNETUM_RECOVERY_REPORT": str(report),
-                        "SIGNETUM_NODE_REPORT": str(report.with_name("nodes.json")),
                         "SIGNETUM_VALIDATION_WORKERS": str(workers),
                         **environment,
                         **(
@@ -239,16 +237,16 @@ class RepositoryValidationAdapter:
         except subprocess.TimeoutExpired:
             # A shard which never returns is otherwise indistinguishable from a
             # slow one, so the gate would wait forever and report nothing.
-            # A runner that wrote its unreached list before being stopped still counts.
-            missed = read_node_list(declared_unreached)
+            # A node report written before the stop still counts.
+            failed, passed, missed = node_outcomes(nodes)
             return ShardExecution(
                 False,
                 f"{shard.name} did not return within {shard.timeout_seconds}s",
+                failed_nodes=failed,
+                passed_nodes=passed,
                 unreached_nodes=missed,
             )
-        return shard_execution(
-            shard.name, completed, report, report.with_name("nodes.json"), declared_unreached
-        )
+        return shard_execution(shard.name, completed, report, nodes)
 
     def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
         """Run the declared findings command and read the Signetum document.

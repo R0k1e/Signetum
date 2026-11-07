@@ -153,6 +153,5 @@ def workflow_status(
         "qualification": (
             "Recorded evidence only; tools, selection and admission are not re-executed by status."
         ),
-        "approval_order": order.projection() if order is not None else None,
         "next": next_action,
     }

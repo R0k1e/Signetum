@@ -252,14 +252,14 @@ def test_coverage_declarations_are_checked_at_load(
     [
         (
             'command = ["run", "--priority", "{signetum.priority_nodes_file}", '
-            '"--unreached", "{signetum.unreached_nodes_file}"]\n',
+            '"--node-report", "{signetum.node_report_file}"]\n',
             True,
         ),
         ('command = ["run", "{signetum.unknown_file}"]\n', False),
         ('command = ["run", "--priority={signetum.priority_nodes_file}"]\n', False),
         (
             'command = ["true"]\nevidence = "world"\n'
-            'findings_command = ["audit", "{signetum.unreached_nodes_file}"]\n',
+            'findings_command = ["audit", "{signetum.node_report_file}"]\n',
             False,
         ),
     ],

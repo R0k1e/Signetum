@@ -30,22 +30,16 @@ EVIDENCE_CLASSES = ("tree", "world")
 
 PRIORITY_NODES_FILE = "{signetum.priority_nodes_file}"
 """Replaced by a file listing the shard's owed node ids, to run first."""
-UNREACHED_NODES_FILE = "{signetum.unreached_nodes_file}"
-"""Replaced by a path where the runner may list selected node ids it did not run."""
-COMMAND_PLACEHOLDERS = (PRIORITY_NODES_FILE, UNREACHED_NODES_FILE)
+NODE_REPORT_FILE = "{signetum.node_report_file}"
+"""Replaced by a path for the runner's first-attempt node outcomes."""
+COMMAND_PLACEHOLDERS = (PRIORITY_NODES_FILE, NODE_REPORT_FILE)
 
 
 def _require_placeholders(name: str, field: str, argv: Sequence[str], *, allowed: bool) -> None:
-    """Accept only whole-argument engine placeholders, and only in a shard command."""
+    """Accept only known whole-argument placeholders, and only where they are replaced."""
     for argument in argv:
-        if "{signetum." not in argument:
-            continue
-        if not allowed:
-            raise ValidationGraphError(
-                f"{field} cannot declare engine placeholders: {name}: {argument}"
-            )
-        if argument not in COMMAND_PLACEHOLDERS:
-            raise ValidationGraphError(f"unknown engine placeholder in {field}: {name}: {argument}")
+        if "{signetum." in argument and (not allowed or argument not in COMMAND_PLACEHOLDERS):
+            raise ValidationGraphError(f"unsupported engine placeholder in {field}: {name}")
 
 
 def command_digest(command: Sequence[str]) -> str:
@@ -92,12 +86,6 @@ class ValidationShard:
         _require_placeholders(self.name, "command", self.command, allowed=True)
         _require_placeholders(self.name, "findings_command", self.findings_command, allowed=False)
         _require_placeholders(self.name, "ratchet_command", self.ratchet_command, allowed=False)
-        if self.ratchet_command and any(
-            argument in COMMAND_PLACEHOLDERS for argument in self.command
-        ):
-            raise ValidationGraphError(
-                f"a ratchet shard cannot declare engine placeholders: {self.name}"
-            )
         if self.evidence not in EVIDENCE_CLASSES:
             raise ValidationGraphError(f"unsupported evidence class: {self.name}")
         if self.findings_command and self.evidence != "world":
@@ -394,8 +382,8 @@ def resolve_tools(configurations: Sequence[ValidationConfiguration]) -> tuple[To
 __all__ = [
     "COMMAND_PLACEHOLDERS",
     "EVIDENCE_CLASSES",
+    "NODE_REPORT_FILE",
     "PRIORITY_NODES_FILE",
-    "UNREACHED_NODES_FILE",
     "GateDeclaration",
     "GraphContribution",
     "ResolvedGate",

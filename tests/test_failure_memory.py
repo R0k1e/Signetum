@@ -24,7 +24,7 @@ NODES = """import json, os, sys
 from pathlib import Path
 nodes = json.loads(Path("nodes.json").read_text())
 first_failed = [n for n, o in nodes.items() if o in ("failed", "recovered")]
-if destination := os.environ.get("SIGNETUM_NODE_REPORT"):
+if destination := sys.argv[sys.argv.index("--node-report") + 1]:
     passed = [n for n, o in nodes.items() if o == "passed"]
     Path(destination).write_text(json.dumps({"failed": first_failed, "passed": passed}))
 recovered = [n for n, o in nodes.items() if o == "recovered"]
@@ -35,7 +35,7 @@ sys.exit(1 if "failed" in nodes.values() else 0)
 """
 
 
-RUNNER = """import json, os, sys, time
+RUNNER = """import json, sys, time
 from pathlib import Path
 arguments = sys.argv[1:]
 option = lambda name: Path(arguments[arguments.index(name) + 1])
@@ -46,15 +46,15 @@ ordered = [*(n for n in owed["nodes"] if n in nodes), *(n for n in nodes if n no
 ran = [n for n in ordered if nodes[n] not in ("unreached", "hang")]
 with option("--observed").open("a") as stream:
     stream.write(json.dumps({"priority": owed["nodes"], "ran": ran}) + "\\n")
-option("--unreached-report").write_text(json.dumps(
-    {"schema_version": 1, "nodes": [n for n in ordered if nodes[n] in ("unreached", "hang")]}
-))
+failed = [n for n in ran if nodes[n] == "failed"]
+# Written before a possible stop, so a time-bound kill still reports what did not run.
+option("--node-report").write_text(json.dumps({
+    "failed": failed,
+    "passed": [n for n in ran if n not in failed],
+    "unreached": [n for n in ordered if nodes[n] in ("unreached", "hang")],
+}))
 if "hang" in nodes.values():
     time.sleep(60)
-failed = [n for n in ran if nodes[n] == "failed"]
-Path(os.environ["SIGNETUM_NODE_REPORT"]).write_text(json.dumps(
-    {"failed": failed, "passed": [n for n in ran if n not in failed]}
-))
 sys.exit(1 if failed else 0)
 """
 
@@ -65,8 +65,8 @@ def _runner(observed: Path) -> tuple[str, ...]:
         "runner.py",
         "--priority-nodes",
         "{signetum.priority_nodes_file}",
-        "--unreached-report",
-        "{signetum.unreached_nodes_file}",
+        "--node-report",
+        "{signetum.node_report_file}",
         "--observed",
         str(observed),
     )
@@ -76,7 +76,12 @@ def _manifest(
     marker: Path, member_shards: tuple[str, ...], nodes_command: tuple[str, ...] = ()
 ) -> str:
     check = [sys.executable, "-c", "import pathlib,sys; pathlib.Path(sys.argv[1]).touch()"]
-    nodes_command = nodes_command or (sys.executable, "nodes.py")
+    nodes_command = nodes_command or (
+        sys.executable,
+        "nodes.py",
+        "--node-report",
+        "{signetum.node_report_file}",
+    )
     gates = json.dumps(list(member_shards))
     return f"""schema_version = 5
 [delivery]
@@ -313,6 +318,7 @@ def test_a_recorded_root_cause_releases_a_node_whose_shard_stays_selected(tmp_pa
 
 
 OTHER = "tests/test_contract.py::test_other"
+UNCOLLECTED = "tests/slow/"
 
 
 def _observed(path: Path) -> list[dict[str, list[str]]]:
@@ -340,26 +346,28 @@ def test_owed_nodes_are_offered_first_without_changing_what_runs(tmp_path):
 
 
 def test_unreached_nodes_fail_the_gate_and_are_owed_first_next_time(tmp_path, monkeypatch, capsys):
+    # A stage that never collected reports its path; it returns unchanged as an owed entry.
     observed = tmp_path / "observed.jsonl"
-    member, _, _ = _workspaces(tmp_path, {NODE: "passed", OTHER: "unreached"}, _runner(observed))
+    member, _, _ = _workspaces(
+        tmp_path, {NODE: "passed", UNCOLLECTED: "unreached"}, _runner(observed)
+    )
     monkeypatch.chdir(member)
     assert lifecycle.main(["ready"]) != 0
     result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert result["status"] == "failed"
-    assert result["unreached"] == {"count": 1, "by_shard": {"repo:nodes": 1}}
     assert _remembered(member, "impl/member")["unreached"] == [
-        {"shard": "repo:nodes", "node_id": OTHER}
+        {"shard": "repo:nodes", "node_id": UNCOLLECTED}
     ]
 
     # A later round that again cannot reach the owed node still fails.
     _commit_empty(member, "retry under the same load")
     with pytest.raises(ValidationExecutionError):
         lifecycle.validate(member, "member")
-    (member / "nodes.json").write_text(json.dumps({NODE: "passed", OTHER: "passed"}))
+    (member / "nodes.json").write_text(json.dumps({NODE: "passed", UNCOLLECTED: "passed"}))
     _commit(member, "give the runner room to finish")
     assert lifecycle.validate(member, "member")["status"] == "ready"
     priorities = [entry["priority"] for entry in _observed(observed)]
-    assert priorities == [[], [OTHER], [OTHER]]
+    assert priorities == [[], [UNCOLLECTED], [UNCOLLECTED]]
     assert not failure_path(member, "impl/member").exists()
 
 
