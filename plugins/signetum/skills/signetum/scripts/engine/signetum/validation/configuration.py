@@ -16,6 +16,9 @@ from signetum.validation import (
 )
 from signetum.validation.execution import ValidationExecutionError, ValidationInputs
 
+ENGINE_TOOL = "signetum-engine"
+"""The internal identity of the engine that runs a gate, beside the declared tools."""
+
 
 def configured_validation(
     manifest: RepositoryManifest,
@@ -48,11 +51,11 @@ def configured_validation(
             by_name[tool.name] = tool
         tools = tuple(by_name.values())
     try:
-        if any(tool.name == "signetum-engine" for tool in tools):
-            raise ManifestError("signetum-engine is an internal tool identity")
+        if any(tool.name == ENGINE_TOOL for tool in tools):
+            raise ManifestError(f"{ENGINE_TOOL} is an internal tool identity")
         tools = (
             *tools,
-            ToolDeclaration("signetum-engine", (sys.executable, "-m", "signetum.runtime_identity")),
+            ToolDeclaration(ENGINE_TOOL, (sys.executable, "-m", "signetum.runtime_identity")),
         )
         inputs = ValidationInputs(
             "signetum.toml",

@@ -8,7 +8,7 @@ from tomllib import loads
 from signetum.profiles.catalog import validate_selection
 from signetum.resources.schemas import evidence_schema_digest as published_evidence_schema_digest
 from signetum.selection_contracts import SelectionProvider, repository_file
-from signetum.serialization import dataclass_from_mapping
+from signetum.serialization import UnknownFieldsError, dataclass_from_mapping
 from signetum.validation import SCHEDULE_FILE, ValidationShard
 from signetum.validation import GateDeclaration as ValidationGate
 from signetum.validation import ToolDeclaration as ValidationTool
@@ -18,6 +18,10 @@ SCHEMA_VERSION = 5
 
 class ManifestError(ValueError):
     """A repository configuration violates the supported public contract."""
+
+
+class UnsupportedManifestError(ManifestError):
+    """The manifest uses a schema or fields this engine does not know, as a newer one may."""
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -188,10 +192,14 @@ def manifest_from_mapping(data: object) -> RepositoryManifest:
     if not isinstance(data, dict):
         raise ManifestError("manifest must be an object")
     version = data.get("schema_version")
+    if type(version) is int and version > SCHEMA_VERSION:
+        raise UnsupportedManifestError(f"unsupported manifest schema: {version}")
     if type(version) is not int or version != SCHEMA_VERSION:
         raise ManifestError(f"unsupported manifest schema: {version}")
     try:
         return dataclass_from_mapping(RepositoryManifest, data, use_defaults=True)
+    except UnknownFieldsError as error:
+        raise UnsupportedManifestError(str(error)) from error
     except (ValueError, TypeError, RecursionError) as error:
         raise ManifestError(str(error)) from error
 
@@ -199,6 +207,8 @@ def manifest_from_mapping(data: object) -> RepositoryManifest:
 def parse_manifest(text: str) -> RepositoryManifest:
     try:
         return manifest_from_mapping(loads(text))
+    except ManifestError:
+        raise
     except (ValueError, TypeError, RecursionError) as error:
         raise ManifestError(str(error)) from error
 
@@ -222,6 +232,7 @@ __all__ = [
     "RepositoryBindings",
     "RepositoryManifest",
     "SignetumIdentity",
+    "UnsupportedManifestError",
     "ValidationCommands",
     "ValidationGate",
     "ValidationShard",

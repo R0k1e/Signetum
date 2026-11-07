@@ -40,11 +40,13 @@ def admission(runtime, member, tip):
     return runtime._admission_evidence(member, tip, runtime.load_manifest(member / "signetum.toml"))
 
 
-def configured(repository, *, baseline_report=None):
+def configured(repository, *, baseline_report=None, prepared=False):
     root, state = repository
     script = (
         "import json, sys\nfrom pathlib import Path\n"
-        f"log=Path({str(state / 'runs')!r})\n"
+        # Like a project environment, the report needs what preparation installs.
+        + ("if not Path('.prepared').exists(): sys.exit(9)\n" if prepared else "")
+        + f"log=Path({str(state / 'runs')!r})\n"
         "with log.open('a') as stream: stream.write(str(Path.cwd())+'\\n')\n"
         "raw=Path('diagnostics.json').read_text() if Path('diagnostics.json').exists() "
         "else json.dumps({'schema_version':1,'diagnostics':[]})\n"
@@ -170,23 +172,33 @@ def test_latest_supported_sync_source_replaces_the_old_ratchet_baseline(reposito
         runtime.validate(member, "member")
 
 
-def test_unavailable_baseline_is_explicit_and_is_not_cached(repository, runtime):
+def test_unavailable_baseline_fails_the_shard_and_is_not_cached(repository, runtime):
     _, member, state = configured(repository, baseline_report="not JSON")
     commit_file(member, "diagnostics.json", document())
     for _ in range(2):
-        ready = runtime.validate(member, "member")
-        evidence = ready["evidence"]
-        assert isinstance(evidence, dict)
-        assert evidence["extensions"]["shard_details"]["test:check"]["ratchet"][
-            "baseline_unavailable"
-        ]
+        with pytest.raises(ValidationInfrastructureError, match="test:check") as failure:
+            runtime.validate(member, "member")
+        assert lifecycle._recorded_base(member) in str(failure.value)
     assert len((state / "runs").read_text().splitlines()) == 4
 
 
-def test_unavailable_baseline_does_not_waive_current_findings(repository, runtime):
-    _, member, _ = configured(repository, baseline_report="not JSON")
-    with pytest.raises(execution_failure(runtime), match="new diagnostics"):
-        runtime.validate(member, "member")
+def test_baseline_is_measured_in_a_prepared_checkout(repository, runtime):
+    root, _ = repository
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            "sys.exit(13 if (p/'fail').exists() else 0)",
+            "Path('.prepared').write_text('installed'); sys.exit(13 if (p/'fail').exists() else 0)",
+        )
+    )
+    (root / ".gitignore").write_text(".prepared\n")
+    _, member, _ = configured(repository, prepared=True)
+    ready = runtime.validate(member, "member")
+    evidence = ready["evidence"]
+    assert isinstance(evidence, dict)
+    details = evidence["extensions"]["shard_details"]["test:check"]["ratchet"]
+    assert details["baseline_count"] == 1
+    assert details["new_count"] == 0
 
 
 def test_tool_identity_change_invalidates_baseline_cache(repository, runtime):
@@ -378,13 +390,8 @@ def test_archive_attributes_cannot_silently_remove_baseline_inputs(repository, r
     (root / ".gitattributes").write_text("diagnostics.json export-ignore\n")
     _, member, _ = configured(repository)
     commit_file(member, "diagnostics.json", document())
-    ready = runtime.validate(member, "member")
-    evidence = ready["evidence"]
-    assert isinstance(evidence, dict)
-    assert (
-        "committed tree"
-        in evidence["extensions"]["shard_details"]["test:check"]["ratchet"]["baseline_unavailable"]
-    )
+    with pytest.raises(ValidationInfrastructureError, match="committed tree"):
+        runtime.validate(member, "member")
 
 
 def test_ty_adapter_ignores_positions_but_retains_repeated_diagnostics(tmp_path):
@@ -425,7 +432,6 @@ def test_traceability_adapter_compares_real_git_inventories(repository):
     assert isinstance(evidence, dict)
     details = evidence["extensions"]["shard_details"]["test:check"]["ratchet"]
     assert details["baseline_count"] == details["current_count"] > 0
-    assert details["baseline_unavailable"] is None
 
 
 @pytest.mark.parametrize(
