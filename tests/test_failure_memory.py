@@ -333,7 +333,9 @@ def test_owed_nodes_are_offered_first_without_changing_what_runs(tmp_path):
     assert second["priority"] == [NODE]
     # Ordering only: the runner still ran every node, owed first.
     assert second["ran"] == [NODE, OTHER] and sorted(first["ran"]) == sorted(second["ran"])
-    shards = [item["name"] for item in ready["evidence"]["execution"]["shards"]]
+    evidence = ready["evidence"]
+    assert isinstance(evidence, dict)
+    shards = [item["name"] for item in evidence["execution"]["shards"]]
     assert sorted(shards) == ["repo:check", "repo:nodes"]
 
 
