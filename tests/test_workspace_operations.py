@@ -13,6 +13,7 @@ from signetum import worktrunk as wt
 from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
+from signetum.synchronization import member_contribution_paths
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import (
     branch_name,
@@ -407,6 +408,9 @@ def test_unadmitted_member_can_sync_verified_batch(repository):
     member = opened(root, "plan/dependent")
     result = ops.workspace_sync(member, batch)
     assert result["source"] == git_output(batch, "rev-parse", "HEAD")
+    assert git_output(member, "show", "-s", "--format=%s", "HEAD") == (
+        "Merge batch/test into plan/dependent"
+    )
     assert (member / "sibling.txt").is_file()
     assert read_record(state_root(member), "plan/dependent").base == base
 
@@ -419,8 +423,57 @@ def test_sync_conflict_keeps_git_state_and_names_member_recovery(repository):
     git_output(root, "push", "origin", "main")
     with pytest.raises(MergeConflict) as refusal:
         ops.workspace_sync(member)
-    assert "prepare and validate" in refusal.value.expected
+    assert "git commit --no-edit" in refusal.value.expected
     assert run_git(member, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
+
+
+def conflicted_sync(repository, branch):
+    root, _ = repository
+    member = opened(root, branch)
+    base = read_record(state_root(member), branch).base
+    commit_file(member, "seed.txt", "member\n")
+    commit_file(root, "seed.txt", "delivery\n")
+    commit_file(root, "delivered.txt")
+    git_output(root, "push", "origin", "main")
+    with pytest.raises(MergeConflict):
+        ops.workspace_sync(member)
+    (member / "seed.txt").write_text("resolved\n")
+    git_output(member, "add", "seed.txt")
+    return member, base
+
+
+def test_conflicted_sync_committed_without_editing_is_verified(repository):
+    member, base = conflicted_sync(repository, "plan/no-edit")
+    git_output(member, "commit", "--no-edit")
+    owned = member_contribution_paths(member, base, git_output(member, "rev-parse", "HEAD"))
+    assert set(owned) == {"seed.txt"}
+
+
+def test_rerunning_sync_recognizes_a_recorded_merge_that_lost_its_trailer(repository):
+    member, base = conflicted_sync(repository, "plan/lost-trailer")
+    git_output(member, "commit", "-m", "resolve the sync conflict")
+    tip = git_output(member, "rev-parse", "HEAD")
+    assert "delivered.txt" in member_contribution_paths(member, base, tip)
+    result = ops.workspace_sync(member)
+    assert result["status"] == "recognized"
+    assert result["merge"] == tip
+    assert git_output(member, "rev-parse", "HEAD") == tip
+    assert set(member_contribution_paths(member, base, tip)) == {"seed.txt"}
+    assert ops.workspace_sync(member)["status"] != "recognized"
+
+
+def test_rerunning_sync_does_not_recognize_a_manual_merge(repository):
+    root, _ = repository
+    member = opened(root, "plan/manual")
+    base = read_record(state_root(member), "plan/manual").base
+    commit_file(member, "own.txt")
+    commit_file(root, "delivered.txt")
+    git_output(root, "push", "origin", "main")
+    git_output(member, "fetch", "origin", "main")
+    git_output(member, "merge", "--no-ff", "FETCH_HEAD", "-m", "manual merge")
+    assert ops.workspace_sync(member)["status"] != "recognized"
+    tip = git_output(member, "rev-parse", "HEAD")
+    assert "delivered.txt" in member_contribution_paths(member, base, tip)
 
 
 def test_cleanup_preserves_protected_fresh_dirty_and_unmerged_workspaces(repository):

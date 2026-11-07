@@ -159,7 +159,12 @@ workspace creates no provenance-only commit.
 World evidence cannot replace tree evidence. Preparation or batch-gate failure retains
 integration state for ordinary repair; merge conflict uses `batch-continue`.
 Member synchronization records authorization before merging a verified source,
-keeps the original base and distinguishes imported work from owned repairs.
+keeps the original base and distinguishes imported work from owned repairs. Its
+merge subject names the source branch once. A conflicted member sync is committed
+with `git commit --no-edit` to keep its `Signetum-Sync` trailer; if the trailer was
+lost, rerunning the same `workspace-sync` finds the merge of that source whose sync
+record it wrote, records a recognition of that exact merge and reports
+`recognized`. A merge without a sync record stays unverified.
 
 A stacked member's workspace record names its parent member branch, and its base
 is that parent's tip; the record is the only source of the chain. Its contribution,
@@ -260,7 +265,9 @@ CI and release share one reusable workflow and run the declared complete gate
 against clean exact source without private workspace/approval/receipt setup.
 Linux Python 3.12/3.13 and macOS Python 3.13 must all pass. Require every expected
 coverage fragment from the current source/run before enforcing 90% project
-coverage; a local or selected fragment is not that verdict.
+coverage; a local or selected fragment is not that verdict. Only the final gate's
+`engine:coverage` shard measures coverage; member and batch gates run the same
+tests in `engine:pytest` without it.
 Installed plugin and plain Skill source aliases resolve measured launcher and
 installation paths to their maintained repository files before reporting; these
 measurements remain in the coverage denominator. Retain failed output
