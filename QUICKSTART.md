@@ -1,19 +1,20 @@
 # First use
 
-Install the [Signetum plugin](https://github.com/R0k1e/Signetum/tree/main/plugins/signetum)
-with your host's plugin manager: `claude plugin marketplace add R0k1e/Signetum`
-and `claude plugin install signetum@signetum`, or `codex plugin marketplace add
-R0k1e/Signetum` and `codex plugin add signetum@signetum`. Codex asks you to
-review the plugin's command hook at its next start. The Skill is named
-`signetum:signetum`; remove an earlier standalone copy in `~/.claude/skills/signetum`
-or `~/.codex/skills/signetum`. Installation supplies instructions and the command
-guard, not a project workflow.
+Unpack `signetum-skill-<version>.zip` from the
+[latest release](https://github.com/R0k1e/Signetum/releases/latest) into your
+agent tool's skills directory as `signetum` (`~/.claude/skills` for Claude Code,
+`~/.codex/skills` for Codex, the tool's own directory elsewhere). That is a
+complete install; installation supplies instructions and an optional command
+guard, not a project workflow. Keep one Signetum Skill per host.
 
-For any other agent tool, install the plain Skill instead: unpack
-`signetum-skill-<version>.zip` from a release into the tool's skills directory as
-`signetum`. Do not add it to Claude Code or Codex next to the plugin. It has no
-command guard; receipts and `batch-deliver` still carry the protocol guarantees,
-and the guard only refuses work-losing commands early.
+To enable the guard, run `sh <skill>/scripts/signetum setup` and then
+`sh <skill>/scripts/signetum install --host claude` (or `--host codex`). It adds a
+PreToolUse hook that refuses work-losing commands early in repositories with
+`signetum.toml`; Codex asks once to review it. Without the guard, receipts and
+`batch-deliver` still carry the protocol guarantees. When the guard is missing,
+the agent mentions how to enable it once. Users of the earlier
+`signetum@signetum` plugin follow
+[the migration notes](skills/signetum/references/adoption.md#migrate-from-the-plugin).
 
 ## Ask the agent to set up your project
 
@@ -41,10 +42,8 @@ Worktrunk 0.75 or newer needs Git 2.43. Your application's language and test
 framework stay unchanged. The agent reports and resolves required setup before
 promising a usable workspace. You do not copy a template over the project.
 
-Adoption adds the reviewed `signetum.toml` bindings and enables the plugin for the
-project in `.claude/settings.json` and `.codex/config.toml`, so collaborators get
-the same guard there. Agent entry files and application dependencies stay
-unchanged. Daily commands run the installed Skill in its own environment. The upstream checkout is unnecessary; updates require a
+Adoption adds the reviewed `signetum.toml` bindings. Host settings, Agent entry
+files and application dependencies stay unchanged. Daily commands run the installed Skill in its own environment. The upstream checkout is unnecessary; updates require a
 later explicit preview. No runtime is copied into your project.
 
 ## Develop and deliver reliably
@@ -78,10 +77,9 @@ result before authorizing delivery.
 
 The [documentation map](docs/README.md) routes configuration and operation details.
 
-## Update the plugin or plain Skill
+## Update the Skill
 
-Ask the Agent to run `update`. It checks the released version against your
-project, then upgrades each host through its plugin manager, or replaces a plain
-Skill folder in place; restart the sessions afterwards and review the Codex hook
-again. The one procedure is
-[the update section](plugins/signetum/skills/signetum/references/adoption.md).
+Ask the Agent to run `update`. It checks the newest release against your project
+and replaces the Skill folder in place; restart the sessions afterwards. Hook
+entries keep working. The one procedure is
+[the update section](skills/signetum/references/adoption.md#update-the-skill).

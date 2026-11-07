@@ -12,27 +12,22 @@ from tools.release import ReleaseError, build_metadata, preflight
 
 @pytest.fixture
 def components(tmp_path):
-    (tmp_path / "plugins/signetum/skills/signetum/scripts/engine/signetum/resources/schemas").mkdir(
-        parents=True
-    )
+    (tmp_path / "skills/signetum/scripts/engine/signetum/resources/schemas").mkdir(parents=True)
     (
         tmp_path
-        / "plugins/signetum/skills/signetum/scripts/engine/signetum/resources/schemas"
+        / "skills/signetum/scripts/engine/signetum/resources/schemas"
         / "release-metadata-v2.schema.json"
     ).write_text('{"properties":{"schema_version":{"const":2}}}')
-    (tmp_path / "plugins/signetum/skills/signetum/scripts/engine/pyproject.toml").write_text(
+    (tmp_path / "skills/signetum/scripts/engine/pyproject.toml").write_text(
         f'[project]\nname="signetum"\nversion="{release.__version__}"\n'
     )
-    skill = tmp_path / "plugins/signetum/skills/signetum"
+    skill = tmp_path / "skills/signetum"
     (skill / "references").mkdir(parents=True)
     (skill / "SKILL.md").write_text(
         "---\nname: signetum\ndescription: Fixture\nmetadata:\n"
         f'  version: "{release.__version__}"\n---\n'
     )
     (skill / "references/adoption.md").write_text("Fixture adoption basis.\n")
-    manifest = tmp_path / "plugins/signetum/.claude-plugin/plugin.json"
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text(json.dumps({"name": "signetum", "version": release.__version__}))
     policy = tmp_path / ".agents/signetum/repo.yaml"
     policy.parent.mkdir(parents=True)
     policy.write_text("delivery:\n  branch: main\n")
@@ -51,7 +46,7 @@ def test_release_metadata_binds_versions_and_complete_skill(components):
     schema = json.loads(
         (
             source
-            / "plugins/signetum/skills/signetum/scripts/engine/signetum/resources/schemas"
+            / "skills/signetum/scripts/engine/signetum/resources/schemas"
             / "release-metadata-v2.schema.json"
         ).read_text()
     )
@@ -67,7 +62,7 @@ def test_release_metadata_binds_versions_and_complete_skill(components):
         "schemas": "2",
         "signetum-skill": release.__version__,
     }
-    reference = components / "plugins/signetum/skills/signetum/references/adoption.md"
+    reference = components / "skills/signetum/references/adoption.md"
     reference.write_text(reference.read_text() + "Changed adoption basis.\n")
     after = build_metadata(components, "source-commit")
     assert before.components[1] != after.components[1]
@@ -75,27 +70,22 @@ def test_release_metadata_binds_versions_and_complete_skill(components):
     assert before.components[2] == after.components[2]
 
 
-@pytest.mark.parametrize(
-    "damage", ["package-version", "skill-version", "plugin-version", "skill-symlink", "schema"]
-)
+@pytest.mark.parametrize("damage", ["package-version", "skill-version", "skill-symlink", "schema"])
 def test_component_refusals_need_no_repository(components, damage):
     if damage == "package-version":
-        p = components / "plugins/signetum/skills/signetum/scripts/engine/pyproject.toml"
+        p = components / "skills/signetum/scripts/engine/pyproject.toml"
         p.write_text(p.read_text().replace(release.__version__, "999.0.0"))
     elif damage == "skill-version":
-        p = components / "plugins/signetum/skills/signetum/SKILL.md"
+        p = components / "skills/signetum/SKILL.md"
         p.write_text(
             p.read_text().replace(f'version: "{release.__version__}"', 'version: "999.0.0"')
         )
-    elif damage == "plugin-version":
-        p = components / "plugins/signetum/.claude-plugin/plugin.json"
-        p.write_text(json.dumps({"name": "signetum", "version": "999.0.0"}))
     elif damage == "skill-symlink":
-        (components / "plugins/signetum/skills/signetum/linked").symlink_to("SKILL.md")
+        (components / "skills/signetum/linked").symlink_to("SKILL.md")
     else:
         (
             components
-            / "plugins/signetum/skills/signetum/scripts/engine/signetum/resources/schemas"
+            / "skills/signetum/scripts/engine/signetum/resources/schemas"
             / "release-metadata-v2.schema.json"
         ).write_text("{}")
     with pytest.raises(ReleaseError):
@@ -146,30 +136,6 @@ def test_preflight_refuses_source_or_tag_mismatch(candidate, damage):
             git_output(root, "update-ref", "refs/remotes/origin/main", tip)
     with pytest.raises(ReleaseError):
         preflight(root, tip, tag=tag)
-
-
-def test_release_pin_names_the_tag_and_exact_commit_of_a_preflighted_source(candidate):
-    root, tip = candidate
-    assert not (root / ".claude-plugin/marketplace.json").exists()
-    path = release.write_marketplace_pin(root, preflight(root, tip, tag="v" + release.__version__))
-    document = json.loads(path.read_text())
-    assert path == root / ".claude-plugin/marketplace.json"
-    (entry,) = document["plugins"]
-    assert entry["version"] == release.__version__
-    assert entry["source"] == {
-        "source": "git-subdir",
-        "url": "https://github.com/R0k1e/Signetum.git",
-        "path": "plugins/signetum",
-        "ref": "v" + release.__version__,
-        "sha": tip,
-    }
-    with pytest.raises(ReleaseError, match="40-hex"):
-        release.marketplace_pin(release.__version__, "main")
-
-
-def test_the_delivered_tree_commits_no_release_pin():
-    source = Path(__file__).resolve().parents[3]
-    assert not (source / ".claude-plugin/marketplace.json").exists()
 
 
 def test_preflight_refuses_missing_git(monkeypatch, tmp_path):

@@ -11,7 +11,7 @@ from signetum.serialization import json_value
 from signetum.traceability.boundary import GitInventoryProvider
 
 from tools.product_surface import validate_product_surface
-from tools.release import preflight, write_marketplace_pin
+from tools.release import preflight
 from tools.site import build_site
 
 app = typer.Typer(add_completion=False, help="Maintain the Signetum repository.")
@@ -76,21 +76,6 @@ def release_preflight(
             sort_keys=True,
         )
     )
-
-
-@release_app.command("pin")
-def release_pin(
-    source: Annotated[str, typer.Option()],
-    tag: Annotated[str, typer.Option()],
-    repository: Annotated[Path, typer.Option(exists=True, file_okay=False)] = Path("."),
-) -> None:
-    """Write the marketplace pin for a released, tagged source; committing it publishes."""
-    try:
-        resolved = repository.resolve()
-        path = write_marketplace_pin(resolved, preflight(resolved, source, tag=tag))
-    except (OSError, ValueError, GitError) as error:
-        raise typer.Exit(code=utility_failure("release-pin", error)) from error
-    typer.echo(json.dumps({"schema_version": 1, "status": "written", "path": str(path)}))
 
 
 if __name__ == "__main__":

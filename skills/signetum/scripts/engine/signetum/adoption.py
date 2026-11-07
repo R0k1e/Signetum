@@ -169,53 +169,6 @@ def inspect(repository: Path) -> dict[str, object]:
     }
 
 
-PLUGIN = "signetum@signetum"
-CLAUDE_SETTINGS = ".claude/settings.json"
-CODEX_CONFIG = ".codex/config.toml"
-MARKETPLACE = {"source": {"source": "github", "repo": "R0k1e/Signetum"}}
-
-
-def _claude_enabled(text: str | None) -> str:
-    """Project settings that enable the plugin, preserving every other setting."""
-
-    try:
-        settings = json.loads(text) if text is not None else {}
-    except json.JSONDecodeError as error:
-        raise ValueError(f"{CLAUDE_SETTINGS} is not valid JSON: {error}") from error
-    if not isinstance(settings, dict):
-        raise ValueError(f"{CLAUDE_SETTINGS} must be a JSON object")
-    plugins = settings.setdefault("enabledPlugins", {})
-    marketplaces = settings.setdefault("extraKnownMarketplaces", {})
-    if not isinstance(plugins, dict) or not isinstance(marketplaces, dict):
-        raise ValueError(f"{CLAUDE_SETTINGS} plugin settings must be JSON objects")
-    if plugins.get(PLUGIN) is False:
-        raise ValueError(f"{CLAUDE_SETTINGS} disables {PLUGIN}; review that choice explicitly")
-    if plugins.get(PLUGIN) is True and "signetum" in marketplaces and text is not None:
-        return text
-    plugins[PLUGIN] = True
-    marketplaces.setdefault("signetum", MARKETPLACE)
-    return json.dumps(settings, indent=2, ensure_ascii=False) + "\n"
-
-
-def _codex_enabled(text: str | None) -> str:
-    """Project Codex configuration that enables the plugin; other tables stay verbatim."""
-
-    try:
-        config = tomllib.loads(text or "")
-    except tomllib.TOMLDecodeError as error:
-        raise ValueError(f"{CODEX_CONFIG} is not valid TOML: {error}") from error
-    enabled = config.get("plugins", {}).get(PLUGIN, {}).get("enabled")
-    if enabled is True and text is not None:
-        return text
-    if enabled is not None or PLUGIN in config.get("plugins", {}):
-        raise ValueError(f"{CODEX_CONFIG} configures {PLUGIN}; review that choice explicitly")
-    prefix = "" if not text else text if text.endswith("\n") else text + "\n"
-    result = prefix + ("\n" if prefix else "") + f'[plugins."{PLUGIN}"]\nenabled = true\n'
-    if tomllib.loads(result).get("plugins", {}).get(PLUGIN, {}).get("enabled") is not True:
-        raise ValueError(f"{CODEX_CONFIG} cannot enable {PLUGIN} by appending a table")
-    return result
-
-
 def _payload(repository: Path, request: AdoptionRequest) -> dict[str, str | None]:
     manifest = parse_manifest(request.manifest)
     graph, _ = configured_validation(manifest)
@@ -225,9 +178,6 @@ def _payload(repository: Path, request: AdoptionRequest) -> dict[str, str | None
         raise ValueError("declare delivery.branch in the reviewed manifest")
     git_output(repository, "check-ref-format", "--branch", manifest.delivery.branch)
     files: dict[str, str | None] = {"signetum.toml": request.manifest}
-    for name, enable in ((CLAUDE_SETTINGS, _claude_enabled), (CODEX_CONFIG, _codex_enabled)):
-        path = source_path(repository, name)
-        files[name] = enable(path.read_text() if path.exists() else None)
     inventory_root = ".agents/signetum/runtime/_signetum_runtime"
     inventory_path = (
         source_path(repository, inventory_root + "/runtime.toml") if request.retirements else None

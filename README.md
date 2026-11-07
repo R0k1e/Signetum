@@ -8,36 +8,42 @@
 
 Keep key decisions, coordinate independent Agent work, validate the integrated
 result and deliver the source you checked. Signetum supports evolving repositories,
-from one Agent across sessions to parallel Agent development. One plugin for
-Claude Code and Codex carries the Skill that guides new projects and existing
-repositories using their own application tools, and a guard that refuses shell
-commands which lose work or bypass the protocol.
+from one Agent across sessions to parallel Agent development. One standard Agent
+Skill guides new projects and existing repositories using their own application
+tools, in any agent tool. It carries an optional guard that refuses shell commands
+which lose work or bypass the protocol.
 
 ## Install and start
 
-Install the `signetum` plugin with your host's plugin manager. Each release pins
-an exact commit:
+Unpack `signetum-skill-<version>.zip` from the
+[latest release](https://github.com/R0k1e/Signetum/releases/latest) into your
+agent tool's skills directory as `signetum`, for example `~/.claude/skills` for
+Claude Code or `~/.codex/skills` for Codex, or copy `skills/signetum` from a
+checkout. That folder is a complete install in any tool. Installation does not
+change previously adopted repositories.
+
+Optionally register the command guard, a PreToolUse hook that refuses
+work-losing commands early in repositories with `signetum.toml`:
 
 ```sh
-claude plugin marketplace add R0k1e/Signetum
-claude plugin install signetum@signetum
-codex plugin marketplace add R0k1e/Signetum
-codex plugin add signetum@signetum
+sh ~/.claude/skills/signetum/scripts/signetum setup
+sh ~/.claude/skills/signetum/scripts/signetum install --host claude --host codex
 ```
 
-Codex asks you to review the plugin's command hook at its next start. The Skill
-is `signetum:signetum`. If you installed the earlier standalone Skill, remove
-`~/.claude/skills/signetum` and `~/.codex/skills/signetum` so only one remains.
-Installation does not change previously adopted repositories.
+`install` places the Skill for each host and adds the hook to Claude Code's
+`settings.json` and Codex's `hooks.json`; `--preview` shows the plan and
+`--remove` reverses it. Codex asks once to review the new hook. Without the
+guard, receipts and `batch-deliver`, the only operation that advances the
+delivery branch, still carry the protocol guarantees. `update` replaces the
+Skill folder in place from the newest release.
 
-Other agent tools, such as OpenClaw, Grok, Gemini CLI or Cursor, use the plain
-Skill: unpack `signetum-skill-<version>.zip` from a release, or copy
-`plugins/signetum/skills/signetum`, into the tool's skills directory as
-`signetum`. Claude Code and Codex users install the plugin instead and must not
-also install the plain Skill. The plain Skill has no command guard; receipts and
-`batch-deliver`, the only operation that advances the delivery branch, still
-carry the protocol guarantees, and the guard only refuses work-losing commands
-early. `update` replaces a plain Skill folder in place.
+Coming from the `signetum@signetum` plugin? Run the `install` command above: it
+removes a user-scope plugin after the Skill and hook are in place and lists any
+project-scope plugin with its removal command. Then run
+`claude plugin marketplace remove signetum` and `codex plugin marketplace remove
+signetum`, and remove the plugin entries earlier adoption wrote to project
+`.claude/settings.json` and `.codex/config.toml`. See
+[the migration notes](skills/signetum/references/adoption.md#migrate-from-the-plugin).
 
 Then ask:
 
@@ -45,8 +51,7 @@ Then ask:
 > repository. Preserve its tools and show the proposed changes first.
 
 The agent prepares the installed Skill's locked execution environment, inspects
-the project and proposes `signetum.toml` bindings and the project settings that
-enable the plugin there. You review the preview.
+the project and proposes `signetum.toml` bindings. You review the preview.
 Execution stays with the Skill; application dependencies and Agent entry files
 stay unchanged. Daily work needs no upstream checkout or tool downloads.
 See [First use](QUICKSTART.md).
@@ -74,10 +79,9 @@ It provides no remote ledger or automatic consumer updates.
 
 ## Maintained source
 
-`main` owns the plugin and its standard Skill, including the execution source,
-lock and guard, plus maintainer tests and documentation. The plugin is the
-distribution unit;
-internal package builds verify its isolated installation boundary. Consumer
+`main` owns the standard Skill, including the execution source, lock and guard,
+plus maintainer tests and documentation. The Skill folder is the distribution
+unit; internal package builds verify its isolated installation boundary. Consumer
 projects retain only their reviewed bindings and development records.
 
 [Documentation](docs/README.md) covers usage and configuration.

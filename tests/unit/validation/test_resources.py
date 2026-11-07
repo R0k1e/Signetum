@@ -218,7 +218,7 @@ def test_unavailable_native_memory_is_not_replaced_with_a_guess(platform, docume
 
 
 def test_generated_native_observation_runs_without_site_packages(tmp_path):
-    runtime = Path(__file__).parents[3] / "plugins/signetum/skills/signetum/scripts/engine"
+    runtime = Path(__file__).parents[3] / "skills/signetum/scripts/engine"
     script = (
         "import sys,json; from dataclasses import asdict; sys.path.insert(0,sys.argv[1]); "
         "from signetum.validation.resources import observe_resources; "

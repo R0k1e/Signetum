@@ -1,4 +1,4 @@
-"""The plugin guard refuses work-losing and protocol-bypassing commands from real payloads."""
+"""The guard refuses work-losing and protocol-bypassing commands in adopted repositories."""
 
 import importlib.util
 import io
@@ -12,12 +12,12 @@ from pathlib import Path
 import pytest
 from signetum.git import git_output
 
-SCRIPTS = Path(__file__).resolve().parents[2] / "plugins/signetum/skills/signetum/scripts"
+SCRIPTS = Path(__file__).resolve().parents[2] / "skills/signetum/scripts"
 ENTRY = SCRIPTS / "command-guard"
 
 
 def claude_payload(command: str, cwd: Path) -> dict[str, object]:
-    """The shape Claude Code 2.1 sends to a plugin PreToolUse hook for Bash."""
+    """The shape Claude Code 2.1 sends to a PreToolUse hook for Bash."""
 
     return {
         "session_id": "bd885105-ec2b-4b2e-8c22-27ad698217b9",
@@ -59,6 +59,15 @@ def guard(monkeypatch):
     monkeypatch.setitem(sys.modules, spec.name, module)
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.fixture
+def adopted(tmp_path):
+    """tmp_path as the root of a Git work tree that adopted Signetum."""
+
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "signetum.toml").write_text("schema_version = 5\n")
+    return tmp_path
 
 
 def run_guard(guard, monkeypatch, capsys, payload) -> tuple[int, dict[str, object] | None]:
@@ -180,7 +189,7 @@ ALLOWED = [
 @pytest.mark.parametrize("shape", [claude_payload, codex_payload])
 @pytest.mark.parametrize(("command", "category"), BLOCKED)
 def test_refused_commands_name_their_category_and_operation(
-    guard, monkeypatch, capsys, tmp_path, shape, command, category
+    guard, monkeypatch, capsys, adopted, tmp_path, shape, command, category
 ):
     code, refusal = run_guard(guard, monkeypatch, capsys, shape(command, tmp_path))
     assert code == 2
@@ -193,18 +202,18 @@ def test_refused_commands_name_their_category_and_operation(
 @pytest.mark.parametrize("shape", [claude_payload, codex_payload])
 @pytest.mark.parametrize("command", ALLOWED)
 def test_read_only_and_mentioning_commands_run(
-    guard, monkeypatch, capsys, tmp_path, shape, command
+    guard, monkeypatch, capsys, adopted, tmp_path, shape, command
 ):
     assert run_guard(guard, monkeypatch, capsys, shape(command, tmp_path)) == (0, None)
 
 
-def test_rm_of_the_real_home_is_refused_by_path(guard, monkeypatch, capsys, tmp_path):
+def test_rm_of_the_real_home_is_refused_by_path(guard, monkeypatch, capsys, adopted, tmp_path):
     payload = claude_payload("rm -rf " + str(Path.home()), tmp_path)
     assert run_guard(guard, monkeypatch, capsys, payload)[0] == 2
 
 
 def test_pre_commit_runs_only_when_the_payload_tree_has_no_unstaged_change(
-    guard, monkeypatch, capsys, tmp_path
+    guard, monkeypatch, capsys, adopted, tmp_path
 ):
     repository = tmp_path / "repository"
     repository.mkdir()
@@ -212,6 +221,7 @@ def test_pre_commit_runs_only_when_the_payload_tree_has_no_unstaged_change(
     git_output(repository, "config", "user.name", "Guard test")
     git_output(repository, "config", "user.email", "guard@example.invalid")
     (repository / "app.py").write_text("value = 1\n")
+    (repository / "signetum.toml").write_text("schema_version = 5\n")
     git_output(repository, "add", ".")
     git_output(repository, "commit", "-m", "base")
     for command in ("pre-commit run --all-files", "uv run pre-commit run", "pre-commit"):
@@ -258,7 +268,7 @@ def _interpreter_path(tmp_path: Path, python: str) -> str:
     return os.pathsep.join((str(directory), "/usr/bin", "/bin"))
 
 
-def test_the_sh_entry_blocks_with_exit_two_and_otherwise_allows(tmp_path):
+def test_the_sh_entry_blocks_with_exit_two_and_otherwise_allows(adopted, tmp_path):
     path = _interpreter_path(tmp_path, sys.executable)
     blocked = _entry(json.dumps(claude_payload("git -C x stash", tmp_path)), path)
     assert blocked.returncode == 2
@@ -272,7 +282,7 @@ def test_the_sh_entry_blocks_with_exit_two_and_otherwise_allows(tmp_path):
     assert missing.returncode == 0
 
 
-def test_a_crashing_guard_allows_the_command(tmp_path):
+def test_a_crashing_guard_allows_the_command(adopted, tmp_path):
     crashing = tmp_path / "crashing"
     crashing.mkdir()
     (crashing / "python3").write_text("#!/bin/sh\nexit 1\n")
@@ -282,7 +292,7 @@ def test_a_crashing_guard_allows_the_command(tmp_path):
 
 
 @pytest.mark.skipif(not Path("/usr/bin/python3").exists(), reason="no system Python 3")
-def test_the_guard_runs_under_the_system_python(tmp_path):
+def test_the_guard_runs_under_the_system_python(adopted, tmp_path):
     system = shutil.which("python3", path="/usr/bin")
     assert system is not None
     path = _interpreter_path(tmp_path, system)
@@ -292,3 +302,24 @@ def test_the_guard_runs_under_the_system_python(tmp_path):
         assert json.loads(blocked.stderr)["category"] == "force-push"
         quoted = _entry(json.dumps(shape('echo "git merge main"', tmp_path)), path)
         assert quoted.returncode == 0, quoted.stderr
+
+
+def test_the_guard_applies_only_where_signetum_is_adopted(guard, monkeypatch, capsys, tmp_path):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    git_output(plain, "init", "-b", "main")
+    assert run_guard(guard, monkeypatch, capsys, claude_payload("git stash", plain)) == (0, None)
+    assert run_guard(guard, monkeypatch, capsys, codex_payload("git stash", tmp_path))[0] == 0
+    adopted = tmp_path / "adopted"
+    (adopted / "src").mkdir(parents=True)
+    git_output(adopted, "init", "-b", "main")
+    git_output(adopted, "config", "user.name", "Guard test")
+    git_output(adopted, "config", "user.email", "guard@example.invalid")
+    (adopted / "signetum.toml").write_text("schema_version = 5\n")
+    git_output(adopted, "add", ".")
+    git_output(adopted, "commit", "-m", "adopt")
+    linked = tmp_path / "linked"
+    git_output(adopted, "worktree", "add", "-b", "member", str(linked))
+    for cwd in (adopted, adopted / "src", linked):
+        code, refusal = run_guard(guard, monkeypatch, capsys, claude_payload("git stash", cwd))
+        assert code == 2 and refusal is not None and refusal["category"] == "stash"

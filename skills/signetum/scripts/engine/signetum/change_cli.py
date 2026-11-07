@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from signetum.development_store import (
     read_sources,
 )
 from signetum.git import git_output
+from signetum.hosts import guard_notice
 from signetum.operation_cli import OperationParser, utility_failure
 from signetum.serialization import contract_mapping, load_json
 from signetum.source_authority import (
@@ -313,6 +315,14 @@ def main(arguments: list[str] | None = None) -> int:
                     else git_output(options.repository, "rev-parse", "HEAD"),
                 )
             )
+            installed = os.environ.get("SIGNETUM_SKILL")
+            if installed:
+                root = Path(git_output(options.repository, "rev-parse", "--show-toplevel"))
+                notice = guard_notice(Path(installed), root)
+            else:
+                notice = None
+            if notice is not None:
+                payload["guard"] = notice
         else:
             affected = {item.id for item in transaction.observations}
             affected.update(item.target for item in transaction.resolutions)

@@ -1,5 +1,6 @@
 """A standard installed Skill owns execution, not consumer source or dependencies."""
 
+import hashlib
 import importlib.util
 import io
 import json
@@ -21,7 +22,7 @@ from signetum.skill_identity import content_digest, skill_files
 from typer.core import TyperGroup
 from typer.main import get_command
 
-from tools.release import build_skill_archive, marketplace_pin
+from tools.release import build_skill_archive
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -87,8 +88,8 @@ shards=["app:test"]
 """
 
 
-def _plugin_files(root: Path) -> dict[str, bytes]:
-    """Plugin content as a host hashes it, without interpreter bytecode caches."""
+def _files(root: Path) -> dict[str, bytes]:
+    """Installed content without interpreter bytecode caches."""
 
     return {
         path.relative_to(root).as_posix(): path.read_bytes()
@@ -97,13 +98,13 @@ def _plugin_files(root: Path) -> dict[str, bytes]:
     }
 
 
-def _copy_plugin(destination: Path) -> Path:
+def _copy_skill(destination: Path) -> Path:
     shutil.copytree(
-        ROOT / "plugins/signetum",
+        ROOT / "skills/signetum",
         destination,
         ignore=shutil.ignore_patterns(".venv", "__pycache__", "*.pyc", "dist"),
     )
-    return destination / "skills/signetum"
+    return destination
 
 
 def _copy_plain(skill: Path, destination: Path) -> Path:
@@ -126,9 +127,8 @@ def _launch(skill: Path, *arguments: str, cwd: Path, environment: dict[str, str]
 @pytest.fixture
 def installed_skill(tmp_path_factory):
     directory = tmp_path_factory.mktemp("installed Skill")
-    plugin = directory / "signetum"
-    skill = _copy_plugin(plugin)
-    copied = _plugin_files(plugin)
+    skill = _copy_skill(directory / "signetum")
+    copied = _files(skill)
     environment = dict(os.environ)
     for key in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT"):
         environment.pop(key, None)
@@ -153,7 +153,7 @@ def installed_skill(tmp_path_factory):
     prepared = json.loads(result.stdout.splitlines()[-1])
     assert prepared["engine"]["implementation"] == implementation_digest()
     assert Path(prepared["environment"]).is_relative_to(directory / "state/signetum/runtime")
-    assert _plugin_files(plugin) == copied
+    assert _files(skill) == copied
     return skill, environment, prepared
 
 
@@ -175,7 +175,7 @@ def test_installed_launcher_coverage_combines_into_maintained_source(installed_s
             str(skill / "scripts/launch.py"),
             "identity",
         ],
-        cwd=skill.parents[2],
+        cwd=skill.parent,
         env=environment,
         capture_output=True,
         text=True,
@@ -191,8 +191,8 @@ def test_installed_launcher_coverage_combines_into_maintained_source(installed_s
     )
     combined.combine(data_paths=[str(raw)], strict=True, keep=True)
     for name in ("launch.py", "installation.py"):
-        installed = f"signetum/skills/signetum/scripts/{name}"
-        canonical = f"plugins/signetum/skills/signetum/scripts/{name}"
+        installed = f"signetum/scripts/{name}"
+        canonical = f"skills/signetum/scripts/{name}"
         lines = measured.lines(installed)
         assert lines, f"the real installed {name} must execute under coverage"
         assert set(lines) <= set(combined.get_data().lines(canonical) or ())
@@ -210,7 +210,7 @@ def test_installed_python_launcher_requires_preparation_and_rejects_changed_iden
     def launch(*arguments):
         return subprocess.run(  # noqa: S603 -- actual installed launcher, isolated runtime state
             [sys.executable, str(skill / "scripts/launch.py"), *arguments],
-            cwd=skill.parents[2],
+            cwd=skill.parent,
             env=environment,
             capture_output=True,
             text=True,
@@ -242,15 +242,12 @@ def test_installed_python_launcher_requires_preparation_and_rejects_changed_iden
     assert json.loads(repaired.stdout)["engine"] == observed["engine"]
 
 
-def test_copies_of_one_engine_share_one_environment_and_leave_the_plugin_unchanged(
-    installed_skill, tmp_path
-):
+def test_copies_of_one_engine_share_one_environment_and_stay_unchanged(installed_skill, tmp_path):
     skill, environment, prepared = installed_skill
-    other = _copy_plugin(tmp_path / "host cache" / "signetum" / "0.3.3")
-    before = _plugin_files(other.parents[1])
-    # Agent tools without a plugin manager install the Skill folder on its own.
+    other = _copy_skill(tmp_path / "host skills" / "signetum")
+    before = _files(other)
+    # Any agent tool installs the Skill folder on its own.
     plain = _copy_plain(skill, tmp_path / "agent skills" / "signetum")
-    assert not (plain.parents[1] / ".claude-plugin").exists()
     project = tmp_path / "project"
     project.mkdir()
     git_output(project, "init", "-b", "main")
@@ -267,7 +264,7 @@ def test_copies_of_one_engine_share_one_environment_and_leave_the_plugin_unchang
         assert observed["engine"] == prepared["engine"]
         status = _launch(copy, "status", cwd=project, environment=environment)
         assert status.returncode == 0, status.stdout + status.stderr
-    assert _plugin_files(other.parents[1]) == before
+    assert _files(other) == before
 
 
 @pytest.mark.parametrize("existing", [False, True])
@@ -314,7 +311,7 @@ def test_installed_skill_adopts_and_delivers_without_entering_application(
         (project / ".claude/settings.json").write_text('{"permissions": {"allow": []}}\n')
         originals = {
             name: (project / name).read_bytes()
-            for name in ("CLAUDE.md", "Justfile", "package.json")
+            for name in ("CLAUDE.md", "Justfile", "package.json", ".claude/settings.json")
         }
     git_output(project, "add", ".")
     git_output(project, "commit", "-m", "test: initialize application")
@@ -324,11 +321,7 @@ def test_installed_skill_adopts_and_delivers_without_entering_application(
     assert run("adopt", "inspect")["status"] == "inspected"
     plan = tmp_path / "plan.json"
     proposal = run("adopt", "preview", "--request", request, "--output", plan)
-    assert proposal["files"] == [
-        {"path": ".claude/settings.json", "action": "replace" if existing else "create"},
-        {"path": ".codex/config.toml", "action": "create"},
-        {"path": "signetum.toml", "action": "create"},
-    ]
+    assert proposal["files"] == [{"path": "signetum.toml", "action": "create"}]
     assert (
         run("adopt", "apply", "--plan", plan, "--expected-plan", proposal["plan_digest"])["status"]
         == "applied"
@@ -336,10 +329,8 @@ def test_installed_skill_adopts_and_delivers_without_entering_application(
     assert all((project / name).read_bytes() == content for name, content in originals.items())
     assert not (project / ".agents").exists()
     assert not (project / ".venv").exists()
-    claude = json.loads((project / ".claude/settings.json").read_text())
-    assert claude["enabledPlugins"] == {"signetum@signetum": True}
-    assert ("permissions" in claude) is existing
-    assert "enabled = true" in (project / ".codex/config.toml").read_text()
+    assert (project / ".claude").exists() is existing
+    assert not (project / ".codex").exists()
     identity = run("identity")
     assert identity["engine"]["implementation"] == prepared["engine"]["implementation"]
     assert identity["skill"]["content_digest"].startswith("sha256:")
@@ -456,7 +447,6 @@ contract_digest="{digest}"
         *originals,
         "AGENTS.md",
         ".claude",
-        ".codex",
     }
     assert (
         run("change", "current", cwd=project)["historical_authorities"]["mode"] == "read_on_demand"
@@ -517,186 +507,338 @@ if [ "$*" = "plugin list --json" ]; then cat "$CLAUDE_LIST"; fi
 """
 _FAKE_CODEX = """#!/bin/sh
 printf 'codex %s\\n' "$*" >> "$HOST_LOG"
-if [ "$*" = "plugin list" ]; then
-    printf 'PLUGIN  STATUS  VERSION  SOURCE\\n'
-    printf 'signetum@signetum  installed, disabled  0.3.3  /cache/signetum\\n'
-fi
-if [ "$*" = "plugin add signetum@signetum" ]; then
-    sed 's/^enabled = false$/enabled = true/' "$CODEX_HOME/config.toml" > "$CODEX_HOME/next"
-    mv "$CODEX_HOME/next" "$CODEX_HOME/config.toml"
-fi
+if [ "$*" = "plugin list" ]; then cat "$CODEX_LIST"; fi
 """
 
 
-class _Release:
-    """A served marketplace pin, release metadata and archive for one candidate Skill."""
+class _Hosts:
+    """A temporary home with fake host CLIs and one served release of a changed Skill."""
 
     def __init__(self, skill: Path, tmp_path: Path, monkeypatch, capsys, environment):
         for key in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT"):
             monkeypatch.delenv(key, raising=False)
         for key in ("MISE_DATA_DIR", "XDG_DATA_HOME"):
             monkeypatch.setenv(key, environment[key])
-        hosts = tmp_path / "hosts"
-        hosts.mkdir()
+        cache = os.environ.get("UV_CACHE_DIR") or str(Path.home() / ".cache/uv")
+        self.home = tmp_path / "home"
+        self.claude = self.home / ".claude"
+        self.codex = self.home / ".codex"
+        self.claude.mkdir(parents=True)
+        self.codex.mkdir()
+        fakes = tmp_path / "hosts"
+        fakes.mkdir()
         for name, script in (("claude", _FAKE_CLAUDE), ("codex", _FAKE_CODEX)):
-            (hosts / name).write_text(script)
-            (hosts / name).chmod(0o755)
+            (fakes / name).write_text(script)
+            (fakes / name).chmod(0o755)
         self.log = tmp_path / "hosts.log"
         self.log.touch()
-        self.listing = tmp_path / "claude-list.json"
-        self.listing.write_text(json.dumps([{"id": "signetum@signetum", "scope": "project"}]))
-        self.codex_home = tmp_path / "codex-home"
-        self.codex_home.mkdir()
-        self.user_config = (
-            '[plugins."signetum@signetum"]\nenabled = false\n\n[mcp_servers.docs]\ncommand = "d"\n'
+        self.claude_list = tmp_path / "claude-list.json"
+        self.claude_list.write_text("[]")
+        self.codex_list = tmp_path / "codex-list.txt"
+        self.codex_list.write_text("PLUGIN  STATUS\n")
+        self.environment = dict(
+            environment,
+            HOME=str(self.home),
+            CLAUDE_CONFIG_DIR=str(self.claude),
+            CODEX_HOME=str(self.codex),
+            UV_CACHE_DIR=cache,
+            PATH=str(fakes) + os.pathsep + environment["PATH"],
+            HOST_LOG=str(self.log),
+            CLAUDE_LIST=str(self.claude_list),
+            CODEX_LIST=str(self.codex_list),
         )
-        (self.codex_home / "config.toml").write_text(self.user_config)
-        monkeypatch.setenv("PATH", str(hosts) + os.pathsep + environment["PATH"])
-        monkeypatch.setenv("HOST_LOG", str(self.log))
-        monkeypatch.setenv("CLAUDE_LIST", str(self.listing))
-        monkeypatch.setenv("CODEX_HOME", str(self.codex_home))
+        for key in ("HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "UV_CACHE_DIR", "PATH"):
+            monkeypatch.setenv(key, self.environment[key])
+        for key in ("HOST_LOG", "CLAUDE_LIST", "CODEX_LIST"):
+            monkeypatch.setenv(key, self.environment[key])
         self.project = tmp_path / "project"
         self.project.mkdir()
         git_output(self.project, "init", "-b", "main")
+        git_output(self.project, "config", "user.name", "Acceptance owner")
+        git_output(self.project, "config", "user.email", "fixture@example.invalid")
         (self.project / "signetum.toml").write_text(_manifest())
+        git_output(self.project, "add", "signetum.toml")
+        git_output(self.project, "commit", "-m", "test: adopt")
         monkeypatch.chdir(self.project)
 
         # The released candidate differs from the installed Skill only in its instructions.
-        self.candidate = tmp_path / "candidate"
+        self.candidate = tmp_path / "candidate" / "signetum"
         shutil.copytree(skill, self.candidate, ignore=shutil.ignore_patterns("__pycache__"))
         instructions = self.candidate / "SKILL.md"
         instructions.write_bytes(instructions.read_bytes() + b"\n")
-        self.commit = "c" * 40
-        archive = io.BytesIO()
-        with ZipFile(archive, "w") as bundle:
-            for path in skill_files(self.candidate):
-                relative = path.relative_to(self.candidate).as_posix()
-                name = f"Signetum-{self.commit}/plugins/signetum/skills/signetum/{relative}"
-                bundle.write(path, name)
-        self.archive = archive.getvalue()
         self.version = parse_version(self.candidate)
+        buffer = io.BytesIO()
+        with ZipFile(buffer, "w") as bundle:
+            for path in skill_files(self.candidate):
+                bundle.write(path, "signetum/" + path.relative_to(self.candidate).as_posix())
+        self.archive = buffer.getvalue()
         self.monkeypatch, self.capsys = monkeypatch, capsys
 
-    def updater(self, skill: Path):
-        """Load update.py from one installed copy, so its location decides the install kind."""
+    def module(self, skill: Path):
+        """Load distribution.py from one installed copy, as its launcher runs it."""
 
         self.monkeypatch.syspath_prepend(str(skill / "scripts"))
         self.monkeypatch.delitem(sys.modules, "installation", raising=False)
-        name = "installed_update_" + str(abs(hash(skill)))
-        spec = importlib.util.spec_from_file_location(name, skill / "scripts/update.py")
+        name = "installed_distribution_" + str(abs(hash(skill)))
+        spec = importlib.util.spec_from_file_location(name, skill / "scripts/distribution.py")
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         self.monkeypatch.setitem(sys.modules, spec.name, module)
         spec.loader.exec_module(module)
         return module
 
-    def serve(self, updater, digest: str) -> None:
-        metadata = {
-            "source": self.commit,
-            "components": [{"name": "signetum-skill", "version": self.version, "digest": digest}],
-        }
+    def serve(self, module, digest: str, *, version=None, archive=None) -> None:
+        version = version or self.version
+        tag = "v" + version
+        metadata = json.dumps(
+            {
+                "release": {
+                    "schema_version": 2,
+                    "source": "c" * 40,
+                    "components": [
+                        {"name": "signetum-skill", "version": version, "digest": digest}
+                    ],
+                },
+                "status": "valid",
+            }
+        ).encode()
+        name = f"signetum-skill-{version}.zip"
+        sums = "".join(
+            f"{hashlib.sha256(content).hexdigest()}  dist/{file}\n"
+            for file, content in ((name, self.archive), ("release-source.json", metadata))
+        ).encode()
         documents = {
-            updater.PIN: json.dumps(marketplace_pin(self.version, self.commit)).encode(),
-            f"https://github.com/R0k1e/Signetum/releases/download/v{self.version}/"
-            "release-source.json": json.dumps(metadata).encode(),
-            f"https://codeload.github.com/R0k1e/Signetum/zip/{self.commit}": self.archive,
+            module.LATEST: json.dumps({"tag_name": tag}).encode(),
+            module.DOWNLOAD + tag + "/SHA256SUMS": sums,
+            module.DOWNLOAD + tag + "/release-source.json": metadata,
+            module.DOWNLOAD + tag + "/" + name: self.archive if archive is None else archive,
         }
-        self.monkeypatch.setattr(updater, "_read", documents.__getitem__)
+        self.monkeypatch.setattr(module, "_read", documents.__getitem__)
 
-    def update(self, updater) -> tuple[int, dict, list[str]]:
+    def run(self, module, *arguments: str) -> tuple[int, dict, list[str]]:
         mark = len(self.log.read_text().splitlines())
-        code = updater.main([])
-        upgrades = [
+        code = module.main(list(arguments))
+        calls = [
             line
             for line in self.log.read_text().splitlines()[mark:]
             if not line.endswith(("plugin list", "plugin list --json"))
         ]
-        return code, json.loads(self.capsys.readouterr().out), upgrades
+        return code, json.loads(self.capsys.readouterr().out), calls
 
 
-def test_update_upgrades_each_installed_host_through_its_plugin_manager(
+def _guard_payload(command: str, cwd: Path) -> str:
+    return json.dumps({"cwd": str(cwd), "tool_name": "Bash", "tool_input": {"command": command}})
+
+
+def test_install_places_the_skill_and_guard_for_each_host_and_reverses(
     installed_skill, tmp_path, monkeypatch, capsys
 ):
     skill, environment, _prepared = installed_skill
-    release = _Release(skill, tmp_path, monkeypatch, capsys, environment)
-    updater = release.updater(skill)
-    assert updater.installation_kind(skill) == "plugin"
+    hosts = _Hosts(skill, tmp_path, monkeypatch, capsys, environment)
+    other_hook = {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo other"}]}
+    settings = hosts.claude / "settings.json"
+    settings.write_text(
+        json.dumps(
+            {"permissions": {"allow": ["Bash(ls:*)"]}, "hooks": {"PreToolUse": [other_hook]}}
+        )
+    )
+    codex_hooks = hosts.codex / "hooks.json"
+    session = {"hooks": [{"type": "command", "command": "echo session"}]}
+    codex_hooks.write_text(json.dumps({"hooks": {"SessionStart": [session]}}))
+    hosts.claude_list.write_text(
+        json.dumps(
+            [
+                {"id": "signetum@signetum", "scope": "user"},
+                {"id": "signetum@signetum", "scope": "project", "projectPath": "/consumer"},
+            ]
+        )
+    )
+    hosts.codex_list.write_text("signetum@signetum  installed, enabled  0.4.0  /cache\n")
+    installer = hosts.module(skill)
+    configs = {path: path.read_bytes() for path in (settings, codex_hooks)}
 
-    release.serve(updater, content_digest(release.candidate))
-    code, result, upgrades = release.update(updater)
-    assert code == 0, result
-    assert (result["status"], result["install"]) == ("updated", "plugin")
-    assert result["restart_required"] is True
+    code, preview, calls = hosts.run(
+        installer, "install", "--host", "claude", "--host", "codex", "--preview"
+    )
+    assert (code, preview["status"], calls) == (0, "previewed", [])
+    assert [t["hook_action"] for t in preview["targets"]] == ["add", "add"]
+    assert {path: path.read_bytes() for path in configs} == configs
+    assert not (hosts.claude / "skills").exists() and not (hosts.codex / "skills").exists()
+
+    code, result, calls = hosts.run(installer, "install", "--host", "claude", "--host", "codex")
+    assert (code, result["status"]) == (0, "installed"), result
+    placed = {
+        host: home / "skills/signetum"
+        for host, home in (("claude", hosts.claude), ("codex", hosts.codex))
+    }
+    assert all(content_digest(copy) == content_digest(skill) for copy in placed.values())
+    claude = json.loads(settings.read_text())
+    assert claude["permissions"] == {"allow": ["Bash(ls:*)"]}
+    guard = result["targets"][0]["hook"]["hooks"][0]["command"]
+    assert guard.endswith(str(placed["claude"].resolve() / "scripts/command-guard"))
+    assert claude["hooks"]["PreToolUse"] == [
+        other_hook,
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": guard, "timeout": 10}]},
+    ]
+    codex = json.loads(codex_hooks.read_text())
+    assert codex["hooks"]["SessionStart"] == [session]
+    assert len(codex["hooks"]["PreToolUse"]) == 1
+    assert calls == [
+        "claude plugin uninstall signetum@signetum --scope user",
+        "codex plugin remove signetum@signetum",
+    ]
+    assert [(p["scope"], p["status"]) for p in result["plugins"]] == [
+        ("user", "removed"),
+        ("project", "manual"),
+        ("user", "removed"),
+    ]
     assert result["codex_hook_review_required"] is True
-    assert upgrades == [
-        "claude plugin marketplace update signetum",
-        "claude plugin update signetum@signetum",
-        "codex plugin marketplace upgrade signetum",
-        "codex plugin add signetum@signetum",
-    ]
-    assert (release.codex_home / "config.toml").read_text() == release.user_config
 
-    manifest = release.project / "signetum.toml"
-    manifest.write_text(_manifest().replace("protocol=2", "protocol=99"))
-    code, result, upgrades = release.update(updater)
-    assert (code, result["status"], upgrades) == (2, "migration_required", [])
+    # The registered command refuses through the installed copy only in adopted repositories.
+    plain = tmp_path / "plain-repository"
+    plain.mkdir()
+    git_output(plain, "init", "-b", "main")
+    for cwd, expected in ((hosts.project, 2), (plain, 0)):
+        refused = subprocess.run(  # noqa: S603 -- the exact registered hook command
+            ["/bin/sh", "-c", guard],
+            input=_guard_payload("git stash", cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert refused.returncode == expected, refused.stderr
 
-    manifest.write_text(_manifest())
-    release.listing.write_text("[]")
-    code, result, upgrades = release.update(updater)
-    assert code == 0, result
-    assert [item["host"] for item in result["upgraded"]] == ["codex"]
-    assert upgrades == [
-        "codex plugin marketplace upgrade signetum",
-        "codex plugin add signetum@signetum",
-    ]
+    hosts.claude_list.write_text("[]")
+    hosts.codex_list.write_text("")
+    configs = {path: path.read_bytes() for path in (settings, codex_hooks)}
+    code, again, calls = hosts.run(installer, "install", "--host", "claude", "--host", "codex")
+    assert (code, again["status"], calls) == (0, "unchanged", [])
+    assert {path: path.read_bytes() for path in configs} == configs
 
-    release.serve(updater, content_digest(skill))
-    mark = len(release.log.read_text().splitlines())
-    code, result, _upgrades = release.update(updater)
-    assert (code, result["status"]) == (0, "current")
-    assert release.log.read_text().splitlines()[mark:] == []
+    # A configured host gets no guidance; a host Skill without the hook gets one entry.
+    status = _launch(placed["claude"], "status", cwd=hosts.project, environment=hosts.environment)
+    assert status.returncode == 0, status.stderr
+    assert "guard" not in json.loads(status.stdout.splitlines()[-1])
+    code, result, _ = hosts.run(installer, "install", "--host", "claude", "--remove")
+    assert (code, result["status"]) == (0, "removed")
+    assert json.loads(settings.read_text()) == {
+        "permissions": {"allow": ["Bash(ls:*)"]},
+        "hooks": {"PreToolUse": [other_hook]},
+    }
+    assert not placed["claude"].exists() and placed["codex"].exists()
+    code, result, _ = hosts.run(installer, "install", "--skills-dir", str(hosts.claude / "skills"))
+    assert (code, result["targets"][0]["skill_action"]) == (0, "place")
+    status = _launch(placed["claude"], "status", cwd=hosts.project, environment=hosts.environment)
+    assert status.returncode == 0, status.stderr
+    notice = json.loads(status.stdout.splitlines()[-1])["guard"]
+    assert notice["host"] == "claude"
+    assert notice["enable"].endswith("install --host claude")
+    assert notice["hook"]["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == guard
+    outside = _launch(skill, "status", cwd=hosts.project, environment=hosts.environment)
+    assert "guard" not in json.loads(outside.stdout.splitlines()[-1])
+
+    # Refusals change nothing: foreign folders, Git work trees and malformed settings.
+    foreign = tmp_path / "foreign"
+    (foreign / "signetum").mkdir(parents=True)
+    (foreign / "signetum/notes.txt").write_text("user work")
+    tracked = tmp_path / "tracked"
+    tracked.mkdir()
+    git_output(tracked, "init", "-b", "main")
+    for arguments in (["--skills-dir", str(foreign)], ["--skills-dir", str(tracked)]):
+        code, result, _ = hosts.run(installer, "install", *arguments)
+        assert (code, result["status"]) == (2, "failed")
+    assert sorted(p.name for p in (foreign / "signetum").iterdir()) == ["notes.txt"]
+    assert not (tracked / "signetum").exists()
+    settings.write_text("[]")
+    fresh = tmp_path / "fresh"
+    code, result, _ = hosts.run(
+        installer, "install", "--host", "claude", "--skills-dir", str(fresh)
+    )
+    assert (code, result["status"], settings.read_text()) == (2, "failed", "[]")
+    assert not fresh.exists()
+
+    # A published release installs only when its checksums and digest match.
+    installer = hosts.module(skill)
+    hosts.serve(installer, content_digest(hosts.candidate), archive=hosts.archive + b"tampered")
+    code, result, _ = hosts.run(
+        installer, "install", "--skills-dir", str(fresh), "--release", "latest"
+    )
+    assert (code, result["status"]) == (2, "failed")
+    assert not (fresh / "signetum").exists()
+    hosts.serve(installer, content_digest(hosts.candidate))
+    code, result, _ = hosts.run(
+        installer, "install", "--skills-dir", str(fresh), "--release", "latest"
+    )
+    assert (code, result["status"]) == (0, "installed"), result
+    assert content_digest(fresh / "signetum") == content_digest(hosts.candidate)
+    code, result, _ = hosts.run(
+        installer, "install", "--skills-dir", str(fresh), "--source", str(skill)
+    )
+    assert (code, result["targets"][0]["skill_action"]) == (0, "replace")
+    assert content_digest(fresh / "signetum") == content_digest(skill)
 
 
-def test_update_replaces_a_plain_skill_in_place_without_host_managers(
+def test_update_replaces_the_skill_in_place_from_the_newest_release(
     installed_skill, tmp_path, monkeypatch, capsys
 ):
     skill, environment, _prepared = installed_skill
-    release = _Release(skill, tmp_path, monkeypatch, capsys, environment)
-    skills = tmp_path / "agent skills"
+    hosts = _Hosts(skill, tmp_path, monkeypatch, capsys, environment)
+    skills = hosts.claude / "skills"
     plain = _copy_plain(skill, skills / "signetum")
+    settings = hosts.claude / "settings.json"
+    settings.write_text(json.dumps({"hooks": {"PreToolUse": [{"matcher": "Bash"}]}}))
+    configured = settings.read_bytes()
     original = content_digest(plain)
-    updater = release.updater(plain)
-    assert updater.installation_kind(plain) == "plain"
-    release.serve(updater, content_digest(release.candidate))
+    updater = hosts.module(plain)
 
-    manifest = release.project / "signetum.toml"
+    def offline(url):
+        raise OSError("offline")
+
+    monkeypatch.setattr(updater, "_read", offline)
+    code, result, _ = hosts.run(updater, "update", "--check")
+    assert (code, result["status"]) == (2, "unavailable")
+
+    hosts.serve(updater, "sha256:" + "0" * 64, version="0.0.1")
+    code, result, calls = hosts.run(updater, "update")
+    assert (code, result["status"], calls) == (0, "current", [])
+    hosts.serve(updater, "sha256:" + "1" * 64)
+    code, result, _ = hosts.run(updater, "update")
+    assert (code, result["status"]) == (2, "failed")
+    assert "differs from its release metadata" in result["cause"]
+    hosts.serve(updater, content_digest(hosts.candidate), archive=hosts.archive + b"tampered")
+    code, result, _ = hosts.run(updater, "update")
+    assert (code, result["status"]) == (2, "failed")
+    assert content_digest(plain) == original
+
+    hosts.serve(updater, content_digest(hosts.candidate))
+    code, result, _ = hosts.run(updater, "update", "--check")
+    assert (code, result["status"]) == (0, "available")
+    manifest = hosts.project / "signetum.toml"
     manifest.write_text(_manifest().replace("protocol=2", "protocol=99"))
-    code, result, upgrades = release.update(updater)
-    assert (code, result["status"], upgrades) == (2, "migration_required", [])
+    code, result, _ = hosts.run(updater, "update")
+    assert (code, result["status"]) == (2, "migration_required")
     assert content_digest(plain) == original
 
     manifest.write_text(_manifest())
-    code, result, upgrades = release.update(updater)
-    assert code == 0, result
-    assert (result["status"], result["install"], upgrades) == ("updated", "plain", [])
-    assert content_digest(plain) == content_digest(release.candidate)
+    code, result, calls = hosts.run(updater, "update")
+    assert (code, result["status"], calls) == (0, "updated", []), result
+    assert content_digest(plain) == content_digest(hosts.candidate)
     assert sorted(path.name for path in skills.iterdir()) == ["signetum"]
-    identity = _launch(plain, "identity", cwd=release.project, environment=environment)
+    assert settings.read_bytes() == configured
+    identity = _launch(plain, "identity", cwd=hosts.project, environment=hosts.environment)
     assert identity.returncode == 0, identity.stderr
     observed = json.loads(identity.stdout.splitlines()[-1])["skill"]
-    assert observed["content_digest"] == content_digest(release.candidate)
-
-    code, result, upgrades = release.update(updater)
-    assert (code, result["status"], upgrades) == (0, "current", [])
+    assert observed["content_digest"] == content_digest(hosts.candidate)
+    code, result, _ = hosts.run(updater, "update")
+    assert (code, result["status"]) == (0, "current")
 
     # A Skill folder that a repository tracks is updated through that repository.
     tracked = _copy_plain(skill, tmp_path / "project-skills" / "signetum")
     git_output(tracked.parent, "init", "-b", "main")
     before = content_digest(tracked)
-    tracked_updater = release.updater(tracked)
-    release.serve(tracked_updater, content_digest(release.candidate))
-    code, result, upgrades = release.update(tracked_updater)
-    assert (code, result["status"], upgrades) == (2, "failed", [])
+    tracked_updater = hosts.module(tracked)
+    hosts.serve(tracked_updater, content_digest(hosts.candidate))
+    code, result, _ = hosts.run(tracked_updater, "update")
+    assert (code, result["status"]) == (2, "failed")
     assert "Git work tree" in result["cause"]
     assert content_digest(tracked) == before

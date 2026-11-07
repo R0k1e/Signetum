@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).parents[3]
-SKILL = ROOT / "plugins" / "signetum" / "skills" / "signetum"
+SKILL = ROOT / "skills" / "signetum"
 ENTRYPOINT = SKILL / "SKILL.md"
 
 

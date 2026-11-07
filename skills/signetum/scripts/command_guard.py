@@ -1,8 +1,9 @@
 """Refuse agent shell commands that lose work or bypass Signetum operations.
 
-Reads one Claude Code or Codex PreToolUse payload on stdin. Exit 2 blocks the
-command and prints one JSON line naming the category and the operation to use;
-every other outcome, including a guard failure, allows it. Standard library
+Reads one Claude Code or Codex PreToolUse payload on stdin. In a Git work tree
+whose root holds signetum.toml, exit 2 blocks the command and prints one JSON line
+naming the category and the operation to use; every other outcome, including a
+command elsewhere or a guard failure, allows it. Standard library
 only, compatible with Python 3.9.
 """
 
@@ -519,6 +520,19 @@ def _command(payload: object) -> tuple[str | None, str]:
     return None, cwd
 
 
+def _adopted(cwd: str) -> bool:
+    """The rules apply only in a Git work tree whose root holds signetum.toml."""
+
+    directory = os.path.abspath(cwd)
+    while True:
+        if os.path.exists(os.path.join(directory, ".git")):
+            return os.path.isfile(os.path.join(directory, "signetum.toml"))
+        parent = os.path.dirname(directory)
+        if parent == directory:
+            return False
+        directory = parent
+
+
 def _quote(word: str) -> str:
     return "'" + word.replace("'", "'\\''") + "'"
 
@@ -526,7 +540,7 @@ def _quote(word: str) -> str:
 def main() -> int:
     try:
         command, cwd = _command(json.loads(sys.stdin.read()))
-        if command is None:
+        if command is None or not _adopted(cwd):
             return 0
         verdict = classify(command, cwd)
     except Exception as error:  # a guard that cannot run allows the command
