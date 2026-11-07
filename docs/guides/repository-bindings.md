@@ -46,33 +46,39 @@ covers = ["app:member"]
 Admission then accepts a selected `app:member` when `app:batch` is in the batch
 gate and passes. `covers` names only declared tree shards, never the shard itself,
 and cannot form a cycle; manifest load rejects anything else. Keep it reviewable:
-the covering command must really execute the covered shards' selected checks. A test runner that writes first-attempt
-`{"failed": [...], "passed": [...]}` node ids to `SIGNETUM_NODE_REPORT` lets a
-failed gate remember those nodes for the workspace's next gate. A remembered node
-is released by passing again or by a committed change record observation naming
-it as evidence with its root cause, even inside a shard that is always selected.
+the covering command must really execute the covered shards' selected checks.
 
-A runner opts into owed-first scheduling and unreached reporting by declaring
-engine placeholders as whole arguments of its shard command:
+A runner exchanges node data with the engine only through placeholders declared
+as whole arguments of its shard command:
 
 ```toml
 [[validation.shards]]
 name = "app:tests"
 command = ["./scripts/test", "--priority-nodes", "{signetum.priority_nodes_file}",
-           "--unreached-report", "{signetum.unreached_nodes_file}"]
+           "--node-report", "{signetum.node_report_file}"]
 ```
 
-The engine replaces only declared placeholders with absolute paths; any other
-`{signetum.*}` argument, or one in `findings_command` or `ratchet_command`, is a
-configuration error. Both files use `{"schema_version": 1, "nodes": ["<node id>", ...]}`
-with the runner's own stable node ids. The priority file always exists and lists
-the remembered nodes this shard owes, empty when none; run them first, then the
-rest of the same selection. It never narrows selection, a failing owed node must
-not stop the others, and an owed node is satisfied only by a reported pass.
-Before exiting, or progressively when the shard may reach its `timeout_seconds`,
-write the selected nodes that did not run to the unreached path. An absent or
-empty file means none. Reported nodes fail the shard, the result states their
-count, and the next gate owes them first.
+The engine replaces only declared placeholders with absolute paths. Any other
+`{signetum.*}` argument, a placeholder inside a larger argument, or one in
+`findings_command` or `ratchet_command` is a configuration error, because those
+commands are never substituted. Entries are the runner's own stable ids: node ids,
+or a file or directory path for a stage that never collected.
+
+Write first-attempt outcomes to the node report as
+`{"failed": [...], "passed": [...], "unreached": [...]}`; `unreached` is optional.
+Write it before exiting, or progressively when the shard may reach its
+`timeout_seconds`, since the engine reads it after a time-bound stop too. A failed
+gate remembers failed and unreached entries for the workspace's next gate.
+Unreached entries fail the shard and the result states their count.
+
+The priority file always exists and holds `{"schema_version": 1, "nodes": [...]}`:
+the entries this shard owes, unchanged, empty when none. Run them first, then the
+rest of the same selection. It never narrows selection, and a failing owed entry
+must not stop the others. An owed entry is satisfied only when the node report
+lists that exact entry as passed, so a runner that reported a path must report the
+same path as passed once its stage ran clean. A remembered entry is also released
+by a committed change record observation naming it as evidence with its root cause,
+even inside a shard that is always selected.
 
 A shard that should report its own failures even when a check before it fails
 declares that check in `after` instead of `requires`:

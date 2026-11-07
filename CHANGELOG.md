@@ -73,18 +73,22 @@ guard, installed and updated by the host plugin managers.
 A long validation round loses less work: owed nodes run first, unrun nodes stay
 owed, and one failing check no longer hides the others.
 
-- A shard command may declare `{signetum.priority_nodes_file}` and
-  `{signetum.unreached_nodes_file}`. The first is replaced by a file listing the
-  nodes that shard owes from an earlier failed gate, to run first; the second by
-  a path where the runner reports selected nodes it did not run, read even after
-  the shard's time bound. Both hold `{"schema_version": 1, "nodes": [...]}`.
-  Unreached nodes fail the gate, the result reports their count, and the next
-  gate owes them first. Unknown `{signetum.*}` arguments are refused.
+- Breaking: `SIGNETUM_NODE_REPORT` is removed. A runner that reports node
+  outcomes must declare `{signetum.node_report_file}` as a whole argument of its
+  shard command; the packaged pytest runner takes it as
+  `--node-report {signetum.node_report_file}` before `--`. The report keeps
+  `{"failed": [...], "passed": [...]}` and may add `"unreached": [...]`, read even
+  after the shard's time bound. Unreached entries fail the gate, the result
+  reports their count, and the next gate owes them.
+- `{signetum.priority_nodes_file}` is replaced by a file,
+  `{"schema_version": 1, "nodes": [...]}`, listing the entries that shard owes
+  from an earlier failed gate, to run first. Unknown `{signetum.*}` arguments are
+  refused.
 - `after = [...]` on a shard orders it after other shards without skipping it
   when they fail, so one round reports every failure. `requires` still gates.
-- When no implementation commit follows the latest approval, `ready` refusals,
-  `change view` and `status` include an `approval_order` block naming the
-  approval commit and the remedy.
+- When no implementation commit follows the latest approval, `ready` refuses
+  naming the approval commit, and its expected action and the `status` next
+  action give the remedy.
 
 ## 0.3.3
 
