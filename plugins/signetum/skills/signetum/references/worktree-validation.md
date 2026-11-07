@@ -74,6 +74,11 @@ or grouping helps. Do not introduce a permanent timing/count gate or handwritten
 test inventory. Stop repeating verification once relevant checks pass unless a
 new change or unresolved concern requires another run.
 
+When `maintenance workspace-sync` stops on a conflict, resolve the paths and
+commit with `git commit --no-edit`, which keeps the pre-filled `Signetum-Sync`
+trailer. If the trailer was lost, rerun the same `workspace-sync`: it recognizes
+the merge it recorded, so the source's paths stop counting as the member's own.
+
 ## Significant records
 
 Read this section when a finding needs a durable answer.

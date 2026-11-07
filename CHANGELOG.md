@@ -157,6 +157,15 @@ Every engine value now reaches a runner through a declared command placeholder.
   placeholder. An engine run inside an outer pytest-xdist worker still runs one
   lane.
 
+Small synchronization repairs.
+
+- A conflicted `maintenance workspace-sync` names `git commit --no-edit` as the
+  way to keep its `Signetum-Sync` trailer. If the trailer was lost, rerunning the
+  same sync recognizes the merge it recorded and reports `recognized`, so the
+  source's paths no longer count as the member's own.
+- A batch synchronization merge subject names the batch branch once instead of
+  `batch/batch/...`.
+
 ## 0.3.3
 
 Batch gates can declare which member shards they stand for, and a recorded root
