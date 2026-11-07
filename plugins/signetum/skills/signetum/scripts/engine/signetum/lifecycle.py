@@ -50,6 +50,7 @@ from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.repository_selection import select_repository
 from signetum.source_admission import require_source_admission
+from signetum.stacking import require_parent_admitted
 from signetum.synchronization import member_contribution_paths
 from signetum.validation import (
     GateDeclaration,
@@ -393,6 +394,9 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         if _is_ancestor(batch, member_tip, batch_tip):
             unchanged.append(record)
             continue
+        require_parent_admitted(
+            batch, member, read_record(_state_root(member), member_branch), member_tip
+        )
         batch_base = _recorded_base(batch)
         require_distinct_claims(
             clause_claims(member, member_manifest, member_base, member_tip),

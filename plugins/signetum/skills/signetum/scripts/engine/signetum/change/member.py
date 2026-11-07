@@ -6,6 +6,7 @@ from signetum.change.scope import member_scope
 from signetum.manifest import RepositoryManifest
 from signetum.operations import AdmissionError
 from signetum.source_admission import require_source_admission
+from signetum.stacking import require_current_parent
 from signetum.workspaces import WorkspaceError, branch_name, claim_change, read_record, state_root
 
 
@@ -13,8 +14,10 @@ def qualify_member(
     repository: Path, manifest: RepositoryManifest, base: str, tip: str, *, operation: str = "ready"
 ) -> tuple[str, ...]:
     branch = branch_name(repository)
-    if read_record(state_root(repository), branch).kind != "member":
+    record = read_record(state_root(repository), branch)
+    if record.kind != "member":
         raise AdmissionError(f"{operation} requires a registered member workspace")
+    require_current_parent(repository, record, tip, operation)
     try:
         carried = require_source_admission(repository, manifest, base, tip, member=True)
         for change_id in member_scope(repository, manifest, base, tip).first_delivered:
