@@ -15,7 +15,7 @@ from signetum.change_record import (
 from signetum.decision_identity import numbered_targets
 from signetum.development_store import DevelopmentReviewError, decision_application_commits
 from signetum.git import GitError, git_output, run_git
-from signetum.manifest import RepositoryManifest
+from signetum.manifest import ManifestError, RepositoryManifest, load_manifest
 from signetum.operations import OperationError
 from signetum.source_authority import committed_blob
 from signetum.synchronization import member_contribution_paths
@@ -212,6 +212,94 @@ def read_package(
         ) from error
 
 
+APPROVAL_ORDER_REMEDY = (
+    "Commit implementation after the approval commit. Changes inside the approval "
+    "commit do not count. Do not amend, rebase or otherwise rewrite history to "
+    "reorder them; add a new commit instead."
+)
+
+
+@dataclass(frozen=True)
+class ApprovalOrder:
+    """Where the latest matching approval sits relative to own implementation."""
+
+    approval_commit: str | None
+    implementation_commit: str | None
+
+    @property
+    def satisfied(self) -> bool:
+        return self.implementation_commit is not None
+
+    def projection(self) -> dict[str, object]:
+        return {
+            "approval_commit": self.approval_commit,
+            "implementation_commit": self.implementation_commit,
+            "implementation_follows_approval": self.satisfied,
+            "remedy": None if self.satisfied else APPROVAL_ORDER_REMEDY,
+        }
+
+
+def approval_order(
+    repository: Path,
+    manifest: RepositoryManifest,
+    base: str,
+    tip: str,
+    change_ids: tuple[str, ...],
+) -> ApprovalOrder:
+    """Find the first own implementation commit after the approval binding ``tip``'s contracts.
+
+    Only commits after an approval commit qualify; the approval commit itself
+    never counts as implementation, whatever else it changes.
+    """
+
+    required_contracts: dict[str, str] = {}
+    for change_id in change_ids:
+        package = read_package(repository, manifest, change_id, tip)
+        package.require_approval()
+        required_contracts[change_id] = contract_digest(package.record.contract)
+    commits = tuple(
+        git_output(
+            repository, "rev-list", "--reverse", "--first-parent", "--no-merges", f"{base}..{tip}"
+        ).splitlines()
+    )
+    root = changes_root(manifest) + "/"
+    decisions = manifest.repository.decisions.rstrip("/") + "/"
+    applications: frozenset[str] = frozenset()
+    if required_contracts and any(
+        path.endswith("/events.jsonl")
+        for path in git_output(repository, "diff", "--name-only", base, tip).splitlines()
+    ):
+        try:
+            applications = decision_application_commits(
+                repository, tuple(required_contracts), commits, commit=tip
+            )
+        except DevelopmentReviewError as error:
+            raise ChangeError(str(error)) from error
+    approved_at: str | None = None
+    latest: str | None = None
+    for commit in (base, *commits):
+        if approved_at is not None:
+            paths = git_output(
+                repository, "diff-tree", "--no-commit-id", "--name-only", "-r", commit
+            ).splitlines()
+            if commit in applications or any(
+                not path.startswith((root, decisions)) for path in paths
+            ):
+                return ApprovalOrder(approved_at, commit)
+        try:
+            for change_id in change_ids:
+                package = read_package(repository, manifest, change_id, commit)
+                package.require_approval()
+                if contract_digest(package.record.contract) != required_contracts[change_id]:
+                    raise ChangeError("earlier approval does not bind the current contract")
+        except ChangeError:
+            approved_at = None
+            continue
+        if approved_at is None:
+            approved_at = latest = commit
+    return ApprovalOrder(latest, None)
+
+
 def require_member_changes(
     repository: Path,
     manifest: RepositoryManifest,
@@ -243,59 +331,54 @@ def require_member_changes(
             )
         )
     )
-    required_contracts: dict[str, str] = {}
     for change_id in carried:
         package = read_package(repository, manifest, change_id, tip)
         package.require_approval()
-        if isinstance(package, ConsolidatedPackage):
-            if package.record.contract.approved_base != base:
-                raise ChangeError(
-                    "consolidated approval does not match the registered workspace base"
-                )
-            required_contracts[change_id] = contract_digest(package.record.contract)
-    commits = tuple(
-        git_output(
-            repository, "rev-list", "--reverse", "--first-parent", "--no-merges", f"{base}..{tip}"
-        ).splitlines()
-    )
-    if not commits:
+        if package.record.contract.approved_base != base:
+            raise ChangeError("consolidated approval does not match the registered workspace base")
+    if not git_output(repository, "rev-list", "--max-count=1", f"{base}..{tip}"):
         raise ChangeError("member has no own implementation commits")
     if not carried:
         raise ChangeError("member requires an approved change package")
-    root = changes_root(manifest) + "/"
-    decisions = manifest.repository.decisions.rstrip("/") + "/"
-    applications: frozenset[str] = frozenset()
-    if required_contracts and any(
-        path.endswith("/events.jsonl")
-        for path in git_output(repository, "diff", "--name-only", base, tip).splitlines()
-    ):
-        try:
-            applications = decision_application_commits(
-                repository, tuple(required_contracts), commits, commit=tip
-            )
-        except DevelopmentReviewError as error:
-            raise ChangeError(str(error)) from error
-    approved = False
-    for commit in (base, *commits):
-        if approved:
-            paths = git_output(
-                repository, "diff-tree", "--no-commit-id", "--name-only", "-r", commit
-            ).splitlines()
-            if commit in applications or any(
-                not path.startswith((root, decisions)) for path in paths
-            ):
-                return carried
-        try:
-            for change_id in carried:
-                package = read_package(repository, manifest, change_id, commit)
-                package.require_approval()
-                if change_id in required_contracts and (
-                    not isinstance(package, ConsolidatedPackage)
-                    or contract_digest(package.record.contract) != required_contracts[change_id]
-                ):
-                    raise ChangeError("earlier approval does not bind the current contract")
-        except ChangeError:
-            approved = False
-            continue
-        approved = True
-    raise ChangeError("member is plan stage: no own implementation commit follows approval")
+    order = approval_order(repository, manifest, base, tip, carried)
+    if order.satisfied:
+        return carried
+    raise ChangeError(
+        "member is plan stage: no own implementation commit follows the latest approval"
+        + (f" {order.approval_commit}" if order.approval_commit else ""),
+        expected=APPROVAL_ORDER_REMEDY,
+        fields={"approval_order": order.projection()},
+    )
+
+
+def recorded_approval_order(path: Path) -> dict[str, object] | None:
+    """Project approval order for an approved record path inside its repository.
+
+    Returns ``None`` outside a configured repository. An approval that differs
+    from the committed record has no approval commit yet.
+    """
+
+    directory = path.resolve().parent
+    found = run_git(directory, "rev-parse", "--show-toplevel")
+    if found.returncode:
+        return None
+    repository = Path(found.stdout.strip())
+    try:
+        manifest = load_manifest(repository / "signetum.toml")
+        relative = path.resolve().relative_to(repository).as_posix()
+        record = parse_change_record(path.read_text(encoding="utf-8"))
+        tip = git_output(repository, "rev-parse", "HEAD")
+    except (ManifestError, ValueError, GitError, OSError):
+        return None
+    if relative != f"{changes_root(manifest)}/{record.id}/change.toml":
+        return None
+    base = record.contract.approved_base
+    if run_git(repository, "merge-base", "--is-ancestor", base, tip).returncode:
+        return None
+    committed = committed_blob(repository, tip, relative)
+    if committed is None or committed[1] != path.read_text(encoding="utf-8"):
+        return ApprovalOrder(None, None).projection()
+    try:
+        return approval_order(repository, manifest, base, tip, (record.id,)).projection()
+    except ChangeError:
+        return ApprovalOrder(None, None).projection()

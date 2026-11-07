@@ -54,7 +54,9 @@ def run_operation(
         status, expected = _error_category(error)
         log = _archive_operation_failure(repository, str(error), state_root)
         print(f"{operation}: {str(error)[-2000:]}", file=sys.stderr)
-        failure = OperationResult(operation, status, {}, str(error)[-2000:], expected, log)
+        failure = OperationResult(
+            operation, status, failure_fields(error), str(error)[-2000:], expected, log
+        )
         print(json.dumps(failure.document(), sort_keys=True))
         return EXIT_CODES[status]
     outcome = result.pop("status", "passed")
@@ -90,7 +92,7 @@ def utility_failure(operation: str, error: Exception, **fields: object) -> int:
     result = OperationResult(
         operation,
         status,
-        {"state_change": "not_confirmed", **fields},
+        {"state_change": "not_confirmed", **failure_fields(error), **fields},
         str(error)[-2000:],
         expected,
         log,
@@ -98,6 +100,18 @@ def utility_failure(operation: str, error: Exception, **fields: object) -> int:
     print(f"{operation}: {str(error)[-2000:]}", file=sys.stderr)
     print(json.dumps(result.document(), sort_keys=True))
     return EXIT_CODES[status]
+
+
+def failure_fields(error: Exception) -> dict[str, object]:
+    """Structured refusal or failure detail carried by the error itself."""
+    if isinstance(error, OperationError):
+        return dict(error.fields)
+    if isinstance(error, ValidationExecutionError) and error.unreached_nodes:
+        by_shard: dict[str, int] = {}
+        for shard, _ in error.unreached_nodes:
+            by_shard[shard] = by_shard.get(shard, 0) + 1
+        return {"unreached": {"count": len(error.unreached_nodes), "by_shard": by_shard}}
+    return {}
 
 
 def _error_category(error: Exception) -> tuple[OperationStatus, str]:

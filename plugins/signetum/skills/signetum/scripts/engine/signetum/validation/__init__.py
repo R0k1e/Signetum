@@ -28,6 +28,25 @@ def _tuple_of_strings(value: object, field: str) -> tuple[str, ...]:
 
 EVIDENCE_CLASSES = ("tree", "world")
 
+PRIORITY_NODES_FILE = "{signetum.priority_nodes_file}"
+"""Replaced by a file listing the shard's owed node ids, to run first."""
+UNREACHED_NODES_FILE = "{signetum.unreached_nodes_file}"
+"""Replaced by a path where the runner may list selected node ids it did not run."""
+COMMAND_PLACEHOLDERS = (PRIORITY_NODES_FILE, UNREACHED_NODES_FILE)
+
+
+def _require_placeholders(name: str, field: str, argv: Sequence[str], *, allowed: bool) -> None:
+    """Accept only whole-argument engine placeholders, and only in a shard command."""
+    for argument in argv:
+        if "{signetum." not in argument:
+            continue
+        if not allowed:
+            raise ValidationGraphError(
+                f"{field} cannot declare engine placeholders: {name}: {argument}"
+            )
+        if argument not in COMMAND_PLACEHOLDERS:
+            raise ValidationGraphError(f"unknown engine placeholder in {field}: {name}: {argument}")
+
 
 def command_digest(command: Sequence[str]) -> str:
     """Identify one exact argv independently of the shard name carrying it."""
@@ -52,6 +71,8 @@ class ValidationShard:
     worker_memory_mb: int = 0
     covers: tuple[str, ...] = ()
     """Shards whose selected checks this shard executes for its own range."""
+    after: tuple[str, ...] = ()
+    """Prerequisites that order this shard without gating it on their failure."""
 
     def __post_init__(self) -> None:
         if any(
@@ -64,6 +85,19 @@ class ValidationShard:
             raise ValidationGraphError(f"shard command must be non-empty: {self.name}")
         if len(self.requires) != len(set(self.requires)):
             raise ValidationGraphError(f"duplicate shard dependency: {self.name}")
+        if len(self.after) != len(set(self.after)) or set(self.after) & set(self.requires):
+            raise ValidationGraphError(f"duplicate shard dependency: {self.name}")
+        if self.name in self.after:
+            raise ValidationGraphError(f"a shard cannot depend on itself: {self.name}")
+        _require_placeholders(self.name, "command", self.command, allowed=True)
+        _require_placeholders(self.name, "findings_command", self.findings_command, allowed=False)
+        _require_placeholders(self.name, "ratchet_command", self.ratchet_command, allowed=False)
+        if self.ratchet_command and any(
+            argument in COMMAND_PLACEHOLDERS for argument in self.command
+        ):
+            raise ValidationGraphError(
+                f"a ratchet shard cannot declare engine placeholders: {self.name}"
+            )
         if self.evidence not in EVIDENCE_CLASSES:
             raise ValidationGraphError(f"unsupported evidence class: {self.name}")
         if self.findings_command and self.evidence != "world":
@@ -191,6 +225,7 @@ class ValidationConfiguration:
                         raw.get("ratchet_command", ()), "shard.ratchet_command"
                     ),
                     covers=_tuple_of_strings(raw.get("covers", ()), "shard.covers"),
+                    after=_tuple_of_strings(raw.get("after", ()), "shard.after"),
                 )
             )
 
@@ -271,7 +306,7 @@ class ValidationGraph:
             if shard is None:
                 raise ValidationGraphError(f"unknown shard: {name}")
             visiting.add(name)
-            for dependency in sorted(shard.requires):
+            for dependency in sorted((*shard.requires, *shard.after)):
                 visit(dependency)
             visiting.remove(name)
             ordered.append(name)
@@ -309,8 +344,13 @@ def resolve_validation_graph(
         "gates": [{"name": gate.name, "shards": gate.shards} for gate in resolved_gates],
         "shards": [
             {
-                **{key: value for key, value in asdict(shard).items() if key != "covers" or value},
+                **{
+                    key: value
+                    for key, value in asdict(shard).items()
+                    if key not in {"covers", "after"} or value
+                },
                 "requires": tuple(sorted(shard.requires)),
+                **({"after": tuple(sorted(shard.after))} if shard.after else {}),
             }
             for shard in resolved_shards
         ],
@@ -352,7 +392,10 @@ def resolve_tools(configurations: Sequence[ValidationConfiguration]) -> tuple[To
 
 
 __all__ = [
+    "COMMAND_PLACEHOLDERS",
     "EVIDENCE_CLASSES",
+    "PRIORITY_NODES_FILE",
+    "UNREACHED_NODES_FILE",
     "GateDeclaration",
     "GraphContribution",
     "ResolvedGate",

@@ -12,6 +12,7 @@ from shutil import which
 from typing import Literal
 
 import pytest
+import signetum.change_record as change_record
 import signetum.lifecycle as lifecycle
 from change_fixtures import approve_change as _approve_change
 from change_fixtures import approved_record_source, commit_approval, consolidated_approval
@@ -429,10 +430,10 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
         "first_failure": [{"phase": "call", "outcome": "failed", "diagnostic": "first contention"}],
     }
 
-    def retried(self, shard):
+    def retried(self, shard, *, priority_nodes=()):
         return ShardExecution(True, recovered=(defect,))
 
-    def fixed(self, shard):
+    def fixed(self, shard, *, priority_nodes=()):
         # The remembered node must be reported passing by a fresh normal run,
         # with the member bases the real adapter records for admission.
         return ShardExecution(
@@ -723,6 +724,49 @@ def test_member_with_only_an_approved_package_is_plan_stage(tmp_path):
     _git(member, "commit", "-m", "approve the package only")
     with pytest.raises(lifecycle.AdmissionError, match="plan stage"):
         lifecycle.validate(member, "member")
+
+
+def test_a_reapproval_after_implementation_names_the_remedy_everywhere(
+    tmp_path, monkeypatch, capsys
+):
+    member, _, base = _member_and_batch(tmp_path, approved=True)
+    consolidated_approval(member, base, outcome="Implement the revised confirmed behavior.")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "re-approve the revised outcome")
+    approval = _git(member, "rev-parse", "HEAD")
+    record = member / "changes/example/change.toml"
+    monkeypatch.chdir(member)
+
+    def views() -> tuple[dict, dict, dict]:
+        capsys.readouterr()
+        assert change_record.main([str(record), "--review"]) == 0
+        view = json.loads(capsys.readouterr().out)
+        status = workflow_status(
+            member, development_snapshot(member), source=_git(member, "rev-parse", "HEAD")
+        )
+        return view["approval_order"], status["approval_order"], status
+
+    viewed, reported, status = views()
+    assert viewed == reported
+    assert viewed["approval_commit"] == approval
+    assert viewed["implementation_follows_approval"] is False
+    assert viewed["remedy"] and status["next"] == viewed["remedy"]
+
+    assert lifecycle.main(["ready"]) == 2
+    refusal = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert refusal["status"] == "invalid"
+    assert refusal["approval_order"] == viewed
+    assert refusal["expected"] == viewed["remedy"]
+
+    (member / "src/feature.txt").write_text("revised work\n", encoding="utf-8")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement the revised outcome")
+    viewed, reported, status = views()
+    assert viewed == reported
+    assert viewed["implementation_follows_approval"] is True
+    assert viewed["approval_commit"] == approval and viewed["remedy"] is None
+    assert status["next"] != viewed["remedy"]
+    assert lifecycle.validate(member, "member")["status"] == "ready"
 
 
 def test_member_refuses_an_unapproved_change_before_executing_checks(tmp_path):

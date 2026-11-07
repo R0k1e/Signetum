@@ -35,8 +35,48 @@ sys.exit(1 if "failed" in nodes.values() else 0)
 """
 
 
-def _manifest(marker: Path, member_shards: tuple[str, ...]) -> str:
+RUNNER = """import json, os, sys, time
+from pathlib import Path
+arguments = sys.argv[1:]
+option = lambda name: Path(arguments[arguments.index(name) + 1])
+nodes = json.loads(Path("nodes.json").read_text())
+owed = json.loads(option("--priority-nodes").read_text())
+assert owed["schema_version"] == 1
+ordered = [*(n for n in owed["nodes"] if n in nodes), *(n for n in nodes if n not in owed["nodes"])]
+ran = [n for n in ordered if nodes[n] not in ("unreached", "hang")]
+with option("--observed").open("a") as stream:
+    stream.write(json.dumps({"priority": owed["nodes"], "ran": ran}) + "\\n")
+option("--unreached-report").write_text(json.dumps(
+    {"schema_version": 1, "nodes": [n for n in ordered if nodes[n] in ("unreached", "hang")]}
+))
+if "hang" in nodes.values():
+    time.sleep(60)
+failed = [n for n in ran if nodes[n] == "failed"]
+Path(os.environ["SIGNETUM_NODE_REPORT"]).write_text(json.dumps(
+    {"failed": failed, "passed": [n for n in ran if n not in failed]}
+))
+sys.exit(1 if failed else 0)
+"""
+
+
+def _runner(observed: Path) -> tuple[str, ...]:
+    return (
+        sys.executable,
+        "runner.py",
+        "--priority-nodes",
+        "{signetum.priority_nodes_file}",
+        "--unreached-report",
+        "{signetum.unreached_nodes_file}",
+        "--observed",
+        str(observed),
+    )
+
+
+def _manifest(
+    marker: Path, member_shards: tuple[str, ...], nodes_command: tuple[str, ...] = ()
+) -> str:
     check = [sys.executable, "-c", "import pathlib,sys; pathlib.Path(sys.argv[1]).touch()"]
+    nodes_command = nodes_command or (sys.executable, "nodes.py")
     gates = json.dumps(list(member_shards))
     return f"""schema_version = 5
 [delivery]
@@ -56,7 +96,7 @@ command = {json.dumps([*check, str(marker)])}
 
 [[validation.shards]]
 name = "repo:nodes"
-command = {json.dumps([sys.executable, "nodes.py"])}
+command = {json.dumps(list(nodes_command))}
 
 [[validation.shards]]
 name = "repo:prepare"
@@ -85,15 +125,20 @@ def _commit(worktree: Path, message: str) -> None:
     git_output(worktree, "commit", "-m", message)
 
 
-def _workspaces(tmp_path: Path, nodes: dict[str, str]) -> tuple[Path, Path, Path]:
+def _workspaces(
+    tmp_path: Path, nodes: dict[str, str], nodes_command: tuple[str, ...] = ()
+) -> tuple[Path, Path, Path]:
     root = tmp_path / "repository"
     root.mkdir()
     marker = tmp_path / "checks-ran"
     git_output(root, "init", "-b", "main")
     git_output(root, "config", "user.name", "Signetum Tests")
     git_output(root, "config", "user.email", "signetum@example.invalid")
-    (root / "signetum.toml").write_text(_manifest(marker, ("repo:check", "repo:nodes")))
+    (root / "signetum.toml").write_text(
+        _manifest(marker, ("repo:check", "repo:nodes"), nodes_command)
+    )
     (root / "nodes.py").write_text(NODES)
+    (root / "runner.py").write_text(RUNNER)
     (root / "nodes.json").write_text(json.dumps({NODE: "passed"}))
     policy = root / ".agents/signetum/repo.yaml"
     policy.parent.mkdir(parents=True)
@@ -265,3 +310,73 @@ def test_a_recorded_root_cause_releases_a_node_whose_shard_stays_selected(tmp_pa
     _record_root_cause(member, NODE)
     assert lifecycle.validate(member, "member")["status"] == "ready"
     assert not failure_path(member, "impl/member").exists()
+
+
+OTHER = "tests/test_contract.py::test_other"
+
+
+def _observed(path: Path) -> list[dict[str, list[str]]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def test_owed_nodes_are_offered_first_without_changing_what_runs(tmp_path):
+    observed = tmp_path / "observed.jsonl"
+    member, _, _ = _workspaces(tmp_path, {OTHER: "passed", NODE: "failed"}, _runner(observed))
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    (member / "nodes.json").write_text(json.dumps({OTHER: "passed", NODE: "passed"}))
+    _commit(member, "repair the contract")
+    ready = lifecycle.validate(member, "member")
+    assert ready["status"] == "ready"
+    first, second = _observed(observed)
+    assert first["priority"] == []
+    assert second["priority"] == [NODE]
+    # Ordering only: the runner still ran every node, owed first.
+    assert second["ran"] == [NODE, OTHER] and sorted(first["ran"]) == sorted(second["ran"])
+    shards = [item["name"] for item in ready["evidence"]["execution"]["shards"]]
+    assert sorted(shards) == ["repo:check", "repo:nodes"]
+
+
+def test_unreached_nodes_fail_the_gate_and_are_owed_first_next_time(tmp_path, monkeypatch, capsys):
+    observed = tmp_path / "observed.jsonl"
+    member, _, _ = _workspaces(tmp_path, {NODE: "passed", OTHER: "unreached"}, _runner(observed))
+    monkeypatch.chdir(member)
+    assert lifecycle.main(["ready"]) != 0
+    result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert result["status"] == "failed"
+    assert result["unreached"] == {"count": 1, "by_shard": {"repo:nodes": 1}}
+    assert _remembered(member, "impl/member")["unreached"] == [
+        {"shard": "repo:nodes", "node_id": OTHER}
+    ]
+
+    # A later round that again cannot reach the owed node still fails.
+    _commit_empty(member, "retry under the same load")
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    (member / "nodes.json").write_text(json.dumps({NODE: "passed", OTHER: "passed"}))
+    _commit(member, "give the runner room to finish")
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+    priorities = [entry["priority"] for entry in _observed(observed)]
+    assert priorities == [[], [OTHER], [OTHER]]
+    assert not failure_path(member, "impl/member").exists()
+
+
+def _commit_empty(worktree: Path, message: str) -> None:
+    git_output(worktree, "commit", "--allow-empty", "-m", message)
+
+
+def test_a_runner_stopped_at_its_time_bound_still_reports_unreached_nodes(tmp_path):
+    observed = tmp_path / "observed.jsonl"
+    member, _, _ = _workspaces(tmp_path, {NODE: "passed", OTHER: "hang"}, _runner(observed))
+    manifest = member / "signetum.toml"
+    text = manifest.read_text()
+    manifest.write_text(
+        text.replace('name = "repo:nodes"\n', 'name = "repo:nodes"\ntimeout_seconds = 2\n')
+    )
+    _commit(member, "bound the runner")
+    with pytest.raises(ValidationExecutionError) as failure:
+        lifecycle.validate(member, "member")
+    assert failure.value.unreached_nodes == (("repo:nodes", OTHER),)
+    assert _remembered(member, "impl/member")["unreached"] == [
+        {"shard": "repo:nodes", "node_id": OTHER}
+    ]

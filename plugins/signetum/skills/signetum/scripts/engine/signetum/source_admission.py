@@ -38,5 +38,7 @@ def require_source_admission(
                 read_package(repository, manifest, change_id, tip).require_approval()
         reconciliation_summary(repository, changes, commit=tip)
         return changes
-    except (ChangeError, DevelopmentReviewError) as error:
+    except ChangeError as error:
+        raise AdmissionError(str(error), expected=error.expected, fields=error.fields) from error
+    except DevelopmentReviewError as error:
         raise AdmissionError(str(error)) from error
