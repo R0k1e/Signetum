@@ -20,7 +20,7 @@ from signetum.workspaces import WorkspaceRecord, write_record
 
 NODE = "tests/test_contract.py::test_contract"
 
-NODES = """import json, os, sys
+NODES = """import json, sys
 from pathlib import Path
 nodes = json.loads(Path("nodes.json").read_text())
 first_failed = [n for n, o in nodes.items() if o in ("failed", "recovered")]
@@ -28,7 +28,8 @@ if destination := sys.argv[sys.argv.index("--node-report") + 1]:
     passed = [n for n, o in nodes.items() if o == "passed"]
     Path(destination).write_text(json.dumps({"failed": first_failed, "passed": passed}))
 recovered = [n for n, o in nodes.items() if o == "recovered"]
-if recovered and (report := os.environ.get("SIGNETUM_RECOVERY_REPORT")):
+if recovered:
+    report = sys.argv[sys.argv.index("--recovery-report") + 1]
     phase = [{"phase": "call", "outcome": "failed"}]
     Path(report).write_text(json.dumps([{"node_id": n, "first_failure": phase} for n in recovered]))
 sys.exit(1 if "failed" in nodes.values() else 0)
@@ -81,6 +82,8 @@ def _manifest(
         "nodes.py",
         "--node-report",
         "{signetum.node_report_file}",
+        "--recovery-report",
+        "{signetum.recovery_report_file}",
     )
     gates = json.dumps(list(member_shards))
     return f"""schema_version = 5

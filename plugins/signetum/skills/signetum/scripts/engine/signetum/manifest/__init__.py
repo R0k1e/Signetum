@@ -9,9 +9,9 @@ from signetum.profiles.catalog import validate_selection
 from signetum.resources.schemas import evidence_schema_digest as published_evidence_schema_digest
 from signetum.selection_contracts import SelectionProvider, repository_file
 from signetum.serialization import UnknownFieldsError, dataclass_from_mapping
+from signetum.validation import SCHEDULE_FILE, ValidationShard
 from signetum.validation import GateDeclaration as ValidationGate
 from signetum.validation import ToolDeclaration as ValidationTool
-from signetum.validation import ValidationShard
 
 SCHEMA_VERSION = 5
 
@@ -119,6 +119,8 @@ class ValidationCommands:
     shards: tuple[ValidationShard, ...]
     gates: tuple[ValidationGate, ...]
     member_required: tuple[str, ...] = ()
+    schedule_file: str = ""
+    """Repository-relative scheduling weights, offered as {signetum.schedule_file}."""
 
     def __post_init__(self) -> None:
         if not self.shards or len(self.shards) != len({item.name for item in self.shards}):
@@ -179,6 +181,11 @@ class RepositoryManifest:
     def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
             raise ManifestError(f"unsupported manifest schema: {self.schema_version}")
+        schedule = self.validation.schedule_file
+        if schedule and schedule not in self.repository.lockfiles:
+            raise ManifestError("validation.schedule_file must be listed in repository.lockfiles")
+        if not schedule and any(SCHEDULE_FILE in shard.command for shard in self.validation.shards):
+            raise ManifestError(f"placeholder {SCHEDULE_FILE} requires validation.schedule_file")
 
 
 def manifest_from_mapping(data: object) -> RepositoryManifest:

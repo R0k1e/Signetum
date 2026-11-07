@@ -62,8 +62,9 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(local
         "-c",
         "import json,os,sys; from pathlib import Path; "
         f"Path({str(observed)!r}).write_text(json.dumps("
-        'dict(workers=os.environ["SIGNETUM_VALIDATION_WORKERS"],arguments=sys.argv[1:]))); '
+        "dict(workers=sys.argv[1],arguments=sys.argv[2:]))); "
         f"raise SystemExit({int(fails)})",
+        "{signetum.validation_workers}",
     ]
     manifest = root / "signetum.toml"
     manifest.write_text(
@@ -89,9 +90,7 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(local
             "--literal",
             "literal argument",
         ],
-        env=dict(
-            os.environ, SIGNETUM_VALIDATION_WORKERS="4", PYTEST_XDIST_WORKER="enclosing-worker"
-        ),
+        env=dict(os.environ, PYTEST_XDIST_WORKER="enclosing-worker"),
         capture_output=True,
         text=True,
         check=False,
@@ -124,9 +123,7 @@ def test_explicit_test_diagnostic_uses_one_bounded_owner_without_readiness(local
     assert not (state / "attempts").exists(), "single-shard diagnostics do not prepare"
     gated = subprocess.run(  # noqa: S603 -- same public diagnostic, declared dependency graph
         [*prefix, "run", "--repository", str(root), "--gate", "member"],
-        env=dict(
-            os.environ, SIGNETUM_VALIDATION_WORKERS="4", PYTEST_XDIST_WORKER="enclosing-worker"
-        ),
+        env=dict(os.environ, PYTEST_XDIST_WORKER="enclosing-worker"),
         capture_output=True,
         text=True,
         check=False,

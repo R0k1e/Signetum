@@ -1,7 +1,6 @@
 """A diagnostic retry cannot publish success for an originally failed run."""
 
 import json
-import os
 import subprocess
 import sys
 
@@ -19,13 +18,24 @@ def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path):
     )
     launcher = ["-m", "signetum.validation.pytest_runner"]
     report = tmp_path / "attempts.json"
-    argv = [sys.executable, *launcher, "--", "-q", "-o", "addopts=", str(case)]
+
+    def argv(recovery):
+        return [
+            sys.executable,
+            *launcher,
+            "--recovery-report",
+            str(recovery),
+            "--workers",
+            "0",
+            "--",
+            "-q",
+            "-o",
+            "addopts=",
+            str(case),
+        ]
+
     failed = subprocess.run(  # noqa: S603 -- real public runner and disposable test
-        argv,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=dict(os.environ, SIGNETUM_RECOVERY_REPORT=str(report), SIGNETUM_VALIDATION_WORKERS="0"),
+        argv(report), capture_output=True, text=True, check=False
     )
     assert failed.returncode == 1, failed.stdout + failed.stderr
     assert "1 passed" in failed.stdout, "diagnostic retry did not execute"
@@ -33,15 +43,7 @@ def test_retry_stays_failed_and_a_fixed_normal_run_passes(tmp_path):
 
     case.write_text("def test_case():\n    assert 2 + 2 == 4\n")
     fixed = subprocess.run(  # noqa: S603 -- fresh normal run after changing the source
-        argv,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=dict(
-            os.environ,
-            SIGNETUM_RECOVERY_REPORT=str(tmp_path / "fresh.json"),
-            SIGNETUM_VALIDATION_WORKERS="0",
-        ),
+        argv(tmp_path / "fresh.json"), capture_output=True, text=True, check=False
     )
     assert fixed.returncode == 0, fixed.stdout + fixed.stderr
     measured = [json.loads(line) for line in fixed.stderr.splitlines() if line.startswith("{")]

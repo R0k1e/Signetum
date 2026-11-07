@@ -212,9 +212,9 @@ def test_malformed_recovery_evidence_cannot_be_published_as_success(tmp_path, re
     command = (
         sys.executable,
         "-c",
-        "import os, sys; from pathlib import Path; "
-        "Path(os.environ['SIGNETUM_RECOVERY_REPORT']).write_text(sys.argv[1])",
+        "import sys; from pathlib import Path; Path(sys.argv[2]).write_text(sys.argv[1])",
         report,
+        "{signetum.recovery_report_file}",
     )
     with pytest.raises(ValidationExecutionError, match="invalid recovery report"):
         RepositoryValidationAdapter(tmp_path).run_shard(ValidationShard("test:recovery", command))
