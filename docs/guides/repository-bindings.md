@@ -32,25 +32,11 @@ ratchet baseline. The baseline runs in a checkout of that commit prepared by the
 `prepare` gate, so declare there whatever the command needs installed. A baseline
 that cannot be measured fails the shard.
 
-Declare a batch gate that covers what an admission can select. Without a provider
-that is the complete member gate. A static-only batch gate refuses any admission
-whose commits select a test shard. A batch shard that declares
-`{signetum.admission_base}` receives the increment's start commit.
-
-A batch shard that runs the project's own member selection over that range
-declares the member shards it stands for:
-
-```toml
-[[validation.shards]]
-name = "app:batch"
-command = ["./scripts/check", "batch"]
-covers = ["app:member"]
-```
-
-Admission then accepts a selected `app:member` when `app:batch` is in the batch
-gate and passes. `covers` names only declared tree shards, never the shard itself,
-and cannot form a cycle; manifest load rejects anything else. Keep it reviewable:
-the covering command must really execute the covered shards' selected checks.
+Admission and `batch-continue` run only the declared batch gate over the commits
+added since its last pass. That gate may run no integration check: final stays
+complete, so a failure that appears only when members combine surfaces at final.
+A batch shard that declares `{signetum.admission_base}` receives the increment's
+start commit.
 
 A runner receives engine values only through placeholders declared as whole
 arguments of its shard command; Signetum sets no environment variables for them:

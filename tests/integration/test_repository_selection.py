@@ -248,20 +248,14 @@ def _shard_runs(captured: str, shard: str) -> int:
     )
 
 
-def test_a_batch_gate_that_skips_selected_tests_refuses_admission_before_checks(
+def test_a_batch_gate_that_skips_selected_tests_admits_without_running_them(
     repository, selection_runtime, capfd
 ):
     runtime, root, member, base = _selected_member(repository, selection_runtime, batch_tests=False)
     assert runtime.validate(member, "member")["status"] == "ready"
     capfd.readouterr()
-    with pytest.raises(runtime.AdmissionError, match="test:check"):
-        runtime.batch_open(root, (member,))
+    assert runtime.batch_open(root, (member,))["admitted"]
     assert _shard_runs(capfd.readouterr().err, "test:check") == 0
-    batch = _batch_worktree(root)
-    # Only a passing batch gate advances the verified increment, so a retry
-    # with nothing new to merge still owes the refused admission's selection.
-    with pytest.raises(runtime.AdmissionError, match="test:check"):
-        runtime.admit(batch, (member,))
     assert git_output(root, "rev-parse", "main") == base
 
 
@@ -284,7 +278,7 @@ def test_real_member_diagnostics_ready_admission_and_full_final_share_selection(
     repository, selection_runtime
 ):
     runtime, root, member, base = _selected_member(repository, selection_runtime)
-    changed = runtime.changed(member, True)
+    changed = runtime.explain_ready(member)
     assert changed["selection"]["shards"] == ["test:check"]
     ready = runtime.validate(member, "member")
     assert ready["status"] == "ready"
@@ -474,14 +468,13 @@ def test_open_merge_runs_its_selected_batch_checks_and_final_retains_complete_ch
     assert git_output(root, "rev-parse", "main") == base
 
 
-def test_conflict_continuation_refuses_an_uncovering_batch_gate_before_committing(
+def test_conflict_continuation_with_a_light_batch_gate_defers_selected_tests_to_final(
     repository, selection_runtime, capfd
 ):
     runtime, root, first, base = _selected_member(repository, selection_runtime, batch_tests=False)
     assert runtime.validate(first, "member")["status"] == "ready"
     second = _conflicting_second_member(runtime, root, base)
-    with pytest.raises(runtime.AdmissionError, match="test:check"):
-        runtime.batch_open(root, (first,))
+    runtime.batch_open(root, (first,))
     batch = _batch_worktree(root)
     with pytest.raises(runtime.MergeConflict):
         runtime.admit(batch, (second,))
@@ -489,11 +482,10 @@ def test_conflict_continuation_refuses_an_uncovering_batch_gate_before_committin
     git_output(batch, "add", "source.py")
     before = git_output(batch, "rev-parse", "HEAD")
     capfd.readouterr()
-    with pytest.raises(runtime.AdmissionError, match="test:check"):
-        runtime.continue_batch(batch)
+    runtime.continue_batch(batch)
     assert _shard_runs(capfd.readouterr().err, "test:check") == 0
-    assert git_output(batch, "rev-parse", "HEAD") == before
-    assert git_output(batch, "rev-parse", "--verify", "MERGE_HEAD")
+    assert git_output(batch, "rev-parse", "HEAD^") == before
+    assert git_output(batch, "rev-parse", "--verify", "MERGE_HEAD", check=False) == ""
     assert git_output(root, "rev-parse", "main") == base
 
 
@@ -527,7 +519,7 @@ def test_without_provider_executes_full_member_checks_despite_no_check_impact_ru
     text = text.replace('shards = ["test:check"]', "shards = []", 1)
     manifest.write_text(text)
     git_output(member, "commit", "-am", "use full default validation")
-    changed = runtime.changed(member, True)
+    changed = runtime.explain_ready(member)
     assert changed["executed"] == []
     assert changed["shards"] == ("test:check",)
     first = runtime.validate(member, "member")
@@ -546,7 +538,6 @@ def test_without_provider_executes_full_member_checks_despite_no_check_impact_ru
     test = member / "tests/test_b.py"
     test.write_text(test.read_text().replace("doubled(2), 4", "doubled(2), 99"))
     git_output(member, "commit", "-am", "expose full default coverage")
-    assert runtime.changed(member, False)["checks_started"] is False
     with pytest.raises(runtime.ValidationExecutionError, match="test:check"):
         runtime.validate(member, "member")
     with pytest.raises(runtime.ValidationExecutionError, match="test:check"):

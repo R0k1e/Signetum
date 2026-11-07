@@ -73,7 +73,8 @@ without another full precollection pass or a passing qualification.
 
 ## Selection and efficient feedback
 
-`changed` explains without checks. `test run` delegates explicit targets or
+`ready` is the development loop; `ready --explain` shows its selection without
+checks. `test run` delegates explicit targets or
 a declared gate to the same supervisor and verdict core, without qualification.
 Native arguments apply only to a shard; full exact-source gates reject them and
 verify clean source plus input identities before and after execution.
@@ -90,25 +91,23 @@ Weighted scheduling and CI partitions are optional diagnostics; complete partiti
 aggregation checks exact membership/source and creates no lifecycle authority.
 
 Admission and continuation select over the commits added since the batch's last
-passing gate, starting at its recorded base, not the cumulative batch. The declared
-batch gate, resolved with any provider targets, must cover the member shards that
-selection requires, which without a provider is the complete member gate, either by
-running them or through a batch-gate shard that declares `covers` for them, directly
-or transitively. Coverage declares the obligation; the selected member checks
-also execute on the merged tree. Otherwise the operation refuses before batch checks run. Only a passing batch gate advances
+passing gate, starting at its recorded base, not the cumulative batch. They run
+only the declared batch gate, resolved with any provider targets; it may run no
+integration checks. Final stays complete, so cross-member failures surface there
+rather than at admission. A remembered node whose shard the batch gate does not
+run stays owed to final. Only a passing batch gate advances
 that verified tip, so a refused or failed increment stays owed. One admission of
 several members is one increment. A batch shard declaring
 `{signetum.admission_base}` receives its start commit, so a project selector can
 use the same range; elsewhere it is an explicit empty argument. A provider
 selects a staged conflict resolution from a temporary detached checkout of its merge.
 
-## Eight lifecycle operations
+## Seven lifecycle operations
 
 | Operation | Responsibility |
 | --- | --- |
 | `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. A base naming another open member's branch records that parent and its tip. |
-| `changed [--explain]` | Inspect the contribution and planned member checks. |
-| `ready` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. |
+| `ready [--explain]` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. This is the development loop; `--explain` only shows the selection. |
 | `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. Only batch synchronization later advances that base. |
 | `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. |
 | `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge. |
@@ -185,8 +184,16 @@ suffixes refuse. Historical statements retain original proof without another
 active workflow. Exact retirements preserve earlier answers. Final does not
 append its own success to source.
 
-Review binds approvals, source journals, admitted receipts, recovered defects and
-remaining work. Recheck those inputs after validation and before publication;
+A defect that appears only when members combine may be fixed by commits made
+directly in the batch under the batch's own change record. Final attributes each
+first-parent non-merge batch commit to the batch-owned changes approved before
+it, unchanged at the tip; a commit touching only change records and decisions is
+authority history. Any other direct commit refuses. Member-owned defects are fixed
+in the member and admitted again; conflict resolution stays with `batch-continue`.
+After a failed final on the current tip, status names both repairs.
+
+Review binds approvals, source journals, admitted receipts, batch commit
+attribution, recovered defects and remaining work. Recheck those inputs after validation and before publication;
 changes require fresh final. The agent shows outcomes, scope, decision changes,
 test modifications and evidence before explicitly authorized delivery. Existing
 authorization remains valid within its agreed scope. Human
