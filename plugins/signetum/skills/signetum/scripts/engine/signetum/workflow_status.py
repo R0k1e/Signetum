@@ -7,12 +7,15 @@ delivery branch; cleanup proves it again against a fresh fetch before removal.
 import json
 from pathlib import Path
 
+from signetum.change.scope import APPROVAL_ORDER_REMEDY, ChangeError, approval_order
 from signetum.change_record import parse_change_record
 from signetum.development_log import DevelopmentSnapshot
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, ReceiptError
 from signetum.git import git_output, repository_path
+from signetum.manifest import ManifestError, load_manifest
 from signetum.serialization import contract_mapping
 from signetum.source_authority import authority_roots, source_path
+from signetum.stacking import admission_order, parent_moved
 from signetum.workspace_operations import workspace_endings
 from signetum.workspaces import current_branch, read_change_owner, read_record, record_path
 
@@ -83,6 +86,26 @@ def workflow_status(
             )
         except (OSError, ValueError, KeyError, TypeError, ReceiptError):
             continue
+    order = None
+    approved = tuple(str(c["id"]) for c in changes if c["approved"] and c["status"] == "active")
+    if (
+        workspace is not None
+        and workspace.kind == "member"
+        and approved
+        and len(approved) == len(changes)
+        and not dirty
+        and not merging
+    ):
+        try:
+            order = approval_order(
+                repository,
+                load_manifest(repository / "signetum.toml"),
+                workspace.base,
+                source,
+                approved,
+            )
+        except (ChangeError, ManifestError):
+            order = None
     if merging:
         next_action = (
             "Resolve and stage conflicts; use batch-continue --batch <batch> for a batch, "
@@ -110,8 +133,19 @@ def workflow_status(
         next_action = (
             "Show the change approval view; record actual owner confirmation before implementation."
         )
+    elif order is not None and not order.satisfied:
+        next_action = APPROVAL_ORDER_REMEDY
     else:
         next_action = "Run targeted feedback as needed, then ready on the committed member tip."
+    if workspace is not None and workspace.parent and not merging and not dirty:
+        # A stacked member's chain lives in its record; status only derives the next step.
+        if parent_moved(repository, workspace, source):
+            next_action = (
+                f"Parent {workspace.parent} advanced; run maintenance workspace-sync, then ready."
+            )
+        elif receipts:
+            order = " -> ".join(admission_order(repository, workspace.branch))
+            next_action += f" Admit the chain in order {order}."
     workspaces = workspace_endings(repository)
     if git_output(repository, "rev-parse", "HEAD") != source:
         raise ValueError("source changed while reading status")

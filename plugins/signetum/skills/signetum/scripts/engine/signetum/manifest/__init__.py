@@ -133,6 +133,12 @@ class ValidationCommands:
             if outside:
                 raise ManifestError(f"{name} covers non-tree shards: {', '.join(outside)}")
         _require_acyclic_coverage(covers)
+        for item in self.shards:
+            unknown = sorted(set(item.after) - declared)
+            if unknown:
+                raise ManifestError(
+                    f"{item.name} runs after undeclared shards: {', '.join(unknown)}"
+                )
         member = next(item.shards for item in self.gates if item.name == "member")
         for origin, names in (("gates.member", member), ("member_required", self.member_required)):
             unknown = sorted(set(names) - declared)

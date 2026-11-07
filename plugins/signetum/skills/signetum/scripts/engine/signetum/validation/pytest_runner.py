@@ -74,8 +74,6 @@ def _run(
     search = environment.get("PYTHONPATH", "")
     environment["PYTHONPATH"] = str(plugins) + (os.pathsep + search if search else "")
     environment.pop("SIGNETUM_RETRY_NODES", None)
-    # Tests that run nested gates must not write the enclosing gate's report.
-    environment.pop("SIGNETUM_NODE_REPORT", None)
     # A fresh controller, including serial retries, must not inherit an outer
     # xdist worker identity. Its own workers receive new identities from xdist.
     for name in tuple(environment):
@@ -173,9 +171,8 @@ def _observed_scratch(context, deferred):
             )
 
 
-def _report_first_attempt(reports: list[dict[str, str]]) -> None:
+def _report_first_attempt(reports: list[dict[str, str]], destination: str | None) -> None:
     """Report first-attempt node outcomes to the gate; a retry never changes them."""
-    destination = os.environ.get("SIGNETUM_NODE_REPORT")
     if not destination:
         return
     failed = sorted({report["node_id"] for report in reports if report["outcome"] == "failed"})
@@ -192,6 +189,10 @@ def _report_first_attempt(reports: list[dict[str, str]]) -> None:
 
 def main(arguments: list[str] | None = None) -> int:
     supplied = sys.argv[1:] if arguments is None else arguments
+    # The shard declares --node-report {signetum.node_report_file} before the separator.
+    node_report = None
+    if supplied[:1] == ["--node-report"] and len(supplied) > 1:
+        node_report, supplied = supplied[1], supplied[2:]
     if supplied[:1] == ["--"]:
         supplied = supplied[1:]
     # An enclosing command owns the final cleanup. Removing these paths here
@@ -205,7 +206,7 @@ def main(arguments: list[str] | None = None) -> int:
     with _observed_scratch(context, bool(parent)) as scratch:
         root = Path(scratch)
         status, reports = _run(supplied, root / "first.json")
-        _report_first_attempt(reports)
+        _report_first_attempt(reports, node_report)
         if status != 1:
             return status
         failed = sorted({report["node_id"] for report in reports if report["outcome"] == "failed"})

@@ -7,14 +7,25 @@ tracked source. Diagnostics can inspect dirty work and never issue readiness.
 ## Check execution
 
 One dependency/verdict core serves diagnostics, member qualification and final.
-Dependencies run in order, failed dependencies block descendants, independent
+Dependencies run in order, failed `requires` dependencies block descendants, independent
 failures are collected, and a successful retry cannot clear a first failure.
-A shard runner may write first-attempt node outcomes, `{"failed": [...], "passed": [...]}`,
-to `SIGNETUM_NODE_REPORT`; the packaged pytest runner does. A failed member, batch
+A shard's `after` prerequisites order it and join its gate closure like `requires`,
+but their failed verdict does not skip it, so one round reports every failure;
+an infrastructure error in either kind still skips dependents.
+A shard command exchanges node data only through declared whole-argument
+placeholders, replaced by absolute paths; configuration refuses any other
+`{signetum.*}` argument and placeholders in findings or ratchet commands, which
+are never substituted. `{signetum.node_report_file}` receives first-attempt
+`{"failed": [...], "passed": [...]}` with an optional `"unreached": [...]`; the
+packaged pytest runner takes it as `--node-report`. The engine reads it after the
+shard ends, including after its time bound. Unreached entries fail the shard and
+the result states their count. `{signetum.priority_nodes_file}` always exists and
+holds the shard's owed entries as `{"schema_version": 1, "nodes": [...]}` for the
+runner to schedule first; it never selects or satisfies an entry. A failed member, batch
 or final gate writes a failure receipt for its workspace under the Git common
 directory's `signetum/failures`, beside synchronization records. It names the
-workspace, its changes, base, tip, first-attempt failed nodes and nodes that passed
-only on retry. The next gate in that workspace releases a remembered node that an
+workspace, its changes, base, tip, first-attempt failed nodes, nodes that passed
+only on retry and unreached nodes, all owed to the next gate. The next gate in that workspace releases a remembered node that an
 observation in a change journal the workspace changed names as evidence with its
 root cause, whether or not its shard is selected. Before checks start, it refuses
 any other node whose shard is not selected again, and such a reselected node must
@@ -85,7 +96,7 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 
 | Operation | Responsibility |
 | --- | --- |
-| `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. |
+| `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. A base naming another open member's branch records that parent and its tip. |
 | `changed [--explain]` | Inspect the contribution and planned member checks. |
 | `ready` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. |
 | `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. Only batch synchronization later advances that base. |
@@ -96,7 +107,11 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 
 Scope comes from actual committed paths and immutable registrations, never a
 trailer inventing ownership. Qualification requires current approved contracts
-and their implementation after exact approval. Competing retired formats supply
+and their implementation after exact approval: an own commit after the latest
+approval commit binding the current contract. When none follows, ready refuses
+naming that approval commit, and its expected action and the `status` next action
+give the remedy: commit implementation after it, without counting the approval
+commit's own changes or rewriting history. Competing retired formats supply
 no fallback. Previously delivered intent remains protected; new intent needs its
 own change. Ordinary execution refinements cannot reduce approved outcomes.
 
@@ -112,6 +127,19 @@ World evidence cannot replace tree evidence. Preparation or batch-gate failure r
 integration state for ordinary repair; merge conflict uses `batch-continue`.
 Member synchronization records authorization before merging a verified source,
 keeps the original base and distinguishes imported work from owned repairs.
+
+A stacked member's workspace record names its parent member branch, and its base
+is that parent's tip; the record is the only source of the chain. Its contribution,
+selection and ratchet run from that base, excluding paths a verified parent sync
+brought. Without `--batch`, `maintenance workspace-sync` in a stacked member takes
+its parent while the parent branch exists and is not in the fetched delivery
+branch, otherwise the delivery branch; a parent sync requires the new parent tip to
+descend from the one held. Ready and admission refuse while the open parent branch
+has moved past the held parent tip. Admission refuses a stacked member unless its
+parent's latest admission in the batch, earlier in the same invocation or before,
+is exactly that held tip or the tip is in the batch base. The final review's
+`member_chain` names each member's own changes and, from its record, its parent.
+The status next action names the needed sync or the admission order.
 
 Batch synchronization is `maintenance workspace-sync` run in an open batch. It
 merges the fresh delivery tip when that tip descends from the recorded batch base,

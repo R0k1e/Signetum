@@ -37,6 +37,14 @@ concurrent decision clause identities are refused before they are integrated.
   one decision clause ID, naming the clause, both changes and their workspaces.
 - `batch-deliver` onto a delivery branch that moved names batch synchronization
   as the recovery.
+- Stacked members split one large change into a chain delivered through one
+  batch. `workspace-open <branch> <parent-branch>` bases a member on another open
+  member's tip and records that parent; its `ready` selects only its own diff.
+  In a stacked member, `maintenance workspace-sync` merges the parent's later
+  commits until the parent is delivered, and `ready` and admission refuse until it
+  does. `batch-admit` requires the parent admitted first at the exact tip the child
+  holds. The final review names each member's parent, and the `status` next action
+  names the needed sync or the admission order.
 
 Signetum ships as one plugin for Claude Code and Codex: the Skill plus a command
 guard, installed and updated by the host plugin managers.
@@ -69,6 +77,26 @@ guard, installed and updated by the host plugin managers.
   on a plain Skill replaces the folder in place after the same compatibility
   check, runs no host command and refuses a folder inside a Git work tree;
   results report `install` as `plugin` or `plain`.
+
+A long validation round loses less work: owed nodes run first, unrun nodes stay
+owed, and one failing check no longer hides the others.
+
+- Breaking: `SIGNETUM_NODE_REPORT` is removed. A runner that reports node
+  outcomes must declare `{signetum.node_report_file}` as a whole argument of its
+  shard command; the packaged pytest runner takes it as
+  `--node-report {signetum.node_report_file}` before `--`. The report keeps
+  `{"failed": [...], "passed": [...]}` and may add `"unreached": [...]`, read even
+  after the shard's time bound. Unreached entries fail the gate, the result
+  reports their count, and the next gate owes them.
+- `{signetum.priority_nodes_file}` is replaced by a file,
+  `{"schema_version": 1, "nodes": [...]}`, listing the entries that shard owes
+  from an earlier failed gate, to run first. Unknown `{signetum.*}` arguments are
+  refused.
+- `after = [...]` on a shard orders it after other shards without skipping it
+  when they fail, so one round reports every failure. `requires` still gates.
+- When no implementation commit follows the latest approval, `ready` refuses
+  naming the approval commit, and its expected action and the `status` next
+  action give the remedy.
 
 ## 0.3.3
 
