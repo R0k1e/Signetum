@@ -117,7 +117,9 @@ shards = ["app:web-tests"]
 
 A fixup changing only `web/` then reruns `app:web-tests` and reuses the other
 inheritable shards' evidence from the previous ready. A path no rule names reruns
-them all.
+them all, except a path inside a change directory, which affects no inheritable
+shard. A commit changing only change records, with every contract unchanged, needs
+no check at all: the previous ready evidence stands for it.
 
 ## Declaring a check which depends on the outside world
 

@@ -34,8 +34,6 @@ def _semantic_request(
     """Bind semantic input once; the existing writer still judges every append."""
     branch = current_branch(repository)
     workspace = read_record(state_root(repository), branch)
-    if workspace.kind != "member":
-        raise ValueError("journal requires a registered member workspace")
     commit = git_output(repository, "rev-parse", "HEAD")
     if options.change:
         change = options.change

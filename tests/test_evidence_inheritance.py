@@ -207,7 +207,7 @@ def test_documentation_fixup_inherits_tests_but_reruns_static(repository, runtim
     assert inherited["commit"] == first["source"]
 
 
-def test_resolved_journal_only_fixup_reuses_tests_without_a_provider(repository, runtime):
+def test_resolved_journal_only_fixup_starts_no_check_without_a_provider(repository, runtime):
     member, state, first = configured(repository, runtime, provider=False)
     record = parse_change_record((member / "changes/example/change.toml").read_text())
     request = {
@@ -253,9 +253,9 @@ def test_resolved_journal_only_fixup_reuses_tests_without_a_provider(repository,
     git_output(member, "commit", "-m", "retain the resolved contract finding")
     second = runtime.validate(member, "member")
     assert (state / "tests").read_text() == "x"
-    assert (state / "static").read_text() == "xx"
-    inherited = second["evidence"]["extensions"]["inherited_test_evidence_from"]
-    assert inherited["commit"] == first["source"]
+    assert (state / "static").read_text() == "x"
+    assert second["checks_started"] is False
+    assert second["receipt"] == first["receipt"]
 
 
 def test_a_selecting_path_modified_then_reverted_still_forces_fresh_tests(repository, runtime):

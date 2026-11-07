@@ -7,7 +7,12 @@ delivery branch; cleanup proves it again against a fresh fetch before removal.
 import json
 from pathlib import Path
 
-from signetum.change.scope import APPROVAL_ORDER_REMEDY, ChangeError, approval_order
+from signetum.change.scope import (
+    APPROVAL_ORDER_REMEDY,
+    ChangeError,
+    approval_order,
+    records_only_ancestors,
+)
 from signetum.change_record import parse_change_record
 from signetum.development_log import DevelopmentSnapshot
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, ReceiptError
@@ -63,11 +68,15 @@ def workflow_status(
     pending = [o.observation.id for o in scoped if o.status == "pending"]
     receipts = []
     has_final = False
+    # Evidence of an ancestor stands while only change records changed since.
+    evidenced = {source}
+    if workspace is not None and workspace.kind == "member":
+        evidenced.update(records_only_ancestors(repository, change_root, workspace.base, source))
     for path in sorted((root / "validation").glob("*-lifecycle-*.json")):
         try:
             payload = json.loads(path.read_text())
             receipt = EvidenceReceipt.from_json(json.dumps(payload["evidence"]))
-            if not receipt.valid or receipt.identity.commit != source:
+            if not receipt.valid or receipt.identity.commit not in evidenced:
                 continue
             artifacts = (receipt.identity.configuration, *receipt.identity.lockfiles)
             if any(

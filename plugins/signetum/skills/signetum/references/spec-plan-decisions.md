@@ -57,8 +57,9 @@ requirement against its acceptance evidence and execution steps. A selected
 subset of work or an agent report cannot close remaining obligations. Generated
 views and receipts explain status; they are not another maintained authority.
 
-A deferral names an exact active follow-up requirement and an approved transfer.
-Keep it visible in the record and source log. An omitted requirement, prose
+A deferral states who decided and what remains owed, and may name an approved
+follow-up change. It stays visible in the source log and in the final review's
+unfinished work. An omitted requirement, prose
 non-goal or arbitrary file cannot carry unfinished work. A scope reduction or
 changed accepted outcome requires owner confirmation; freeze only affected work
 while continuing independent work already authorized.

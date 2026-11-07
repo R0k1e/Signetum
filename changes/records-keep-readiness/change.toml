@@ -1,0 +1,105 @@
+[change]
+schema_version = 1
+id = "records-keep-readiness"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner directed on 2026-11-07, relayed by the coordinating session, that recording decisions must not cost validation rounds and that Signetum stay general and simple. In Perdura with engine 0.3.3, resolving one observation needed a member commit, a full member ready and a re-admission gate; a deferral had to name a requirement of another active change committed in the member tree and transferred to it; a record-only follow-up change could not pass ready and so could not be referenced; and resolution evidence had to exist in the member's own tree."
+
+[change.contract]
+version = 1
+approved_base = "39be0eafd3b00527b89669b4b640865b77d934e1" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RECORDS-READY-001"
+outcome = "A records-only range changes only paths inside change directories under the declared changes root, and every change record it changes exists at both ends with the same contract digest, so journal events and approval text that keeps the digest qualify. Member readiness evidence of a commit stands for every descendant tip reached by a records-only first-parent range: ready on such a tip runs source admission and no check and names the reused receipt, admission accepts that receipt, status lists it and final accepts it as the admitted member's evidence. A batch admission or continuation whose increment since the last passing batch gate is records-only runs source admission and no batch gate check and records the tip as passing. A contract change still needs a fresh ready, in which a change-record path affects no inheritable shard, so per-shard inheritance reuses every shard whose other inputs did not change."
+acceptance = ["After a passing ready, a commit that only resolves an observation and edits approval source text is ready without starting a check, and admission names the earlier receipt.", "Re-admitting a member tip that adds only a journal event runs no batch gate shard.", "After a contract change, ready reruns the non-inheritable shards and inherits the test shard.", "A commit that changes a path outside change directories is not records-only: ready runs checks."]
+
+[[change.contract.requirements]]
+id = "RECORDS-BATCH-002"
+outcome = "A registered batch workspace may record, resolve, retract and retire observations of any approved change in the batch through the change journal. The write does not claim the change for the batch, and the batch commit carrying it is a batch-owned record commit that needs no ready, admission or batch gate and is validated by final. Final attributes each first-parent non-merge batch commit that changes only change records to the changes whose records it changes."
+acceptance = ["In a batch, resolving an admitted member's observation is accepted; after committing it, final passes and its review attributes the record commit to the member's change and shows the observation resolved."]
+
+[[change.contract.requirements]]
+id = "RECORDS-DEFER-003"
+outcome = "change resolve --disposition deferred needs only a reason, which says who decided and what remains owed. An optional --followup names an approved change, optionally with #REQUIREMENT, whose committed record exists on any local branch; it need not be committed in the writer's tree, have passed ready or receive a requirement transfer. Readiness, admission and final do not judge the follow-up again. The final review lists every deferred observation and deferred deviation in one top-level unfinished_work list with its change, summary, reason and follow-up."
+acceptance = ["A deferral without --followup is accepted and appears in the final review's unfinished_work.", "A deferral naming a change that has only its approval commit on another branch is accepted; naming an unknown change or requirement is refused."]
+
+[[change.contract.requirements]]
+id = "RECORDS-EVIDENCE-004"
+outcome = "Resolution evidence names either a repository path present in the tree being judged, which is the writer's tree when written and the reviewed tip at ready, admission and final, so a resolution written in the batch may cite any batch path, or the name of a receipt in the repository's machine-local validation receipts."
+acceptance = ["A batch resolution citing a path that exists only in the batch tree, and one citing a member ready receipt, are accepted and pass final; a citation of neither is refused."]
+
+[[change.contract.requirements]]
+id = "RECORDS-DOC-005"
+outcome = "The architecture, guides, Skill and its references, and the unreleased changelog describe records-only ranges, batch journal writes, deferral without a follow-up change and resolution evidence locations, and no longer describe the requirement-transfer rule for deferral. Code that only served the removed rules is deleted without a compatibility path."
+acceptance = ["Current instructions agree with observed behavior; historical authorities remain unchanged."]
+
+[change.contract.autonomy]
+allowed = ["Extend the change scope, development journal, member evidence, batch gate, inheritance, status and final review owners; delete code that only served the removed deferral and evidence rules; extend existing functional lifecycle and journal tests on throwaway repositories; reconcile architecture, guides, Skill, references and the unreleased changelog without a version bump.", "Synchronize the workspace from the batch through maintenance workspace-sync --batch and run ready."]
+requires_confirmation = ["Let final skip or inherit checks, change the requirement transfer contract field, change Perdura source or the installed plugin, publish or deliver."]
+
+[[change.contract.decisions]]
+id = "records-keep-readiness/records-keep-readiness"
+change_id = "records-keep-readiness"
+authority = "changes/records-keep-readiness/change.toml#decisions/records-keep-readiness/records-keep-readiness"
+reason = "Recording a decision changed no product input yet cost a full member ready and a re-admission gate, and deferral demanded another change's requirement committed and transferred in the member tree, so agents spent validation rounds to write sentences. Readiness evidence is about the tree its checks read; paths inside change directories that keep every contract digest feed no check except source admission, which still runs everywhere, so earlier evidence stays exact. Alternatives considered: inheriting every shard through impact rules would still run static checks and the batch gate; a separate record-only lifecycle path would add an operation; keeping the transfer rule would keep the follow-up change ceremony. Final stays complete and judges records again. Reopen if a check is found to read change records beyond source admission and traceability, or if unfinished deferrals accumulate unreviewed across deliveries."
+parents = ["per-shard-inheritance/per-shard-inheritance", "one-loop-light-admit-batch-fixes/one-loop"]
+
+[[change.contract.decisions.clauses]]
+id = "records-keep-readiness/records-ready"
+change_id = "records-keep-readiness"
+action = "add"
+expected = [{id = "RECORDS-READY-001", version = 0}]
+authority = "changes/records-keep-readiness/change.toml#decisions/records-keep-readiness/records-keep-readiness"
+reason = "Recording a decision must not cost a validation round."
+
+[[change.contract.decisions.clauses.updates]]
+id = "RECORDS-READY-001"
+version = 1
+topic = "validation-efficiency"
+scope = ["Repository validation and evidence", "Batch admission and continuation"]
+statement = "A records-only range changes only paths inside change directories and keeps the contract digest of every change record it changes. Member readiness evidence of a commit stands for each descendant tip reached by a records-only first-parent range: ready there runs source admission and no check, and admission, status and final accept that evidence. A batch increment that is records-only runs source admission and no batch gate check. In test inheritance a change-record path affects no inheritable shard. Final always executes its complete declared gate. This governs wherever an earlier clause names a journal-only suffix or requires a gate run for a records-only increment."
+rationale = "Change records feed no check beyond source admission, which runs everywhere, so earlier tree evidence stays exact."
+
+[[change.contract.decisions.clauses]]
+id = "records-keep-readiness/records-resolve"
+change_id = "records-keep-readiness"
+action = "add"
+expected = [{id = "RECORDS-RESOLVE-001", version = 0}]
+authority = "changes/records-keep-readiness/change.toml#decisions/records-keep-readiness/records-keep-readiness"
+reason = "Observations are answered where the evidence is, and deferral is recorded, not ceremonially transferred."
+
+[[change.contract.decisions.clauses.updates]]
+id = "RECORDS-RESOLVE-001"
+version = 1
+topic = "development-feedback"
+scope = ["Change journals", "Final validation"]
+statement = "A member or batch workspace may write the journal of an approved change in its tree; a batch write does not claim the change, and final attributes a batch commit that changes only change records to those changes. Resolution evidence is a path in the judged tree or a known validation receipt. A deferral needs only its reason; an optional follow-up names an approved change on any local branch and is judged only when written. The final review lists every deferred item under unfinished_work."
+rationale = "Deferred work stays visible at delivery without forcing a follow-up change through readiness and transfer first."
+
+[[change.execution.steps]]
+id = "STEP-APPROVE"
+requirements = ["RECORDS-READY-001", "RECORDS-BATCH-002", "RECORDS-DEFER-003", "RECORDS-EVIDENCE-004", "RECORDS-DOC-005"]
+action = "Commit this approved record alone before implementation, then reconcile its accepted decision."
+
+[[change.execution.steps]]
+id = "STEP-READY"
+requirements = ["RECORDS-READY-001"]
+action = "Define records-only ranges once in the change scope owner and use them in ready, member evidence lookup, status, final member evidence review, the batch gate and test inheritance, replacing the journal-only special case."
+
+[[change.execution.steps]]
+id = "STEP-JOURNAL"
+requirements = ["RECORDS-BATCH-002", "RECORDS-DEFER-003", "RECORDS-EVIDENCE-004"]
+action = "Let batch workspaces write journals without claiming, attribute record-only batch commits, drop the follow-up and transfer requirements for deferral, accept receipts as evidence and list deferred items under unfinished_work."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["RECORDS-READY-001", "RECORDS-BATCH-002", "RECORDS-DEFER-003", "RECORDS-EVIDENCE-004", "RECORDS-DOC-005"]
+action = "Reproduce each reported case as a failing functional test on throwaway repositories first, implement, reconcile current documentation and stop at passing ready and batch admission."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-07
+source = "Owner direction of 2026-11-07, relayed by the coordinating session: recording decisions must not cost validation rounds and Signetum must stay general and simple. Commits that change only change records and journals keep existing readiness evidence and rerun no check beyond record consistency, while contract changes bind fresh evidence through per-shard inheritance; observations may be resolved or deferred on the batch and are attributed to their change; deferral needs no follow-up change and an optional follow-up may name any approved change known to the repository; resolution evidence may cite any batch path or a known receipt; the final review lists deferred items under unfinished work; dead rules are removed without compatibility paths. Owner pre-confirmed admission into batch/one-loop-and-declared-values. This implementing session did not hear the direction independently."
+contract_digest = "sha256:5c536237d49dc8641c3139fe51798e4da72ce75f9e74da9d53a555b555277bb5"

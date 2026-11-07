@@ -4,7 +4,7 @@ import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
@@ -64,6 +64,38 @@ def _carried_approval(view: dict[str, object]) -> dict[str, object]:
         "source": approval["source"],
         "contract_digest": view["contract_digest"],
     }
+
+
+def _unfinished_work(
+    deviations: dict[str, Any], observations: dict[str, Any]
+) -> list[dict[str, object]]:
+    """Every deferred item the delivery leaves owed, from both journals, in one list."""
+    return [
+        *(
+            {
+                "id": f"{change['change_id']}/{row['id']}",
+                "change_id": change["change_id"],
+                "summary": row["summary"],
+                "reason": row["reason"],
+                "followup": None,
+            }
+            for change in deviations["changes"]
+            for row in change["deviations"]
+            if row["resolution"] == "deferred"
+        ),
+        *(
+            {
+                "id": row["id"],
+                "change_id": change["change_id"],
+                "summary": row["summary"],
+                "reason": row["reason"],
+                "followup": row["followup"],
+            }
+            for change in observations["changes"]
+            for row in change["observations"]
+            if row["status"] == "deferred"
+        ),
+    ]
 
 
 def validate_workspace(
@@ -191,7 +223,7 @@ def validate_workspace(
             )
             if declared_manifest.impact.provider is not None
             else None,
-            journal_root=changes_root(manifest),
+            records_root=changes_root(manifest),
         )
         if kind == "member" and any(shard.inherit for shard in graph.shards)
         else None
@@ -243,6 +275,7 @@ def validate_workspace(
         payload["approvals"] = approvals
     if reconciliation is not None and approvals is not None and scope is not None:
         payload["delivery_review"] = {
+            "unfinished_work": _unfinished_work(reconciliation, source_reconciliation),
             "inputs": review_inputs,
             "recovered_flake_defects": member_recoveries
             + recovery_projection(receipt, receipt_path, member=None),
