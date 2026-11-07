@@ -1,7 +1,10 @@
-"""Real Git scenarios for an open batch after a sibling batch delivers."""
+"""Real Git scenarios for an open batch, its siblings and their delivery."""
 
 import json
+import shlex
+import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 from change_fixtures import commit_approval
@@ -284,3 +287,109 @@ def test_batch_records_a_delivery_tip_a_member_already_merged(repository, monkey
     )
     assert lifecycle.validate(batch_b, "final")["base"] == delivered
     lifecycle.batch_deliver(batch_b, root, delivered, tip)
+
+
+def older_engine(directory):
+    """A Python whose engine identity is the one an older engine reports."""
+    wrapper = directory / "older-engine"
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = -m ] && [ "$2" = signetum.runtime_identity ]; then\n'
+        '  echo \'{"implementation": "older"}\'; exit 0\nfi\n'
+        f'exec {shlex.quote(sys.executable)} "$@"\n'
+    )
+    wrapper.chmod(0o755)
+    return str(wrapper)
+
+
+def ready_under_older_engine(root, monkeypatch, directory, change_id, name):
+    with monkeypatch.context() as patched:
+        patched.setattr(sys, "executable", older_engine(directory))
+        return ready_member(root, change_id, name)
+
+
+def engine_changing_member(root):
+    """A ready member whose manifest uses a field its siblings' manifests do not."""
+    member = opened(root, "change/engine")
+    commit_approval(member, "engine")
+    manifest = member / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            '[[validation.gates]]\nname = "batch"\nshards = ["test:check"]',
+            '[[validation.gates]]\nname = "batch"\nshards = ["test:check", "test:later"]',
+        )
+        + '[[validation.shards]]\nname = "test:later"\ncommand = ["true"]\nafter = ["test:check"]\n'
+    )
+    git_output(member, "add", "signetum.toml")
+    git_output(member, "commit", "-m", "order a later check")
+    lifecycle.validate(member, "member")
+    return member
+
+
+def ready_receipts(member):
+    return sorted(path.name for path in lifecycle._receipt_root(member).glob("*-lifecycle-*.json"))
+
+
+def test_sibling_ready_under_an_older_engine_is_admitted_after_an_engine_change(
+    repository, monkeypatch, tmp_path
+):
+    root, _ = repository
+    sibling = ready_under_older_engine(root, monkeypatch, tmp_path, "sibling", "sibling.txt")
+    batch = open_batch(root, engine_changing_member(root))
+    receipts = ready_receipts(sibling)
+
+    result: Any = lifecycle.admit(batch, (sibling,))
+
+    [admitted] = result["admitted"]
+    assert admitted["ready_evidence"] in receipts
+    assert ready_receipts(sibling) == receipts
+    assert "test:check" in result["static"]["executed"]
+    assert (batch / "sibling.txt").exists()
+
+
+def test_carried_evidence_is_refused_when_the_siblings_own_inputs_changed(
+    repository, monkeypatch, tmp_path
+):
+    root, state = repository
+    tool = state / "tool"
+    tool.write_text("v1")
+    identity = [sys.executable, "-c", "import sys; print(open(sys.argv[1]).read())", str(tool)]
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text()
+        + '[[validation.tools]]\nname = "fixture"\nidentity_command = '
+        + json.dumps(identity)
+        + "\n"
+    )
+    git_output(root, "add", "signetum.toml")
+    git_output(root, "commit", "-m", "declare a tool")
+    sibling = ready_under_older_engine(root, monkeypatch, tmp_path, "sibling", "sibling.txt")
+    batch = open_batch(root, engine_changing_member(root))
+    before = git_output(batch, "rev-parse", "HEAD")
+    tool.write_text("v2")
+
+    with pytest.raises(AdmissionError, match="no evidence"):
+        lifecycle.admit(batch, (sibling,))
+    assert git_output(batch, "rev-parse", "HEAD") == before
+
+
+def test_operations_name_the_supported_path_for_a_newer_batch_manifest(
+    repository, monkeypatch, capsys
+):
+    root, _ = repository
+    sibling = ready_member(root, "sibling", "sibling.txt")
+    batch = open_batch(root, ready_member(root, "first", "first.txt"))
+    # The batch manifest as an engine newer than this one wrote it.
+    manifest = batch / "signetum.toml"
+    manifest.write_text(manifest.read_text() + "[future]\nsetting = true\n")
+    git_output(batch, "add", "signetum.toml")
+    git_output(batch, "commit", "-m", "use a newer manifest field")
+    monkeypatch.chdir(sibling)
+    capsys.readouterr()
+
+    code = lifecycle.main(["batch-admit", "--batch", str(batch), "--member", str(sibling)])
+
+    result = json.loads(capsys.readouterr().out)
+    assert code == 2, result
+    assert "future" in result["cause"]
+    assert "batch workspace" in result["expected"]

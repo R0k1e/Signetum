@@ -37,6 +37,17 @@ concurrent decision clause identities are refused before they are integrated.
   one decision clause ID, naming the clause, both changes and their workspaces.
 - `batch-deliver` onto a delivery branch that moved names batch synchronization
   as the recovery.
+- A member that changes the engine or the manifest schema no longer strands its
+  ready siblings. `batch-admit` run with the batch's engine accepts a sibling's
+  ready receipt produced by an older engine without rerunning its checks, as long
+  as the sibling's own inputs are unchanged; the batch gate then runs over the
+  merged result. An engine that cannot read a newer manifest names this path
+  instead of reporting only an unknown field.
+- Member ratchets measure their baseline in a checkout prepared by the declared
+  prepare gate, so a baseline command that needs the project environment runs.
+  A baseline that cannot be measured now fails the shard with its cause instead
+  of passing against an empty baseline; `baseline_unavailable` is removed from
+  the ratchet details.
 - Stacked members split one large change into a chain delivered through one
   batch. `workspace-open <branch> <parent-branch>` bases a member on another open
   member's tip and records that parent; its `ready` selects only its own diff.
