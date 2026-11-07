@@ -16,6 +16,7 @@ from signetum.provenance import members_and_plans
 class ExecutionReviewInputs(ReviewSnapshot):
     member_evidence: dict[str, str]
     member_tips: dict[str, list[str]]
+    member_chain: list[dict[str, object]]
     source_journals: SourceReviewInputs
 
 
@@ -60,9 +61,21 @@ def execution_review_inputs(
         )
     )
     source_journals = source_review_inputs(repository, source_changes, commit=tip)
+    # Each admission is its own member and change; a stacked one names its parent.
+    chain: list[dict[str, object]] = [
+        {
+            "member": member["branch"],
+            "original": member["original"],
+            "changes": [Path(plan).parent.name for plan in member["plan"].split(",") if plan],
+            "parent": member.get("parent"),
+            "parent_tip": member.get("parent_tip"),
+        }
+        for member in members
+    ]
     return {
         **snapshot,
         "member_evidence": fingerprints,
         "member_tips": tips,
+        "member_chain": chain,
         "source_journals": source_journals,
     }

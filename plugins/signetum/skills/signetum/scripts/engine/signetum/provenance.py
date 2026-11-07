@@ -94,6 +94,12 @@ def members_and_plans(
                 "plan": ",".join(member_plans),
                 "admission_commit": merge_commit,
                 "summary": summary,
+                # A stacked member names the member whose tip it was built on.
+                **(
+                    {"parent": fields["Parent"], "parent_tip": fields.get("Parent-Tip", "")}
+                    if "Parent" in fields
+                    else {}
+                ),
             }
         )
     if in_effect is not None and in_effect != expected_base:
