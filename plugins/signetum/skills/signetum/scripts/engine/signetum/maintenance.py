@@ -20,9 +20,6 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     sync = commands.add_parser("workspace-sync")
     sync.add_argument("--batch", type=Path)
-    sync.add_argument(
-        "--parent", action="store_true", help="Merge the parent member's tip into a stacked member."
-    )
     prepare = commands.add_parser("worktree-prepare")
     prepare.add_argument("worktree", type=Path)
     clean = commands.add_parser("cleanup")
@@ -55,7 +52,7 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
         if read_record(state_root(repository), branch_name(repository)).kind == "batch":
             result = sync_batch(repository, source)
         else:
-            result = workspace_sync(repository, source, parent=parsed.parent)
+            result = workspace_sync(repository, source)
     elif parsed.command == "worktree-prepare":
         result = dict(worktree_prepare(parsed.worktree.resolve()))
     elif parsed.command == "cleanup":

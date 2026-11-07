@@ -146,7 +146,7 @@ open member's branch as base, records that parent and its exact tip as the
 immutable base; approve the child against that base. The child's ready selects
 only its own contribution and still checks its complete tree. When the parent
 commits again, ready and admission in the child refuse until
-`maintenance workspace-sync --parent` merges the parent's new tip; paths it brings
-are not the child's contribution. Never rebase a member onto its parent. `status`
-shows the parent, the parent tip held, whether a sync is needed and the admission
-order.
+`maintenance workspace-sync` in the child merges the parent's new tip; a stacked
+member syncs from its parent until the parent is delivered. Paths it brings are not
+the child's contribution. Never rebase a member onto its parent. The `status` next
+action names the needed sync or the admission order.
