@@ -105,13 +105,17 @@ def _error_category(error: Exception) -> tuple[OperationStatus, str]:
         return error.status, error.expected
     if isinstance(error, UnsupportedManifestError):
         # A member's engine or schema change admitted into a batch makes the
-        # batch manifest newer than the engines of its siblings and main.
+        # batch manifest newer than the engines of its siblings and main; an
+        # engine update makes the delivered manifest older than the engine.
         return (
             OperationStatus.INVALID,
-            "This engine predates the manifest it read. Run the operation with the engine "
-            "that manifest needs: for a batch, from the batch workspace when the repository "
-            "runs its own engine, otherwise after updating the Skill. Ready members whose "
-            "evidence an older engine produced stay admissible without rerunning their checks.",
+            "This engine and the manifest it read disagree on its format. A manifest newer "
+            "than this engine needs the engine it names: for a batch, run from the batch "
+            "workspace when the repository runs its own engine, otherwise update the Skill. "
+            "Ready members whose evidence an older engine produced stay admissible without "
+            "rerunning their checks. A manifest older than this engine is migrated in a "
+            "member; status, batch-open and batch-admit read only the locations of an older "
+            "batch manifest, so that member can be admitted.",
         )
     if isinstance(error, (ValidationInfrastructureError, ProfileResourceError, OSError)):
         return (

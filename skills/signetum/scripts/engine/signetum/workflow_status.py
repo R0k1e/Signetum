@@ -26,6 +26,18 @@ from signetum.workspace_operations import workspace_endings
 from signetum.workspaces import current_branch, read_change_owner, read_record, record_path
 
 
+def _manifest_cause(repository: Path) -> str | None:
+    """Why this engine cannot load the manifest; status reads only its locations."""
+    path = repository / "signetum.toml"
+    if not path.exists():
+        return None
+    try:
+        load_manifest(path)
+    except ManifestError as error:
+        return str(error)
+    return None
+
+
 def workflow_status(
     repository: Path, snapshot: DevelopmentSnapshot, *, source: str
 ) -> dict[str, object]:
@@ -40,6 +52,7 @@ def workflow_status(
     dirty = bool(git_output(repository, "status", "--porcelain"))
     merging = repository_path(repository, "rev-parse", "--git-path", "MERGE_HEAD").exists()
     change_root, _ = authority_roots(repository)
+    manifest_cause = _manifest_cause(repository)
     changes = []
     for path in sorted((repository / change_root).glob("*/change.toml")):
         record = parse_change_record(
@@ -127,6 +140,17 @@ def workflow_status(
         next_action = "Review local changes and commit approved work before readiness."
     elif pending:
         next_action = "Resolve the pending findings through the journal."
+    elif manifest_cause is not None and workspace.kind == "batch":
+        next_action = (
+            "This engine cannot load the batch's signetum.toml. Admit the member that migrates "
+            "it; admission reads only its locations and the batch gate validates the merged "
+            "manifest."
+        )
+    elif manifest_cause is not None:
+        next_action = (
+            "This engine cannot load signetum.toml. Migrate it in this member, commit and run "
+            "ready; a member that keeps it cannot be readied or admitted."
+        )
     elif workspace.kind == "batch":
         if has_final:
             next_action = "Inspect the generated review and explicitly authorize delivery."
@@ -175,6 +199,7 @@ def workflow_status(
         "pending": pending,
         "receipts": receipts,
         "workspaces": workspaces,
+        **({"manifest": {"loadable": False, "cause": manifest_cause}} if manifest_cause else {}),
         "qualification": (
             "Recorded evidence only; tools, selection and admission are not re-executed by status."
         ),

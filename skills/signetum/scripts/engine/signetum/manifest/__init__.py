@@ -163,7 +163,16 @@ class RepositoryManifest:
             raise ManifestError(f"placeholder {SCHEDULE_FILE} requires validation.schedule_file")
 
 
-def manifest_from_mapping(data: object) -> RepositoryManifest:
+@dataclass(frozen=True, kw_only=True)
+class ManifestBindings:
+    """A manifest's identity and locations: where records live and what delivery targets."""
+
+    signetum: SignetumIdentity
+    repository: RepositoryBindings
+    delivery: DeliveryBindings | None = None
+
+
+def _require_schema(data: object) -> dict[str, object]:
     if not isinstance(data, dict):
         raise ManifestError("manifest must be an object")
     version = data.get("schema_version")
@@ -171,12 +180,42 @@ def manifest_from_mapping(data: object) -> RepositoryManifest:
         raise UnsupportedManifestError(f"unsupported manifest schema: {version}")
     if type(version) is not int or version != SCHEMA_VERSION:
         raise ManifestError(f"unsupported manifest schema: {version}")
+    return data
+
+
+def _decode[T](model: type[T], data: object) -> T:
     try:
-        return dataclass_from_mapping(RepositoryManifest, data, use_defaults=True)
+        return dataclass_from_mapping(model, data, use_defaults=True)
     except UnknownFieldsError as error:
         raise UnsupportedManifestError(str(error)) from error
     except (ValueError, TypeError, RecursionError) as error:
         raise ManifestError(str(error)) from error
+
+
+def manifest_from_mapping(data: object) -> RepositoryManifest:
+    return _decode(RepositoryManifest, _require_schema(data))
+
+
+def parse_bindings(text: str) -> ManifestBindings:
+    """Read only the identity, repository and delivery tables of a supported schema.
+
+    Schema and protocol identity stay exact. Locating change records, decisions
+    and the delivery branch needs nothing else, so a validation section this
+    engine rejects, such as one an older engine wrote, does not stop the
+    operation that admits its migration. No other table is read, interpreted or
+    kept.
+    """
+
+    try:
+        data = _require_schema(loads(text))
+    except ManifestError:
+        raise
+    except (ValueError, TypeError, RecursionError) as error:
+        raise ManifestError(str(error)) from error
+    return _decode(
+        ManifestBindings,
+        {key: data[key] for key in ("signetum", "repository", "delivery") if key in data},
+    )
 
 
 def parse_manifest(text: str) -> RepositoryManifest:
@@ -188,20 +227,28 @@ def parse_manifest(text: str) -> RepositoryManifest:
         raise ManifestError(str(error)) from error
 
 
-def load_manifest(path: str | Path) -> RepositoryManifest:
+def _read(path: str | Path) -> str:
     source = Path(path)
     if source.name != "signetum.toml":
         raise ManifestError("active configuration must be named signetum.toml")
     try:
-        text = source.read_text(encoding="utf-8")
+        return source.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
         raise ManifestError(str(error)) from error
-    return parse_manifest(text)
+
+
+def load_manifest(path: str | Path) -> RepositoryManifest:
+    return parse_manifest(_read(path))
+
+
+def load_bindings(path: str | Path) -> ManifestBindings:
+    return parse_bindings(_read(path))
 
 
 __all__ = [
     "ImpactConfiguration",
     "ImpactRule",
+    "ManifestBindings",
     "ManifestError",
     "ProfileSelection",
     "RepositoryBindings",
@@ -212,7 +259,9 @@ __all__ = [
     "ValidationGate",
     "ValidationShard",
     "ValidationTool",
+    "load_bindings",
     "load_manifest",
     "manifest_from_mapping",
+    "parse_bindings",
     "parse_manifest",
 ]

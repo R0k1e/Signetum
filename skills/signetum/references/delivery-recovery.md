@@ -26,6 +26,11 @@ every admitted member and runs the batch gate over the merged commits; then run
 final again. A conflict stays open for `batch-continue`. Do not discard and
 reopen the batch. If admission or synchronization refuses a decision clause ID
 claimed by two changes, give one change a distinct ID, commit, run ready, retry.
+When the engine no longer loads a delivered `signetum.toml`, migrate it in one
+member and run ready there. `status`, `batch-open`, `batch-admit` and
+synchronization read only the locations of the older batch manifest, so that
+member is admitted and the batch gate validates the merged manifest; `status`
+reports the cause. A member that keeps the old manifest is refused.
 
 On failure, inspect the structured result, retained diagnostics and exact local
 and remote identities before acting. Preserve work after conflict or publication
