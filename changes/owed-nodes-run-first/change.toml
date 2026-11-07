@@ -44,7 +44,7 @@ id = "owed-nodes-run-first/runner-feedback"
 change_id = "owed-nodes-run-first"
 authority = "changes/owed-nodes-run-first/change.toml#decisions/owed-nodes-run-first/runner-feedback"
 reason = "Perdura lost whole ready rounds to unrun nodes and to failures hidden behind a failed static prerequisite. The owner approved runner feedback that orders owed work first and records unrun work as owed, through explicit command placeholders rather than implicit environment variables, and order-only prerequisites."
-parents = []
+parents = ["one-admission-rule/current-source-verdict"]
 
 [[change.contract.decisions.clauses]]
 id = "owed-nodes-run-first/unreached-owed"
@@ -113,8 +113,9 @@ action = "Add order-only prerequisites to the shard model, schema and execution 
 id = "STEP-VERIFY"
 requirements = ["APPROVAL-ORDER-001", "PRIORITY-002", "UNREACHED-003", "COLLECT-004", "DOC-005"]
 action = "Extend functional lifecycle tests with fake runners, reconcile Skill and architecture, run narrow tests and stop before ready while the machine-load hold stands."
+
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-07
 source = "Relayed by the coordinating agent on 2026-11-07: the owner approved approval-order guidance without relaxing the rule, owed nodes passed to shards to run first, and unreached nodes recorded as owed. The coordinator then relayed the owner's change to declared {signetum.*} command placeholders instead of environment variables, and approved collecting every failure in one round through a per-shard order-only prerequisite declaration. This implementing session did not hear the approval independently."
-contract_digest = "sha256:58eaebe53e42ff570ddcc549bc3aafe486f1ac4b51d29e6d76f2ab4f0343afee"
+contract_digest = "sha256:a0e948f73277e335e0fb3452472ca7d468cd01e0a8147721612d7bcfd89be20d"
