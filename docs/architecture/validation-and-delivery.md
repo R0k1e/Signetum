@@ -12,17 +12,16 @@ failures are collected, and a successful retry cannot clear a first failure.
 A shard's `after` prerequisites order it and join its gate closure like `requires`,
 but their failed verdict does not skip it, so one round reports every failure;
 an infrastructure error in either kind still skips dependents.
-A shard runner may write first-attempt node outcomes, `{"failed": [...], "passed": [...]}`,
-to `SIGNETUM_NODE_REPORT`; the packaged pytest runner does. A shard command may
-declare the whole-argument placeholders `{signetum.priority_nodes_file}` and
-`{signetum.unreached_nodes_file}`; only declared placeholders are replaced by
-absolute paths, and configuration refuses any other `{signetum.*}` argument or a
-placeholder outside `command`. The priority file always exists and holds the shard's
-owed nodes as `{"schema_version": 1, "nodes": [...]}` for the runner to schedule
-first; it never selects or satisfies a node. The runner may write the same shape
-to the unreached path; the engine reads it after the shard ends, including after
-its time bound, and absent or empty means none. Unreached nodes fail the shard and
-the result states their count. A failed member, batch
+A shard command exchanges node data only through declared whole-argument
+placeholders, replaced by absolute paths; configuration refuses any other
+`{signetum.*}` argument and placeholders in findings or ratchet commands, which
+are never substituted. `{signetum.node_report_file}` receives first-attempt
+`{"failed": [...], "passed": [...]}` with an optional `"unreached": [...]`; the
+packaged pytest runner takes it as `--node-report`. The engine reads it after the
+shard ends, including after its time bound. Unreached entries fail the shard and
+the result states their count. `{signetum.priority_nodes_file}` always exists and
+holds the shard's owed entries as `{"schema_version": 1, "nodes": [...]}` for the
+runner to schedule first; it never selects or satisfies an entry. A failed member, batch
 or final gate writes a failure receipt for its workspace under the Git common
 directory's `signetum/failures`, beside synchronization records. It names the
 workspace, its changes, base, tip, first-attempt failed nodes, nodes that passed
@@ -110,9 +109,9 @@ Scope comes from actual committed paths and immutable registrations, never a
 trailer inventing ownership. Qualification requires current approved contracts
 and their implementation after exact approval: an own commit after the latest
 approval commit binding the current contract. When none follows, ready refuses
-and `change view` and `status` show an `approval_order` block naming that
-approval commit and the remedy: commit implementation after it, without counting
-the approval commit's own changes or rewriting history. Competing retired formats supply
+naming that approval commit, and its expected action and the `status` next action
+give the remedy: commit implementation after it, without counting the approval
+commit's own changes or rewriting history. Competing retired formats supply
 no fallback. Previously delivered intent remains protected; new intent needs its
 own change. Ordinary execution refinements cannot reduce approved outcomes.
 
