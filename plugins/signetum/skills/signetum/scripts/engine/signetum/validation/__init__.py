@@ -32,14 +32,47 @@ PRIORITY_NODES_FILE = "{signetum.priority_nodes_file}"
 """Replaced by a file listing the shard's owed node ids, to run first."""
 NODE_REPORT_FILE = "{signetum.node_report_file}"
 """Replaced by a path for the runner's first-attempt node outcomes."""
-COMMAND_PLACEHOLDERS = (PRIORITY_NODES_FILE, NODE_REPORT_FILE)
+RECOVERY_REPORT_FILE = "{signetum.recovery_report_file}"
+"""Replaced by a path for the runner's retry-recovered nodes."""
+VALIDATION_WORKERS = "{signetum.validation_workers}"
+"""Replaced by the decimal worker cap allocated to this shard."""
+SCHEDULE_FILE = "{signetum.schedule_file}"
+"""Replaced by the absolute path of the declared validation.schedule_file."""
+BASE = "{signetum.base}"
+"""Replaced by the recorded workspace base; empty outside member and batch gates."""
+RATCHET_BASELINE = "{signetum.ratchet_baseline}"
+"""Replaced by the latest verified sync source, otherwise the base; empty likewise."""
+CONTRIBUTION_PATHS_FILE = "{signetum.contribution_paths_file}"
+"""Replaced by a file listing the contribution paths since the base; empty likewise."""
+ADMISSION_BASE = "{signetum.admission_base}"
+"""Replaced by the batch increment start; empty outside the batch gate."""
+COMMAND_PLACEHOLDERS = (
+    PRIORITY_NODES_FILE,
+    NODE_REPORT_FILE,
+    RECOVERY_REPORT_FILE,
+    VALIDATION_WORKERS,
+    SCHEDULE_FILE,
+    BASE,
+    RATCHET_BASELINE,
+    CONTRIBUTION_PATHS_FILE,
+    ADMISSION_BASE,
+)
+RATCHET_PLACEHOLDERS = (VALIDATION_WORKERS,)
+"""A ratchet command measures two trees with the same worker cap and nothing else."""
 
 
-def _require_placeholders(name: str, field: str, argv: Sequence[str], *, allowed: bool) -> None:
+def _require_placeholders(
+    name: str, field: str, argv: Sequence[str], allowed: tuple[str, ...]
+) -> None:
     """Accept only known whole-argument placeholders, and only where they are replaced."""
     for argument in argv:
-        if "{signetum." in argument and (not allowed or argument not in COMMAND_PLACEHOLDERS):
+        if "{signetum." in argument and argument not in allowed:
             raise ValidationGraphError(f"unsupported engine placeholder in {field}: {name}")
+
+
+def substitute(argv: Sequence[str], values: Mapping[str, str]) -> tuple[str, ...]:
+    """Replace declared whole-argument placeholders; other arguments stay literal."""
+    return tuple(values.get(argument, argument) for argument in argv)
 
 
 def command_digest(command: Sequence[str]) -> str:
@@ -81,9 +114,11 @@ class ValidationShard:
             raise ValidationGraphError(f"duplicate shard dependency: {self.name}")
         if self.name in self.after:
             raise ValidationGraphError(f"a shard cannot depend on itself: {self.name}")
-        _require_placeholders(self.name, "command", self.command, allowed=True)
-        _require_placeholders(self.name, "findings_command", self.findings_command, allowed=False)
-        _require_placeholders(self.name, "ratchet_command", self.ratchet_command, allowed=False)
+        _require_placeholders(self.name, "command", self.command, COMMAND_PLACEHOLDERS)
+        _require_placeholders(self.name, "findings_command", self.findings_command, ())
+        _require_placeholders(
+            self.name, "ratchet_command", self.ratchet_command, RATCHET_PLACEHOLDERS
+        )
         if self.evidence not in EVIDENCE_CLASSES:
             raise ValidationGraphError(f"unsupported evidence class: {self.name}")
         if self.findings_command and self.evidence != "world":
@@ -354,10 +389,18 @@ def resolve_tools(configurations: Sequence[ValidationConfiguration]) -> tuple[To
 
 
 __all__ = [
+    "ADMISSION_BASE",
+    "BASE",
     "COMMAND_PLACEHOLDERS",
+    "CONTRIBUTION_PATHS_FILE",
     "EVIDENCE_CLASSES",
     "NODE_REPORT_FILE",
     "PRIORITY_NODES_FILE",
+    "RATCHET_BASELINE",
+    "RATCHET_PLACEHOLDERS",
+    "RECOVERY_REPORT_FILE",
+    "SCHEDULE_FILE",
+    "VALIDATION_WORKERS",
     "GateDeclaration",
     "GraphContribution",
     "ResolvedGate",
@@ -369,4 +412,5 @@ __all__ = [
     "command_digest",
     "resolve_tools",
     "resolve_validation_graph",
+    "substitute",
 ]

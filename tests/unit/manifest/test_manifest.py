@@ -217,6 +217,18 @@ def test_a_shard_declaring_covers_is_refused_at_load(tmp_path: Path) -> None:
             '"--node-report", "{signetum.node_report_file}"]\n',
             True,
         ),
+        (
+            'command = ["run", "{signetum.base}", "{signetum.ratchet_baseline}", '
+            '"{signetum.contribution_paths_file}", "{signetum.admission_base}", '
+            '"{signetum.validation_workers}", "{signetum.recovery_report_file}"]\n',
+            True,
+        ),
+        (
+            'command = ["true"]\nratchet_command = ["measure", "{signetum.validation_workers}"]\n',
+            True,
+        ),
+        ('command = ["true"]\nratchet_command = ["measure", "{signetum.base}"]\n', False),
+        ('command = ["run", "{signetum.schedule_file}"]\n', False),
         ('command = ["run", "{signetum.unknown_file}"]\n', False),
         ('command = ["run", "--priority={signetum.priority_nodes_file}"]\n', False),
         (
@@ -235,6 +247,23 @@ def test_engine_placeholders_are_checked_at_load(
         load_manifest(path)
     else:
         with pytest.raises(ManifestError, match="placeholder"):
+            load_manifest(path)
+
+
+@pytest.mark.parametrize("listed", [True, False])
+def test_a_schedule_file_is_a_declared_validation_input(tmp_path: Path, listed: bool) -> None:
+    path = _shards_manifest(
+        tmp_path,
+        'schedule_file = "weights.json"\n'
+        + '[[validation.shards]]\nname = "repo:member"\n'
+        + 'command = ["run", "{signetum.schedule_file}"]\n',
+    )
+    if listed:
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text.replace("[validation]", 'lockfiles = ["weights.json"]\n[validation]'))
+        assert load_manifest(path).validation.schedule_file == "weights.json"
+    else:
+        with pytest.raises(ManifestError, match="lockfiles"):
             load_manifest(path)
 
 

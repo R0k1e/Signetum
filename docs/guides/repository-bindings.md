@@ -21,32 +21,49 @@ explicit and non-interactive. Repository commands may project existing
 authorities but must not duplicate selector, receipt, merge, or delivery logic.
 Technology profiles should be selected from repository evidence.
 
-A member gate shard receives two full commits in its environment:
-`SIGNETUM_BASE`, the recorded workspace base, and `SIGNETUM_RATCHET_BASELINE`,
-the source of the latest `maintenance workspace-sync`, otherwise that base. Use
-them for a project-owned ratchet or diff instead of reading Signetum state files.
-Both are absent outside a member gate, so a check without them stays strict. The
-receipt records both, and a receipt is not reused after either moves.
+A shard that needs the member's range declares `{signetum.base}`, the recorded
+workspace base, and `{signetum.ratchet_baseline}`, the source of the latest
+`maintenance workspace-sync`, otherwise that base. Use them for a project-owned
+ratchet or diff instead of reading Signetum state files. The receipt records both,
+and a receipt is not reused after either moves.
 
 Admission and `batch-continue` run only the declared batch gate over the commits
 added since its last pass. That gate may run no integration check: final stays
 complete, so a failure that appears only when members combine surfaces at final.
-Batch shards receive the increment's start commit as `SIGNETUM_ADMISSION_BASE`.
+A batch shard that declares `{signetum.admission_base}` receives the increment's
+start commit.
 
-A runner exchanges node data with the engine only through placeholders declared
-as whole arguments of its shard command:
+A runner receives engine values only through placeholders declared as whole
+arguments of its shard command; Signetum sets no environment variables for them:
 
 ```toml
 [[validation.shards]]
 name = "app:tests"
 command = ["./scripts/test", "--priority-nodes", "{signetum.priority_nodes_file}",
-           "--node-report", "{signetum.node_report_file}"]
+           "--node-report", "{signetum.node_report_file}",
+           "--workers", "{signetum.validation_workers}"]
 ```
 
-The engine replaces only declared placeholders with absolute paths. Any other
-`{signetum.*}` argument, a placeholder inside a larger argument, or one in
-`findings_command` or `ratchet_command` is a configuration error, because those
-commands are never substituted. Entries are the runner's own stable ids: node ids,
+| Placeholder | Value |
+| --- | --- |
+| `{signetum.priority_nodes_file}` | Path to the shard's owed entries, always created |
+| `{signetum.node_report_file}` | Path the runner writes first-attempt node outcomes to |
+| `{signetum.recovery_report_file}` | Path the runner writes retry-recovered nodes to |
+| `{signetum.validation_workers}` | Decimal worker cap allocated to the shard |
+| `{signetum.schedule_file}` | Absolute path of `[validation] schedule_file` |
+| `{signetum.base}` | Recorded base in a member gate, increment start in a batch gate |
+| `{signetum.ratchet_baseline}` | Latest workspace-sync source, otherwise that base |
+| `{signetum.contribution_paths_file}` | Path to `{"schema_version": 1, "paths": [...]}`, the member's own repository-relative paths |
+| `{signetum.admission_base}` | Batch increment start commit |
+
+The last four values exist only in member and batch gates, and
+`{signetum.admission_base}` only in a batch gate. Elsewhere, such as final,
+`test run` or a member gate for the admission base, a declared one becomes an
+explicit empty argument: there is no range, so validate everything. A
+`{signetum.schedule_file}` without the `[validation] schedule_file` setting, any
+other `{signetum.*}` argument, a placeholder inside a larger argument, or one in
+`findings_command` is a configuration error. `ratchet_command` accepts only
+`{signetum.validation_workers}`, since it measures two trees the same way. Entries are the runner's own stable ids: node ids,
 or a file or directory path for a stage that never collected.
 
 Write first-attempt outcomes to the node report as

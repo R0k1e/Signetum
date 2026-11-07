@@ -47,7 +47,7 @@ def chain(root):
 
 def contribution(receipt):
     details = receipt["evidence"]["extensions"]["shard_details"]["test:check"]
-    return json.loads(details["environment"]["SIGNETUM_CONTRIBUTION_PATHS"])
+    return json.loads(details["member_values"]["contribution_paths"])
 
 
 def sync_parent(member, monkeypatch, capsys):
