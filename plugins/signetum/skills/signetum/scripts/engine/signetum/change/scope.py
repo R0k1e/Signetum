@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from signetum.change.paths import changes_root
+from signetum.change.paths import changes_root, is_record_path
 from signetum.change_record import (
     ChangeRecord,
     competing_legacy_authorities,
@@ -99,6 +99,56 @@ def delivery_scope(
         elif change_id in current_packages:
             first.append(change_id)
     return DeliveryScope(tuple(first), tuple(previous))
+
+
+def records_only(repository: Path, root: str, older: str, newer: str) -> bool:
+    """Whether ``older..newer`` changes only change records, keeping every contract.
+
+    Such a range changes no input a check reads beyond source admission, so
+    evidence of ``older`` still describes ``newer``.
+    """
+    if run_git(repository, "merge-base", "--is-ancestor", older, newer).returncode:
+        return False
+    paths = tuple(
+        filter(
+            None,
+            git_output(
+                repository, "diff", "--name-only", "-z", "--no-renames", older, newer, strip=False
+            ).split("\0"),
+        )
+    )
+    if not paths or not all(is_record_path(path, root) for path in paths):
+        return False
+    for path in paths:
+        if PurePosixPath(path).name != "change.toml":
+            continue
+        before = committed_blob(repository, older, path)
+        after = committed_blob(repository, newer, path)
+        if before is None or after is None:
+            return False
+        try:
+            if contract_digest(parse_change_record(before[1]).contract) != contract_digest(
+                parse_change_record(after[1]).contract
+            ):
+                return False
+        except ValueError:
+            return False
+    return True
+
+
+def records_only_ancestors(repository: Path, root: str, base: str, tip: str) -> tuple[str, ...]:
+    """First-parent ancestors after ``base`` that ``tip`` reaches by a records-only range.
+
+    Nearest first; the walk stops at the first ancestor it cannot reach that way.
+    """
+    reached = []
+    for commit in git_output(
+        repository, "rev-list", "--first-parent", f"{base}..{tip}"
+    ).splitlines()[1:]:
+        if not records_only(repository, root, commit, tip):
+            break
+        reached.append(commit)
+    return tuple(reached)
 
 
 def member_scope(
@@ -349,9 +399,10 @@ def batch_owned_commits(
 
     Admissions and synchronizations are merges and keep their own provenance.
     A first-parent non-merge commit that touches only change records and
-    decisions is authority history. Any other direct commit must follow the
-    committed approval of a change record the batch itself introduced, whose
-    contract is still the one at the tip; otherwise it is unattributed.
+    decisions is authority history, attributed to the changes whose records it
+    touches. Any other direct commit must follow the committed approval of a
+    change record the batch itself introduced, whose contract is still the one
+    at the tip; otherwise it is unattributed.
     """
 
     root = changes_root(manifest) + "/"
@@ -366,10 +417,12 @@ def batch_owned_commits(
         ).splitlines()
         if not paths:
             continue
+        depth = len(PurePosixPath(root).parts)
+        touched = {PurePosixPath(path).parts[depth] for path in paths if is_record_path(path, root)}
         owned = {
-            PurePosixPath(path).parts[len(PurePosixPath(root).parts)]
+            PurePosixPath(path).parts[depth]
             for path in paths
-            if path.startswith(root) and PurePosixPath(path).name == "change.toml"
+            if is_record_path(path, root) and PurePosixPath(path).name == "change.toml"
         }
         if any(not path.startswith((root, decisions)) for path in paths):
             if not approved:
@@ -381,8 +434,8 @@ def batch_owned_commits(
                     ),
                 )
             attributed.append({"commit": commit, "changes": sorted(approved)})
-        elif owned:
-            attributed.append({"commit": commit, "changes": sorted(owned)})
+        elif touched:
+            attributed.append({"commit": commit, "changes": sorted(touched)})
         for change_id in owned:
             try:
                 package = read_package(repository, manifest, change_id, commit)

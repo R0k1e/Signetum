@@ -395,7 +395,7 @@ def test_terminal_dispositions_retain_the_original_observation(
 
 @pytest.mark.parametrize(
     "damage",
-    ["draft", "complete", "base", "missing", "symlink", "ignored", "unknown_requirement", "batch"],
+    ["draft", "complete", "base", "missing", "symlink", "ignored", "unknown_requirement"],
 )
 def test_invalid_authority_never_creates_a_journal(repository, store, damage, tmp_path):
     path = repository / "changes/alpha/change.toml"
@@ -421,7 +421,7 @@ def test_invalid_authority_never_creates_a_journal(repository, store, damage, tm
         (path.parent / "events.jsonl").symlink_to(target)
     elif damage == "ignored":
         (repository / ".gitignore").write_text("events.jsonl\n")
-    elif damage == "unknown_requirement":
+    else:
         transaction = request(
             repository,
             store,
@@ -433,14 +433,6 @@ def test_invalid_authority_never_creates_a_journal(repository, store, damage, tm
                     "reason": "No approval exists.",
                 }
             ],
-        )
-    else:
-        branch = "batch/probe"
-        git_output(repository, "switch", "-c", branch)
-        common = repository_path(repository, "rev-parse", "--git-common-dir")
-        write_record(
-            common / "signetum",
-            WorkspaceRecord(1, branch, git_output(repository, "rev-parse", "HEAD"), "batch"),
         )
     with pytest.raises(ValueError):
         store.append_transaction(
@@ -501,77 +493,83 @@ def test_concurrent_writer_refuses_instead_of_waiting_or_appending(repository, s
     assert not (repository / "changes/alpha/events.jsonl").exists()
 
 
-def _followup(repository):
+def _followup_elsewhere(repository):
+    """Approve change beta only on another branch, as a record-only plan stage."""
     source = (repository / "changes/alpha/change.toml").read_text()
-    return _approve(repository, source.replace('id = "alpha"', 'id = "beta"', 1), "beta")
+    git_output(repository, "switch", "-c", "plan/beta")
+    _approve(repository, source.replace('id = "alpha"', 'id = "beta"', 1), "beta")
+    git_output(repository, "switch", "plan/alpha")
+    assert not (repository / "changes/beta").exists()
 
 
-def test_deferral_requires_an_explicit_approved_transfer_and_an_active_requirement(
-    repository, store
-):
-    first = request(repository, store)
-    state = store.append_transaction(
-        repository, first, expected_history=store.snapshot(repository).history_digest
-    )
-    _followup(repository)
-    resolution = request(
+def _deferral(repository, store, identity, target, **fields):
+    return request(
         repository,
         store,
-        "alpha/defer",
+        identity,
         operation="resolve",
         observations=[],
         resolutions=[
             {
-                "id": "alpha/followup",
-                "target": first.observations[0].id,
+                "id": identity + "/resolution",
+                "target": target,
                 "status": "deferred",
-                "reason": "Owner moved this requirement to the explicit follow-up.",
-                "followup": "beta#REQ-1",
+                "reason": "The owner deferred it; the remaining edge case is owed.",
+                **fields,
             }
         ],
     )
-    with pytest.raises(ValueError, match="human-approved requirement transfer"):
-        store.append_transaction(repository, resolution, expected_history=state.history_digest)
-    path = repository / "changes/alpha/change.toml"
-    revised = (
-        path.read_text()
-        .replace('id = "REQ-1"', 'id = "REQ-2"')
-        .replace('requirements = ["REQ-1"]', 'requirements = ["REQ-2"]')
+
+
+def test_deferral_needs_only_a_reason_and_any_known_approved_followup(repository, store):
+    _followup_elsewhere(repository)
+    first = request(repository, store)
+    state = store.append_transaction(
+        repository, first, expected_history=store.snapshot(repository).history_digest
     )
-    revised = revised.replace(
-        "[change.execution]",
-        '[[change.contract.transferred]]\nid="REQ-1"\nstatement="Original requirement."\n'
-        'target="beta/REQ-1"\n[change.execution]',
+    second = request(repository, store, "alpha/second")
+    state = store.append_transaction(repository, second, expected_history=state.history_digest)
+    third = request(repository, store, "alpha/third")
+    state = store.append_transaction(repository, third, expected_history=state.history_digest)
+    for followup in ("gamma", "beta#REQ-9"):
+        with pytest.raises(ValueError, match="follow-up"):
+            store.append_transaction(
+                repository,
+                _deferral(
+                    repository, store, "alpha/bad", first.observations[0].id, followup=followup
+                ),
+                expected_history=state.history_digest,
+            )
+
+    state = store.append_transaction(
+        repository,
+        _deferral(repository, store, "alpha/owed", first.observations[0].id),
+        expected_history=state.history_digest,
     )
-    _approve(repository, revised)
-    with pytest.raises(ValueError, match="approval changed"):
-        store.append_transaction(repository, resolution, expected_history=state.history_digest)
-    resolution = store.parse_request(
-        {
-            **contract_mapping(resolution),
-            "approval_digest": contract_digest(parse_change_record(path.read_text()).contract),
-        }
+    state = store.append_transaction(
+        repository,
+        _deferral(repository, store, "alpha/later", second.observations[0].id, followup="beta"),
+        expected_history=state.history_digest,
     )
-    result = store.append_transaction(repository, resolution, expected_history=state.history_digest)
-    assert result.observations[0].status == "deferred"
-    assert result.observations[0].resolution.followup == "beta#REQ-1"
-    assert store.snapshot(repository) == result
+    state = store.append_transaction(
+        repository,
+        _deferral(
+            repository, store, "alpha/exact", third.observations[0].id, followup="beta#REQ-1"
+        ),
+        expected_history=state.history_digest,
+    )
+
+    assert [item.status for item in state.observations] == ["deferred"] * 3
     git_output(repository, "add", ".")
-    git_output(repository, "commit", "-m", "retain the exact approved deferral")
+    git_output(repository, "commit", "-m", "record the deferrals")
     summary = store.reconciliation_summary(
         repository, ("alpha",), commit=git_output(repository, "rev-parse", "HEAD")
     )
-    assert summary["changes"][0]["observations"][0]["status"] == "deferred"
-    following = repository / "changes/beta/change.toml"
-    following.write_text(
-        following.read_text().replace("[change]", '[change]\nstatus = "withdrawn"', 1)
-    )
-    git_output(repository, "add", ".")
-    git_output(repository, "commit", "-m", "withdraw the follow-up")
-    with pytest.raises(ValueError, match="active owning change"):
-        store.reconciliation_summary(
-            repository, ("alpha",), commit=git_output(repository, "rev-parse", "HEAD")
-        )
+    assert [item["followup"] for item in summary["changes"][0]["observations"]] == [
+        None,
+        "beta",
+        "beta#REQ-1",
+    ]
 
 
 def test_retirement_preserves_the_original_resolution_and_retains_other_evidence(repository, store):
@@ -829,7 +827,6 @@ def test_invalid_cli_requests_are_structured_and_never_write_source(repository, 
         "duplicate_requirement",
         "wrong_operation",
         "wrong_disposition",
-        "missing_followup",
         "unexpected_followup",
         "missing_evidence",
     ],
@@ -858,8 +855,6 @@ def test_invalid_requests_are_refused_before_any_source_write(repository, store,
             value["observations"] = []
         if damage == "wrong_disposition":
             value["operation"] = "retract"
-        elif damage == "missing_followup":
-            resolution["status"] = "deferred"
         elif damage == "unexpected_followup":
             resolution["followup"] = "beta#REQ-1"
         elif damage == "missing_evidence":

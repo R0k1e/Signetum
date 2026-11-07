@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
+from signetum.change.paths import is_record_path
 from signetum.evidence.receipts import (
     ArtifactIdentity,
     EvidenceReceipt,
@@ -48,7 +49,7 @@ def find_test_inheritance(
     receipt_root: Path,
     *,
     selector: Callable[[tuple[str, ...], str, str], ValidationSelection] | None = None,
-    journal_root: str | None = None,
+    records_root: str | None = None,
 ) -> InheritedEvidence | None:
     """A malformed or incompatible nearest receipt never falls back to an older one."""
     member_names = set(graph.execution_order("member"))
@@ -108,18 +109,12 @@ def find_test_inheritance(
             }
         )
     )
-    journal_only = (
-        bool(paths)
-        and journal_root is not None
-        and all(
-            PurePosixPath(path).parent.parent == PurePosixPath(journal_root)
-            and PurePosixPath(path).name == "events.jsonl"
-            for path in paths
-        )
+    # Change records feed no inheritable check; source admission judges them.
+    paths = tuple(
+        path for path in paths if records_root is None or not is_record_path(path, records_root)
     )
-    if journal_only:
-        affected: set[str] = set()
-    else:
+    affected: set[str] = set()
+    if paths:
         # Impact rules decide per shard; a provider, when declared, refines them.
         selected = (
             select_paths(paths, rules)
@@ -130,7 +125,7 @@ def find_test_inheritance(
         # any other and affects only the shards its explanation names.
         if selected.unexplained:
             return None
-        affected = set(selected.shards)
+        affected.update(selected.shards)
         for gate in selected.gates:
             affected.update(graph.gate(gate).shards)
     declarations = {shard.name: shard for shard in graph.shards}

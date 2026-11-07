@@ -73,6 +73,9 @@ a member and admit its new ready tip; never amend a commit bound by a journal.
 Ready reuses passing evidence of each `inherit = true` shard that the impact
 rules show no follow-up path affects, with or without a provider; a path no rule
 explains reruns them all. Admission and current static or world checks remain required.
+A commit that changes only change records keeps the earlier ready evidence: ready
+starts no check and re-admission runs no batch gate. A batch may record, resolve or
+defer findings of the changes it integrates; a deferral needs only its reason.
 Record consequential discoveries and their reasons through `change record/resolve`;
 current decisions are derived. Ordinary command output stays in local logs. Keep
 no second handwritten decision set, execution diary or delivery report. Use the
