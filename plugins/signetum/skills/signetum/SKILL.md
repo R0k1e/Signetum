@@ -43,8 +43,11 @@ one approved change owns outcomes, scope, acceptance and execution autonomy.
 Preserve existing authorization; installation and passing checks confer none.
 
 Use `status` for blockers and the next action. Develop in registered isolated
-worktrees. The eight delivery operations are `workspace-open`, `changed`, `ready`,
+worktrees. The seven delivery operations are `workspace-open`, `ready`,
 `batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
+`ready` is the development loop: commit, run `ready`, fix, commit and rerun it
+until it passes. Never hand back a member or call it done without a passing
+`ready` on its current tip. `ready --explain` shows its selection without checks.
 Follow [work and validation](references/worktree-validation.md) during development
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
 for integration, review, explicit delivery and cleanup. The coordinating Agent owns

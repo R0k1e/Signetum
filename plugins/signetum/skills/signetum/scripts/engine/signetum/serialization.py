@@ -26,6 +26,10 @@ class ValueDecodeError(ValueError):
     """A serialized value does not have its declared structure or primitive type."""
 
 
+class UnknownFieldsError(ValueDecodeError):
+    """An object carries fields its declared type does not have."""
+
+
 @cache
 def _annotations(model: type) -> dict[str, object]:
     return get_type_hints(model, include_extras=True)
@@ -106,8 +110,8 @@ def _decode(
                 use_defaults,
                 native=native,
             )
-        if set(document) - names:
-            raise ValueDecodeError(f"{location}: unknown dataclass fields")
+        if unknown := sorted(set(document) - names):
+            raise UnknownFieldsError(f"{location}: unknown dataclass fields: {', '.join(unknown)}")
         return value if native else expected(**values)
     if isinstance(expected, type) and issubclass(expected, Enum):
         if type(value) is expected:

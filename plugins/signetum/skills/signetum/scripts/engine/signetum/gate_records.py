@@ -124,6 +124,18 @@ def remembered_failures(repository: Path, branch: str) -> tuple[NodeIdentity, ..
         ) from error
 
 
+def failed_tip(repository: Path, branch: str, gate: str) -> str | None:
+    """The tip a remembered failure of ``gate`` observed; unreadable means none."""
+    try:
+        document = json.loads(failure_path(repository, branch).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(document, dict) or document.get("gate") != gate:
+        return None
+    tip = document.get("tip")
+    return tip if isinstance(tip, str) else None
+
+
 def changed_changes(repository: Path, base: str) -> tuple[str, ...]:
     """Change identities whose records or journals the workspace changed since its base."""
     root = load_manifest(repository / "signetum.toml").repository.changes
@@ -152,13 +164,19 @@ def _documented(repository: Path, changes: Collection[str]) -> frozenset[str]:
 
 
 def require_accounted(
-    repository: Path, branch: str, base: str, selected: Collection[str]
+    repository: Path,
+    branch: str,
+    base: str,
+    selected: Collection[str],
+    *,
+    defer_unselected: bool = False,
 ) -> dict[str, frozenset[str]]:
     """Refuse before checks unless every remembered node is documented or selected.
 
     A recorded root cause releases its node whatever the shard selection, since
-    one shard may hold every test. Returns the selected undocumented nodes by
-    shard; they must pass in this run.
+    one shard may hold every test. Returns the undocumented nodes by shard; the
+    selected ones must pass in this run. A light batch gate defers unselected
+    nodes to final instead of refusing; ``settle_failures`` keeps them owed.
     """
     remembered = remembered_failures(repository, branch)
     if not remembered:
@@ -173,7 +191,7 @@ def require_accounted(
         documented = frozenset()
     owed = [node for node in remembered if node[1] not in documented]
     missing = sorted({node_id for shard, node_id in owed if shard not in selected})
-    if missing:
+    if missing and not defer_unselected:
         raise AdmissionError(
             "previously failed nodes are neither selected by this gate nor named with their "
             "root cause in a change journal of this workspace: " + ", ".join(missing),
@@ -231,3 +249,21 @@ def remember_failure(
 
 def forget_failures(repository: Path, branch: str) -> None:
     failure_path(repository, branch).unlink(missing_ok=True)
+
+
+def settle_failures(
+    repository: Path, branch: str, owed: dict[str, frozenset[str]], passed: Collection[str]
+) -> None:
+    """After a passing gate, keep only owed nodes whose shards it did not run."""
+    path = failure_path(repository, branch)
+    remaining = [
+        {"shard": shard, "node_id": node}
+        for shard, nodes in sorted(owed.items())
+        if shard not in passed
+        for node in sorted(nodes)
+    ]
+    if not remaining:
+        path.unlink(missing_ok=True)
+        return
+    document = json.loads(path.read_text(encoding="utf-8"))
+    _write(path, {**document, "failed": remaining, "recovered": [], "unreached": []})

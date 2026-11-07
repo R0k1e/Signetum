@@ -23,7 +23,7 @@ from signetum.validation.execution import (
     ValidationInputs,
     build_evidence_identity,
 )
-from signetum.validation.ratchet import member_environment
+from signetum.validation.ratchet import member_values
 
 
 def verify_committed_inputs(repository: Path, receipt: EvidenceReceipt) -> None:
@@ -161,19 +161,19 @@ def find_test_inheritance(
             # Inherited tests saw the ancestor's bases; a moved baseline reruns them.
             details = receipt.extensions.get("shard_details", {})
             observed = [
-                detail.get("environment")
+                detail.get("member_values")
                 for detail in (details.values() if isinstance(details, dict) else ())
                 if isinstance(detail, dict)
             ]
-            expected_environment = member_environment(repository, inputs.base, nearest)
-            current_environment = member_environment(repository, inputs.base, current.commit)
+            expected_values = member_values(repository, inputs.base, nearest)
+            current_values = member_values(repository, inputs.base, current.commit)
             if any(
-                value != current_environment.get(key)
-                for key, value in expected_environment.items()
-                if key != "SIGNETUM_CONTRIBUTION_PATHS"
+                value != current_values.get(key)
+                for key, value in expected_values.items()
+                if key != "contribution_paths"
             ):
                 return None
-            if not observed or any(item != expected_environment for item in observed):
+            if not observed or any(item != expected_values for item in observed):
                 return None
             outcomes = {outcome.name: outcome for outcome in receipt.execution.shards}
             # A shard without passing evidence of its exact command here reruns.

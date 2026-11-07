@@ -28,10 +28,12 @@ hints from ordinary duration output; `--by-file` produces file costs for CI
 partitions. Inspect and commit the resulting validation input. No extra timing
 report is maintained.
 
-Set `SIGNETUM_SCHEDULE_FILE` to a repository-owned JSON mapping of scheduling unit
-to positive measured cost. Units are node IDs or sorted underscore-joined
-`xdist_group` names. Add that file to `repository.lockfiles`, the protocol's
-additional validation-input list. The runner uses loadgroup and the same allocation.
+Declare `[validation] schedule_file` as a repository-owned JSON mapping of
+scheduling unit to positive measured cost, and pass it to the packaged runner as
+`--schedule-file {signetum.schedule_file}`. Units are node IDs or sorted
+underscore-joined `xdist_group` names. Add that file to `repository.lockfiles`, the
+protocol's additional validation-input list; configuration refuses it otherwise.
+The runner uses loadgroup and the same allocation.
 Missing entries keep normal conservative ordering; weights never skip tests or
 set pass criteria. Generate measurements from ordinary duration output rather
 than hand-maintain another performance report. CPU, phase and collection sums

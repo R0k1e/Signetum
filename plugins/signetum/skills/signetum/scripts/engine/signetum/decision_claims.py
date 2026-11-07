@@ -8,7 +8,7 @@ synchronization compare the committed contract identities first.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path, PurePosixPath
 
 from signetum.change.paths import changes_root
@@ -22,9 +22,18 @@ Claims = Mapping[str, frozenset[str]]
 
 
 def clause_claims(
-    repository: Path, manifest: RepositoryManifest, base: str, tip: str
+    repository: Path,
+    manifest: RepositoryManifest,
+    base: str,
+    tip: str,
+    *,
+    own_paths: Collection[str] | None = None,
 ) -> dict[str, frozenset[str]]:
-    """Clause identities each change record written since ``base`` claims at ``tip``."""
+    """Clause identities each change record written since ``base`` claims at ``tip``.
+
+    ``own_paths`` limits a member to its own contribution, so delivered records
+    a verified synchronization brought in are not claimed again by the member.
+    """
 
     root = PurePosixPath(changes_root(manifest))
     changed = git_output(
@@ -34,6 +43,8 @@ def clause_claims(
     for line in sorted(filter(None, changed.split("\0"))):
         path = PurePosixPath(line)
         if path.name != "change.toml" or path.parent.parent != root:
+            continue
+        if own_paths is not None and line not in own_paths:
             continue
         shown = run_git(repository, "show", f"{tip}:{line}")
         if shown.returncode:

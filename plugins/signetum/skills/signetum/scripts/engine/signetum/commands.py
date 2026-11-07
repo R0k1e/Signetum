@@ -24,7 +24,6 @@ BOOTSTRAP = {
 
 LIFECYCLE = (
     "workspace-open",
-    "changed",
     "ready",
     "batch-open",
     "batch-admit",

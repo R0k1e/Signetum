@@ -6,6 +6,7 @@ from pathlib import Path
 from shutil import which
 
 import pytest
+from change_fixtures import approve_change
 from signetum import lifecycle
 from signetum.execution_review import execution_review_inputs
 from signetum.manifest import load_manifest
@@ -47,6 +48,9 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     git(target, "push", "origin", "main")
     source = tmp_path / "batch"
     git(target, "worktree", "add", "-b", "batch/test", str(source))
+    approve_change(source, "delivered")
+    git(source, "add", ".")
+    git(source, "commit", "-m", "approve the batch-owned change")
     (source / "content").write_text("delivered")
     git(source, "commit", "-am", "implement")
     tip = git(source, "rev-parse", "HEAD")

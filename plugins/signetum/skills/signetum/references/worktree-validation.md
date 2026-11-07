@@ -58,8 +58,9 @@ fixtures isolate caller-only test/interpreter configuration while retaining
 enclosing allocation and process-ownership markers.
 
 Use `status` for the current workspace, findings, recorded evidence and next step.
-`changed --explain` displays the check plan without executing it; it is optional,
-not a required prelude to ready. Status does not requalify tools or grant readiness.
+`ready --explain` displays the check plan without executing it. Status does not
+requalify tools or grant readiness. `ready` is the feedback loop: commit, run it,
+fix, commit and rerun until it passes on the current tip.
 
 For explicit development feedback, use the repository's configured diagnostic
 utility: `test run --shard <declared-shard> -- <native-test-arguments>`. It appends
@@ -118,7 +119,10 @@ of scope never offsets that failure, and neither does a retry-only pass. A shard
 command that declares `{signetum.priority_nodes_file}` receives those owed nodes
 as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
 through a declared `{signetum.node_report_file}`, whose optional `unreached` list
-fails the gate and makes those entries owed. See the
+fails the gate and makes those entries owed. Every other engine value, such as
+the base, ratchet baseline, contribution paths, admission base, worker cap,
+recovery report and schedule file, is also a declared `{signetum.*}` argument;
+Signetum sets no environment variable for a runner. See the
 [repository binding guide](https://github.com/R0k1e/Signetum/blob/main/docs/guides/repository-bindings.md)
 for the runner contract and order-only `after` prerequisites. Process settlement checks only positively owned
 jobs and refuses successful commands that leave owned children behind.

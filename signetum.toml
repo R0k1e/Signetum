@@ -208,8 +208,6 @@ command = [
 ratchet_command = [
     "uv",
     "run",
-    "--active",
-    "--no-project",
     "--no-sync",
     "python",
     "-m",
@@ -232,8 +230,6 @@ command = [
 ratchet_command = [
     "uv",
     "run",
-    "--active",
-    "--no-project",
     "--no-sync",
     "python",
     "-m",
@@ -318,6 +314,10 @@ command = [
     "signetum.validation.pytest_runner",
     "--node-report",
     "{signetum.node_report_file}",
+    "--recovery-report",
+    "{signetum.recovery_report_file}",
+    "--workers",
+    "{signetum.validation_workers}",
     "--",
     "-m",
     "not world",

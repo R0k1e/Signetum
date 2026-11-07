@@ -340,3 +340,57 @@ def require_member_changes(
         + (f" {order.approval_commit}" if order.approval_commit else ""),
         expected=APPROVAL_ORDER_REMEDY,
     )
+
+
+def batch_owned_commits(
+    repository: Path, manifest: RepositoryManifest, base: str, tip: str
+) -> list[dict[str, object]]:
+    """Attribute each direct batch commit to the batch-owned changes approved before it.
+
+    Admissions and synchronizations are merges and keep their own provenance.
+    A first-parent non-merge commit that touches only change records and
+    decisions is authority history. Any other direct commit must follow the
+    committed approval of a change record the batch itself introduced, whose
+    contract is still the one at the tip; otherwise it is unattributed.
+    """
+
+    root = changes_root(manifest) + "/"
+    decisions = manifest.repository.decisions.rstrip("/") + "/"
+    approved: set[str] = set()
+    attributed: list[dict[str, object]] = []
+    for commit in git_output(
+        repository, "rev-list", "--reverse", "--first-parent", "--no-merges", f"{base}..{tip}"
+    ).splitlines():
+        paths = git_output(
+            repository, "diff-tree", "--no-commit-id", "--name-only", "-r", commit
+        ).splitlines()
+        if not paths:
+            continue
+        owned = {
+            PurePosixPath(path).parts[len(PurePosixPath(root).parts)]
+            for path in paths
+            if path.startswith(root) and PurePosixPath(path).name == "change.toml"
+        }
+        if any(not path.startswith((root, decisions)) for path in paths):
+            if not approved:
+                raise ChangeError(
+                    f"batch commit {commit} is not attributed to an approved batch-owned change",
+                    expected=(
+                        "fix a member-owned defect in its member and admit the new ready tip, "
+                        "or approve a batch-owned change record before committing its fix"
+                    ),
+                )
+            attributed.append({"commit": commit, "changes": sorted(approved)})
+        elif owned:
+            attributed.append({"commit": commit, "changes": sorted(owned)})
+        for change_id in owned:
+            try:
+                package = read_package(repository, manifest, change_id, commit)
+                package.require_approval()
+                current = read_package(repository, manifest, change_id, tip)
+            except ChangeError:
+                approved.discard(change_id)
+                continue
+            if contract_digest(package.record.contract) == contract_digest(current.record.contract):
+                approved.add(change_id)
+    return attributed

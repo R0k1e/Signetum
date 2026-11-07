@@ -120,7 +120,7 @@ argument_index=5
     _commit(root, "approve selected change")
     (root / "app/feature.py").write_text("def twice(x): return x+x\n")
     _commit(root, "implement behavior")
-    changed = lifecycle.changed(root, True)
+    changed = lifecycle.explain_ready(root)
     assert changed["checks_started"] is False
     graph, inputs = configured_validation(load_manifest(manifest))
     source = git_output(root, "rev-parse", "HEAD")

@@ -63,19 +63,18 @@ def test_repository_passes_recorded_allocation_to_actual_command(
     tmp_path, monkeypatch, repository_adapter
 ):
     # This case supplies standalone host capacity; nested-lane behavior has its own public case.
-    monkeypatch.delenv("SIGNETUM_VALIDATION_WORKERS", raising=False)
     monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
     adapter, observations, _ = repository_adapter
     monkeypatch.setattr(
         observations, "observe_resources", lambda: observations.ResourceObservation(2, 3000)
     )
-    script = (
-        "import os; from pathlib import Path; "
-        "Path('observed.json').write_text(os.environ['SIGNETUM_VALIDATION_WORKERS'])"
-    )
+    script = "import sys; from pathlib import Path; Path('observed.json').write_text(sys.argv[1])"
     result = adapter(tmp_path).run_shard(
         ValidationShard(
-            "test:bounded", (sys.executable, "-c", script), workers=8, worker_memory_mb=1000
+            "test:bounded",
+            (sys.executable, "-c", script, "{signetum.validation_workers}"),
+            workers=8,
+            worker_memory_mb=1000,
         )
     )
     assert result.succeeded
@@ -110,6 +109,10 @@ def test_actual_pytest_workers_consume_allocation_and_retry_serially(
             (
                 sys.executable,
                 *runner,
+                "--workers",
+                "{signetum.validation_workers}",
+                "--recovery-report",
+                "{signetum.recovery_report_file}",
                 "--",
                 "-q",
                 "-o",
