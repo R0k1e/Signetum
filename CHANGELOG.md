@@ -40,10 +40,11 @@ concurrent decision clause identities are refused before they are integrated.
 - Stacked members split one large change into a chain delivered through one
   batch. `workspace-open <branch> <parent-branch>` bases a member on another open
   member's tip and records that parent; its `ready` selects only its own diff.
-  `maintenance workspace-sync --parent` merges a parent's later commits, and
-  `ready` and admission refuse until it does. `batch-admit` requires the parent
-  admitted first at the exact tip the child holds. Final review, delivery results
-  and `status` name each member's parent and the admission order.
+  In a stacked member, `maintenance workspace-sync` merges the parent's later
+  commits until the parent is delivered, and `ready` and admission refuse until it
+  does. `batch-admit` requires the parent admitted first at the exact tip the child
+  holds. The final review names each member's parent, and the `status` next action
+  names the needed sync or the admission order.
 
 Signetum ships as one plugin for Claude Code and Codex: the Skill plus a command
 guard, installed and updated by the host plugin managers.

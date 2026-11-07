@@ -33,9 +33,8 @@ artifacts before installed tests. Static hooks do not duplicate the named Ruff,
 format or ty owners. Member ratchets compare structured diagnostic multisets
 against verified source; missing baseline is explicit and never cached. Only a
 `maintenance workspace-sync` merge with its trailer and local record moves that
-baseline. A failed ratchet lists unrecorded merges and names `workspace-sync`,
-`workspace-sync --batch` and `workspace-sync --parent`. Member gate shards receive
-`SIGNETUM_BASE` and
+baseline. A failed ratchet lists unrecorded merges and names `workspace-sync` and
+`workspace-sync --batch`. Member gate shards receive `SIGNETUM_BASE` and
 `SIGNETUM_RATCHET_BASELINE` and `SIGNETUM_CONTRIBUTION_PATHS`, a JSON array of
 repository-relative paths owned by the member, excluding synchronized upstream
 changes. The opening base remains immutable. Each shard's receipt details record them, and
@@ -114,16 +113,18 @@ integration state for ordinary repair; merge conflict uses `batch-continue`.
 Member synchronization records authorization before merging a verified source,
 keeps the original base and distinguishes imported work from owned repairs.
 
-A stacked member records its parent member branch and that parent's tip as its
-base. Its contribution, selection and ratchet run from that base, excluding paths a
-verified `maintenance workspace-sync --parent` merge brought from the parent; that
-merge requires the new parent tip to descend from the one held. Ready and admission
-refuse while the open parent branch has moved past the held parent tip. Admission
-refuses a stacked member unless its parent's latest admission in the batch, earlier
-in the same invocation or before, is exactly that held tip or the tip is in the
-batch base. Its merge carries `Signetum-Parent` and `Signetum-Parent-Tip`;
-provenance, the final review's `member_chain` and the delivery result name each
-member's parent and own changes. Status reports the chain and admission order.
+A stacked member's workspace record names its parent member branch, and its base
+is that parent's tip; the record is the only source of the chain. Its contribution,
+selection and ratchet run from that base, excluding paths a verified parent sync
+brought. Without `--batch`, `maintenance workspace-sync` in a stacked member takes
+its parent while the parent branch exists and is not in the fetched delivery
+branch, otherwise the delivery branch; a parent sync requires the new parent tip to
+descend from the one held. Ready and admission refuse while the open parent branch
+has moved past the held parent tip. Admission refuses a stacked member unless its
+parent's latest admission in the batch, earlier in the same invocation or before,
+is exactly that held tip or the tip is in the batch base. The final review's
+`member_chain` names each member's own changes and, from its record, its parent.
+The status next action names the needed sync or the admission order.
 
 Batch synchronization is `maintenance workspace-sync` run in an open batch. It
 merges the fresh delivery tip when that tip descends from the recorded batch base,
