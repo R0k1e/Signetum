@@ -28,6 +28,7 @@ from signetum.development_log import (
     withdrawn_resolution_ids,
 )
 from signetum.git import git_output, repository_path, run_git
+from signetum.manifest import load_manifest
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
 from signetum.source_authority import (
     authority_roots,
@@ -501,7 +502,9 @@ def append_transaction(
     """Validate the whole transaction before the single atomic source append."""
     repository = repository.resolve()
     validate_transaction(transaction)
-    authority_roots(repository)  # New writes require the current active manifest.
+    active = repository / "signetum.toml"
+    if active.exists():
+        load_manifest(active)  # New writes require the current active manifest.
     with _writer(repository) as root:
         branch = git_output(repository, "symbolic-ref", "--quiet", "--short", "HEAD")
         workspace = read_record(root, branch)

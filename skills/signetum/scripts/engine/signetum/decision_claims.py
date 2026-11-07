@@ -11,10 +11,8 @@ from collections import defaultdict
 from collections.abc import Callable, Collection, Mapping
 from pathlib import Path, PurePosixPath
 
-from signetum.change.paths import changes_root
 from signetum.change_record import parse_change_record
 from signetum.git import git_output, run_git
-from signetum.manifest import RepositoryManifest
 from signetum.operations import AdmissionError
 from signetum.workspaces import WorkspaceError, read_change_owner, state_root
 
@@ -23,19 +21,22 @@ Claims = Mapping[str, frozenset[str]]
 
 def clause_claims(
     repository: Path,
-    manifest: RepositoryManifest,
+    changes: str,
     base: str,
     tip: str,
     *,
     own_paths: Collection[str] | None = None,
 ) -> dict[str, frozenset[str]]:
-    """Clause identities each change record written since ``base`` claims at ``tip``.
+    """Clause identities each change record under ``changes`` written since ``base`` claims.
+
+    Claims are read at ``tip``. Only the record location is needed, so a batch
+    whose validation settings this engine cannot load still yields its claims.
 
     ``own_paths`` limits a member to its own contribution, so delivered records
     a verified synchronization brought in are not claimed again by the member.
     """
 
-    root = PurePosixPath(changes_root(manifest))
+    root = PurePosixPath(changes)
     changed = git_output(
         repository, "diff", "--name-only", "-z", "--no-renames", base, tip, "--", str(root)
     )

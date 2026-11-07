@@ -1,0 +1,57 @@
+[change]
+schema_version = 1
+id = "migrating-member-admits-past-old-manifest"
+
+[change.source]
+kind = "human_direction"
+summary = "Repository owner 2026-11-08: deliver all current todos; Perdura migration deadlock found by the coordinator. Perdura's member that migrates its signetum.toml to the 0.4.0 engine passed ready, but batch-admit, batch-open and status in its batch are refused because the 0.4.0 engine loads the batch's pre-merge manifest, which still declares the removed covers field, only to locate change records and the delivery branch. A project whose delivered manifest predates an engine's schema can therefore never admit the member that migrates it."
+
+[change.contract]
+version = 1
+approved_base = "fea4374959f94bbef4bbc3e5041053d0e00d9c80" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "ADMIT-001"
+outcome = "Batch admission, batch-open and batch synchronization read only the repository and delivery location tables of the batch's pre-merge signetum.toml, so a base manifest whose validation section this engine rejects does not refuse them. The batch gate still loads and executes the complete merged manifest, and nothing interprets or keeps the rejected fields."
+acceptance = [
+    "With a delivered base manifest carrying a validation field the engine does not know, a ready member that migrates the manifest is opened into a batch and admitted, and the batch gate runs from the merged manifest.",
+    "A ready member that keeps the old manifest is refused by batch-open and batch-admit with the unknown-field cause before anything merges, and the batch tip stays unchanged.",
+]
+
+[[change.contract.requirements]]
+id = "STATUS-002"
+outcome = "status in a workspace whose signetum.toml this engine cannot load still reports the workspace and change records, names the manifest cause and directs the agent to admit or ready the member that migrates it."
+acceptance = [
+    "status in a batch with such a base manifest passes, reports the manifest as unreadable with its cause, and its next action names the migrating member's admission.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-003"
+outcome = "The refusal guidance for an unsupported manifest covers both an engine older and a manifest older than the running engine, and the Skill's delivery reference states that a migrating member is admitted past an old batch manifest."
+acceptance = [
+    "Current guidance agrees with the observed CLI behavior.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Add one bindings-only manifest reader beside load_manifest and use it where only change, decision or delivery locations are read, extend existing lifecycle and status traversals, and reconcile Skill and architecture text.",
+]
+requires_confirmation = [
+    "Change the manifest schema, accept or reinterpret removed fields, tag or publish a release.",
+]
+
+[[change.execution.steps]]
+id = "STEP-IMPLEMENT"
+requirements = ["ADMIT-001", "STATUS-002"]
+action = "Reproduce the refusal in a public lifecycle traversal, read location tables through a bindings-only reader for status, delivery policy and batch-side claims, and report an unreadable manifest in status."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["ADMIT-001", "STATUS-002", "DOC-003"]
+action = "Reconcile refusal guidance and the Skill delivery reference, run ready, integrate and deliver as authorized, then verify status read-only in the Perdura batch."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-08
+source = "repository owner 2026-11-08: deliver all current todos; Perdura migration deadlock found by the coordinator. Relayed by the coordinating agent with delivery to main pre-authorized and no tag or release; this implementing session did not hear the approval independently. The second acceptance of ADMIT-001 states where the coordinator's requested clear refusal of a non-migrating member actually occurs: its own manifest cannot load, so batch-open and batch-admit refuse it before merging rather than at the batch gate."
+contract_digest = "sha256:b2bf480eb1b0e3494bf9d5ead7218fe4b897373d53c7c75cda8455f4a8bb34f7"
