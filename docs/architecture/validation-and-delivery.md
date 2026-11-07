@@ -149,6 +149,10 @@ whose tree, configuration, lockfiles and declared tools must still match exactly
 and the batch gate then checks the merged result with the admitting engine. Run
 admission with the batch's engine, from the batch workspace when the repository
 runs its own engine. An engine that cannot read a newer manifest names that path.
+A delivered manifest older than the engine is migrated in a member: status,
+batch opening, admission and synchronization read only its repository and
+delivery tables, the batch gate loads the merged manifest, and a member that
+keeps the old manifest is refused when its own manifest is loaded.
 Real merge bodies carry member, original source and batch-base fields; titles
 remain readable and ordinary merge hooks stay enabled. Batch names derive from
 member tasks or an explicit `--name`; immutable registrations still own identity.

@@ -10,9 +10,8 @@ from signetum.change.models import (
     complete_decision_replacements,
     require_relative_path,
 )
-from signetum.change.paths import changes_root
 from signetum.git import git_output, run_git
-from signetum.manifest import load_manifest, parse_manifest
+from signetum.manifest import load_bindings, parse_bindings
 from signetum.traceability.loading import parse_decision
 
 
@@ -23,7 +22,7 @@ def authority_roots(
     if commit is None:
         if not path.exists():
             return "changes", "docs/decisions"
-        manifest = load_manifest(path)
+        bindings = load_bindings(path)
     else:
         source = committed_blob(repository, commit, "signetum.toml")
         if source is None:
@@ -47,8 +46,8 @@ def authority_roots(
                     raise ValueError("historical change binding has no exact package root")
                 decisions = str(require_relative_path(bindings["decisions"]))
                 return root, decisions
-        manifest = parse_manifest(source[1])
-    return changes_root(manifest), manifest.repository.decisions
+        bindings = parse_bindings(source[1])
+    return bindings.repository.changes, bindings.repository.decisions
 
 
 def source_path(repository: Path, relative: str) -> Path:

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from change_fixtures import commit_approval
 from signetum import change_cli, lifecycle, maintenance
+from signetum import manifest as manifest_format
 from signetum import workspace_operations as ops
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output, run_git
@@ -422,3 +423,70 @@ def test_a_member_that_synchronized_a_delivered_record_is_admitted_beside_its_am
 
     assert [item["branch"] for item in result["admitted"]] == ["change/synchronized"]
     assert (batch / "synchronized.txt").exists()
+
+
+def older_manifest_engine(patched):
+    """An engine that still knows the ``legacy`` shard field this engine removed."""
+    current = manifest_format.manifest_from_mapping
+
+    def tolerant(data):
+        for shard in data.get("validation", {}).get("shards", ()):
+            shard.pop("legacy", None)
+        return current(data)
+
+    patched.setattr(manifest_format, "manifest_from_mapping", tolerant)
+
+
+def test_a_member_migrating_an_older_delivered_manifest_is_admitted(
+    repository, monkeypatch, capsys
+):
+    root, _ = repository
+    path = root / "signetum.toml"
+    path.write_text(
+        path.read_text().replace(
+            'name = "test:check"\ncommand = ["true"]\n',
+            'name = "test:check"\ncommand = ["true"]\nlegacy = ["removed"]\n',
+        )
+    )
+    git_output(root, "commit", "-am", "deliver a manifest an older engine wrote")
+    git_output(root, "push", "origin", "main")
+    with monkeypatch.context() as patched:
+        older_manifest_engine(patched)
+        stale = ready_member(root, "stale", "stale.txt")
+        migrating = opened(root, "change/migrating")
+    commit_approval(migrating, "migrating")
+    migrated = migrating / "signetum.toml"
+    migrated.write_text(
+        migrated.read_text()
+        .replace('legacy = ["removed"]\n', "")
+        .replace(
+            '[[validation.gates]]\nname = "batch"\nshards = ["test:check"]',
+            '[[validation.gates]]\nname = "batch"\nshards = ["test:migrated"]',
+        )
+        + '[[validation.shards]]\nname = "test:migrated"\ncommand = ["true"]\n'
+    )
+    git_output(migrating, "commit", "-am", "migrate the manifest")
+    lifecycle.validate(migrating, "member")
+
+    with pytest.raises(manifest_format.UnsupportedManifestError, match="legacy"):
+        lifecycle.batch_open(root, (stale,), name="wave")
+    batch = ops.workspace_destination(root, "batch/wave")
+    opened_tip = git_output(batch, "rev-parse", "HEAD")
+    capsys.readouterr()
+    assert change_cli.main(["status", "--repository", str(batch)]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["workspace"]["kind"] == "batch"
+    assert "legacy" in status["manifest"]["cause"]
+    assert "migrates" in status["next"]
+
+    result: Any = lifecycle.admit(batch, (migrating,))
+
+    assert [item["branch"] for item in result["admitted"]] == ["change/migrating"]
+    assert result["static"]["executed"] == ["test:migrated"]
+    with pytest.raises(manifest_format.UnsupportedManifestError, match="legacy"):
+        lifecycle.admit(batch, (stale,))
+    assert git_output(batch, "rev-parse", "HEAD^1") == opened_tip
+    assert not (batch / "stale.txt").exists()
+    capsys.readouterr()
+    assert change_cli.main(["status", "--repository", str(batch)]) == 0
+    assert "manifest" not in json.loads(capsys.readouterr().out)

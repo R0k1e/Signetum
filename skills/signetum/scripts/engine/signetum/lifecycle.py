@@ -36,7 +36,7 @@ from signetum.gate_records import (
 )
 from signetum.git import GitError, GitInfrastructureError, git_output, repository_path, run_git
 from signetum.lifecycle_validation import validate_workspace
-from signetum.manifest import RepositoryManifest, load_manifest
+from signetum.manifest import RepositoryManifest, load_bindings, load_manifest
 from signetum.operation_cli import OperationParser, run_operation
 from signetum.operations import (
     AdmissionError,
@@ -440,12 +440,18 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         require_distinct_claims(
             clause_claims(
                 member,
-                member_manifest,
+                changes_root(member_manifest),
                 member_base,
                 member_tip,
                 own_paths=member_contribution_paths(member, member_base, member_tip),
             ),
-            clause_claims(batch, load_manifest(batch / "signetum.toml"), batch_base, batch_tip),
+            # The pre-merge batch manifest only locates records; the gate reads the merged one.
+            clause_claims(
+                batch,
+                load_bindings(batch / "signetum.toml").repository.changes,
+                batch_base,
+                batch_tip,
+            ),
             incoming_workspace=lambda _, name=member_branch: f"workspace {name}",
             existing_workspace=owning_workspace(batch, f"batch {batch_branch}"),
         )
@@ -656,10 +662,10 @@ def _sync_batch_held(batch: Path) -> dict[str, object]:
         if verified_batch_tip(batch, branch, base) == tip:
             return {**result, "status": "unchanged", "batch_commit": tip}
     else:
-        manifest = load_manifest(batch / "signetum.toml")
+        changes = load_bindings(batch / "signetum.toml").repository.changes
         require_distinct_claims(
-            clause_claims(batch, manifest, base, tip),
-            clause_claims(batch, manifest, base, delivered),
+            clause_claims(batch, changes, base, tip),
+            clause_claims(batch, changes, base, delivered),
             incoming_workspace=owning_workspace(batch, f"batch {branch}"),
             existing_workspace=owning_workspace(batch, f"{delivery_branch} at {delivered}"),
         )
