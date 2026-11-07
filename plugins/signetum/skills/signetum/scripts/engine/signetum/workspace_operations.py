@@ -18,7 +18,8 @@ from signetum.operations import AdmissionError, InfrastructureError, MergeConfli
 from signetum.policy import delivery_policy
 from signetum.preparation import PreparationResult, prepare_workspace
 from signetum.provenance import attested_base, members_and_plans
-from signetum.synchronization import authorize_source
+from signetum.stacking import branch_tip, stacked_parent
+from signetum.synchronization import authorize_source, incorporated_parent_tip
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import (
     WorkspaceError,
@@ -60,6 +61,8 @@ def open_workspace(
     destination = workspace_destination(root, branch)
     if branch == delivery_policy(root).branch:
         raise AdmissionError("workspace-open cannot adopt the delivery worktree")
+    # A member opened on another member's branch is stacked on that member's tip.
+    parent = stacked_parent(root, base, delivery_policy(root).branch) if kind == "member" else None
     registered = tuple(item for item in wt.worktrees(root) if item.branch == branch)
     resumed = bool(registered)
     if registered:
@@ -75,11 +78,19 @@ def open_workspace(
             write_record(
                 state_root(root),
                 WorkspaceRecord(
-                    schema_version=1, branch=branch, base=source, kind=kind, members=members
+                    schema_version=1,
+                    branch=branch,
+                    base=source,
+                    kind=kind,
+                    members=members,
+                    parent=parent,
                 ),
             )
         record = read_record(state_root(root), branch)
-        if record.base != source or record.kind != kind:
+        if parent is not None and record.parent == parent:
+            # The parent may have advanced since; the recorded base stays.
+            source = record.base
+        if record.base != source or record.kind != kind or record.parent != parent:
             raise AdmissionError(
                 "existing workspace has a different recorded base or role",
                 expected=(
@@ -120,7 +131,12 @@ def open_workspace(
         write_record(
             state_root(root),
             WorkspaceRecord(
-                schema_version=1, branch=branch, base=source, kind=kind, members=members
+                schema_version=1,
+                branch=branch,
+                base=source,
+                kind=kind,
+                members=members,
+                parent=parent,
             ),
         )
     if state_root(workspace.path) != state_root(root):
@@ -134,11 +150,12 @@ def open_workspace(
         try:
             preparation = worktree_prepare(workspace.path)
         except InfrastructureError as error:
-            retry = ["workspace-open", branch, source]
+            retry = ["workspace-open", branch, parent or source]
             raise InfrastructureError(str(error), expected=shlex.join(retry)) from error
     return {
         "status": "opened",
         "base": source,
+        **({"parent": parent} if parent is not None else {}),
         "branch": branch,
         "worktree": str(workspace.path),
         "source": git_output(workspace.path, "rev-parse", "HEAD"),
@@ -191,7 +208,9 @@ def _merge_source(repository: Path, source: str, label: str) -> dict[str, object
     }
 
 
-def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, object]:
+def workspace_sync(
+    repository: Path, batch: Path | None = None, *, parent: bool = False
+) -> dict[str, object]:
     if run_git(repository, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0:
         raise MergeConflict(
             "member has an open merge",
@@ -204,6 +223,10 @@ def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, obj
     policy = delivery_policy(repository)
     if record.kind != "member" or record.branch == policy.branch:
         raise AdmissionError("workspace-sync requires an implementation member")
+    if parent:
+        if batch is not None:
+            raise AdmissionError("workspace-sync takes either --batch or --parent")
+        return _sync_parent(repository, record)
     if batch is None:
         branch, source = fresh_delivery(repository)
         authorize_source(repository, record.base, source, "delivery")
@@ -220,6 +243,36 @@ def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, obj
         members_and_plans(batch, batch_record.base, source)
         authorize_source(repository, record.base, source, "batch")
         return _merge_source(repository, source, f"batch/{batch_record.branch}")
+
+
+def _sync_parent(repository: Path, record: WorkspaceRecord) -> dict[str, object]:
+    """Merge the parent member's current tip; never rebase or rewrite the member."""
+
+    if record.parent is None:
+        raise AdmissionError(
+            f"workspace-sync --parent requires a stacked member; {record.branch} has no parent"
+        )
+    source = branch_tip(repository, record.parent)
+    if source is None:
+        raise AdmissionError(
+            f"parent member {record.parent} has no branch",
+            expected="synchronize the delivery branch with maintenance workspace-sync",
+        )
+    tip = git_output(repository, "rev-parse", "HEAD")
+    held = incorporated_parent_tip(repository, record.base, tip)
+    if run_git(repository, "merge-base", "--is-ancestor", source, tip).returncode == 0:
+        return {"status": "unchanged", "source": source, "parent_tip": held, "tip": tip}
+    if run_git(repository, "merge-base", "--is-ancestor", held, source).returncode:
+        raise AdmissionError(
+            f"parent {record.parent} tip {source} does not descend from the parent tip {held} "
+            "this member holds; a member never takes rewritten history"
+        )
+    authorize_source(repository, record.base, source, "parent")
+    return {
+        **_merge_source(repository, source, f"parent/{record.parent}"),
+        "parent": record.parent,
+        "previous_parent_tip": held,
+    }
 
 
 def _has_git_operation(repository: Path) -> bool:
@@ -555,6 +608,7 @@ def workspace_endings(repository: Path) -> list[dict[str, object]]:
                 "branch": item.branch,
                 "worktree": str(item.path),
                 "kind": record.kind if record else None,
+                "parent": record.parent if record else None,
                 "outcome": ending.get("outcome"),
                 "reason": ending.get("reason"),
             }

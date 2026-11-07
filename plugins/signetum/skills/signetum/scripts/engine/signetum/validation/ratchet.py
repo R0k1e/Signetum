@@ -109,7 +109,8 @@ def _unrecorded_merge_guidance(repository: Path, recorded_base: str, tip: str) -
         f"; merges without a sync record: {', '.join(merges)}. "
         "These merges do not move the ratchet baseline. Synchronize the delivery "
         "branch with `maintenance workspace-sync`; bring a fix already on the batch "
-        "with `maintenance workspace-sync --batch <batch-worktree>`"
+        "with `maintenance workspace-sync --batch <batch-worktree>`; take a stacked "
+        "member's advanced parent with `maintenance workspace-sync --parent`"
     )
 
 
