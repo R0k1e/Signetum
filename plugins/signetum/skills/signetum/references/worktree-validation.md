@@ -55,8 +55,9 @@ fixtures isolate caller-only test/interpreter configuration while retaining
 enclosing allocation and process-ownership markers.
 
 Use `status` for the current workspace, findings, recorded evidence and next step.
-`changed --explain` displays the check plan without executing it; it is optional,
-not a required prelude to ready. Status does not requalify tools or grant readiness.
+`ready --explain` displays the check plan without executing it. Status does not
+requalify tools or grant readiness. `ready` is the feedback loop: commit, run it,
+fix, commit and rerun until it passes on the current tip.
 
 For explicit development feedback, use the repository's configured diagnostic
 utility: `test run --shard <declared-shard> -- <native-test-arguments>`. It appends

@@ -8,8 +8,8 @@ confirmation before implementation. Routine work creates no extra report or ADR.
 
 Use an isolated member workspace and the declared uv environment. For focused
 feedback, run `just test <affected-paths-or-pytest-options>`. Build with `uv build --project plugins/signetum/skills/signetum/scripts/engine --out-dir dist --clear`
-before installed-artifact tests. `changed` explains selection without checks;
-`ready` validates a committed member. Extend or consolidate existing tests at the
+before installed-artifact tests. `ready` validates a committed member and is the
+loop: commit, ready, fix, ready. `ready --explain` shows its selection without checks. Extend or consolidate existing tests at the
 cheapest boundary that exposes the risk. Tell the user which tests change, why
 and what evidence remains or replaces them; disclose relaxed assertions, skipped
 coverage and threshold reductions separately in the existing review.
@@ -30,6 +30,6 @@ runs collect partial evidence rather than judging the whole project.
 
 Never commit credentials, caches, validation receipts or editor state.
 
-Self-use runs the complete member gate; `changed --explain` reports its plan.
+Self-use runs the complete member gate; `ready --explain` reports its plan.
 Project-owned selection is optional. Final always executes the full host suite.
 Require the complete hosted result for that exact candidate before delivery.

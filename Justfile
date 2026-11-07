@@ -6,11 +6,8 @@ _lifecycle *args:
 workspace-open branch base:
     just _lifecycle workspace-open {{branch}} {{base}}
 
-changed *args:
-    just _lifecycle changed {{args}}
-
-ready:
-    just _lifecycle ready
+ready *args:
+    just _lifecycle ready {{args}}
 
 batch-open *args:
     just _lifecycle batch-open {{args}}

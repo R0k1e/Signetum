@@ -10,6 +10,7 @@ from pathlib import Path
 from signetum.change_record import parse_change_record
 from signetum.development_log import DevelopmentSnapshot
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, ReceiptError
+from signetum.gate_records import failed_tip
 from signetum.git import git_output, repository_path
 from signetum.serialization import contract_mapping
 from signetum.source_authority import authority_roots, source_path
@@ -95,11 +96,16 @@ def workflow_status(
     elif pending:
         next_action = "Resolve the pending findings through the journal."
     elif workspace.kind == "batch":
-        next_action = (
-            "Inspect the generated review and explicitly authorize delivery."
-            if has_final
-            else "Run final on this frozen batch."
-        )
+        if has_final:
+            next_action = "Inspect the generated review and explicitly authorize delivery."
+        elif failed_tip(repository, branch, "final") == source:
+            next_action = (
+                "Final failed. Fix a defect owned by one member in that member, run ready and "
+                "admit its new tip; fix a defect that appears only in the combination here under "
+                "a batch-owned change record (approval, implementation, journal); then rerun final."
+            )
+        else:
+            next_action = "Run final on this frozen batch."
     elif receipts:
         next_action = (
             "Name this member for batch admission; admission rechecks current tools and selection."
@@ -111,7 +117,7 @@ def workflow_status(
             "Show the change approval view; record actual owner confirmation before implementation."
         )
     else:
-        next_action = "Run targeted feedback as needed, then ready on the committed member tip."
+        next_action = "Run ready on the committed tip; fix, commit and rerun it until it passes."
     workspaces = workspace_endings(repository)
     if git_output(repository, "rev-parse", "HEAD") != source:
         raise ValueError("source changed while reading status")

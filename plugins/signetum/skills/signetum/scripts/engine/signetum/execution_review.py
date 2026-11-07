@@ -3,7 +3,7 @@
 import hashlib
 from pathlib import Path
 
-from signetum.change.scope import delivery_scope
+from signetum.change.scope import batch_owned_commits, delivery_scope
 from signetum.development_store import SourceReviewInputs
 from signetum.development_store import review_inputs as source_review_inputs
 from signetum.deviations import ReviewSnapshot, review_snapshot
@@ -17,6 +17,7 @@ class ExecutionReviewInputs(ReviewSnapshot):
     member_evidence: dict[str, str]
     member_tips: dict[str, list[str]]
     source_journals: SourceReviewInputs
+    batch_commits: list[dict[str, object]]
 
 
 def execution_review_inputs(
@@ -65,4 +66,5 @@ def execution_review_inputs(
         "member_evidence": fingerprints,
         "member_tips": tips,
         "source_journals": source_journals,
+        "batch_commits": batch_owned_commits(repository, manifest, base, tip),
     }

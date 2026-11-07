@@ -4,7 +4,7 @@ An existing repository can retain its fine test selection without embedding its
 old gate, retry loop or receipt writer. The optional `signetum.selection@1`
 boundary supplies a plan to Signetum's existing execution and evidence owners.
 Without a provider declaration, `ready` runs the full declared member-safe gate
-and required checks; `changed` only explains that plan. Impact rules cannot narrow this default,
+and required checks; `ready --explain` only explains that plan. Impact rules cannot narrow this default,
 and tests are not skipped using ancestor evidence. Final always runs its complete
 declared gate, including final-only checks.
 
@@ -73,7 +73,7 @@ target conventions can select whole declared shards without target refinement.
 
 ## Execution and evidence
 
-`changed`, `ready` and admission share this boundary. The provider runs with the
+`ready`, `ready --explain` and admission share this boundary. The provider runs with the
 existing deadline and owned-process supervisor. Failure to obtain a selection
 is infrastructure failure; invalid output refuses before checks. The producer
 must leave the source, bindings and observed tool identities unchanged.

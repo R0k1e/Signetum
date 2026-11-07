@@ -1,14 +1,14 @@
 # Delivery and recovery
 
-Use the repository's eight lifecycle operations: `workspace-open`, `changed`,
-`ready`, `batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
+Use the repository's seven lifecycle operations: `workspace-open`, `ready`,
+`batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
 Use separate local maintenance utilities only within their authorization.
 Approval to implement or passing validation does not authorize publication.
 
 Named ready members enter a batch through admission. Admission and
-`batch-continue` run the batch gate over the commits added since its last pass;
-a batch gate that does not run or declare `covers` for what they select refuses
-before checks. Before final, reconcile
+`batch-continue` run only the declared batch gate over the commits added since
+its last pass; it may run no integration checks. Final stays complete, so a
+failure that appears only when members combine surfaces at final. Before final, reconcile
 retained findings with `status` and the journal tools. Final checks the
 frozen source and generates the delivery review; do not write a duplicate review
 file. Show the approved outcomes, standing answers, accepted decision changes,
@@ -25,8 +25,12 @@ claimed by two changes, give one change a distinct ID, commit, run ready, retry.
 
 On failure, inspect the structured result, retained diagnostics and exact local
 and remote identities before acting. Preserve work after conflict or publication
-uncertainty. Resolve an open batch merge through `batch-continue`. Otherwise fix
-the member, run ready and admit its new tip, then run ordinary final again.
+uncertainty. Resolve an open batch merge through `batch-continue`. After a failed
+final, fix a defect owned by one member in that member, run ready and admit its
+new tip. Fix a defect that appears only in the combination directly in the batch
+under the batch's own change record: approve it, commit, then implement and
+journal the fix. Final refuses other direct implementation commits and its review
+attributes each batch commit to its change. Then run ordinary final again.
 There is no special recovery verdict that turns a failed validation green.
 
 Publish only through explicit
