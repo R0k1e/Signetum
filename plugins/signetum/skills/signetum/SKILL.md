@@ -43,8 +43,11 @@ one approved change owns outcomes, scope, acceptance and execution autonomy.
 Preserve existing authorization; installation and passing checks confer none.
 
 Use `status` for blockers and the next action. Develop in registered isolated
-worktrees. The eight delivery operations are `workspace-open`, `changed`, `ready`,
+worktrees. The seven delivery operations are `workspace-open`, `ready`,
 `batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
+`ready` is the development loop: commit, run `ready`, fix, commit and rerun it
+until it passes. Never hand back a member or call it done without a passing
+`ready` on its current tip. `ready --explain` shows its selection without checks.
 Follow [work and validation](references/worktree-validation.md) during development
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
 for integration, review, explicit delivery and cleanup. The coordinating Agent owns
@@ -67,8 +70,9 @@ Admission and that sync refuse two changes claiming one decision clause ID.
 Ready, admission, continuation and final require approved source packages, intact
 journal ancestry and resolved source observations. Repair an admitted defect in
 a member and admit its new ready tip; never amend a commit bound by a journal.
-Journal-only follow-up commits may reuse eligible passing tests, including without
-an impact provider. Admission and current static or world checks remain required.
+Ready reuses passing evidence of each `inherit = true` shard that the impact
+rules show no follow-up path affects, with or without a provider; a path no rule
+explains reruns them all. Admission and current static or world checks remain required.
 Record consequential discoveries and their reasons through `change record/resolve`;
 current decisions are derived. Ordinary command output stays in local logs. Keep
 no second handwritten decision set, execution diary or delivery report. Use the

@@ -9,15 +9,22 @@ tracked source. Diagnostics can inspect dirty work and never issue readiness.
 One dependency/verdict core serves diagnostics, member qualification and final.
 Dependencies run in order, failed `requires` dependencies block descendants, independent
 failures are collected, and a successful retry cannot clear a first failure.
-A shard's `after` prerequisites order it and join its gate closure like `requires`,
-but their failed verdict does not skip it, so one round reports every failure;
-an infrastructure error in either kind still skips dependents.
-A shard command exchanges node data only through declared whole-argument
-placeholders, replaced by absolute paths; configuration refuses any other
-`{signetum.*}` argument and placeholders in findings or ratchet commands, which
-are never substituted. `{signetum.node_report_file}` receives first-attempt
+A gate runs the shards it lists and the `requires` prerequisites whose output
+they need. A shard's `after` prerequisites only order it among shards the gate
+already runs and never add one; their failed verdict does not skip it, so one
+round reports every failure. An infrastructure error in either kind still skips
+dependents.
+A shard command receives every engine value only through declared whole-argument
+`{signetum.*}` placeholders; no engine value travels in the environment.
+Configuration refuses unknown names, partial-argument use, placeholders in
+findings commands, any but `{signetum.validation_workers}` in ratchet commands, and
+`{signetum.schedule_file}` without `[validation] schedule_file`, a declared
+validation input. `{signetum.recovery_report_file}` receives the runner's
+retry-recovered nodes and `{signetum.validation_workers}` the allocated worker cap.
+`{signetum.node_report_file}` receives first-attempt
 `{"failed": [...], "passed": [...]}` with an optional `"unreached": [...]`; the
-packaged pytest runner takes it as `--node-report`. The engine reads it after the
+packaged pytest runner takes these as `--node-report`, `--recovery-report`,
+`--workers` and `--schedule-file`. The engine reads it after the
 shard ends, including after its time bound. Unreached entries fail the shard and
 the result states their count. `{signetum.priority_nodes_file}` always exists and
 holds the shard's owed entries as `{"schema_version": 1, "nodes": [...]}` for the
@@ -42,16 +49,20 @@ recorded separately from passed.
 The repository owns uv preparation and build dependencies. Build clears stale
 artifacts before installed tests. Static hooks do not duplicate the named Ruff,
 format or ty owners. Member ratchets compare structured diagnostic multisets
-against verified source; missing baseline is explicit and never cached. Only a
+against verified source, measured in a checkout of that source prepared by the
+declared prepare gate and cached once measured. A baseline that cannot be measured
+fails the shard with its cause and is never cached. Only a
 `maintenance workspace-sync` merge with its trailer and local record moves that
 baseline. A failed ratchet lists unrecorded merges and names `workspace-sync` and
-`workspace-sync --batch`. Member gate shards receive `SIGNETUM_BASE` and
-`SIGNETUM_RATCHET_BASELINE` and `SIGNETUM_CONTRIBUTION_PATHS`, a JSON array of
-repository-relative paths owned by the member, excluding synchronized upstream
-changes. The opening base remains immutable. Each shard's receipt details record them, and
-admission and test inheritance require their current values. Other shards never
-receive them. Final
-and batch checks remain strict.
+`workspace-sync --batch`. Member and batch gate shards may declare
+`{signetum.base}`, `{signetum.ratchet_baseline}` and
+`{signetum.contribution_paths_file}`, a file holding
+`{"schema_version": 1, "paths": [...]}` of repository-relative paths owned by the
+member, excluding synchronized upstream changes; in a batch gate the base is the
+increment start. The opening base remains immutable. Each member shard's receipt
+details record these values, and admission and test inheritance require their
+current values. In final and diagnostic runs a declared range value is an explicit
+empty argument, meaning no range.
 
 Resource allocation bounds nested workers. Settlement confirms an empty inventory
 with a fresh snapshot inside its existing deadline. The supervisor settles positively
@@ -64,41 +75,47 @@ without another full precollection pass or a passing qualification.
 
 ## Selection and efficient feedback
 
-`changed` explains without checks. `test run` delegates explicit targets or
+`ready` is the development loop; `ready --explain` shows its selection without
+checks. `test run` delegates explicit targets or
 a declared gate to the same supervisor and verdict core, without qualification.
 Native arguments apply only to a shard; full exact-source gates reject them and
 verify clean source plus input identities before and after execution.
 
 No provider means the full declared member gate. An explicit provider binds
 source, exact contribution, targets, tools and explanation; unexplained inputs
-fall back, changed tests run whole and final never narrows. Test inheritance
-requires matching input identities and a verified nearest ancestor receipt with
-all intervening paths explained. A suffix consisting only of change journal
-events may reuse eligible tests without a provider. Otherwise tests rerun.
+fall back, changed tests run whole and final never narrows. Member test
+inheritance is per shard, with or without a provider: the paths changed since
+the nearest verified ancestor member receipt are resolved by the impact rules and
+any provider coverage, and each `inherit = true` member shard none of them affects
+reuses that receipt's passing evidence for its exact command and matching input
+identities. A rule or coverage affects the shards and gates it names and their
+`requires` prerequisites; a modified test file is an ordinary path; an unexplained
+path reruns every shard; a suffix of change journal events affects none. A shard
+without such evidence, or one owing remembered nodes, reruns. Batch admission,
+continuation and final never inherit.
 Source admission still requires approved packages, intact journal ancestry and
 resolved observations at ready, admission, continuation and final. Static checks still run.
 Weighted scheduling and CI partitions are optional diagnostics; complete partition
 aggregation checks exact membership/source and creates no lifecycle authority.
 
 Admission and continuation select over the commits added since the batch's last
-passing gate, starting at its recorded base, not the cumulative batch. The declared
-batch gate, resolved with any provider targets, must cover the member shards that
-selection requires, which without a provider is the complete member gate, either by
-running them or through a batch-gate shard that declares `covers` for them, directly
-or transitively. Coverage declares the obligation; the selected member checks
-also execute on the merged tree. Otherwise the operation refuses before batch checks run. Only a passing batch gate advances
+passing gate, starting at its recorded base, not the cumulative batch. They run
+only the declared batch gate, resolved with any provider targets; it may run no
+integration checks. Final stays complete, so cross-member failures surface there
+rather than at admission. A remembered node whose shard the batch gate does not
+run stays owed to final. Only a passing batch gate advances
 that verified tip, so a refused or failed increment stays owed. One admission of
-several members is one increment. Batch shards receive its start commit as
-`SIGNETUM_ADMISSION_BASE`, so a project selector can use the same range. A provider
+several members is one increment. A batch shard declaring
+`{signetum.admission_base}` receives its start commit, so a project selector can
+use the same range; elsewhere it is an explicit empty argument. A provider
 selects a staged conflict resolution from a temporary detached checkout of its merge.
 
-## Eight lifecycle operations
+## Seven lifecycle operations
 
 | Operation | Responsibility |
 | --- | --- |
 | `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. A base naming another open member's branch records that parent and its tip. |
-| `changed [--explain]` | Inspect the contribution and planned member checks. |
-| `ready` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. |
+| `ready [--explain]` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. This is the development loop; `--explain` only shows the selection. |
 | `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. Only batch synchronization later advances that base. |
 | `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. |
 | `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge. |
@@ -116,6 +133,12 @@ no fallback. Previously delivered intent remains protected; new intent needs its
 own change. Ordinary execution refinements cannot reduce approved outcomes.
 
 Named admission binds exact member receipt bytes, input identities and provenance.
+The identity of the engine that ran `ready` is not a member input: an engine or
+manifest-schema change admitted from a sibling does not strand a ready member,
+whose tree, configuration, lockfiles and declared tools must still match exactly,
+and the batch gate then checks the merged result with the admitting engine. Run
+admission with the batch's engine, from the batch workspace when the repository
+runs its own engine. An engine that cannot read a newer manifest names that path.
 Real merge bodies carry member, original source and batch-base fields; titles
 remain readable and ordinary merge hooks stay enabled. Batch names derive from
 member tasks or an explicit `--name`; immutable registrations still own identity.
@@ -156,6 +179,8 @@ Admission and batch synchronization compare the decision clause identities that
 change records write in their contract decisions since the relevant base. Two
 different changes writing one identity refuse before merging, naming the clause,
 both changes and their owning workspaces; renumbering stays with those changes.
+A member's claims come only from change records in its own contribution, not from
+delivered records a verified synchronization brought into it.
 
 ## Final review and publication
 
@@ -167,8 +192,16 @@ suffixes refuse. Historical statements retain original proof without another
 active workflow. Exact retirements preserve earlier answers. Final does not
 append its own success to source.
 
-Review binds approvals, source journals, admitted receipts, recovered defects and
-remaining work. Recheck those inputs after validation and before publication;
+A defect that appears only when members combine may be fixed by commits made
+directly in the batch under the batch's own change record. Final attributes each
+first-parent non-merge batch commit to the batch-owned changes approved before
+it, unchanged at the tip; a commit touching only change records and decisions is
+authority history. Any other direct commit refuses. Member-owned defects are fixed
+in the member and admitted again; conflict resolution stays with `batch-continue`.
+After a failed final on the current tip, status names both repairs.
+
+Review binds approvals, source journals, admitted receipts, batch commit
+attribution, recovered defects and remaining work. Recheck those inputs after validation and before publication;
 changes require fresh final. The agent shows outcomes, scope, decision changes,
 test modifications and evidence before explicitly authorized delivery. Existing
 authorization remains valid within its agreed scope. Human

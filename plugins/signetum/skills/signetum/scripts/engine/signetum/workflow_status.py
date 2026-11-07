@@ -11,6 +11,7 @@ from signetum.change.scope import APPROVAL_ORDER_REMEDY, ChangeError, approval_o
 from signetum.change_record import parse_change_record
 from signetum.development_log import DevelopmentSnapshot
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, ReceiptError
+from signetum.gate_records import failed_tip
 from signetum.git import git_output, repository_path
 from signetum.manifest import ManifestError, load_manifest
 from signetum.serialization import contract_mapping
@@ -118,11 +119,16 @@ def workflow_status(
     elif pending:
         next_action = "Resolve the pending findings through the journal."
     elif workspace.kind == "batch":
-        next_action = (
-            "Inspect the generated review and explicitly authorize delivery."
-            if has_final
-            else "Run final on this frozen batch."
-        )
+        if has_final:
+            next_action = "Inspect the generated review and explicitly authorize delivery."
+        elif failed_tip(repository, branch, "final") == source:
+            next_action = (
+                "Final failed. Fix a defect owned by one member in that member, run ready and "
+                "admit its new tip; fix a defect that appears only in the combination here under "
+                "a batch-owned change record (approval, implementation, journal); then rerun final."
+            )
+        else:
+            next_action = "Run final on this frozen batch."
     elif receipts:
         next_action = (
             "Name this member for batch admission; admission rechecks current tools and selection."
@@ -136,7 +142,7 @@ def workflow_status(
     elif order is not None and not order.satisfied:
         next_action = APPROVAL_ORDER_REMEDY
     else:
-        next_action = "Run targeted feedback as needed, then ready on the committed member tip."
+        next_action = "Run ready on the committed tip; fix, commit and rerun it until it passes."
     if workspace is not None and workspace.parent and not merging and not dirty:
         # A stacked member's chain lives in its record; status only derives the next step.
         if parent_moved(repository, workspace, source):

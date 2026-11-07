@@ -10,9 +10,10 @@ Use the existing `signetum.selection@1` provider interface for project algorithm
 Bind its implementation, configuration and tools as declared inputs. Preserve
 modified tests and explain every changed path. Unknown inputs fall back to the
 full member gate; final always uses complete original commands. No provider
-means full member validation, except eligible passing tests may be inherited
-across a suffix containing only resolved change-journal events. Current source
-admission and static checks still run. Core validates identity and target boundaries;
+means the full member gate, but impact rules still decide per shard which
+`inherit = true` shards the paths changed since the previous ready affect; each
+unaffected shard reuses that ready's passing evidence, and an unexplained path
+reruns them all. Current source admission and static checks still run. Core validates identity and target boundaries;
 the project owns dependency semantics and its observed correctness.
 
 Retain an existing selector rather than copying it into Signetum or nesting a
@@ -27,10 +28,12 @@ hints from ordinary duration output; `--by-file` produces file costs for CI
 partitions. Inspect and commit the resulting validation input. No extra timing
 report is maintained.
 
-Set `SIGNETUM_SCHEDULE_FILE` to a repository-owned JSON mapping of scheduling unit
-to positive measured cost. Units are node IDs or sorted underscore-joined
-`xdist_group` names. Add that file to `repository.lockfiles`, the protocol's
-additional validation-input list. The runner uses loadgroup and the same allocation.
+Declare `[validation] schedule_file` as a repository-owned JSON mapping of
+scheduling unit to positive measured cost, and pass it to the packaged runner as
+`--schedule-file {signetum.schedule_file}`. Units are node IDs or sorted
+underscore-joined `xdist_group` names. Add that file to `repository.lockfiles`, the
+protocol's additional validation-input list; configuration refuses it otherwise.
+The runner uses loadgroup and the same allocation.
 Missing entries keep normal conservative ordering; weights never skip tests or
 set pass criteria. Generate measurements from ordinary duration output rather
 than hand-maintain another performance report. CPU, phase and collection sums

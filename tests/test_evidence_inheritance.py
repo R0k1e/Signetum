@@ -1,4 +1,4 @@
-"""Real Git members may inherit tests only across non-selecting fixups."""
+"""Real Git members inherit each test shard that intervening changes do not affect."""
 
 import json
 import sys
@@ -23,7 +23,7 @@ def runtime():
     return lifecycle
 
 
-def configured(repository, runtime, *, provider=True):
+def configured(repository, runtime, *, provider=True, areas=False, ready=True):
     root, state = repository
     manifest = root / "signetum.toml"
 
@@ -79,11 +79,38 @@ def configured(repository, runtime, *, provider=True):
         )
         + "\n"
     )
+    if areas:
+        # A second inheritable area: its rule names it for web sources and web tests.
+        web = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; import sys; p=Path(sys.argv[1]); "
+                "p.write_text(p.read_text()+'x' if p.exists() else 'x'); "
+                "sys.exit(Path(sys.argv[2]).exists())",
+                str(state / "web"),
+                str(state / "web-broken"),
+            ]
+        )
+        for gate, shards in (
+            ("member", '["test:check"]'),
+            ("final", '["test:check"]'),
+            ("batch", '["test:check", "test:static"]'),
+        ):
+            text = text.replace(
+                f'name = "{gate}"\nshards = {shards}',
+                f'name = "{gate}"\nshards = {shards[:-1]}, "test:web"]',
+            )
+        text += '\n[[validation.shards]]\nname = "test:web"\ninherit = true\ncommand = ' + web
+        text += (
+            '\n\n[[impact.rules]]\nname = "web"\npaths = ["web/**", "tests/web/**"]\n'
+            'shards = ["test:web"]\n'
+        )
     (root / "selector.py").write_text("""import json,sys
 q=json.load(sys.stdin)
 coverage=[]
 for p in q["files"]:
-    known=p.startswith(("src/","docs/","changes/"))
+    known=p.startswith(("src/","docs/","changes/","web/","tests/web/"))
     coverage.append(dict(path=p,status="covered" if known else "unexplained",
                          shards=["test:check"] if p.startswith("src/") else [],
                          reason="Explicit fixture selection."))
@@ -106,8 +133,64 @@ print(json.dumps(dict(protocol="signetum.selection@1",request_digest=q["request_
     commit_approval(member, "example")
     (member / "src").mkdir()
     commit_file(member, "src/feature.py", "pass\n")
-    first = runtime.validate(member, "member")
+    if areas:
+        (member / "web").mkdir()
+        commit_file(member, "web/app.js", "render()\n")
+    first = runtime.validate(member, "member") if ready else None
     return member, state, first
+
+
+def reruns(state):
+    return {name: (state / name).read_text() for name in ("tests", "web", "static")}
+
+
+@pytest.mark.parametrize("provider", [False, True])
+def test_an_area_fixup_reruns_only_the_shard_its_rule_names(repository, runtime, provider):
+    member, state, first = configured(repository, runtime, provider=provider, areas=True)
+    commit_file(member, "web/app.js", "render(fixed)\n")
+    current = runtime.validate(member, "member")
+    assert reruns(state) == {"tests": "x", "web": "xx", "static": "xx"}
+    inherited = current["evidence"]["extensions"]["inherited_test_evidence_from"]
+    assert inherited["commit"] == first["source"]
+    assert inherited["shards"] == ["test:check"]
+
+
+def test_an_unexplained_path_reruns_every_area_shard(repository, runtime):
+    member, state, _ = configured(repository, runtime, provider=False, areas=True)
+    commit_file(member, "unknown.txt")
+    current = runtime.validate(member, "member")
+    assert reruns(state) == {"tests": "xx", "web": "xx", "static": "xx"}
+    assert "inherited_test_evidence_from" not in current["evidence"]["extensions"]
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("tests/web/test_app.py", {"tests": "x", "web": "xx", "static": "xx"}),
+        ("tests/test_other.py", {"tests": "xx", "web": "xx", "static": "xx"}),
+    ],
+)
+def test_a_test_file_reruns_only_the_shards_whose_rules_name_it(
+    repository, runtime, path, expected
+):
+    member, state, _ = configured(repository, runtime, provider=False, areas=True)
+    (member / path).parent.mkdir(parents=True, exist_ok=True)
+    commit_file(member, path, "def test_area(): pass\n")
+    runtime.validate(member, "member")
+    assert reruns(state) == expected
+
+
+def test_a_failed_ready_leaves_no_evidence_to_inherit(repository, runtime):
+    member, state, _ = configured(repository, runtime, provider=False, areas=True, ready=False)
+    (state / "web-broken").write_text("")
+    with pytest.raises(runtime.ValidationExecutionError, match="test:web"):
+        runtime.validate(member, "member")
+    (state / "web-broken").unlink()
+    (member / "docs").mkdir()
+    commit_file(member, "docs/note.md")
+    current = runtime.validate(member, "member")
+    assert reruns(state) == {"tests": "xx", "web": "xx", "static": "xx"}
+    assert "inherited_test_evidence_from" not in current["evidence"]["extensions"]
 
 
 def test_documentation_fixup_inherits_tests_but_reruns_static(repository, runtime):
@@ -191,11 +274,17 @@ def test_a_selecting_path_modified_then_reverted_still_forces_fresh_tests(reposi
 
 def test_final_executes_test_shards_even_with_ancestor_member_evidence(repository, runtime):
     root, _ = repository
-    member, state, _ = configured(repository, runtime)
+    member, state, _ = configured(repository, runtime, areas=True)
+    (member / "docs").mkdir()
+    commit_file(member, "docs/note.md")
+    runtime.validate(member, "member")
+    assert reruns(state) == {"tests": "x", "web": "x", "static": "xx"}
     batch = Path(str(lifecycle.batch_open(root, (member,))["worktree"]))
-    before = (state / "tests").read_text()
+    before = reruns(state)
     final = runtime.validate(batch, "final")
-    assert (state / "tests").read_text() == before + "x"
+    after = reruns(state)
+    assert after["tests"] == before["tests"] + "x"
+    assert after["web"] == before["web"] + "x"
     evidence = final["evidence"]
     assert isinstance(evidence, dict)
     assert "inherited_test_evidence_from" not in evidence["extensions"]

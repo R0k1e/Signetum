@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Never
 
 from signetum.git import GitError
-from signetum.manifest import ManifestError
+from signetum.manifest import ManifestError, UnsupportedManifestError
 from signetum.operations import (
     EXIT_CODES,
     AdmissionError,
@@ -103,6 +103,16 @@ def utility_failure(operation: str, error: Exception, **fields: object) -> int:
 def _error_category(error: Exception) -> tuple[OperationStatus, str]:
     if isinstance(error, OperationError):
         return error.status, error.expected
+    if isinstance(error, UnsupportedManifestError):
+        # A member's engine or schema change admitted into a batch makes the
+        # batch manifest newer than the engines of its siblings and main.
+        return (
+            OperationStatus.INVALID,
+            "This engine predates the manifest it read. Run the operation with the engine "
+            "that manifest needs: for a batch, from the batch workspace when the repository "
+            "runs its own engine, otherwise after updating the Skill. Ready members whose "
+            "evidence an older engine produced stay admissible without rerunning their checks.",
+        )
     if isinstance(error, (ValidationInfrastructureError, ProfileResourceError, OSError)):
         return (
             OperationStatus.INFRASTRUCTURE_ERROR,

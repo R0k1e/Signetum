@@ -295,7 +295,7 @@ def test_changed_explains_selected_checks_without_executing_or_granting_readines
     git_output(root, "commit", "-m", "declare observable diagnostic")
     member = opened(root, "plan/diagnostic")
     tip = commit_file(member, "implementation.txt")
-    result = lifecycle.changed(member, True)
+    result = lifecycle.explain_ready(member)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert not marker.exists()
@@ -310,14 +310,14 @@ def test_changed_refuses_dirty_files_before_running_checks(repository, path):
     commit_file(member, "implementation.txt")
     (member / path).write_text("not selected by committed diff")
     with pytest.raises(AdmissionError, match="not clean"):
-        lifecycle.changed(member, True)
+        lifecycle.explain_ready(member)
 
 
 def test_changed_refuses_workspace_without_committed_contribution(repository):
     root, _ = repository
     member = opened(root, "plan/no-contribution")
     with pytest.raises(AdmissionError, match="no committed contribution"):
-        lifecycle.changed(member, True)
+        lifecycle.explain_ready(member)
 
 
 def test_changed_without_provider_plans_full_checks_for_unexplained_paths(repository):
@@ -328,7 +328,7 @@ def test_changed_without_provider_plans_full_checks_for_unexplained_paths(reposi
     )
     member = opened(root, "plan/no-selection")
     commit_file(member, "unexplained.md")
-    result = lifecycle.changed(member, True)
+    result = lifecycle.explain_ready(member)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert result["requires_final"] is True
@@ -342,12 +342,12 @@ def test_changed_selection_only_does_not_execute_the_selected_command(
     commit_file(root, "signetum.toml", manifest.read_text().replace('["true"]', '["false"]'))
     member = opened(root, "plan/selection-only")
     commit_file(member, "implementation.txt")
-    result = lifecycle.changed(member, True)
+    result = lifecycle.explain_ready(member)
     assert result["status"] == "selection-only"
     assert result["executed"] == []
     assert result["shards"] == ("test:check",)
     monkeypatch.chdir(member)
-    assert lifecycle.main(["changed", "--explain"]) == 0
+    assert lifecycle.main(["ready", "--explain"]) == 0
     document = json.loads(capsys.readouterr().out)
     assert document["outcome"] == "selection-only"
     assert document["checks_started"] is False
@@ -499,7 +499,7 @@ def test_sync_does_not_claim_siblings_package_or_charge_its_unchanged_paths(repo
     ops.workspace_sync(member, batch)
     result = lifecycle.validate(member, "member")
     assert result["status"] == "ready"
-    changed = lifecycle.changed(member, True)["files"]
+    changed = lifecycle.explain_ready(member)["files"]
     assert isinstance(changed, tuple)
     assert set(changed) == {
         "own.txt",

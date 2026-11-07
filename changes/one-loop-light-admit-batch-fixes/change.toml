@@ -1,0 +1,132 @@
+[change]
+schema_version = 1
+id = "one-loop-light-admit-batch-fixes"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner decided on 2026-11-07, relayed by the coordinating session, to keep Signetum simple: ready is the one development validation loop and changed is folded into ready --explain; batch admission runs only what the repository declares for it, so only final is heavy; and a defect that appears only when members combine may be fixed by an attributed commit directly in the batch, validated by the next final. The earlier proposal to make changed run checks was abandoned before integration."
+
+[change.contract]
+version = 1
+approved_base = "b847d736d6137466728ebfe22ef5efbab54d3306" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "ONE-LOOP-001"
+outcome = "ready is the only member operation that runs checks and is the development feedback loop: commit, ready, fix, ready. changed is no longer a lifecycle operation; ready --explain shows the selection without running checks, with the output changed --explain gave. The lifecycle has seven operations, and the CLI, status next actions, Skill and documentation say so. No alias is kept."
+acceptance = ["ready --explain on a committed contribution reports the selection, starts no check and writes no receipt; changed is refused as an unknown operation.", "status names ready as the next action for an approved member without a ready receipt on its tip."]
+
+[[change.contract.requirements]]
+id = "LIGHT-ADMIT-002"
+outcome = "Admission and conflict continuation run only the declared batch gate over the admitted increment. A batch gate that runs no integration checks is accepted, deferring cross-member failures to final, which stays complete. The trade-off is documented. The shard field covers, which only served the removed member-coverage refusal, is no longer accepted in the manifest; there is no compatibility path."
+acceptance = ["A batch gate that does not run or cover the member checks admits a ready member without executing them.", "A batch gate declaring no shards admits a ready member.", "Final still executes its complete gate and fails on a cross-member defect that admission did not run.", "A manifest whose shard declares covers is refused at load."]
+
+[[change.contract.requirements]]
+id = "BATCH-FIX-003"
+outcome = "A defect that appears only when members combine may be fixed by commits made directly in the batch under the batch's own approved change record (approval, then implementation, journaled) and is validated by the next final. Final attributes each such commit to its change in the review and source journals and refuses a non-merge batch commit that changes paths outside change records and decisions without a preceding approved batch-owned change. Member-owned defects are still fixed in the member and re-admitted; merge-conflict resolution is unchanged. After a failed final, status states both repairs. The delivery-recovery reference describes them."
+acceptance = ["Through the lifecycle: an approved batch-owned fix committed in the batch passes final, and the review attributes its commit and lists its change and source journal.", "An unattributed direct batch implementation commit is refused by final.", "After a failed final on the batch tip, status names both repairs."]
+
+[change.contract.autonomy]
+allowed = ["Extend the existing lifecycle CLI, command registry, batch gate resolution, manifest shard model and schema (removing covers), final review, change scope and status owners; remove replaced changed paths; reconcile Skill, architecture, guides, contributor and repository policy text; extend existing lifecycle tests on throwaway repositories; run ready."]
+requires_confirmation = ["Change unrelated product outcomes, change merge-conflict resolution, edit Perdura, integrate, publish or deliver."]
+
+[[change.contract.decisions]]
+id = "one-loop-light-admit-batch-fixes/one-loop"
+change_id = "one-loop-light-admit-batch-fixes"
+authority = "changes/one-loop-light-admit-batch-fixes/change.toml#decisions/one-loop-light-admit-batch-fixes/one-loop"
+reason = "Agents skipped any check before ready and paid a long ready for cheap failures, while changed only explained a plan. One operation that both explains and runs removes a step and keeps readiness evidence with its single owner; making ready fast is the job of a light member gate, inheritance and ordering, not of a second operation. Admission repeated member test execution for every increment although final reruns the complete gate, so the owner accepted that cross-member failures surface at final. Batch-only defects previously had no repair place other than a member, which cannot reproduce them. Reopen if cross-member failures found at final cost more than admission-time execution in observed use."
+parents = ["one-admission-rule/current-source-verdict", "streamline-development-operations/boundaries", "batch-gates-declare-coverage/gate-coverage"]
+
+[[change.contract.decisions.clauses]]
+id = "one-loop-light-admit-batch-fixes/selection"
+change_id = "one-loop-light-admit-batch-fixes"
+action = "amend"
+expected = [{id = "ADOPTION-SEL-001", version = 4}]
+authority = "changes/one-loop-light-admit-batch-fixes/change.toml#decisions/one-loop-light-admit-batch-fixes/one-loop"
+reason = "The selection explanation moves from changed to ready --explain."
+
+[[change.contract.decisions.clauses.updates]]
+id = "ADOPTION-SEL-001"
+version = 5
+topic = "repository-adoption"
+scope = ["Repository validation and evidence"]
+statement = "Structured repository selection is optional. ready --explain explains the selection without checks. Without a provider, readiness selects the complete member-safe gate; only a proved journal-only suffix may reuse successful matching test evidence after current admission. Other paths require a provider for narrowing or inheritance. Final always executes its complete declared gate."
+rationale = "Journal-only reuse removes duplicate testing without guessing source impacts or weakening source approval, failure accounting and input identity."
+
+[[change.contract.decisions.clauses]]
+id = "one-loop-light-admit-batch-fixes/light-admission"
+change_id = "one-loop-light-admit-batch-fixes"
+action = "amend"
+expected = [{id = "EFFICIENCY-RUN-001", version = 4}]
+authority = "changes/one-loop-light-admit-batch-fixes/change.toml#decisions/one-loop-light-admit-batch-fixes/one-loop"
+reason = "Admission runs only what the repository declares for it; final stays the complete check."
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-RUN-001"
+version = 5
+topic = "validation-efficiency"
+scope = ["Validation execution, diagnostics and CI"]
+statement = "Diagnostics, readiness and CI share supervised execution and allocation. Admission and continuation prepare the exact merged increment since the last passing batch tip and execute only the declared batch gate, which may run no integration checks; cross-member failures then surface at final. Without a provider readiness selects the full member-safe gate. Final remains complete."
+rationale = "Only final is heavy; repeating member tests at every admission duplicated the complete final run."
+
+[[change.contract.decisions.clauses]]
+id = "one-loop-light-admit-batch-fixes/loop"
+change_id = "one-loop-light-admit-batch-fixes"
+action = "add"
+expected = [{id = "LOOP-READY-001", version = 0}]
+authority = "changes/one-loop-light-admit-batch-fixes/change.toml#decisions/one-loop-light-admit-batch-fixes/one-loop"
+reason = "The development loop belongs to the protocol, in one operation."
+
+[[change.contract.decisions.clauses.updates]]
+id = "LOOP-READY-001"
+version = 1
+topic = "development-feedback"
+scope = ["Local commands, validation and agent instructions"]
+statement = "ready is the only member lifecycle operation that runs checks and is the development loop: commit, ready, fix, commit, ready. ready --explain shows its selection without checks. The lifecycle has seven operations; changed is not one of them."
+rationale = "One loop removes a step agents skipped, and readiness evidence keeps one owner."
+
+[[change.contract.decisions.clauses]]
+id = "one-loop-light-admit-batch-fixes/batch-fixes"
+change_id = "one-loop-light-admit-batch-fixes"
+action = "add"
+expected = [{id = "BATCH-FIX-001", version = 0}]
+authority = "changes/one-loop-light-admit-batch-fixes/change.toml#decisions/one-loop-light-admit-batch-fixes/one-loop"
+reason = "A defect that exists only in the combination needs a repair place where it can be reproduced."
+
+[[change.contract.decisions.clauses.updates]]
+id = "BATCH-FIX-001"
+version = 1
+topic = "skill-first-development"
+scope = ["Batch admission and continuation", "Final validation"]
+statement = "A defect that appears only when members combine may be fixed by commits made directly in the batch under the batch's own approved change record, approval before implementation and journaled, and is validated by the next final. A member-owned defect is fixed in its member and re-admitted. Final refuses a first-parent non-merge batch commit that changes paths outside change records and decisions unless an approved batch-owned change precedes it, and its review attributes each such commit to those changes. Merge-conflict resolution is unchanged. After a failed final, status names both repairs."
+rationale = "Batch-owned fixes keep combination repairs reviewable without letting unattributed work reach delivery."
+
+[[change.execution.steps]]
+id = "STEP-APPROVE"
+requirements = ["ONE-LOOP-001", "LIGHT-ADMIT-002", "BATCH-FIX-003"]
+action = "Commit this approved record before implementation and reconcile its accepted decision."
+
+[[change.execution.steps]]
+id = "STEP-ONE-LOOP"
+requirements = ["ONE-LOOP-001"]
+action = "Move the selection explanation to ready --explain, remove changed from the CLI, command registry, Justfile and repository policy, and update status, Skill and documentation."
+
+[[change.execution.steps]]
+id = "STEP-LIGHT-ADMIT"
+requirements = ["LIGHT-ADMIT-002"]
+action = "Resolve the batch gate from its declaration only, without the member-coverage refusal or added member shards, remove the covers shard field from the shard model, manifest schema, documentation and tests, and document the final trade-off."
+
+[[change.execution.steps]]
+id = "STEP-BATCH-FIX"
+requirements = ["BATCH-FIX-003"]
+action = "Attribute direct batch commits to preceding approved batch-owned changes at final, refuse unattributed implementation commits, add the failed-final status action and update delivery recovery."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["ONE-LOOP-001", "LIGHT-ADMIT-002", "BATCH-FIX-003"]
+action = "Extend existing lifecycle tests on throwaway repositories, reconcile current authorities and stop at passing ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-07
+source = "Owner decisions A and B of 2026-11-07, relayed by the coordinating session: abandon change/changed-before-ready; one validation loop with ready as the only checking operation and ready --explain replacing changed; light admission running only the declared batch gate with final complete; batch-owned fixes under their own change record validated by final, with status naming both repairs after a failed final. Stop at ready without admission. After the sync onto main carrying owed-nodes-run-first and stacked-members, the owner, relayed by the coordinating session on 2026-11-07, approved removing the covers shard field this change made inert, with no compatibility path. This implementing session did not hear the approval independently."
+contract_digest = "sha256:8bf7fc388d2342ada06e6b2cad73d1c96aeab62a0317a91c0709d5b014219b75"

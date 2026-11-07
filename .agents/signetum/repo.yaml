@@ -31,7 +31,6 @@ repository:
   lifecycle:
     public_operations:
       - workspace-open
-      - changed
       - ready
       - batch-open
       - batch-admit

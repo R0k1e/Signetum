@@ -34,7 +34,11 @@ def _options(arguments: list[str], *options: str) -> list[str]:
 
 
 def _run(
-    arguments: list[str], report: Path, *, nodes: list[str] | None = None
+    arguments: list[str],
+    report: Path,
+    options: dict[str, str],
+    *,
+    nodes: list[str] | None = None,
 ) -> tuple[int, list[dict[str, str]]]:
     prepared_at = time.perf_counter()
     environment = dict(os.environ, SIGNETUM_PYTEST_REPORT=str(report))
@@ -58,7 +62,7 @@ def _run(
     )
     scheduling = _schedule_source()
     (plugins / "_signetum_test_scheduling.py").write_bytes(scheduling.read_bytes())
-    if weight_path := environment.get("SIGNETUM_SCHEDULE_FILE"):
+    if weight_path := options.get("--schedule-file"):
         weights = json.loads(Path(weight_path).read_text())
         _validate_weights(weights)
         environment["SIGNETUM_SCHEDULE_WEIGHTS"] = json.dumps(weights)
@@ -79,7 +83,7 @@ def _run(
     for name in tuple(environment):
         if name.startswith("PYTEST_XDIST_"):
             environment.pop(name)
-    if (workers := environment.get("SIGNETUM_VALIDATION_WORKERS")) is not None:
+    if (workers := options.get("--workers")) is not None:
         if not workers.isdecimal():
             raise ValueError("invalid allocated worker count")
         if importlib.util.find_spec("xdist") is not None:
@@ -121,9 +125,7 @@ def _run(
         "child_cpu_seconds": (after.ru_utime + after.ru_stime)
         - (before.ru_utime + before.ru_stime),
         "largest_child_peak_rss_kib": after.ru_maxrss / (1024 if sys.platform == "darwin" else 1),
-        "workers": 0
-        if nodes is not None
-        else int(environment.get("SIGNETUM_VALIDATION_WORKERS", "0")),
+        "workers": 0 if nodes is not None else int(options.get("--workers", "0")),
     }
     if not report.exists():
         print(json.dumps(cost), file=sys.stderr)
@@ -187,14 +189,22 @@ def _report_first_attempt(reports: list[dict[str, str]], destination: str | None
     Path(destination).write_text(json.dumps({"failed": failed, "passed": passed}), encoding="utf-8")
 
 
-def main(arguments: list[str] | None = None) -> int:
-    supplied = sys.argv[1:] if arguments is None else arguments
-    # The shard declares --node-report {signetum.node_report_file} before the separator.
-    node_report = None
-    if supplied[:1] == ["--node-report"] and len(supplied) > 1:
-        node_report, supplied = supplied[1], supplied[2:]
+RUNNER_OPTIONS = ("--node-report", "--recovery-report", "--workers", "--schedule-file")
+"""Declared before the separator, each usually with its {signetum.*} placeholder."""
+
+
+def _runner_options(supplied: list[str]) -> tuple[dict[str, str], list[str]]:
+    options: dict[str, str] = {}
+    while supplied[:1] and supplied[0] in RUNNER_OPTIONS and len(supplied) > 1:
+        options[supplied[0]], supplied = supplied[1], supplied[2:]
     if supplied[:1] == ["--"]:
         supplied = supplied[1:]
+    return options, supplied
+
+
+def main(arguments: list[str] | None = None) -> int:
+    options, supplied = _runner_options(sys.argv[1:] if arguments is None else arguments)
+    node_report = options.get("--node-report")
     # An enclosing command owns the final cleanup. Removing these paths here
     # would discard the cwd ownership channel before its process inventory.
     parent = os.environ.get("SIGNETUM_JOB_SCRATCH")
@@ -205,14 +215,14 @@ def main(arguments: list[str] | None = None) -> int:
     )
     with _observed_scratch(context, bool(parent)) as scratch:
         root = Path(scratch)
-        status, reports = _run(supplied, root / "first.json")
+        status, reports = _run(supplied, root / "first.json", options)
         _report_first_attempt(reports, node_report)
         if status != 1:
             return status
         failed = sorted({report["node_id"] for report in reports if report["outcome"] == "failed"})
         if not failed or len(failed) > 30:
             return status
-        _, retried = _run(supplied, root / "retry.json", nodes=failed)
+        _, retried = _run(supplied, root / "retry.json", options, nodes=failed)
         recovered = []
         for node in failed:
             outcomes = [report for report in retried if report["node_id"] == node]
@@ -227,7 +237,7 @@ def main(arguments: list[str] | None = None) -> int:
                         ],
                     }
                 )
-        if destination := os.environ.get("SIGNETUM_RECOVERY_REPORT"):
+        if destination := options.get("--recovery-report"):
             Path(destination).write_text(json.dumps(recovered), encoding="utf-8")
         for defect in recovered:
             print(f"diagnostic retry passed for failed node: {defect['node_id']}", file=sys.stderr)

@@ -1,4 +1,4 @@
-"""Explicit local maintenance, separate from the eight lifecycle operations."""
+"""Explicit local maintenance, separate from the seven lifecycle operations."""
 
 import argparse
 import sys
