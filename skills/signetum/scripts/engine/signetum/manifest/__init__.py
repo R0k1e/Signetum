@@ -165,8 +165,9 @@ class RepositoryManifest:
 
 @dataclass(frozen=True, kw_only=True)
 class ManifestBindings:
-    """The location tables of a manifest: where records live and what delivery targets."""
+    """A manifest's identity and locations: where records live and what delivery targets."""
 
+    signetum: SignetumIdentity
     repository: RepositoryBindings
     delivery: DeliveryBindings | None = None
 
@@ -196,12 +197,13 @@ def manifest_from_mapping(data: object) -> RepositoryManifest:
 
 
 def parse_bindings(text: str) -> ManifestBindings:
-    """Read only the repository and delivery tables of a supported schema.
+    """Read only the identity, repository and delivery tables of a supported schema.
 
-    Locating change records, decisions and the delivery branch needs nothing
-    else, so a validation section this engine rejects, such as one an older
-    engine wrote, does not stop the operation that admits its migration. No
-    other table is read, interpreted or kept.
+    Schema and protocol identity stay exact. Locating change records, decisions
+    and the delivery branch needs nothing else, so a validation section this
+    engine rejects, such as one an older engine wrote, does not stop the
+    operation that admits its migration. No other table is read, interpreted or
+    kept.
     """
 
     try:
@@ -212,7 +214,7 @@ def parse_bindings(text: str) -> ManifestBindings:
         raise ManifestError(str(error)) from error
     return _decode(
         ManifestBindings,
-        {key: data[key] for key in ("repository", "delivery") if key in data},
+        {key: data[key] for key in ("signetum", "repository", "delivery") if key in data},
     )
 
 

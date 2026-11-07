@@ -38,8 +38,9 @@ becomes an optional hook that one command registers in the host's own settings.
   project's own change.
 - A member that migrates a delivered `signetum.toml` the engine no longer loads
   is admitted: `status`, `batch-open`, `batch-admit` and batch synchronization
-  read only the repository and delivery tables of the older batch manifest, the
-  batch gate validates the merged manifest, and `status` reports the cause.
+  read only the identity, repository and delivery tables of the older batch
+  manifest, the batch gate validates the merged manifest, and `status` reports
+  the cause.
 
 The release is a candidate until published.
 
