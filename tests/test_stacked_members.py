@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from change_fixtures import commit_approval
@@ -70,7 +71,7 @@ def test_member_opened_on_a_member_qualifies_only_its_own_diff(repository):
     assert result["parent"] == PARENT and result["base"] == parent_tip
     assert read_record(state_root(root), PARENT).parent is None
 
-    ready = lifecycle.validate(child, "member")
+    ready: Any = lifecycle.validate(child, "member")
 
     assert ready["base"] == parent_tip
     assert contribution(ready) == ["changes/child/change.toml", "child.txt"]
@@ -117,7 +118,7 @@ def test_admission_requires_the_parent_first_at_the_held_tip(repository):
     assert tip(batch) == base
     assert refusal.value.expected.index(str(parent)) < refusal.value.expected.index(str(child))
 
-    result = lifecycle.admit(batch, (parent, child))
+    result: Any = lifecycle.admit(batch, (parent, child))
 
     assert [item["branch"] for item in result["admitted"]] == [PARENT, CHILD]
     assert result["admission_base"] == base
@@ -130,7 +131,7 @@ def test_final_review_names_the_chain_and_delivery_removes_it(repository):
     parent_tip, child_tip = tip(parent), tip(child)
     batch = Path(str(lifecycle.batch_open(root, (parent, child), name="chain")["worktree"]))
 
-    final = lifecycle.validate(batch, "final")
+    final: Any = lifecycle.validate(batch, "final")
 
     review = final["delivery_review"]["inputs"]["member_chain"]
     assert [(item["member"], item["changes"], item["parent"]) for item in review] == [
@@ -138,7 +139,7 @@ def test_final_review_names_the_chain_and_delivery_removes_it(repository):
         (CHILD, ["child"], PARENT),
     ]
     assert review[1]["parent_tip"] == parent_tip
-    delivered = lifecycle.batch_deliver(
+    delivered: Any = lifecycle.batch_deliver(
         batch, root, lifecycle._recorded_base(batch), str(final["source"])
     )
     removed = {item["branch"]: item for item in delivered["removed_worktrees"]}
