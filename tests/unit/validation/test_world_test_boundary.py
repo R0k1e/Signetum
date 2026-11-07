@@ -1,12 +1,17 @@
 """The configured member and final test commands partition tree and world evidence."""
 
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 from signetum.manifest import load_manifest
-from signetum.validation import NODE_REPORT_FILE, PRIORITY_NODES_FILE
+from signetum.validation import (
+    NODE_REPORT_FILE,
+    PRIORITY_NODES_FILE,
+    RECOVERY_REPORT_FILE,
+    VALIDATION_WORKERS,
+    substitute,
+)
 from signetum.validation.repository import configured_validation
 
 ROOT = Path(__file__).parents[3]
@@ -14,17 +19,18 @@ ROOT = Path(__file__).parents[3]
 
 def collected(command, scratch: Path):
     # Declared engine placeholders are replaced, as the adapter does, outside the tree.
-    files = {
+    values = {
         NODE_REPORT_FILE: str(scratch / "nodes.json"),
         PRIORITY_NODES_FILE: str(scratch / "priority.json"),
+        RECOVERY_REPORT_FILE: str(scratch / "recovered.json"),
+        VALIDATION_WORKERS: "0",
     }
     result = subprocess.run(  # noqa: S603 -- repository-declared argv, collection only
-        [*(files.get(item, item) for item in command), "--collect-only", "--no-cov", "-q"],
+        [*substitute(command, values), "--collect-only", "--no-cov", "-q"],
         cwd=ROOT,
         capture_output=True,
         text=True,
         check=False,
-        env=dict(os.environ, SIGNETUM_VALIDATION_WORKERS="0"),
     )
     assert result.returncode == 0, result.stdout + result.stderr
     return {

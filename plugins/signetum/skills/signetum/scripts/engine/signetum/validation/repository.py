@@ -21,11 +21,19 @@ from signetum.git import GitError, git_output
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.profiles import builtin_catalog
 from signetum.validation import (
+    ADMISSION_BASE,
+    BASE,
+    CONTRIBUTION_PATHS_FILE,
     NODE_REPORT_FILE,
     PRIORITY_NODES_FILE,
+    RATCHET_BASELINE,
+    RECOVERY_REPORT_FILE,
+    SCHEDULE_FILE,
+    VALIDATION_WORKERS,
     ToolDeclaration,
     ValidationGraph,
     ValidationShard,
+    substitute,
 )
 from signetum.validation.configuration import configured_validation as _project_validation
 from signetum.validation.execution import (
@@ -38,7 +46,7 @@ from signetum.validation.execution import (
     execute_gate,
 )
 from signetum.validation.process import run_command
-from signetum.validation.ratchet import member_environment, run_ratchet
+from signetum.validation.ratchet import member_values, run_ratchet
 from signetum.validation.receipt_store import ReceiptStore
 from signetum.validation.recovery import node_outcomes, shard_execution, write_node_list
 from signetum.waivers import WaiverError, load_waivers
@@ -60,18 +68,18 @@ class RepositoryValidationAdapter:
         # A batch gate's increment starts here; its shards select over the same range.
         self.admission_base = admission_base
         self.observed_tools: dict[str, str] = {}
-        self._member_environment: dict[str, str] | None = None
+        self._member_values: dict[str, str] | None = None
 
-    def member_environment(self) -> dict[str, str]:
-        """Bases for member shards, observed once per gate; empty for other gates."""
+    def member_values(self) -> dict[str, str]:
+        """Range values for member and batch shards, observed once per gate; else empty."""
 
         if self.member_base is None:
             return {}
-        if self._member_environment is None:
-            self._member_environment = member_environment(
+        if self._member_values is None:
+            self._member_values = member_values(
                 self.repository, self.member_base, self.commit_identity()
             )
-        return dict(self._member_environment)
+        return dict(self._member_values)
 
     def _git(self, *arguments: str) -> str:
         try:
@@ -127,20 +135,6 @@ class RepositoryValidationAdapter:
         self, shard: ValidationShard, *, priority_nodes: tuple[str, ...] = ()
     ) -> ShardExecution:
         started = time.perf_counter()
-        if weight_path := os.environ.get("SIGNETUM_SCHEDULE_FILE"):
-            try:
-                relative = Path(weight_path).resolve().relative_to(self.repository).as_posix()
-            except ValueError as error:
-                raise ValidationInfrastructureError(
-                    "weight file must be repository-owned"
-                ) from error
-            if (
-                relative
-                not in load_manifest(self.repository / "signetum.toml").repository.lockfiles
-            ):
-                raise ValidationInfrastructureError(
-                    "weight file must be a declared validation input"
-                )
         allocation = (
             resources.allocate_workers(
                 shard.workers, shard.worker_memory_mb, resources.observe_resources()
@@ -148,29 +142,24 @@ class RepositoryValidationAdapter:
             if shard.workers
             else {"workers": 0, "declared_workers": 0}
         )
-        enclosing = os.environ.get("SIGNETUM_VALIDATION_WORKERS")
-        if enclosing is not None or os.environ.get("PYTEST_XDIST_WORKER"):
-            if enclosing is not None and not enclosing.isdecimal():
-                raise ValidationInfrastructureError("invalid enclosing worker allocation")
+        if os.environ.get("PYTEST_XDIST_WORKER"):
             # Each xdist worker is one lane of its enclosing allocation.
-            limit = 1 if os.environ.get("PYTEST_XDIST_WORKER") else max(1, int(enclosing or "0"))
-            allocation["enclosing_worker_limit"] = limit
-            allocation["workers"] = min(allocation["workers"], limit)
-        environment = self.member_environment()
-        if shard.ratchet_command and environment:
+            allocation["enclosing_worker_limit"] = 1
+            allocation["workers"] = min(allocation["workers"], 1)
+        values = self.member_values()
+        if shard.ratchet_command and values:
             execution = run_ratchet(
                 self.repository,
                 shard,
-                environment,
+                values,
                 tuple(sorted(self.observed_tools.items())),
                 workers=allocation["workers"],
             )
         else:
-            with tempfile.TemporaryDirectory(prefix="signetum-recovery-") as scratch:
-                report = Path(scratch) / "recovered.json"
+            with tempfile.TemporaryDirectory(prefix="signetum-shard-") as scratch:
                 try:
                     execution = self._run_shard(
-                        shard, report, allocation["workers"], environment, priority_nodes
+                        shard, Path(scratch), allocation["workers"], values, priority_nodes
                     )
                 except OSError as error:
                     raise ValidationInfrastructureError(
@@ -195,43 +184,28 @@ class RepositoryValidationAdapter:
                 **execution.details,
                 "resource_allocation": allocation,
                 "elapsed_seconds": elapsed,
-                **({"environment": environment} if environment else {}),
+                **({"member_values": values} if values else {}),
             },
         )
 
     def _run_shard(
         self,
         shard: ValidationShard,
-        report: Path,
+        scratch: Path,
         workers: int,
-        environment: dict[str, str],
+        values: dict[str, str],
         priority_nodes: tuple[str, ...] = (),
     ) -> ShardExecution:
-        priority = report.with_name("priority-nodes.json")
-        nodes = report.with_name("nodes.json")
-        if PRIORITY_NODES_FILE in shard.command:
-            # Always present when declared, so a runner never guesses about absence.
-            write_node_list(priority, priority_nodes)
-        files = {PRIORITY_NODES_FILE: str(priority), NODE_REPORT_FILE: str(nodes)}
-        command = tuple(files.get(argument, argument) for argument in shard.command)
+        report = scratch / "recovered.json"
+        nodes = scratch / "nodes.json"
+        command = self._command(shard.command, scratch, workers, values, priority_nodes)
         try:
             _require_executable(command)
             completed = run_command(
                 self.repository,
                 declared_argv(command),
                 timeout_seconds=shard.timeout_seconds,
-                environment=declared_environment(
-                    extra={
-                        "SIGNETUM_RECOVERY_REPORT": str(report),
-                        "SIGNETUM_VALIDATION_WORKERS": str(workers),
-                        **environment,
-                        **(
-                            {"SIGNETUM_ADMISSION_BASE": self.admission_base}
-                            if self.admission_base
-                            else {}
-                        ),
-                    }
-                ),
+                environment=declared_environment(),
             )
             _raise_if_unstarted(completed)
         except subprocess.TimeoutExpired:
@@ -247,6 +221,46 @@ class RepositoryValidationAdapter:
                 unreached_nodes=missed,
             )
         return shard_execution(shard.name, completed, report, nodes)
+
+    def _command(
+        self,
+        command: tuple[str, ...],
+        scratch: Path,
+        workers: int,
+        values: dict[str, str],
+        priority_nodes: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        """Substitute the declared engine values; files are created only when declared."""
+
+        priority = scratch / "priority-nodes.json"
+        if PRIORITY_NODES_FILE in command:
+            # Always present when declared, so a runner never guesses about absence.
+            write_node_list(priority, priority_nodes)
+        contribution = ""
+        if CONTRIBUTION_PATHS_FILE in command and values:
+            path = scratch / "contribution-paths.json"
+            paths = json.loads(values["contribution_paths"])
+            path.write_text(json.dumps({"schema_version": 1, "paths": paths}), encoding="utf-8")
+            contribution = str(path)
+        schedule = ""
+        if SCHEDULE_FILE in command:
+            manifest = load_manifest(self.repository / "signetum.toml")
+            schedule = str(self.repository / manifest.validation.schedule_file)
+        # A range value absent from this gate is an explicit empty argument.
+        return substitute(
+            command,
+            {
+                PRIORITY_NODES_FILE: str(priority),
+                NODE_REPORT_FILE: str(scratch / "nodes.json"),
+                RECOVERY_REPORT_FILE: str(scratch / "recovered.json"),
+                VALIDATION_WORKERS: str(workers),
+                SCHEDULE_FILE: schedule,
+                BASE: values.get("base", ""),
+                RATCHET_BASELINE: values.get("ratchet_baseline", ""),
+                CONTRIBUTION_PATHS_FILE: contribution,
+                ADMISSION_BASE: self.admission_base or "",
+            },
+        )
 
     def report_findings(self, shard: ValidationShard) -> tuple[Finding, ...]:
         """Run the declared findings command and read the Signetum document.

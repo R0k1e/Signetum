@@ -19,7 +19,7 @@ from pydantic import JsonValue
 from signetum.development_store import snapshot as development_snapshot
 from signetum.validation import command_digest
 from signetum.validation.execution import ShardExecution, build_evidence_identity
-from signetum.validation.ratchet import member_environment
+from signetum.validation.ratchet import member_values
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import WorkspaceRecord, write_record
 
@@ -135,7 +135,7 @@ def _evidence_receipt(
     identity = build_evidence_identity(
         graph, replace(inputs, base=base), lifecycle.RepositoryValidationAdapter(member)
     )
-    environment = member_environment(member, base, identity.commit)
+    values = member_values(member, base, identity.commit)
     evidence = {
         "schema_version": 3,
         "protocol": "reposeal.validation-evidence@3",
@@ -167,8 +167,7 @@ def _evidence_receipt(
         "provenance": {"stable_patch_id": None},
         "extensions": {
             "shard_details": {
-                f"repo:proven-{index}": {"environment": environment}
-                for index in range(len(commands))
+                f"repo:proven-{index}": {"member_values": values} for index in range(len(commands))
             }
         }
         if gate == "member"
@@ -438,7 +437,7 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
         return ShardExecution(
             True,
             passed_nodes=(str(defect["node_id"]),),
-            details={"environment": self.member_environment()},
+            details={"member_values": self.member_values()},
         )
 
     monkeypatch.setattr(adapter, "run_shard", retried)
@@ -981,9 +980,9 @@ def test_one_admission_of_several_members_hands_its_whole_range_to_batch_shards(
     probe = [
         sys.executable,
         "-c",
-        "import os,pathlib,sys; "
-        "pathlib.Path(sys.argv[1]).write_text(os.environ.get('SIGNETUM_ADMISSION_BASE', ''))",
+        "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text(sys.argv[2])",
         str(seen),
+        "{signetum.admission_base}",
     ]
     text = manifest.read_text().replace('command = ["true"]', "command = " + json.dumps(probe))
     text = text.replace(

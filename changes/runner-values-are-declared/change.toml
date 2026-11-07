@@ -1,0 +1,116 @@
+[change]
+schema_version = 1
+id = "runner-values-are-declared"
+
+[change.source]
+kind = "human_direction"
+summary = "After owed-nodes-run-first moved node data to declared {signetum.*} command placeholders, the member base, ratchet baseline, contribution paths, batch admission base, worker cap, recovery report and scheduling weights still reached runners as implicit SIGNETUM_* environment variables. The owner approved on 2026-11-07, relayed by the coordinating session, moving every remaining engine to runner value onto declared placeholders through the same mechanism, making scheduling weights a declared repository setting, and removing the variables before release without a compatibility path."
+
+[change.contract]
+version = 1
+approved_base = "9eb523e5fbe3e56c69089a61de046c224b414c55" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "VALUES-001"
+outcome = "Every remaining engine value reaches a shard command only as a declared whole-argument placeholder, through the substitution introduced for the node report: {signetum.base} is the recorded workspace base, {signetum.ratchet_baseline} the source of the latest workspace-sync otherwise the base, {signetum.contribution_paths_file} an absolute path to {\"schema_version\": 1, \"paths\": [...]} holding the member's own contribution paths, {signetum.admission_base} the batch increment start, {signetum.validation_workers} the decimal worker cap and {signetum.recovery_report_file} the path the runner writes retry-recovered nodes to, which the engine reads after the shard. SIGNETUM_BASE, SIGNETUM_RATCHET_BASELINE, SIGNETUM_CONTRIBUTION_PATHS, SIGNETUM_ADMISSION_BASE, SIGNETUM_VALIDATION_WORKERS and SIGNETUM_RECOVERY_REPORT are removed without a compatibility path. Member receipts keep binding the base, ratchet baseline and contribution paths."
+acceptance = [
+    "Through ready on a throwaway repository, a fake runner declaring each placeholder receives its value: base, ratchet baseline and contribution paths in a member gate including after workspace-sync, the admission base in a batch gate, the worker cap and a recovery report path whose recovered nodes the gate records.",
+    "A shard that declares no placeholder receives its argv unchanged and none of the removed environment variables; no engine code sets them.",
+]
+
+[[change.contract.requirements]]
+id = "ABSENCE-002"
+outcome = "Range values exist where the engine has a range: base, ratchet baseline and contribution paths in member and batch gates, the admission base in a batch gate. Elsewhere, such as final, test run or the admission base in a member gate, a declared one becomes an explicit empty argument meaning no range. Configuration refuses what can never be given: an unknown {signetum.*} name, a placeholder inside a larger argument, any placeholder in a findings command, any but {signetum.validation_workers} in a ratchet command, and {signetum.schedule_file} without the schedule setting."
+acceptance = [
+    "A final gate run gives a declared base, ratchet baseline and contribution paths file as empty arguments, and a member gate gives a declared admission base as an empty argument.",
+    "Manifest load accepts every documented placeholder in a shard command and the worker cap in a ratchet command, and refuses each listed invalid declaration.",
+]
+
+[[change.contract.requirements]]
+id = "SCHEDULE-003"
+outcome = "Scheduling weights are repository configuration: [validation] schedule_file names a repository-relative file that must be listed in repository.lockfiles, and a shard command receives its absolute path as {signetum.schedule_file}. SIGNETUM_SCHEDULE_FILE is removed."
+acceptance = [
+    "Through ready, a fake runner declaring {signetum.schedule_file} reads the declared file's content; a setting not listed in repository.lockfiles is refused at load.",
+]
+
+[[change.contract.requirements]]
+id = "RUNNER-004"
+outcome = "The packaged pytest runner takes --workers, --recovery-report and --schedule-file before --, beside --node-report, and reads no engine environment variable. Signetum's own pytest shard declares the worker cap and recovery report placeholders. An engine run inside an outer pytest-xdist worker still runs one lane."
+acceptance = [
+    "The packaged runner applies the declared worker count, writes recovered nodes to the declared recovery report and orders by the declared schedule file.",
+    "Signetum's own configuration loads with the new placeholders and its declared test commands collect.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-005"
+outcome = "The repository binding guide, validation architecture, Skill references and changelog state the complete placeholder table, the absence rule, the schedule setting and the breaking migration that repositories must declare placeholders."
+acceptance = ["Current instructions agree with observed CLI behaviour; historical authorities remain unchanged."]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the placeholder constants and validation, the repository adapter, ratchet, admission and inheritance member values, the manifest validation section and schema, the packaged pytest runner and Signetum's own configuration.",
+    "Rename the member receipt detail that records the range values, update every in-repository consumer and test, reconcile current Skill, guide, architecture and changelog pages, and run narrow tests with two workers before one final ready.",
+]
+requires_confirmation = [
+    "Keep any removed environment variable, add a second value channel, change selection, coverage or the published evidence identity schema, change Perdura or the installed plugin, admit to a batch, integrate, publish or deliver.",
+]
+
+[[change.contract.decisions]]
+id = "runner-values-are-declared/declared-values"
+change_id = "runner-values-are-declared"
+authority = "changes/runner-values-are-declared/change.toml#decisions/runner-values-are-declared/declared-values"
+reason = "After the node report moved to a declared placeholder, the base, ratchet baseline, contribution paths, admission base, worker cap, recovery report and scheduling weights still travelled as implicit environment variables. The owner chose one general mechanism: every engine value is a declared command placeholder, absent range values are explicit empty arguments, and scheduling weights are a declared repository setting."
+parents = ["owed-nodes-run-first/one-node-channel", "sync-is-only-workspace-sync/member-synchronization"]
+
+[[change.contract.decisions.clauses]]
+id = "runner-values-are-declared/all-values-declared"
+change_id = "runner-values-are-declared"
+action = "amend"
+expected = [{id = "RUNNER-FEEDBACK-001", version = 2}]
+authority = "changes/runner-values-are-declared/change.toml#decisions/runner-values-are-declared/declared-values"
+reason = "The placeholder channel now carries every engine value, not only node data."
+
+[[change.contract.decisions.clauses.updates]]
+id = "RUNNER-FEEDBACK-001"
+version = 3
+topic = "validation-efficiency"
+scope = ["Validation execution, diagnostics and CI", "Repository configuration"]
+statement = "A shard command receives engine values only through declared whole-argument {signetum.*} placeholders; the engine sets no environment variable for a runner. {signetum.priority_nodes_file} always exists and lists the shard's owed nodes as {\"schema_version\": 1, \"nodes\": [...]}; it orders execution and never selects or satisfies. {signetum.node_report_file} receives first-attempt {\"failed\": [...], \"passed\": [...], \"unreached\": [...]} and is read after the shard ends, including after its time bound. {signetum.recovery_report_file} receives retry-recovered nodes, {signetum.validation_workers} is the allocated worker cap and {signetum.schedule_file} is the absolute path of the declared validation.schedule_file, which must be a declared validation input. Range values exist only where the engine has a range and are otherwise explicit empty arguments. Unknown names, partial-argument placeholders, placeholders in findings commands, any but the worker cap in ratchet commands and a schedule placeholder without its setting are refused."
+rationale = "One declared channel keeps the whole runner contract visible in the command identity; an empty argument states absence explicitly where a shard legitimately runs without a range."
+
+[[change.contract.decisions.clauses]]
+id = "runner-values-are-declared/declared-bases"
+change_id = "runner-values-are-declared"
+action = "amend"
+expected = [{id = "SYNC-BASES-001", version = 1}]
+authority = "changes/runner-values-are-declared/change.toml#decisions/runner-values-are-declared/declared-values"
+reason = "The member bases move from environment variables to declared placeholders without changing what receipts bind."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SYNC-BASES-001"
+version = 2
+topic = "member-synchronization"
+scope = ["Shard values and member receipts"]
+statement = "Member and batch gate shards may declare {signetum.base}, {signetum.ratchet_baseline} and {signetum.contribution_paths_file}; in a batch gate the base is the increment start, which batch shards may also declare as {signetum.admission_base}. Each executed member shard's receipt details record the base, ratchet baseline and contribution paths, and admission and test inheritance require them to equal the current values. Outside those gates a declared value is an explicit empty argument, and no gate passes them through the environment. The published evidence identity schema is unchanged."
+rationale = "Declaring the bases keeps Perdura's ratchet on the verified sync source while removing the implicit channel; receipt details remain the binding admission already checks."
+
+[[change.execution.steps]]
+id = "STEP-VALUES"
+requirements = ["VALUES-001", "ABSENCE-002", "SCHEDULE-003"]
+action = "Add the placeholder constants and refusal rules to the shard model and manifest, substitute every value in the repository adapter and ratchet, read the schedule setting from the manifest, record member values in receipt details and remove the environment variables."
+
+[[change.execution.steps]]
+id = "STEP-RUNNER"
+requirements = ["RUNNER-004"]
+action = "Give the packaged pytest runner declared options for workers, recovery report and schedule file, and declare them in Signetum's own pytest shard."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["VALUES-001", "ABSENCE-002", "SCHEDULE-003", "RUNNER-004", "DOC-005"]
+action = "Extend functional lifecycle traversals with fake runners and manifest load cases, migrate every in-repository consumer, reconcile Skill, guide, architecture and changelog pages, run narrow tests with two workers and one final ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-07
+source = "Relayed by the coordinating session on 2026-11-07: the owner approved moving SIGNETUM_BASE, SIGNETUM_RATCHET_BASELINE, SIGNETUM_CONTRIBUTION_PATHS, SIGNETUM_ADMISSION_BASE, SIGNETUM_VALIDATION_WORKERS and SIGNETUM_RECOVERY_REPORT onto whole-argument {signetum.*} command placeholders through the existing placeholder machinery, with file placeholders for the contribution paths and recovery report; refusing configuration that declares a value that can never exist and passing an explicit empty value only where absence is meaningful; moving SIGNETUM_SCHEDULE_FILE into a declared [validation] schedule_file setting; and removing the variables without a compatibility shim. This implementing session did not hear the approval independently."
+contract_digest = "sha256:f34fde2f3145a934edc7a2ba4efe871c8aaeb46fde1a73685f5cd10b1d51068f"

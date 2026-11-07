@@ -98,6 +98,31 @@ owed, and one failing check no longer hides the others.
   naming the approval commit, and its expected action and the `status` next
   action give the remedy.
 
+Every engine value now reaches a runner through a declared command placeholder.
+
+- Breaking: `SIGNETUM_BASE`, `SIGNETUM_RATCHET_BASELINE`,
+  `SIGNETUM_CONTRIBUTION_PATHS`, `SIGNETUM_ADMISSION_BASE`,
+  `SIGNETUM_VALIDATION_WORKERS`, `SIGNETUM_RECOVERY_REPORT` and
+  `SIGNETUM_SCHEDULE_FILE` are removed. A shard that needs one must declare
+  `{signetum.base}`, `{signetum.ratchet_baseline}`,
+  `{signetum.contribution_paths_file}` (a file holding
+  `{"schema_version": 1, "paths": [...]}`), `{signetum.admission_base}`,
+  `{signetum.validation_workers}` or `{signetum.recovery_report_file}` as a whole
+  command argument. Range values outside the member and batch gates, and the
+  admission base outside a batch gate, are explicit empty arguments.
+- Breaking: the scheduling weights file is the `[validation] schedule_file`
+  setting, which must be listed in `repository.lockfiles`, and reaches a runner as
+  `{signetum.schedule_file}`. Declaring that placeholder without the setting is
+  refused.
+- Breaking: the packaged pytest runner takes `--recovery-report`, `--workers` and
+  `--schedule-file` before `--`, next to `--node-report`; repositories using it
+  must declare `--workers {signetum.validation_workers}` and
+  `--recovery-report {signetum.recovery_report_file}` to keep worker allocation
+  and retry recovery evidence.
+- A ratchet command may declare `{signetum.validation_workers}`; no other
+  placeholder. An engine run inside an outer pytest-xdist worker still runs one
+  lane.
+
 ## 0.3.3
 
 Batch gates can declare which member shards they stand for, and a recorded root
