@@ -15,7 +15,7 @@ id = "ADMIT-001"
 outcome = "Batch admission, batch-open and batch synchronization read only the repository and delivery location tables of the batch's pre-merge signetum.toml, so a base manifest whose validation section this engine rejects does not refuse them. The batch gate still loads and executes the complete merged manifest, and nothing interprets or keeps the rejected fields."
 acceptance = [
     "With a delivered base manifest carrying a validation field the engine does not know, a ready member that migrates the manifest is opened into a batch and admitted, and the batch gate runs from the merged manifest.",
-    "A ready member that leaves the base manifest unmigrated is merged but refused at the batch gate with the unknown-field cause, and the batch records no passing tip.",
+    "A ready member that keeps the old manifest is refused by batch-open and batch-admit with the unknown-field cause before anything merges, and the batch tip stays unchanged.",
 ]
 
 [[change.contract.requirements]]
@@ -53,5 +53,5 @@ action = "Reconcile refusal guidance and the Skill delivery reference, run ready
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-08
-source = "repository owner 2026-11-08: deliver all current todos; Perdura migration deadlock found by the coordinator. Relayed by the coordinating agent with delivery to main pre-authorized and no tag or release; this implementing session did not hear the approval independently."
-contract_digest = "sha256:79042d11590f31e8f46464db9cfce740159944bfc3b7fe4512516896583f16c6"
+source = "repository owner 2026-11-08: deliver all current todos; Perdura migration deadlock found by the coordinator. Relayed by the coordinating agent with delivery to main pre-authorized and no tag or release; this implementing session did not hear the approval independently. The second acceptance of ADMIT-001 states where the coordinator's requested clear refusal of a non-migrating member actually occurs: its own manifest cannot load, so batch-open and batch-admit refuse it before merging rather than at the batch gate."
+contract_digest = "sha256:b2bf480eb1b0e3494bf9d5ead7218fe4b897373d53c7c75cda8455f4a8bb34f7"
