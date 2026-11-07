@@ -69,6 +69,7 @@ id = "stacked-members/stacked-members"
 change_id = "stacked-members"
 authority = "changes/stacked-members/change.toml#decisions/stacked-members/stacked-members"
 reason = "The owner approved stacked members so one large change can be split into a chain of smaller members delivered through one batch."
+parents = ["sync-is-only-workspace-sync/member-synchronization"]
 
 [[change.contract.decisions.topics]]
 expected_version = 0
@@ -166,4 +167,4 @@ action = "Reconcile the Skill, references, architecture and changelog."
 actor = "Repository owner"
 recorded_at = 2026-11-07
 source = "The owner approved approach B, stacked members, on 2026-11-07, relayed by the coordinating session, which specified the parent base, own-diff readiness, parent synchronization, admission order, chain review, cleanup and status behaviour this contract records and asked for implementation with focused tests, running ready only when told."
-contract_digest = "sha256:a68eed5917b4241924421ced927ab8fdd4c85d087f745581a8a851054337b78b"
+contract_digest = "sha256:05cf9546c956f6b3435c4db264d10c38c72f5b13c48067b5e91bac68bc86f897"
