@@ -257,6 +257,8 @@ command = [
 ]
 requires = [
     "engine:sync",
+]
+after = [
     "engine:ty",
 ]
 
@@ -314,6 +316,8 @@ command = [
     "python",
     "-m",
     "signetum.validation.pytest_runner",
+    "--node-report",
+    "{signetum.node_report_file}",
     "--",
     "-m",
     "not world",

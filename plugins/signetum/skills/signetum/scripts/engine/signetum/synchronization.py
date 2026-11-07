@@ -36,8 +36,13 @@ def authorize_source(repository: Path, base: str, source: str, kind: str) -> Non
         temporary.unlink(missing_ok=True)
 
 
-def verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, str], ...]:
-    sources: list[tuple[str, str]] = []
+SYNC_KINDS = ("delivery", "batch", "parent")
+
+
+def _verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, str, str], ...]:
+    """Recorded workspace-sync merges, newest first, with the kind of source each merged."""
+
+    sources: list[tuple[str, str, str]] = []
     for merge in git_output(
         repository, "rev-list", "--first-parent", "--merges", f"{base}..{tip}"
     ).splitlines():
@@ -50,17 +55,34 @@ def verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, st
             continue
         try:
             record = json.loads(_path(repository, base, before, source).read_text(encoding="utf-8"))
-            if record == {
-                "schema_version": 1,
-                "base": base,
-                "before": before,
-                "source": source,
-                "kind": record.get("kind"),
-            } and record["kind"] in ("delivery", "batch"):
-                sources.append((merge, source))
+            if (
+                record
+                == {
+                    "schema_version": 1,
+                    "base": base,
+                    "before": before,
+                    "source": source,
+                    "kind": record.get("kind"),
+                }
+                and record["kind"] in SYNC_KINDS
+            ):
+                sources.append((merge, source, record["kind"]))
         except (OSError, ValueError, TypeError, AttributeError):
             continue
     return tuple(sources)
+
+
+def verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, str], ...]:
+    return tuple((merge, source) for merge, source, _ in _verified_syncs(repository, base, tip))
+
+
+def incorporated_parent_tip(repository: Path, base: str, tip: str) -> str:
+    """The parent tip a stacked member holds: its latest parent sync, otherwise its base."""
+
+    return next(
+        (source for _, source, kind in _verified_syncs(repository, base, tip) if kind == "parent"),
+        base,
+    )
 
 
 def verified_sync_sources(repository: Path, base: str, tip: str) -> tuple[str, ...]:
