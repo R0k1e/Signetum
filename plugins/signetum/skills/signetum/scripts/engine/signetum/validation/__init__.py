@@ -310,11 +310,7 @@ def resolve_validation_graph(
         "gates": [{"name": gate.name, "shards": gate.shards} for gate in resolved_gates],
         "shards": [
             {
-                **{
-                    key: value
-                    for key, value in asdict(shard).items()
-                    if key != "after" or value
-                },
+                **{key: value for key, value in asdict(shard).items() if key != "after" or value},
                 "requires": tuple(sorted(shard.requires)),
                 **({"after": tuple(sorted(shard.after))} if shard.after else {}),
             }
