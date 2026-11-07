@@ -11,11 +11,13 @@ from signetum.git import git_output
 from signetum.manifest import RepositoryManifest
 from signetum.operations import AdmissionError
 from signetum.provenance import members_and_plans
+from signetum.workspaces import WorkspaceError, read_record, state_root
 
 
 class ExecutionReviewInputs(ReviewSnapshot):
     member_evidence: dict[str, str]
     member_tips: dict[str, list[str]]
+    member_chain: list[dict[str, object]]
     source_journals: SourceReviewInputs
     batch_commits: list[dict[str, object]]
 
@@ -61,10 +63,28 @@ def execution_review_inputs(
         )
     )
     source_journals = source_review_inputs(repository, source_changes, commit=tip)
+    # Each admission is its own member and change; the member record names a parent.
+    chain: list[dict[str, object]] = []
+    for member in members:
+        try:
+            record = read_record(state_root(repository), member["branch"])
+        except WorkspaceError:
+            record = None
+        parent = record.parent if record is not None else None
+        chain.append(
+            {
+                "member": member["branch"],
+                "original": member["original"],
+                "changes": [Path(plan).parent.name for plan in member["plan"].split(",") if plan],
+                "parent": parent,
+                "parent_tip": record.base if record is not None and parent else None,
+            }
+        )
     return {
         **snapshot,
         "member_evidence": fingerprints,
         "member_tips": tips,
+        "member_chain": chain,
         "source_journals": source_journals,
         "batch_commits": batch_owned_commits(repository, manifest, base, tip),
     }

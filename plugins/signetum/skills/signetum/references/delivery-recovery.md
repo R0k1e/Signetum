@@ -5,7 +5,11 @@ Use the repository's seven lifecycle operations: `workspace-open`, `ready`,
 Use separate local maintenance utilities only within their authorization.
 Approval to implement or passing validation does not authorize publication.
 
-Named ready members enter a batch through admission. Admission and
+Named ready members enter a batch through admission. Admit a stacked member after
+its parent, in the same `batch-admit` with the parent named first or in a later
+one. Admission refuses a child whose parent's latest admission in the batch is not
+the exact parent tip the child holds; synchronize the child or readmit the parent.
+The final review lists each member with its own changes and its parent. Admission and
 `batch-continue` run only the declared batch gate over the commits added since
 its last pass; it may run no integration checks. Final stays complete, so a
 failure that appears only when members combine surfaces at final. Before final, reconcile

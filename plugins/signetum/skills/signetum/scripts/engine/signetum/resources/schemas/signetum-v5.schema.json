@@ -279,6 +279,9 @@
               "covers": {
                 "$ref": "#/$defs/uniqueStrings"
               },
+              "after": {
+                "$ref": "#/$defs/uniqueStrings"
+              },
               "workers": {
                 "type": "integer",
                 "minimum": 0

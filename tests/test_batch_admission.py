@@ -430,10 +430,10 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
         "first_failure": [{"phase": "call", "outcome": "failed", "diagnostic": "first contention"}],
     }
 
-    def retried(self, shard):
+    def retried(self, shard, *, priority_nodes=()):
         return ShardExecution(True, recovered=(defect,))
 
-    def fixed(self, shard):
+    def fixed(self, shard, *, priority_nodes=()):
         # The remembered node must be reported passing by a fresh normal run,
         # with the member bases the real adapter records for admission.
         return ShardExecution(
@@ -724,6 +724,33 @@ def test_member_with_only_an_approved_package_is_plan_stage(tmp_path):
     _git(member, "commit", "-m", "approve the package only")
     with pytest.raises(lifecycle.AdmissionError, match="plan stage"):
         lifecycle.validate(member, "member")
+
+
+def test_a_reapproval_after_implementation_names_the_remedy(tmp_path, monkeypatch, capsys):
+    member, _, base = _member_and_batch(tmp_path, approved=True)
+    consolidated_approval(member, base, outcome="Implement the revised confirmed behavior.")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "re-approve the revised outcome")
+    approval = _git(member, "rev-parse", "HEAD")
+    monkeypatch.chdir(member)
+
+    def next_action() -> object:
+        source = _git(member, "rev-parse", "HEAD")
+        return workflow_status(member, development_snapshot(member), source=source)["next"]
+
+    assert lifecycle.main(["ready"]) == 2
+    refusal = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert refusal["status"] == "invalid"
+    assert approval in refusal["cause"]
+    # Status and the refusal give one remedy, distinct from the generic retry advice.
+    assert refusal["expected"] == next_action()
+    assert refusal["expected"] != lifecycle.AdmissionError("x").expected
+
+    (member / "src/feature.txt").write_text("revised work\n", encoding="utf-8")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement the revised outcome")
+    assert next_action() != refusal["expected"]
+    assert lifecycle.validate(member, "member")["status"] == "ready"
 
 
 def test_member_refuses_an_unapproved_change_before_executing_checks(tmp_path):
