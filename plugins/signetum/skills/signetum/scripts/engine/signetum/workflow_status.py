@@ -13,7 +13,7 @@ from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, Receip
 from signetum.git import git_output, repository_path
 from signetum.serialization import contract_mapping
 from signetum.source_authority import authority_roots, source_path
-from signetum.stacking import PARENT_SYNC, parent_state
+from signetum.stacking import admission_order, parent_moved
 from signetum.workspace_operations import workspace_endings
 from signetum.workspaces import current_branch, read_change_owner, read_record, record_path
 
@@ -113,16 +113,15 @@ def workflow_status(
         )
     else:
         next_action = "Run targeted feedback as needed, then ready on the committed member tip."
-    stack = parent_state(repository, workspace, source) if workspace is not None else None
-    if stack is not None and not merging and not dirty:
-        if stack["sync_needed"]:
+    if workspace is not None and workspace.parent and not merging and not dirty:
+        # A stacked member's chain lives in its record; status only derives the next step.
+        if parent_moved(repository, workspace, source):
             next_action = (
-                f"Synchronize the advanced parent {stack['parent']} with {PARENT_SYNC}, "
-                "then run ready."
+                f"Parent {workspace.parent} advanced; run maintenance workspace-sync, then ready."
             )
         elif receipts:
-            order = " -> ".join(stack["admission_order"])
-            next_action += f" Admit the chain in order {order}, each after its parent."
+            order = " -> ".join(admission_order(repository, workspace.branch))
+            next_action += f" Admit the chain in order {order}."
     workspaces = workspace_endings(repository)
     if git_output(repository, "rev-parse", "HEAD") != source:
         raise ValueError("source changed while reading status")
@@ -132,7 +131,6 @@ def workflow_status(
         "dirty": dirty,
         "merge_open": merging,
         "workspace": contract_mapping(workspace) if workspace else None,
-        "stack": stack,
         "changes": changes,
         "observations": observations,
         "pending": pending,

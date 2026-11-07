@@ -11,6 +11,7 @@ from signetum.git import git_output
 from signetum.manifest import RepositoryManifest
 from signetum.operations import AdmissionError
 from signetum.provenance import members_and_plans
+from signetum.workspaces import WorkspaceError, read_record, state_root
 
 
 class ExecutionReviewInputs(ReviewSnapshot):
@@ -61,17 +62,23 @@ def execution_review_inputs(
         )
     )
     source_journals = source_review_inputs(repository, source_changes, commit=tip)
-    # Each admission is its own member and change; a stacked one names its parent.
-    chain: list[dict[str, object]] = [
-        {
-            "member": member["branch"],
-            "original": member["original"],
-            "changes": [Path(plan).parent.name for plan in member["plan"].split(",") if plan],
-            "parent": member.get("parent"),
-            "parent_tip": member.get("parent_tip"),
-        }
-        for member in members
-    ]
+    # Each admission is its own member and change; the member record names a parent.
+    chain: list[dict[str, object]] = []
+    for member in members:
+        try:
+            record = read_record(state_root(repository), member["branch"])
+        except WorkspaceError:
+            record = None
+        parent = record.parent if record is not None else None
+        chain.append(
+            {
+                "member": member["branch"],
+                "original": member["original"],
+                "changes": [Path(plan).parent.name for plan in member["plan"].split(",") if plan],
+                "parent": parent,
+                "parent_tip": record.base if record is not None and parent else None,
+            }
+        )
     return {
         **snapshot,
         "member_evidence": fingerprints,

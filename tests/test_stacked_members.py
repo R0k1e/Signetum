@@ -52,7 +52,7 @@ def contribution(receipt):
 def sync_parent(member, monkeypatch, capsys):
     monkeypatch.chdir(member)
     capsys.readouterr()
-    code = maintenance.main(["workspace-sync", "--parent"])
+    code = maintenance.main(["workspace-sync"])
     return code, json.loads(capsys.readouterr().out)
 
 
@@ -84,13 +84,10 @@ def test_parent_change_requires_sync_down_before_ready(repository, monkeypatch, 
     held = read_record(state_root(root), CHILD).base
     commit_file(parent, "parent-fix.txt")
 
-    status = view(child)["stack"]
-    assert status["sync_needed"] is True
-    assert status["parent_tip"] == held and status["parent_current"] == tip(parent)
-    assert status["admission_order"] == [PARENT, CHILD]
+    assert "workspace-sync" in view(child)["next"]
     with pytest.raises(AdmissionError, match=PARENT) as refusal:
         lifecycle.validate(child, "member")
-    assert "--parent" in refusal.value.expected
+    assert "workspace-sync" in refusal.value.expected
     reopened, resumed = opened(root, CHILD, PARENT)
     assert reopened == child and resumed["resumed"] and resumed["base"] == held
 
@@ -98,14 +95,14 @@ def test_parent_change_requires_sync_down_before_ready(repository, monkeypatch, 
 
     assert code == 0, synced
     assert synced["outcome"] == "synchronized" and synced["source"] == tip(parent)
-    assert view(child)["stack"]["sync_needed"] is False
+    assert "workspace-sync" not in view(child)["next"]
     ready = lifecycle.validate(child, "member")
+    following = view(child)["next"]
+    assert following.index(PARENT) < following.index(CHILD)
     assert (child / "parent-fix.txt").exists()
     assert contribution(ready) == ["changes/child/change.toml", "child.txt"]
     code, repeated = sync_parent(child, monkeypatch, capsys)
     assert code == 0 and repeated["outcome"] == "unchanged"
-    code, refused = sync_parent(parent, monkeypatch, capsys)
-    assert code != 0 and refused["status"] == "invalid"
 
 
 def test_admission_requires_the_parent_first_at_the_held_tip(repository):
@@ -123,7 +120,6 @@ def test_admission_requires_the_parent_first_at_the_held_tip(repository):
     result = lifecycle.admit(batch, (parent, child))
 
     assert [item["branch"] for item in result["admitted"]] == [PARENT, CHILD]
-    assert result["admitted"][1]["parent"] == PARENT
     assert result["admission_base"] == base
 
 
@@ -145,7 +141,6 @@ def test_final_review_names_the_chain_and_delivery_removes_it(repository):
     delivered = lifecycle.batch_deliver(
         batch, root, lifecycle._recorded_base(batch), str(final["source"])
     )
-    assert delivered["members"][1]["parent"] == PARENT
     removed = {item["branch"]: item for item in delivered["removed_worktrees"]}
     assert removed[PARENT]["tip"] == parent_tip and removed[CHILD]["tip"] == child_tip
     assert {removed[PARENT]["outcome"], removed[CHILD]["outcome"]} == {"delivered"}

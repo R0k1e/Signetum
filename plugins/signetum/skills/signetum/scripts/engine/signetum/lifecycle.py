@@ -394,14 +394,9 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         if _is_ancestor(batch, member_tip, batch_tip):
             unchanged.append(record)
             continue
-        member_record = read_record(_state_root(member), member_branch)
-        stacked: tuple[str, ...] = ()
-        if member_record.parent is not None:
-            parent_tip = require_parent_admitted(batch, member, member_record, member_tip)
-            stacked = (
-                f"Signetum-Parent: {member_record.parent}",
-                f"Signetum-Parent-Tip: {parent_tip}",
-            )
+        require_parent_admitted(
+            batch, member, read_record(_state_root(member), member_branch), member_tip
+        )
         batch_base = _recorded_base(batch)
         require_distinct_claims(
             clause_claims(member, member_manifest, member_base, member_tip),
@@ -422,7 +417,6 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
                 f"Signetum-Patch-ID: {patch_id}",
                 f"Signetum-Ready-Evidence: {ready_evidence}",
                 *(f"Signetum-Plan: {plan}" for plan in plans),
-                *stacked,
             )
         )
         git = _git_executable()
@@ -457,7 +451,6 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
                 "ready_evidence": ready_evidence,
                 "plan": list(plans),
                 "admission_commit": admission_commit,
-                **({"parent": member_record.parent} if member_record.parent else {}),
             }
         )
 
