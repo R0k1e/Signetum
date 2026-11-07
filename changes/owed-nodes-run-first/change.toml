@@ -12,8 +12,8 @@ approved_base = "79a9d2e631ebb477b4649e53ce04d72a8201b3ad" # pragma: allowlist s
 
 [[change.contract.requirements]]
 id = "APPROVAL-ORDER-001"
-outcome = "The rule that an own implementation commit must follow the latest matching approval is unchanged. When no such commit follows it, change view of an approved record, the status next action and the ready refusal state the remedy: the next step is an implementation commit after that approval commit, changes inside the approval commit do not count, and history must not be rewritten."
-acceptance = ["A member whose re-approval lands after every implementation commit is refused by ready with a structured approval-order block naming the approval commit and a remedy; view and status show the same block and next action.", "After a following implementation commit, view and status report the order satisfied and ready proceeds to checks."]
+outcome = "The rule that an own implementation commit must follow the latest matching approval is unchanged. When no such commit follows it, the ready refusal and the status next action state the remedy: the next step is an implementation commit after that approval commit, changes inside the approval commit do not count, and history must not be rewritten."
+acceptance = ["A member whose re-approval lands after every implementation commit is refused by ready naming the approval commit, with the remedy as the expected action; status gives the same remedy as its next action.", "After a following implementation commit, status no longer gives the remedy and ready proceeds to checks."]
 
 [[change.contract.requirements]]
 id = "PRIORITY-002"
@@ -22,8 +22,8 @@ acceptance = ["After a failed gate, the next gate gives the declaring shard a pr
 
 [[change.contract.requirements]]
 id = "UNREACHED-003"
-outcome = "A shard command may declare {signetum.unreached_nodes_file}. The engine substitutes an absolute path where the runner may write {\"schema_version\": 1, \"nodes\": [...]} for selected nodes it did not run; the engine reads it after the shard ends, including after a timeout, and an absent or empty file means none. Reported nodes fail the shard, are remembered as owed for that workspace, and appear in the next priority file. The failure result states the unreached count instead of only a timeout."
-acceptance = ["A runner reporting unreached nodes fails the gate; the failure result carries the count, and the next gate's priority file lists them and requires them to pass.", "Configuration refuses an unknown {signetum.*} placeholder and placeholders outside the shard command."]
+outcome = "Node results use one declared channel: the SIGNETUM_NODE_REPORT environment variable becomes the whole-argument placeholder {signetum.node_report_file}, where a runner writes {\"failed\": [...], \"passed\": [...], \"unreached\": [...]} with unreached optional. The engine reads it after the shard ends, including after a timeout. Unreached nodes fail the shard, are remembered as owed for that workspace and appear in the next priority file; the failure result states their count instead of only a timeout. The packaged pytest runner and every in-repository consumer move to the placeholder without a compatibility path, and the changelog states that repositories must declare it."
+acceptance = ["A runner reporting unreached nodes fails the gate with their count; the next gate's priority file lists them and requires them to pass, also after a time-bound stop.", "The packaged pytest runner reports first-attempt outcomes through the declared placeholder and no engine or test code reads SIGNETUM_NODE_REPORT.", "Configuration refuses an unknown {signetum.*} argument, a placeholder inside a larger argument, and placeholders in findings or ratchet commands, which receive no substitution."]
 
 [[change.contract.requirements]]
 id = "COLLECT-004"
@@ -31,8 +31,13 @@ outcome = "A shard may declare after = [...] prerequisites that order its execut
 acceptance = ["A test shard declared after a failing static shard runs in the same gate and both failures are reported; the gate fails.", "A requires prerequisite failure and an after prerequisite infrastructure error still skip the dependent."]
 
 [[change.contract.requirements]]
+id = "SELF-AFTER-006"
+outcome = "Signetum's own precommit shard orders after engine:ty with after instead of requires, so a type finding no longer hides precommit findings in the same round."
+acceptance = ["The repository configuration loads with engine:ty in the precommit shard's after list and engine:sync still required."]
+
+[[change.contract.requirements]]
 id = "DOC-005"
-outcome = "The Skill references, repository binding guide and validation architecture describe the approval-order remedy, both placeholders with their JSON shapes and the after declaration."
+outcome = "The Skill references, repository binding guide, validation architecture and changelog describe the approval-order remedy, both placeholders with their JSON shapes, the required node report migration and the after declaration."
 acceptance = ["Current instructions agree with observed CLI behavior; historical authorities remain unchanged."]
 
 [change.contract.autonomy]
@@ -94,28 +99,51 @@ scope = ["Validation execution, diagnostics and CI", "Repository configuration"]
 statement = "A shard's after prerequisites order it and join its gate closure like requires but do not gate it: it runs after their validation failure, all failures are reported together and the verdict stays failed. requires still gates, and an infrastructure error in either kind of prerequisite skips dependents."
 rationale = "A per-prerequisite declaration keeps producing prerequisites gating while letting independent checks report in one round."
 
+[[change.contract.decisions]]
+id = "owed-nodes-run-first/one-node-channel"
+change_id = "owed-nodes-run-first"
+authority = "changes/owed-nodes-run-first/change.toml#decisions/owed-nodes-run-first/one-node-channel"
+reason = "The owner chose to keep Signetum general and simple by unifying every runner and engine node exchange on declared placeholders, with one node report instead of a separate unreached file."
+parents = ["owed-nodes-run-first/runner-feedback"]
+
+[[change.contract.decisions.clauses]]
+id = "owed-nodes-run-first/node-report-placeholder"
+change_id = "owed-nodes-run-first"
+action = "amend"
+expected = [{id = "RUNNER-FEEDBACK-001", version = 1}]
+authority = "changes/owed-nodes-run-first/change.toml#decisions/owed-nodes-run-first/one-node-channel"
+reason = "Two placeholders cover input and output; a third file and an environment variable duplicated the node report."
+
+[[change.contract.decisions.clauses.updates]]
+id = "RUNNER-FEEDBACK-001"
+version = 2
+topic = "validation-efficiency"
+scope = ["Validation execution, diagnostics and CI", "Repository configuration"]
+statement = "A shard command exchanges node data with the engine only through declared whole-argument placeholders, replaced by absolute paths. {signetum.priority_nodes_file} always exists and lists the shard's owed nodes as {\"schema_version\": 1, \"nodes\": [...]}; it orders execution and never selects or satisfies. {signetum.node_report_file} receives first-attempt {\"failed\": [...], \"passed\": [...], \"unreached\": [...]} and is read after the shard ends, including after its time bound. Unknown {signetum.*} arguments, partial-argument placeholders and placeholders in commands the engine does not substitute are refused."
+rationale = "One declared report channel keeps the runner contract visible in the command identity and removes the implicit environment variable and the separate unreached file."
+
 [[change.execution.steps]]
 id = "STEP-APPROVAL-ORDER"
 requirements = ["APPROVAL-ORDER-001"]
-action = "Derive the latest matching approval commit once in the change scope owner and project its remedy into the ready refusal, change view and status."
+action = "Derive the latest matching approval commit once in the change scope owner and project its remedy into the ready refusal and the status next action."
 
 [[change.execution.steps]]
 id = "STEP-RUNNER-FEEDBACK"
 requirements = ["PRIORITY-002", "UNREACHED-003"]
-action = "Validate placeholders in the shard model, substitute them in the repository adapter, pass owed nodes per shard, read unreached reports, remember them as owed and report their count."
+action = "Validate placeholders in the shard model, substitute them in the repository adapter, pass owed nodes per shard, read unreached nodes from the declared node report, remember them as owed, report their count, and migrate the packaged pytest runner and in-repository consumers."
 
 [[change.execution.steps]]
 id = "STEP-AFTER"
-requirements = ["COLLECT-004"]
-action = "Add order-only prerequisites to the shard model, schema and execution core without changing existing graph digests."
+requirements = ["COLLECT-004", "SELF-AFTER-006"]
+action = "Add order-only prerequisites to the shard model, schema and execution core without changing existing graph digests, and use them for Signetum's own precommit shard."
 
 [[change.execution.steps]]
 id = "STEP-VERIFY"
-requirements = ["APPROVAL-ORDER-001", "PRIORITY-002", "UNREACHED-003", "COLLECT-004", "DOC-005"]
+requirements = ["APPROVAL-ORDER-001", "PRIORITY-002", "UNREACHED-003", "COLLECT-004", "SELF-AFTER-006", "DOC-005"]
 action = "Extend functional lifecycle tests with fake runners, reconcile Skill and architecture, run narrow tests and stop before ready while the machine-load hold stands."
 
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-07
-source = "Relayed by the coordinating agent on 2026-11-07: the owner approved approval-order guidance without relaxing the rule, owed nodes passed to shards to run first, and unreached nodes recorded as owed. The coordinator then relayed the owner's change to declared {signetum.*} command placeholders instead of environment variables, and approved collecting every failure in one round through a per-shard order-only prerequisite declaration. This implementing session did not hear the approval independently."
-contract_digest = "sha256:a0e948f73277e335e0fb3452472ca7d468cd01e0a8147721612d7bcfd89be20d"
+source = "Relayed by the coordinating agent on 2026-11-07: the owner approved approval-order guidance without relaxing the rule, owed nodes passed to shards to run first, and unreached nodes recorded as owed. The coordinator then relayed the owner's change to declared {signetum.*} command placeholders instead of environment variables, and approved collecting every failure in one round through a per-shard order-only prerequisite declaration. Later the same day the coordinator relayed the owner's simplification: one declared node report placeholder replacing SIGNETUM_NODE_REPORT and the unreached file, with unreached as a node report outcome and no compatibility path; minimal placeholder validation; approval-order guidance only in the ready refusal and status next action; after unchanged; and Signetum's own precommit shard moved to after for engine:ty. This implementing session did not hear the approval independently."
+contract_digest = "sha256:944fc25cef3a9513bde23d53165bc350d2c85203eb6189efe3edbb321d249cff"
