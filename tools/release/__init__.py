@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import tomllib
 from pathlib import Path
 from typing import Literal, Self
@@ -44,10 +43,8 @@ class ReleaseMetadata(BaseModel):
         return self
 
 
-PLUGIN = Path("plugins/signetum")
-SKILL = PLUGIN / "skills/signetum"
+SKILL = Path("skills/signetum")
 ENGINE = SKILL / "scripts/engine"
-MARKETPLACE = Path(".claude-plugin/marketplace.json")
 
 
 def digest_path(path: Path) -> str:
@@ -79,7 +76,6 @@ def build_metadata(repository: Path, source: str) -> ReleaseMetadata:
         package = tomllib.loads((repository / ENGINE / "pyproject.toml").read_text())["project"][
             "version"
         ]
-        plugin = json.loads((repository / PLUGIN / ".claude-plugin/plugin.json").read_text())
         schema_version = json.loads(schema_path.read_text())["properties"]["schema_version"][
             "const"
         ]
@@ -92,8 +88,6 @@ def build_metadata(repository: Path, source: str) -> ReleaseMetadata:
     skill_version, skill_digest = _skill_identity(repository / SKILL)
     if skill_version != package:
         raise ReleaseError("Skill and package must share the product version")
-    if plugin.get("name") != "signetum" or plugin.get("version") != package:
-        raise ReleaseError("plugin manifest and package must share the product version")
     return ReleaseMetadata(
         source=source,
         components=(
@@ -136,50 +130,10 @@ def preflight(repository: Path, source: str, *, tag: str | None = None) -> Relea
     return metadata
 
 
-def marketplace_pin(version: str, source: str) -> dict[str, object]:
-    """The marketplace document that makes one released commit the installable plugin."""
-
-    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
-        raise ReleaseError("marketplace pin requires a semantic product version")
-    if re.fullmatch(r"[0-9a-f]{40}", source) is None:
-        raise ReleaseError("marketplace pin requires an exact 40-hex release commit")
-    return {
-        "name": "signetum",
-        "owner": {"name": "R0k1e"},
-        "plugins": [
-            {
-                "name": "signetum",
-                "version": version,
-                "description": "Reliable Agent development and delivery with a command guard.",
-                "source": {
-                    "source": "git-subdir",
-                    "url": "https://github.com/R0k1e/Signetum.git",
-                    "path": PLUGIN.as_posix(),
-                    "ref": "v" + version,
-                    "sha": source,
-                },
-            }
-        ],
-    }
-
-
-def write_marketplace_pin(repository: Path, metadata: ReleaseMetadata) -> Path:
-    """Write the release pin for a preflighted source; committing it publishes the plugin."""
-
-    version = next(c.version for c in metadata.components if c.name == "package")
-    path = repository / MARKETPLACE
-    path.parent.mkdir(parents=True, exist_ok=True)
-    document = marketplace_pin(version, metadata.source)
-    path.write_text(json.dumps(document, indent=2) + "\n")
-    return path
-
-
 __all__ = [
     "ReleaseComponent",
     "ReleaseError",
     "ReleaseMetadata",
     "build_metadata",
-    "marketplace_pin",
     "preflight",
-    "write_marketplace_pin",
 ]

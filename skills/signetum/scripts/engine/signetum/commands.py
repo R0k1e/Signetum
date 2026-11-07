@@ -18,7 +18,8 @@ class Command:
 BOOTSTRAP = {
     "setup": "Prepare this installed Skill's isolated environment.",
     "identity": "Show complete Skill and engine identities.",
-    "update": "Upgrade via host plugin managers or a plain Skill in place. --check is read-only.",
+    "install": "Place this Skill for --host claude/codex or --skills-dir and register the guard.",
+    "update": "Replace this Skill in place with the newest release. --check is read-only.",
 }
 
 

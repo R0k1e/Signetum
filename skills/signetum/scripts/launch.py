@@ -137,6 +137,8 @@ def main() -> int:
                 "Skill environment is not prepared; run the explicit setup command first"
             )
         child = environment()
+        # Status explains how to enable the guard for the host that loads this Skill.
+        child["SIGNETUM_SKILL"] = str(SKILL)
         if arguments == ["identity"]:
             complete = json.loads(
                 subprocess.check_output(  # noqa: S603 -- verified engine and fixed identity module

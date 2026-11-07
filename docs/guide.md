@@ -30,9 +30,9 @@ Ask the Agent to inspect an existing repository or initialize a new one, preserv
 its tools. Adoption proposes one project configuration for review. Agent entry
 files, application metadata and dependencies stay project-owned.
 
-Ask the Agent to update Signetum. `update` checks the latest pinned release
-against the project and upgrades each host through its plugin manager.
-[The update procedure](../plugins/signetum/skills/signetum/references/adoption.md)
+Ask the Agent to update Signetum. `update` checks the newest published release
+against the project and replaces the Skill folder in place.
+[The update procedure](../skills/signetum/references/adoption.md)
 is the one explanation of checks, failure recovery and the project boundary.
 
 ## Optional configuration
@@ -40,6 +40,6 @@ is the one explanation of checks, failure recovery and the project boundary.
 [Runner bindings](guides/existing-runners.md) retain existing application checks.
 [Repository bindings](guides/repository-bindings.md) describe configuration and
 versioned capabilities. [Structured selection](guides/structured-selection.md)
-and [validation optimization](../plugins/signetum/skills/signetum/references/validation-optimization.md)
+and [validation optimization](../skills/signetum/references/validation-optimization.md)
 are conditional optimizations; full member validation is the default and final
 validation remains complete.

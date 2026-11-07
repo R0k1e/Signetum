@@ -13,8 +13,7 @@ if [ ! -x "$bootstrap" ]; then
     printf '%s\n' '{"status":"failed","stage":"skill-execution","cause":"Skill environment is not prepared; run the explicit setup command first"}' >&2
     exit 2
 fi
-if [ "${1:-}" = update ]; then
-    shift
-    exec "$bootstrap" -B "$skill_dir/scripts/update.py" "$@"
-fi
+case "${1:-}" in
+    install | update) exec "$bootstrap" -B "$skill_dir/scripts/distribution.py" "$@" ;;
+esac
 exec "$bootstrap" -B "$skill_dir/scripts/launch.py" "$@"

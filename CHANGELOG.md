@@ -3,6 +3,42 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.5.0 (unreleased)
+
+The Skill folder is the whole product again, in every agent tool. The
+`signetum@signetum` plugin and its marketplace are removed; the command guard
+becomes an optional hook that one command registers in the host's own settings.
+
+- Install by unpacking `signetum-skill-<version>.zip` into an agent tool's
+  skills directory as `signetum`. Every operation works without the guard.
+- `install --host claude|codex` places the Skill in `~/.claude/skills` or
+  `~/.codex/skills` and adds one PreToolUse guard entry to Claude Code's
+  `settings.json` or Codex's `hooks.json`, keeping other settings. `--skills-dir`
+  places the Skill for any other tool, `--source` or `--release` picks the source,
+  `--preview` shows the plan and `--remove` reverses it. Codex reviews the hook
+  once; updates keep its path and need no new review.
+- The guard now applies only in Git work trees whose root holds `signetum.toml`,
+  so one user-level hook covers exactly the adopted repositories.
+- `status` reports a `guard` entry with the install command and the exact hook
+  entry when a Claude Code or Codex Skill runs without its guard. It never blocks.
+- `update` reads the newest published GitHub release, verifies `SHA256SUMS`,
+  `release-source.json` and the Skill digest, and replaces the folder in place. It
+  runs no host plugin manager.
+- Adoption writes only `signetum.toml`; it no longer enables a plugin in
+  `.claude/settings.json` or `.codex/config.toml`.
+- A release is one version change plus its tag. `release pin` and the marketplace
+  file are removed.
+- Breaking: the Skill moved from `plugins/signetum/skills/signetum` to
+  `skills/signetum`. To migrate from the plugin, run
+  `sh <skill>/scripts/signetum install --host claude --host codex` from the new
+  Skill; it removes a user-scope plugin after the Skill and hook are in place and
+  lists a project-scope one with its command. Then run `claude plugin marketplace
+  remove signetum` and `codex plugin marketplace remove signetum`, and remove the
+  plugin entries earlier adoption wrote to project settings through each
+  project's own change.
+
+The release is a candidate until published.
+
 ## 0.4.0
 
 Every workspace ends delivered, contained or abandoned, and only that proof

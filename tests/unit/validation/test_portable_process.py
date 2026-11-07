@@ -13,7 +13,7 @@ ROOT = Path(__file__).parents[3]
 
 @pytest.mark.parametrize(
     "runtime,module",
-    [(ROOT / "plugins/signetum/skills/signetum/scripts/engine", "signetum.validation.process")],
+    [(ROOT / "skills/signetum/scripts/engine", "signetum.validation.process")],
 )
 @pytest.mark.parametrize("nested", [False, True])
 @pytest.mark.parametrize(

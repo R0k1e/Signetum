@@ -268,7 +268,7 @@ coverage fragment from the current source/run before enforcing 90% project
 coverage; a local or selected fragment is not that verdict. Only the final gate's
 `engine:coverage` shard measures coverage; member and batch gates run the same
 tests in `engine:pytest` without it.
-Installed plugin and plain Skill source aliases resolve measured launcher and
+Installed Skill source aliases resolve measured launcher and
 installation paths to their maintained repository files before reporting; these
 measurements remain in the coverage denominator. Retain failed output
 for seven days with a bounded terminal preview.
