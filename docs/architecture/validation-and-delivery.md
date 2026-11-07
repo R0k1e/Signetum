@@ -47,7 +47,9 @@ recorded separately from passed.
 The repository owns uv preparation and build dependencies. Build clears stale
 artifacts before installed tests. Static hooks do not duplicate the named Ruff,
 format or ty owners. Member ratchets compare structured diagnostic multisets
-against verified source; missing baseline is explicit and never cached. Only a
+against verified source, measured in a checkout of that source prepared by the
+declared prepare gate and cached once measured. A baseline that cannot be measured
+fails the shard with its cause and is never cached. Only a
 `maintenance workspace-sync` merge with its trailer and local record moves that
 baseline. A failed ratchet lists unrecorded merges and names `workspace-sync` and
 `workspace-sync --batch`. Member and batch gate shards may declare
@@ -123,6 +125,12 @@ no fallback. Previously delivered intent remains protected; new intent needs its
 own change. Ordinary execution refinements cannot reduce approved outcomes.
 
 Named admission binds exact member receipt bytes, input identities and provenance.
+The identity of the engine that ran `ready` is not a member input: an engine or
+manifest-schema change admitted from a sibling does not strand a ready member,
+whose tree, configuration, lockfiles and declared tools must still match exactly,
+and the batch gate then checks the merged result with the admitting engine. Run
+admission with the batch's engine, from the batch workspace when the repository
+runs its own engine. An engine that cannot read a newer manifest names that path.
 Real merge bodies carry member, original source and batch-base fields; titles
 remain readable and ordinary merge hooks stay enabled. Batch names derive from
 member tasks or an explicit `--name`; immutable registrations still own identity.
@@ -163,6 +171,8 @@ Admission and batch synchronization compare the decision clause identities that
 change records write in their contract decisions since the relevant base. Two
 different changes writing one identity refuse before merging, naming the clause,
 both changes and their owning workspaces; renumbering stays with those changes.
+A member's claims come only from change records in its own contribution, not from
+delivered records a verified synchronization brought into it.
 
 ## Final review and publication
 

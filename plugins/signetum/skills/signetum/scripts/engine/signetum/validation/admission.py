@@ -13,6 +13,7 @@ from signetum.evidence.receipts import (
 )
 from signetum.operations import AdmissionError
 from signetum.serialization import ValueDecodeError, load_json
+from signetum.validation.configuration import ENGINE_TOOL
 from signetum.validation.execution import ValidationInputs, require_original_success
 
 
@@ -31,6 +32,20 @@ def _observed_member_values(receipt: EvidenceReceipt, expected: Mapping[str, str
         if not isinstance(detail, dict) or detail.get("member_values") != dict(expected):
             return False
     return True
+
+
+def _checked_inputs(identity: EvidenceIdentity) -> EvidenceIdentity:
+    """The member's own inputs, without the engine that judged them.
+
+    A sibling's engine or manifest-schema change makes the admitting engine
+    differ from the one that ran ready. The member's tree, configuration,
+    lockfiles and declared tools stay bound exactly, and the batch gate then
+    checks the merged result with the admitting engine.
+    """
+
+    return replace(
+        identity, tools=tuple(tool for tool in identity.tools if tool.name != ENGINE_TOOL)
+    )
 
 
 def find_member_evidence(
@@ -72,7 +87,11 @@ def find_member_evidence(
         if len(receipt.execution.gates) != 1:
             continue
         identity = expected.get(receipt.execution.gates[0])
-        if identity is None or identity.commit != tip or receipt.identity != identity:
+        if (
+            identity is None
+            or identity.commit != tip
+            or _checked_inputs(receipt.identity) != _checked_inputs(identity)
+        ):
             continue
         if (
             receipt.execution.gates == ("member",)

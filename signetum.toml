@@ -208,8 +208,6 @@ command = [
 ratchet_command = [
     "uv",
     "run",
-    "--active",
-    "--no-project",
     "--no-sync",
     "python",
     "-m",
@@ -232,8 +230,6 @@ command = [
 ratchet_command = [
     "uv",
     "run",
-    "--active",
-    "--no-project",
     "--no-sync",
     "python",
     "-m",

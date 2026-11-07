@@ -27,6 +27,11 @@ workspace base, and `{signetum.ratchet_baseline}`, the source of the latest
 ratchet or diff instead of reading Signetum state files. The receipt records both,
 and a receipt is not reused after either moves.
 
+A shard's `ratchet_command` reports diagnostics for the member tree and for the
+ratchet baseline. The baseline runs in a checkout of that commit prepared by the
+`prepare` gate, so declare there whatever the command needs installed. A baseline
+that cannot be measured fails the shard.
+
 Admission and `batch-continue` run only the declared batch gate over the commits
 added since its last pass. That gate may run no integration check: final stays
 complete, so a failure that appears only when members combine surfaces at final.

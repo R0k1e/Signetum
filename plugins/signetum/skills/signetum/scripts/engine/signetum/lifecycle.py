@@ -397,7 +397,13 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         )
         batch_base = _recorded_base(batch)
         require_distinct_claims(
-            clause_claims(member, member_manifest, member_base, member_tip),
+            clause_claims(
+                member,
+                member_manifest,
+                member_base,
+                member_tip,
+                own_paths=member_contribution_paths(member, member_base, member_tip),
+            ),
             clause_claims(batch, load_manifest(batch / "signetum.toml"), batch_base, batch_tip),
             incoming_workspace=lambda _, name=member_branch: f"workspace {name}",
             existing_workspace=owning_workspace(batch, f"batch {batch_branch}"),
