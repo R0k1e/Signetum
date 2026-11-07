@@ -1,5 +1,6 @@
 """Shared command diagnostics and failed-attempt evidence for repository adapters."""
 
+import json
 import subprocess  # nosec B404 -- completed-command value only; no execution
 import sys
 from pathlib import Path
@@ -8,25 +9,33 @@ from signetum.serialization import load_json
 from signetum.validation.execution import ShardExecution, ValidationExecutionError
 
 
-def _node_outcomes(path: Path | None) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Read the optional first-attempt node report: ``{"failed": [...], "passed": [...]}``."""
+def node_outcomes(path: Path | None) -> tuple[tuple[str, ...], ...]:
+    """Read the optional first-attempt node report.
+
+    ``{"failed": [...], "passed": [...], "unreached": [...]}``; ``unreached``
+    is optional. Returns failed, passed and unreached node ids.
+    """
     if path is None or not path.exists():
-        return (), ()
+        return (), (), ()
     try:
         raw = load_json(path.read_text(encoding="utf-8"))
         if (
             not isinstance(raw, dict)
-            or set(raw) != {"failed", "passed"}
+            or not {"failed", "passed"} <= set(raw) <= {"failed", "passed", "unreached"}
             or any(
-                not isinstance(raw[key], list)
-                or any(not isinstance(node, str) or not node for node in raw[key])
-                for key in ("failed", "passed")
+                not isinstance(value, list)
+                or any(not isinstance(node, str) or not node for node in value)
+                for value in raw.values()
             )
         ):
             raise ValueError("invalid node outcome report")
     except (OSError, ValueError) as error:
         raise ValidationExecutionError(f"invalid node report: {error}") from error
-    return tuple(raw["failed"]), tuple(raw["passed"])
+    return tuple(raw["failed"]), tuple(raw["passed"]), tuple(raw.get("unreached", ()))
+
+
+def write_node_list(path: Path, nodes: tuple[str, ...]) -> None:
+    path.write_text(json.dumps({"schema_version": 1, "nodes": list(nodes)}), encoding="utf-8")
 
 
 def shard_execution(
@@ -59,8 +68,8 @@ def shard_execution(
             recovered = tuple(raw)
         except (OSError, ValueError) as error:
             raise ValidationExecutionError(f"invalid recovery report: {error}") from error
-    failed, passed = _node_outcomes(nodes)
-    if completed.returncode == 0:
+    failed, passed, missed = node_outcomes(nodes)
+    if completed.returncode == 0 and not missed:
         return ShardExecution(True, recovered=recovered, failed_nodes=failed, passed_nodes=passed)
     diagnostic = completed.stdout + completed.stderr
     return ShardExecution(
@@ -69,4 +78,5 @@ def shard_execution(
         recovered=recovered,
         failed_nodes=failed,
         passed_nodes=passed,
+        unreached_nodes=missed,
     )
