@@ -86,13 +86,6 @@ testpaths = [
 markers = [
     "world: observes mutable external state and belongs only to final validation",
 ]
-addopts = [
-    "--cov=signetum",
-    "--cov=tools",
-    "--cov=plugins/signetum/skills/signetum/scripts",
-    "--cov-report=term-missing",
-    "--cov-fail-under=0",
-]
 
 [tool.coverage.run]
 relative_files = true
