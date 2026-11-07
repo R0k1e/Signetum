@@ -52,6 +52,44 @@ failed gate remember those nodes for the workspace's next gate. A remembered nod
 is released by passing again or by a committed change record observation naming
 it as evidence with its root cause, even inside a shard that is always selected.
 
+A runner opts into owed-first scheduling and unreached reporting by declaring
+engine placeholders as whole arguments of its shard command:
+
+```toml
+[[validation.shards]]
+name = "app:tests"
+command = ["./scripts/test", "--priority-nodes", "{signetum.priority_nodes_file}",
+           "--unreached-report", "{signetum.unreached_nodes_file}"]
+```
+
+The engine replaces only declared placeholders with absolute paths; any other
+`{signetum.*}` argument, or one in `findings_command` or `ratchet_command`, is a
+configuration error. Both files use `{"schema_version": 1, "nodes": ["<node id>", ...]}`
+with the runner's own stable node ids. The priority file always exists and lists
+the remembered nodes this shard owes, empty when none; run them first, then the
+rest of the same selection. It never narrows selection, a failing owed node must
+not stop the others, and an owed node is satisfied only by a reported pass.
+Before exiting, or progressively when the shard may reach its `timeout_seconds`,
+write the selected nodes that did not run to the unreached path. An absent or
+empty file means none. Reported nodes fail the shard, the result states their
+count, and the next gate owes them first.
+
+A shard that should report its own failures even when a check before it fails
+declares that check in `after` instead of `requires`:
+
+```toml
+[[validation.shards]]
+name = "app:tests"
+command = ["./scripts/test"]
+requires = ["app:prepare"]
+after = ["app:static"]
+```
+
+`after` orders and selects like `requires` but does not skip the shard when the
+prerequisite fails; the gate still fails and reports both. Keep prerequisites
+that produce something the shard needs in `requires`. An infrastructure error
+in either kind still skips the shard.
+
 ## Declaring a check which depends on the outside world
 
 A shard whose verdict depends on state outside the observed tree declares
