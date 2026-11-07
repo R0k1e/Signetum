@@ -96,7 +96,7 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 
 | Operation | Responsibility |
 | --- | --- |
-| `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. |
+| `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. A base naming another open member's branch records that parent and its tip. |
 | `changed [--explain]` | Inspect the contribution and planned member checks. |
 | `ready` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. |
 | `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. Only batch synchronization later advances that base. |
@@ -127,6 +127,19 @@ World evidence cannot replace tree evidence. Preparation or batch-gate failure r
 integration state for ordinary repair; merge conflict uses `batch-continue`.
 Member synchronization records authorization before merging a verified source,
 keeps the original base and distinguishes imported work from owned repairs.
+
+A stacked member's workspace record names its parent member branch, and its base
+is that parent's tip; the record is the only source of the chain. Its contribution,
+selection and ratchet run from that base, excluding paths a verified parent sync
+brought. Without `--batch`, `maintenance workspace-sync` in a stacked member takes
+its parent while the parent branch exists and is not in the fetched delivery
+branch, otherwise the delivery branch; a parent sync requires the new parent tip to
+descend from the one held. Ready and admission refuse while the open parent branch
+has moved past the held parent tip. Admission refuses a stacked member unless its
+parent's latest admission in the batch, earlier in the same invocation or before,
+is exactly that held tip or the tip is in the batch base. The final review's
+`member_chain` names each member's own changes and, from its record, its parent.
+The status next action names the needed sync or the admission order.
 
 Batch synchronization is `maintenance workspace-sync` run in an open batch. It
 merges the fresh delivery tip when that tip descends from the recorded batch base,
