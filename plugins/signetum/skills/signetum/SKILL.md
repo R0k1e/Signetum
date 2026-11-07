@@ -59,6 +59,8 @@ Use existing project checks. First failures remain failed after diagnostic retry
 Recording a failed test as outside the change's scope does not offset that failure.
 Bring a fix already in the batch into a member through
 `maintenance workspace-sync --batch <batch-worktree>`, not cherry-pick or a manual merge.
+Split a large change into stacked members: `workspace-open <branch> <parent-branch>`
+bases a member on another open member's tip, and its ready selects only its own diff.
 After a sibling batch delivers, run `maintenance workspace-sync` in the open batch to
 merge the new delivery tip; members stay admitted and conflicts use `batch-continue`.
 Admission and that sync refuse two changes claiming one decision clause ID.
