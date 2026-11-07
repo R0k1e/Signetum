@@ -1,7 +1,8 @@
 """Machine-local gate memory beside synchronization records.
 
-A failed gate leaves a failure receipt for its workspace. Before the next gate in
-that workspace runs checks, each remembered node must be selected again, and then
+A failed gate leaves a failure receipt for its workspace, naming failed and
+runner-reported unreached nodes. Before the next gate in that workspace runs
+checks, each remembered node must be selected again, scheduled first, and then
 pass, or be named with its root cause by an observation in a change journal the
 workspace changed. A passing batch gate records the tip it verified, so the next
 admission selects only the commits added after it.
@@ -110,7 +111,10 @@ def remembered_failures(repository: Path, branch: str) -> tuple[NodeIdentity, ..
             raise ValueError("unsupported failure receipt")
         if document.get("workspace") != branch or not isinstance(document.get("failed"), list):
             raise ValueError("failure receipt names another workspace")
-        return tuple(_node(item) for item in document["failed"])
+        unreached = document.get("unreached", [])
+        if not isinstance(unreached, list):
+            raise ValueError("invalid unreached nodes")
+        return tuple(dict.fromkeys(_node(item) for item in (*document["failed"], *unreached)))
     except FileNotFoundError:
         return ()
     except (OSError, ValueError) as error:
@@ -195,12 +199,16 @@ def remember_failure(
     error: ValidationExecutionError,
     owed: dict[str, frozenset[str]],
 ) -> None:
-    """Persist what a failed gate observed, keeping owed nodes it did not prove."""
+    """Persist what a failed gate observed, keeping owed nodes it did not prove.
+
+    Selected nodes a runner reported unreached are owed like failed ones.
+    """
     failed = list(error.failed_nodes)
     for shard, nodes in sorted(owed.items()):
         if shard in error.passed_shards:
             continue
         failed.extend((shard, node) for node in sorted(nodes) if (shard, node) not in failed)
+    unreached = [node for node in error.unreached_nodes if node not in failed]
     _write(
         failure_path(repository, branch),
         {
@@ -216,6 +224,7 @@ def remember_failure(
             "recovered": [
                 {"shard": shard, "node_id": node} for shard, node in error.recovered_nodes
             ],
+            "unreached": [{"shard": shard, "node_id": node} for shard, node in unreached],
         },
     )
 

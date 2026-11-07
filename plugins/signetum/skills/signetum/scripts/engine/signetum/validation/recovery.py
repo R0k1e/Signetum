@@ -1,5 +1,6 @@
 """Shared command diagnostics and failed-attempt evidence for repository adapters."""
 
+import json
 import subprocess  # nosec B404 -- completed-command value only; no execution
 import sys
 from pathlib import Path
@@ -29,11 +30,38 @@ def _node_outcomes(path: Path | None) -> tuple[tuple[str, ...], tuple[str, ...]]
     return tuple(raw["failed"]), tuple(raw["passed"])
 
 
+def read_node_list(path: Path | None) -> tuple[str, ...]:
+    """Read a ``{"schema_version": 1, "nodes": [...]}`` file; absent or empty means none."""
+    if path is None or not path.exists():
+        return ()
+    try:
+        text = path.read_text(encoding="utf-8")
+        if not text.strip():
+            return ()
+        raw = load_json(text)
+        if (
+            not isinstance(raw, dict)
+            or set(raw) != {"schema_version", "nodes"}
+            or raw["schema_version"] != 1
+            or not isinstance(raw["nodes"], list)
+            or any(not isinstance(node, str) or not node for node in raw["nodes"])
+        ):
+            raise ValueError('expected {"schema_version": 1, "nodes": [<node id>, ...]}')
+    except (OSError, ValueError) as error:
+        raise ValidationExecutionError(f"invalid node list {path.name}: {error}") from error
+    return tuple(dict.fromkeys(raw["nodes"]))
+
+
+def write_node_list(path: Path, nodes: tuple[str, ...]) -> None:
+    path.write_text(json.dumps({"schema_version": 1, "nodes": list(nodes)}), encoding="utf-8")
+
+
 def shard_execution(
     name: str,
     completed: subprocess.CompletedProcess[str],
     report: Path,
     nodes: Path | None = None,
+    unreached: Path | None = None,
 ) -> ShardExecution:
     """Preserve command diagnostics and validate recovered-node and node-outcome evidence."""
     if completed.stdout:
@@ -60,7 +88,8 @@ def shard_execution(
         except (OSError, ValueError) as error:
             raise ValidationExecutionError(f"invalid recovery report: {error}") from error
     failed, passed = _node_outcomes(nodes)
-    if completed.returncode == 0:
+    missed = read_node_list(unreached)
+    if completed.returncode == 0 and not missed:
         return ShardExecution(True, recovered=recovered, failed_nodes=failed, passed_nodes=passed)
     diagnostic = completed.stdout + completed.stderr
     return ShardExecution(
@@ -69,4 +98,5 @@ def shard_execution(
         recovered=recovered,
         failed_nodes=failed,
         passed_nodes=passed,
+        unreached_nodes=missed,
     )
