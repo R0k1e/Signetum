@@ -7,7 +7,9 @@ from pathlib import Path
 from signetum.lifecycle import sync_batch
 from signetum.operation_cli import OperationParser, run_operation
 from signetum.workspace_operations import (
+    branch_abandon,
     cleanup,
+    leftovers,
     workspace_abandon,
     workspace_sync,
     worktree_prepare,
@@ -41,6 +43,25 @@ def _parser() -> argparse.ArgumentParser:
     abandon.add_argument("--source", required=True, help="Where the owner confirmed it.")
     abandon.add_argument("--reason", required=True, help="Why the work is abandoned.")
     abandon.add_argument("--discard", action="store_true")
+    commands.add_parser(
+        "leftovers",
+        description=(
+            "List checkouts without a workspace record and local branches without a checkout "
+            "that the delivery branch does not contain, each with its removal command."
+        ),
+    )
+    branch = commands.add_parser(
+        "branch-abandon",
+        description=(
+            "Delete a local branch without a checkout only with the owner's confirmation of "
+            "its exact tip; a retirement record keeps the tip."
+        ),
+    )
+    branch.add_argument("branch", help="Local branch name.")
+    branch.add_argument("expected_tip", help="Full commit the owner confirmed abandoning.")
+    branch.add_argument("--actor", required=True, help="Owner who confirmed abandonment.")
+    branch.add_argument("--source", required=True, help="Where the owner confirmed it.")
+    branch.add_argument("--reason", required=True, help="Why the work is abandoned.")
     return parser
 
 
@@ -73,6 +94,17 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
             source=parsed.source,
             reason=parsed.reason,
             discard=parsed.discard,
+        )
+    elif parsed.command == "leftovers":
+        result = leftovers(repository)
+    elif parsed.command == "branch-abandon":
+        result = branch_abandon(
+            repository,
+            parsed.branch,
+            parsed.expected_tip,
+            actor=parsed.actor,
+            source=parsed.source,
+            reason=parsed.reason,
         )
     return result
 

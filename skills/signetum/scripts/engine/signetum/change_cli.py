@@ -29,6 +29,106 @@ from signetum.source_authority import (
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import current_branch, read_record, state_root
 
+EXAMPLES = {
+    "record": (
+        "change record --id flaky-login --requirement REQ-001 --summary 'What was found' "
+        "--reason 'Why it matters' --evidence tests/test_login.py::test_login"
+    ),
+    "resolve": (
+        "change resolve --id fix-login --target <change>/flaky-login/observation "
+        "--reason 'What resolves it' --evidence tests/test_login.py"
+    ),
+    "retract": (
+        "change retract --id withdraw-fix --target <change>/flaky-login/observation "
+        "--resolution <change>/fix-login/resolution --reason 'Why the answer was wrong'"
+    ),
+    "reconcile": (
+        "change reconcile --id accept-decisions --reason 'Apply the approved proposals' "
+        "--accept-decisions"
+    ),
+}
+
+
+def _evidence_path(value: str) -> str:
+    """A pytest node id names a test inside a file; the file is the path evidence."""
+    path, separator, _ = value.partition("::")
+    return path if separator and path else value
+
+
+def _observation_target(sources: object, change: str, target: str) -> str:
+    """Accept the observation ID or the record's --id, with or without the change prefix."""
+    observed = [
+        item.id
+        for entry in getattr(sources, "entries", ())
+        if entry.transaction.change_id == change
+        for item in entry.transaction.observations
+    ]
+    bare = target.removeprefix(change + "/").removesuffix("/observation")
+    for candidate in (target, f"{change}/{bare}/observation"):
+        if candidate in observed:
+            return candidate
+    raise ValueError(
+        f"resolve target names no observation of change {change}: {target}; expected "
+        f"{change}/<id>/observation, one of: " + (", ".join(observed) or "none recorded")
+    )
+
+
+def _clause_history(repository: Path, sources: object, clause: str) -> dict[str, object]:
+    """Every accepted revision of one clause with its reasons, approval and commits."""
+    revisions: list[dict[str, object]] = []
+    changes: dict[str, dict[str, object]] = {}
+    authorities = getattr(sources, "authorities", {})
+    root, _ = authority_roots(repository)
+    for entry in getattr(sources, "entries", ()):
+        for decision in entry.transaction.decisions:
+            for edit in decision.clauses:
+                for update in edit.updates:
+                    if update.id != clause:
+                        continue
+                    revisions.append(
+                        {
+                            "version": update.version,
+                            "status": update.status,
+                            "action": edit.action,
+                            "statement": update.statement,
+                            "rationale": update.rationale,
+                            "edit": edit.id,
+                            "edit_reason": edit.reason,
+                            "decision": decision.id,
+                            "decision_reason": decision.reason,
+                            "change_id": decision.change_id,
+                            "applied_by": entry.transaction.id,
+                        }
+                    )
+                    if decision.change_id in changes:
+                        continue
+                    record, _ = authorities.get(
+                        (entry.transaction.change_id, entry.approval.commit), (None, None)
+                    )
+                    approval = getattr(record, "approval", None)
+                    log = git_output(
+                        repository,
+                        "log",
+                        "--format=%H%x09%ad%x09%s",
+                        "--date=short",
+                        "--",
+                        f"{root}/{decision.change_id}",
+                    )
+                    changes[decision.change_id] = {
+                        "change_id": decision.change_id,
+                        "source": contract_mapping(record.source) if record else None,
+                        "approval": contract_mapping(approval) if approval else None,
+                        "commits": [
+                            {"commit": commit, "date": date, "subject": subject}
+                            for commit, date, subject in (
+                                line.split("\t", 2) for line in log.splitlines()
+                            )
+                        ],
+                    }
+    if not revisions:
+        raise ValueError(f"no accepted decision revision names clause {clause}")
+    return {"clause": clause, "revisions": revisions, "changes": list(changes.values())}
+
 
 def _semantic_request(
     repository: Path, options: argparse.Namespace
@@ -63,7 +163,10 @@ def _semantic_request(
     record, _ = approved_authority(repository, change, commit)
     sources = read_sources(repository)
     if not options.id or not options.reason:
-        raise ValueError("semantic writes require --id and --reason")
+        raise ValueError(
+            "semantic writes require --id <stable-id> and --reason <text>, for example: "
+            + EXAMPLES.get(options.operation, EXAMPLES["record"])
+        )
     identity = options.id if options.id.startswith(change + "/") else change + "/" + options.id
     body = {
         "id": identity,
@@ -81,7 +184,9 @@ def _semantic_request(
             or any((options.target, options.resolution, options.followup, options.accept_decisions))
         ):
             raise ValueError(
-                "record requires --summary and --requirement, without resolution inputs"
+                "record requires --summary <finding> and --requirement <REQ-ID> and takes no "
+                "--target, --resolution, --followup or --accept-decisions; for example: "
+                + EXAMPLES["record"]
             )
         body["observations"] = [
             {
@@ -96,14 +201,25 @@ def _semantic_request(
         if not options.target or any(
             (options.summary, options.requirement, options.resolution, options.accept_decisions)
         ):
-            raise ValueError("resolve requires --target, without observation or decision inputs")
+            raise ValueError(
+                "resolve requires --target <change>/<id>/observation, the observation ID that "
+                "change record returned (the record's --id is accepted too), and takes no "
+                "--summary, --requirement, --resolution or --accept-decisions; for example: "
+                + EXAMPLES["resolve"]
+            )
+        if options.disposition == "resolved" and not options.evidence:
+            raise ValueError(
+                "resolved work requires --evidence <path-in-tree|validation-receipt-name>, a "
+                "pytest node id is written as its file; or pass --disposition deferred|rejected "
+                "with a --reason saying who decided and what remains owed"
+            )
         body["resolutions"] = [
             {
                 "id": identity + "/resolution",
-                "target": options.target,
+                "target": _observation_target(sources, change, options.target),
                 "status": options.disposition,
                 "reason": options.reason,
-                "evidence": options.evidence,
+                "evidence": [_evidence_path(item) for item in options.evidence],
                 "followup": options.followup,
             }
         ]
@@ -121,7 +237,10 @@ def _semantic_request(
                 )
             )
         ):
-            raise ValueError("retract requires --target and --resolution only")
+            raise ValueError(
+                "retract requires --target <observation-id> and --resolution <resolution-id> "
+                "only; for example: " + EXAMPLES["retract"]
+            )
         body["retractions"] = [
             {
                 "id": identity + "/retraction",
@@ -176,7 +295,13 @@ def _semantic_request(
 
 
 def main(arguments: list[str] | None = None) -> int:
-    parser = OperationParser(description=__doc__)
+    parser = OperationParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="examples:\n  "
+        + "\n  ".join(EXAMPLES.values())
+        + "\n  change why EFFICIENCY-FAIL-001\n  status --verbose",
+    )
     parser.add_argument(
         "operation",
         choices=[
@@ -188,28 +313,69 @@ def main(arguments: list[str] | None = None) -> int:
             "status",
             "current",
             "history",
+            "why",
         ],
     )
+    parser.add_argument("clause", nargs="?", help="why: one decision clause ID, e.g. RULE-001.")
     parser.add_argument("--repository", type=Path, default=Path.cwd())
-    parser.add_argument("--request", type=Path)
-    parser.add_argument("--expected-history")
-    parser.add_argument("--change")
-    parser.add_argument("--event")
-    parser.add_argument("--id")
-    parser.add_argument("--summary")
-    parser.add_argument("--reason")
-    parser.add_argument("--requirement", action="append", default=[])
-    parser.add_argument("--evidence", action="append", default=[])
-    parser.add_argument("--target")
+    parser.add_argument("--request", type=Path, help="Structured request JSON (atomic edits).")
+    parser.add_argument("--expected-history", help="History digest of a reviewed view.")
+    parser.add_argument("--change", help="Approved change ID when more than one matches.")
+    parser.add_argument("--event", help="history: one event ID.")
+    parser.add_argument(
+        "--id", help="Stable retry identity, e.g. flaky-login; the change prefix is added."
+    )
+    parser.add_argument("--summary", help="record: what was found.")
+    parser.add_argument("--reason", help="Why it matters, or what resolves it.")
+    parser.add_argument(
+        "--requirement", action="append", default=[], help="record: requirement ID, repeatable."
+    )
+    parser.add_argument(
+        "--evidence",
+        action="append",
+        default=[],
+        help="A path in the current tree or a validation receipt name, repeatable; resolve "
+        "writes a pytest node id path::test as its path.",
+    )
+    parser.add_argument(
+        "--target",
+        help="resolve/retract: <change>/<id>/observation as change record returned it, or "
+        "that record's --id.",
+    )
     parser.add_argument(
         "--disposition", choices=["resolved", "rejected", "deferred"], default="resolved"
     )
-    parser.add_argument("--followup")
-    parser.add_argument("--resolution")
+    parser.add_argument("--followup", help="deferred: change-id[#REQ-ID] of an approved change.")
+    parser.add_argument("--resolution", help="retract: the exact prior resolution ID.")
     parser.add_argument("--accept-decisions", action="store_true")
+    parser.add_argument(
+        "--verbose", action="store_true", help="status: include resolved observations."
+    )
     sources = None
     try:
         options = parser.parse_args(arguments)
+        if (options.clause is not None) != (options.operation == "why"):
+            raise ValueError(
+                "why requires exactly one clause ID, e.g. change why RULE-001; "
+                "other operations take no positional argument"
+            )
+        if options.verbose and options.operation != "status":
+            raise ValueError("only status accepts --verbose")
+        if options.operation == "why":
+            sources = read_sources(options.repository)
+            print(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "status": "passed",
+                        "history_digest": sources.history_digest,
+                        **_clause_history(options.repository, sources, options.clause),
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+            return 0
         if options.operation in {"status", "current", "history"}:
             if (
                 any(
@@ -313,6 +479,7 @@ def main(arguments: list[str] | None = None) -> int:
                     source=sources.head
                     if sources is not None
                     else git_output(options.repository, "rev-parse", "HEAD"),
+                    verbose=options.verbose,
                 )
             )
             installed = os.environ.get("SIGNETUM_SKILL")

@@ -4,10 +4,11 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 from change_fixtures import approve_change, commit_approval
-from signetum import lifecycle
+from signetum import lifecycle, maintenance
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
 from signetum.development_store import snapshot
@@ -858,6 +859,48 @@ def test_abandonment_requires_the_owners_confirmation_of_the_exact_tip(repositor
     assert retirement["record"]["kind"] == "member"
 
 
+def test_leftovers_lists_and_removes_only_confirmed_outside_work(repository, monkeypatch, capsys):
+    root, _ = repository
+    owner: Any = {"actor": "Owner", "source": "Owner chat 2026-11-08", "reason": "Dropped spike."}
+    outside = root.parent / "outside-checkout"
+    git_output(root, "worktree", "add", "-b", "spike/outside", str(outside))
+    outside_tip = commit_file(outside, "spike.txt")
+    loose = opened(root, "change/loose")
+    loose_tip = commit_file(loose, "loose.txt")
+    git_output(loose, "switch", "--detach")
+    git_output(root, "branch", "merged/already")  # contained by main: not a leftover
+    registered = opened(root, "plan/registered")
+    commit_file(registered, "registered.txt")
+    monkeypatch.chdir(root)
+    capsys.readouterr()
+
+    assert maintenance.main(["leftovers"]) == 0
+
+    listed = json.loads(capsys.readouterr().out)["leftovers"]
+    assert {(item["kind"], item["branch"]) for item in listed} == {
+        ("unregistered_checkout", "spike/outside"),
+        ("branch_without_checkout", "change/loose"),
+    }
+    assert all(item["tip"] in item["remove"] for item in listed)
+    with pytest.raises(AdmissionError, match="confirmed tip"):
+        ops.branch_abandon(root, "change/loose", outside_tip, **owner)
+    with pytest.raises(AdmissionError, match="checked out"):
+        ops.branch_abandon(root, "spike/outside", outside_tip, **owner)
+    assert run_git(root, "rev-parse", "--verify", "refs/heads/change/loose").returncode == 0
+
+    removed = ops.branch_abandon(root, "change/loose", loose_tip, **owner)
+    abandoned = ops.workspace_abandon(root, outside, outside_tip, **owner)
+
+    assert run_git(root, "rev-parse", "--verify", "refs/heads/change/loose").returncode
+    retirement = json.loads(Path(str(removed["retirement"])).read_text())
+    assert retirement["tip"] == loose_tip and retirement["outcome"] == "abandoned"
+    assert retirement["authorization"]["source"] == "Owner chat 2026-11-08"
+    assert not outside.exists() and abandoned["tip"] == outside_tip
+    capsys.readouterr()
+    assert maintenance.main(["leftovers"]) == 0
+    assert json.loads(capsys.readouterr().out)["leftovers"] == []
+
+
 def test_delivery_sweeps_every_workspace_that_proves_its_outcome(repository):
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")
@@ -920,3 +963,36 @@ def test_status_lists_each_workspace_with_the_outcome_it_proves(repository):
         },
     ]
     assert landed.exists()
+
+
+DECLARED_RUN_TOOL = wt.run_tool
+
+
+def test_preparation_may_rebuild_ignored_state_and_names_the_adapter_on_failure(
+    repository, monkeypatch, tmp_path
+):
+    root, _ = repository
+    shim = tmp_path / "mise"
+    shim.write_text('#!/bin/sh\nshift 2\nexec "$@"\n')  # drops "exec --"
+    shim.chmod(0o755)
+    monkeypatch.setattr(wt, "mise_executable", lambda: str(shim))
+    monkeypatch.setattr(wt, "run_tool", DECLARED_RUN_TOOL)
+    rebuild = (
+        "from pathlib import Path; import json, sys; p = Path('prepared.state'); "
+        "stale = Path('stale').exists(); "
+        "print(json.dumps({'expected': 'run just prepare --rebuild-stale'})) if stale else "
+        "p.write_text('rebuilt'); sys.exit(4 if stale else 0)"
+    )
+    preparation_command(root, [sys.executable, "-c", rebuild])
+    (root / ".gitignore").write_text("prepared.state\nstale\n.worktrees/\n")
+    git_output(root, "add", "signetum.toml", ".gitignore")
+    git_output(root, "commit", "-m", "rebuild prepared state")
+    member = opened(root, "plan/rebuild")
+    assert (member / "prepared.state").read_text() == "rebuilt"
+
+    (member / "stale").touch()
+    with pytest.raises(OperationFailed) as refusal:
+        ops.worktree_prepare(member)
+
+    assert "test:prepare" in str(refusal.value) and sys.executable in str(refusal.value)
+    assert "just prepare --rebuild-stale" in refusal.value.expected

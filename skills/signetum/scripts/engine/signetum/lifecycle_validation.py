@@ -15,7 +15,12 @@ from signetum.development_store import reconciliation_summary as source_reconcil
 from signetum.deviations import DeviationError, approval_view, reconciliation_summary
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.execution_review import execution_review_inputs
-from signetum.gate_records import forget_failures, remember_failure, require_accounted
+from signetum.gate_records import (
+    forget_failures,
+    remember_failure,
+    require_accounted,
+    vanished_nodes,
+)
 from signetum.git import git_output
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.operations import AdmissionError
@@ -234,7 +239,15 @@ def validate_workspace(
         raise AdmissionError("validation has no recorded workspace base")
     owed = require_accounted(repository, branch, gate_base, graph.execution_order(gate))
     try:
-        receipt = execute(graph, gate, inputs, adapter, inherited=inherited, remembered=owed)
+        receipt = execute(
+            graph,
+            gate,
+            inputs,
+            adapter,
+            inherited=inherited,
+            remembered=owed,
+            vanished=vanished_nodes(repository, gate_base, source, owed),
+        )
     except ValidationExecutionError as error:
         remember_failure(
             repository, branch, gate=gate, base=gate_base, tip=source, error=error, owed=owed

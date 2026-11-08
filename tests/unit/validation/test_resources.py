@@ -84,6 +84,35 @@ def test_repository_passes_recorded_allocation_to_actual_command(
     assert allocation["workers"] == 2
 
 
+def test_an_operator_limit_caps_the_allocation_the_command_receives(
+    tmp_path, monkeypatch, repository_adapter
+):
+    monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
+    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKER_LIMIT", "3")
+    adapter, observations, _ = repository_adapter
+    monkeypatch.setattr(
+        observations, "observe_resources", lambda: observations.ResourceObservation(16, 64000)
+    )
+    script = "import sys; from pathlib import Path; Path('observed.json').write_text(sys.argv[1])"
+    result = adapter(tmp_path).run_shard(
+        ValidationShard(
+            "test:bounded",
+            (sys.executable, "-c", script, "{signetum.validation_workers}"),
+            workers=12,
+            worker_memory_mb=1000,
+        )
+    )
+    assert json.loads((tmp_path / "observed.json").read_text()) == 3
+    allocation = result.details["resource_allocation"]
+    assert isinstance(allocation, dict)
+    assert allocation["worker_limit"] == 3 and allocation["declared_workers"] == 12
+    monkeypatch.setenv("SIGNETUM_VALIDATION_WORKER_LIMIT", "none")
+    with pytest.raises(ValidationInfrastructureError, match="WORKER_LIMIT"):
+        adapter(tmp_path).run_shard(
+            ValidationShard("test:bounded", (sys.executable, "-c", "pass"), workers=2)
+        )
+
+
 def test_actual_pytest_workers_consume_allocation_and_retry_serially(
     tmp_path, monkeypatch, repository_adapter
 ):

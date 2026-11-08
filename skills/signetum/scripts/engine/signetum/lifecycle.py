@@ -28,10 +28,13 @@ from signetum.deviations import (
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
+    pending_admissions,
+    record_pending_admissions,
     record_verified_batch,
     remember_failure,
     require_accounted,
     settle_failures,
+    vanished_nodes,
     verified_batch_tip,
 )
 from signetum.git import GitError, GitInfrastructureError, git_output, repository_path, run_git
@@ -42,6 +45,7 @@ from signetum.operations import (
     AdmissionError,
     InfrastructureError,
     MergeConflict,
+    OperationError,
     OperationFailed,
 )
 from signetum.policy import delivery_policy
@@ -412,7 +416,7 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         raise AdmissionError(f"refusing batch admission outside a batch workspace: {batch_branch}")
     admitted: list[dict[str, object]] = []
     unchanged: list[dict[str, str]] = []
-    for raw_member in members:
+    for position, raw_member in enumerate(members):
         member = raw_member.resolve()
         if member == batch:
             raise AdmissionError("batch cannot admit itself")
@@ -489,9 +493,19 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         if completed.returncode != 0:
             diagnostic = completed.stderr.strip() or completed.stdout.strip()
             if _git(batch, "diff", "--name-only", "--diff-filter=U"):
+                pending = tuple(item.resolve() for item in members[position + 1 :])
+                record_pending_admissions(batch, batch_branch, pending)
+                remaining = (
+                    "; it then admits the pending members "
+                    + ", ".join(shlex.quote(str(item)) for item in pending)
+                    if pending
+                    else ""
+                )
                 raise MergeConflict(
                     diagnostic or "batch has an open merge",
-                    expected=f"resolve and stage paths, then batch-continue --batch {batch}",
+                    expected=(
+                        f"resolve and stage paths, then batch-continue --batch {batch}{remaining}"
+                    ),
                 )
             raise OperationFailed(diagnostic or "batch merge failed")
         admission_commit = _git(batch, "rev-parse", "HEAD")
@@ -516,6 +530,12 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         raise InfrastructureError(str(error), expected=shlex.join(retry)) from error
     source = _git(batch, "rev-parse", "HEAD")
     static = _run_batch_gate(batch, batch_branch, source, preparation["executed"], selector=batch)
+    settled = {Path(str(item["worktree"])) for item in (*admitted, *unchanged)}
+    record_pending_admissions(
+        batch,
+        batch_branch,
+        tuple(item for item in pending_admissions(batch, batch_branch) if item not in settled),
+    )
     return {
         "schema_version": 1,
         "status": "admitted",
@@ -591,7 +611,18 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     body = _git(batch, "show", "-s", "--format=%B", committed)
     if re.findall(r"^Signetum-Batch-Sync:\s*(\S+)$", body, re.MULTILINE) == [other]:
         _advance_base(batch, batch_base, other, committed)
+    resumed: dict[str, object] | None = None
+    if pending := pending_admissions(batch, _branch(batch)):
+        # The admission this merge interrupted continues with the members after it.
+        try:
+            resumed = _admit_held(batch, pending)
+        except OperationError as error:
+            raise type(error)(
+                f"batch-continue committed {committed}; admitting pending members stopped: {error}",
+                expected=error.expected,
+            ) from error
     return {
+        **({"resumed_admission": resumed} if resumed is not None else {}),
         "schema_version": 1,
         "status": "continued",
         "admission_base": static.pop("admission_base"),
@@ -803,6 +834,7 @@ def _run_batch_gate(
             executed=set(prepared),
             advisory_world=True,
             remembered=owed,
+            vanished=vanished_nodes(batch, base, source, owed),
             admission_base=before,
             member_base=before,
         )

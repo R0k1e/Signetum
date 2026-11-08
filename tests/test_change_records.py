@@ -244,3 +244,52 @@ def test_the_batch_answers_and_defers_findings_of_an_admitted_change(workspaces,
     assert owed["summary"] == "Finding owed."
     assert owed["reason"] == "The owner deferred it; the edge case handling remains owed."
     assert owed["followup"] is None
+
+
+def _refused(repository: Path, capsys, *arguments: str) -> dict[str, Any]:
+    capsys.readouterr()
+    code = change_cli.main([*arguments, "--repository", str(repository)])
+    payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert code != 0, payload
+    return payload
+
+
+def test_resolve_accepts_the_record_id_and_a_node_id_and_status_stays_compact(workspaces, capsys):
+    member, _, _ = workspaces
+    (member / "tests").mkdir()
+    (member / "tests/test_behavior.py").write_text("def test_behavior():\n    pass\n")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "test the behavior")
+    _observe(member, capsys, "flaky")
+    _observe(member, capsys, "open")
+    missing = _refused(member, capsys, "resolve", "--id", "flaky-answer", "--reason", "Fixed.")
+    assert "--target" in missing["cause"] and "/observation" in missing["cause"]
+    unknown = _refused(
+        member,
+        capsys,
+        *("resolve", "--id", "flaky-answer", "--target", "nothing", "--reason", "Fixed."),
+        *("--evidence", "behavior.txt"),
+    )
+    assert "example/flaky/observation" in unknown["cause"]
+    bare = _refused(member, capsys, "resolve", "--target", "flaky", "--evidence", "behavior.txt")
+    assert "--id" in bare["cause"] and "--reason" in bare["cause"]
+
+    resolved: Any = _journal(
+        member,
+        capsys,
+        *("resolve", "--id", "flaky-answer", "--target", "flaky"),
+        *("--reason", "The test owns its temporary directory."),
+        *("--evidence", "tests/test_behavior.py::test_behavior"),
+    )
+
+    [observation] = resolved["observations"]
+    assert observation["status"] == "resolved"
+    assert observation["resolution"]["target"] == "example/flaky/observation"
+    assert observation["resolution"]["evidence"] == ["tests/test_behavior.py"]
+    compact: Any = _journal(member, capsys, "status")
+    assert [item["observation"]["id"] for item in compact["observations"]] == [
+        "example/open/observation"
+    ]
+    assert compact["observation_counts"] == {"pending": 1, "resolved": 1}
+    verbose: Any = _journal(member, capsys, "status", "--verbose")
+    assert len(verbose["observations"]) == 2

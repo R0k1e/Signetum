@@ -5,6 +5,7 @@ import importlib
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -480,17 +481,33 @@ def test_ordinary_plan_refinement_does_not_request_new_behavior_approval(reposit
     assert "narrower test" in path.read_text()
 
 
-def test_concurrent_writer_refuses_instead_of_waiting_or_appending(repository, store):
-    common = repository_path(repository, "rev-parse", "--git-common-dir")
-    with (common / "signetum/development.lock").open("a+b") as held:
-        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        with pytest.raises(ValueError, match="writer is active"):
-            store.append_transaction(
+def test_a_writer_waits_only_for_its_own_worktree(repository, store, monkeypatch):
+    own = repository_path(repository, "rev-parse", "--git-dir") / "signetum-journal.lock"
+    other = repository_path(repository, "rev-parse", "--git-common-dir") / "worktrees/other"
+    other.mkdir(parents=True)
+    with (other / "signetum-journal.lock").open("a+b") as elsewhere:
+        # Another worktree's writer, such as a batch recording during final, never blocks.
+        fcntl.flock(elsewhere, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with own.open("a+b") as held:
+            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            monkeypatch.setattr(store, "WRITER_WAIT_SECONDS", 0.3)
+            with pytest.raises(ValueError, match="still active"):
+                store.append_transaction(
+                    repository,
+                    request(repository, store),
+                    expected_history=store.snapshot(repository).history_digest,
+                )
+            assert not (repository / "changes/alpha/events.jsonl").exists()
+            monkeypatch.setattr(store, "WRITER_WAIT_SECONDS", 30.0)
+            release = threading.Timer(0.5, fcntl.flock, (held, fcntl.LOCK_UN))
+            release.start()
+            state = store.append_transaction(
                 repository,
                 request(repository, store),
                 expected_history=store.snapshot(repository).history_digest,
             )
-    assert not (repository / "changes/alpha/events.jsonl").exists()
+            release.join()
+    assert len(state.entries) == 1
 
 
 def _followup_elsewhere(repository):

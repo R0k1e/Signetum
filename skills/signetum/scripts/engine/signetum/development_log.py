@@ -128,7 +128,10 @@ def validate_resolution(resolution: DevelopmentResolution) -> None:
     if resolution.status != "deferred" and resolution.followup is not None:
         raise ValueError("only deferred work can name a follow-up change")
     if resolution.status == "resolved" and not resolution.evidence:
-        raise ValueError("resolved work requires acceptance evidence")
+        raise ValueError(
+            "resolved work requires acceptance evidence: a path in the current tree or a "
+            "validation receipt name; otherwise use the deferred or rejected disposition"
+        )
 
 
 def validate_transaction(
