@@ -36,7 +36,12 @@ only on retry and unreached nodes, all owed to the next gate. The next gate in t
 observation in a change journal the workspace changed names as evidence with its
 root cause, whether or not its shard is selected. Before checks start, it refuses
 any other node whose shard is not selected again, and such a reselected node must
-report passing in that run. A passing gate removes the receipt.
+report passing in that run, unless that shard passes without reporting it, a
+commit since the workspace base touched its test file and the file at the gate's
+tip no longer names its test: such a vanished node is released and the shard's
+receipt details list it under `released_vanished_nodes`. A passing gate removes
+the receipt. A failed operation result lists `first_attempt_failures` with each
+node's shard and whether it passed only on retry, and `unreached_nodes`.
 Same argv does not make distinct shards interchangeable. Only explicit successful
 preparation can be reused within an operation.
 
@@ -64,7 +69,13 @@ details record these values, and admission and test inheritance require their
 current values. In final and diagnostic runs a declared range value is an explicit
 empty argument, meaning no range.
 
-Resource allocation bounds nested workers. Settlement confirms an empty inventory
+Resource allocation bounds nested workers. A shard receives
+`min(workers, observed CPUs, affordable by worker_memory_mb)` workers through
+`{signetum.validation_workers}`; the host operator's
+`SIGNETUM_VALIDATION_WORKER_LIMIT` caps every shard on a shared machine. Each
+shard's `resource_allocation` records the limit and the one-minute load average,
+which never change the verdict: a first failure under load stays failed. A runner
+that picks its own parallelism should take the declared cap instead. Settlement confirms an empty inventory
 with a fresh snapshot inside its existing deadline. The supervisor settles positively
 owned processes and scratch only; leaked or unobservable owned children refuse
 success. Test measurements report actual phases/allocation without permanent
@@ -124,16 +135,21 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 
 | Operation | Responsibility |
 | --- | --- |
-| `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. A base naming another open member's branch records that parent and its tip. |
+| `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. A base naming another open member's branch records that parent and its tip. On a base whose manifest this engine cannot load, it opens with preparation `unavailable` and the cause, for the member that migrates it. |
 | `ready [--explain]` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. This is the development loop; `--explain` only shows the selection. |
 | `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. Only batch synchronization later advances that base. |
 | `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. |
-| `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge. |
+| `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge, then admit the members a conflicted admission left pending. |
 | `final` | Reconcile and validate a frozen batch; emit source-bound receipt and review. |
 | `batch-deliver source target expected-base expected-tip` | Publish only the reviewed exact candidate. `source` and `target` are existing worktree directories; the last two arguments are full commits. Confirm remote identity before moving target. |
 
 Scope comes from actual committed paths and immutable registrations, never a
-trailer inventing ownership. Qualification requires current approved contracts
+trailer inventing ownership. A member also owns each change package whose
+`change.toml` its own first-parent non-merge commits wrote and its base lacks, so
+a `workspace-sync --batch` that brings back the same record keeps it the member's.
+When an admission stops at a conflict, the members named after it are recorded
+under `signetum/pending-admissions`; the conflict result and `status` list them
+and `batch-continue` admits them in order after committing the resolution. Qualification requires current approved contracts
 and their implementation after exact approval: an own commit after the latest
 approval commit binding the current contract. When none follows, ready refuses
 naming that approval commit, and its expected action and the `status` next action
@@ -149,9 +165,9 @@ whose tree, configuration, lockfiles and declared tools must still match exactly
 and the batch gate then checks the merged result with the admitting engine. Run
 admission with the batch's engine, from the batch workspace when the repository
 runs its own engine. An engine that cannot read a newer manifest names that path.
-A delivered manifest older than the engine is migrated in a member: status,
-batch opening, admission and synchronization read only its identity, repository and
-delivery tables, the batch gate loads the merged manifest, and a member that
+A delivered manifest older than the engine is migrated in a member: workspace-open
+opens on it without preparing, and status, batch opening, admission and
+synchronization read only its identity, repository and delivery tables, the batch gate loads the merged manifest, and a member that
 keeps the old manifest is refused when its own manifest is loaded.
 Real merge bodies carry member, original source and batch-base fields; titles
 remain readable and ordinary merge hooks stay enabled. Batch names derive from
@@ -245,7 +261,10 @@ avoids percent signs that break ELF linkers. Refuse symlink escapes and occupied
 paths before preparation; registrations identify branches, not machine paths.
 
 Existing maintenance owns preparation, authorized synchronization, cleanup and
-abandonment. Every workspace ends delivered, contained or abandoned. One removal
+abandonment. A prepare shard may rebuild ignored or derived state; preparation
+continues when it exits zero with the tracked source and index unchanged. A
+failing prepare shard is refused with its name, full declared command and the
+adapter's own `expected` when its last JSON output line carries one. Every workspace ends delivered, contained or abandoned. One removal
 predicate serves cleanup, the sweep after every `batch-deliver` and the `status`
 listing: a clean workspace that advanced from its base proves delivered when its
 tip is an ancestor of the fetched delivery branch, and contained when every
@@ -255,8 +274,11 @@ the merge base has the same content there. Cleanup protects delivery,
 user-selected and active-runtime checkouts, fresh bases, dirty or staged state,
 open operations and uncontained or advanced tips. Explicit discard never removes
 a changed index and needs an explicit selector. `workspace-abandon` removes only
-uncontained work, with the owner's actor, confirmation source and reason bound
-to the exact confirmed tip. Each removal retires the registration and writes a
+uncontained work, including a checkout created outside Signetum, and
+`branch-abandon` a local branch without a checkout, each with the owner's actor,
+confirmation source and reason bound to the exact confirmed tip; branch deletion
+compares that tip atomically. `leftovers` lists, read-only, unregistered checkouts
+and uncontained branches without a checkout with their removal commands. Each removal retires the registration and writes a
 retirement record with tip, outcome and proof under `signetum/retired`. An
 `active_runtime` checkout can be removed from another checkout after the
 invoking process finishes. There is no background deletion, readiness cleanup or

@@ -57,7 +57,8 @@ independent and reuse only successful immutable preparation. Independent consume
 fixtures isolate caller-only test/interpreter configuration while retaining
 enclosing allocation and process-ownership markers.
 
-Use `status` for the current workspace, findings, recorded evidence and next step.
+Use `status` for the current workspace, findings, recorded evidence and next step;
+it lists unresolved findings with counts, and `status --verbose` adds resolved ones.
 `ready --explain` displays the check plan without executing it. Status does not
 requalify tools or grant readiness. `ready` is the feedback loop: commit, run it,
 fix, commit and rerun until it passes on the current tip.
@@ -69,6 +70,10 @@ normal allocator and supervisor without registration or readiness evidence.
 Prepare its environment and required build inputs first. Native runner options
 are repository-specific; the skill does not guess a framework or rewrite argv.
 Do not independently multiply worker counts inside an enclosing parallel run.
+A runner bounds its parallelism by the shard's declared `workers` and
+`worker_memory_mb` through `{signetum.validation_workers}`; on a shared machine the
+operator caps every shard with `SIGNETUM_VALIDATION_WORKER_LIMIT`. A first failure
+under load still fails; the receipt records the allocation and load average.
 Use observed setup/call/teardown and phase cost to decide whether a wider shard
 or grouping helps. Do not introduce a permanent timing/count gate or handwritten
 test inventory. Stop repeating verification once relevant checks pass unless a
@@ -94,12 +99,15 @@ change resolve --id fix --target <observation-id> --reason "What resolves it" --
 change reconcile --id accepted-decisions --reason "Apply the approved proposals" --accept-decisions
 ```
 
-Use the returned observation ID as the exact resolution target. `--id` is a
+Use the returned observation ID as the exact resolution target; the record's
+`--id` also works. `change resolve --help` shows every form with examples. `--id` is a
 stable retry identity: the same content is idempotent; changed content needs a
 new identity. Add `--change` when more than one approved change matches the
 workspace base. `--expected-history` can explicitly bind a previously reviewed
 view; a stale write refuses. Evidence is a path in the current tree or the name of
-a validation receipt. A deferred resolution uses `--disposition deferred` with a
+a validation receipt; resolve writes a pytest node id `path::test` as its file.
+Writes in other worktrees never wait for each other. `change why <clause-id>`
+shows one decision clause's revisions, reasons, approval source and commits. A deferred resolution uses `--disposition deferred` with a
 `--reason` that says who decided and what remains owed; an optional `--followup
 change-id[#REQ-ID]` names an approved change on any local branch. The final
 review lists every deferral under `unfinished_work`. A commit that changes only
