@@ -1,0 +1,244 @@
+[change]
+schema_version = 1
+id = "delivery-friction-repairs"
+
+[change.source]
+kind = "human_direction"
+summary = "Repository owner 2026-11-08, relayed by the coordinating agent: fix the process problems found while delivering Perdura (PyReduce) on 2026-11-08 so 0.5.0 can be released. Observed in Perdura's retained operation logs: a final refused because a remembered failing node had been deleted or renamed and could never pass; opaque change resolve refusals and node ids refused as evidence; a member's own change counted as inherited after workspace-sync --batch; workspace-open refused on an older delivered manifest; members after a batch-open conflict were never admitted; journal writes of unrelated changes refused for half an hour behind one repository-wide writer lock; a 480 KB status from the main checkout; preparation failures that named only the program; leftover worktrees and branches that needed raw Git; and single first-attempt failures under the gate's own parallel load."
+
+[change.contract]
+version = 1
+approved_base = "8a540c1be17582bc1f073e3013f76fce32788316" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "VANISHED-001"
+outcome = "A remembered failed or unreached node that the next gate's shard ran and passed without reporting, whose test file the workspace changed since its base and which is no longer collectable from that file (the file is absent, or it no longer names the node's test), is released instead of failing the gate, and the release is listed in that shard's receipt details. A node whose file the workspace did not change, or that the runner reports failing, stays owed; a first failure is never cleared by a retry."
+acceptance = [
+    "After a failing node's test file is deleted or its test renamed in the member, the next ready passes and its receipt names the released node.",
+    "A node that disappears from the runner's report while its test file is unchanged still fails the gate as owed.",
+]
+
+[[change.contract.requirements]]
+id = "RESOLVE-002"
+outcome = "change record, resolve and retract state their exact argument forms in --help with an example, and their refusals name the expected form: a write needs --id and --reason; resolve takes --target as the observation ID change record returned (<change>/<id>/observation) and also accepts the record's --id; resolved work needs --evidence or another disposition. A resolution evidence value written as a pytest node id resolves to its file path."
+acceptance = [
+    "change resolve --target <record id> --evidence <path>::<test> writes a resolution whose target is the observation and whose evidence is the file path.",
+    "A resolve without --target, or with an unknown target, is refused naming the expected form and the change's open observation IDs.",
+]
+
+[[change.contract.requirements]]
+id = "OWNERSHIP-003"
+outcome = "A member's own change package is the one whose change.toml its own first-parent non-merge commits wrote and its base does not hold. A workspace-sync from a batch that already holds that record does not make it inherited, so ready and admission keep the member's change without another commit under its change directory."
+acceptance = [
+    "A ready member admitted into a batch, synchronized from that batch with workspace-sync --batch and given one more implementation commit passes ready.",
+    "A change package that arrives only through a synchronization is not the member's own.",
+]
+
+[[change.contract.requirements]]
+id = "MANIFEST-004"
+outcome = "workspace-open on a base whose signetum.toml this engine cannot load opens and registers the member, reports preparation as unavailable with the manifest cause, and directs the agent to migrate the manifest there before ready; ready, admission and final keep requiring a manifest this engine loads, and their refusal says so. status, from a member, batch or the main checkout, reports the manifest as unreadable with its cause instead of failing."
+acceptance = [
+    "workspace-open on a base with a manifest field the engine removed passes with preparation unavailable and the cause; after migrating the manifest in that member, ready passes.",
+    "status from the main checkout of such a repository passes and reports the manifest cause.",
+]
+
+[[change.contract.requirements]]
+id = "CONTINUE-005"
+outcome = "When batch-open or batch-admit stops at a merge conflict, the members named after the conflicting one are recorded as pending for that batch; the conflict result and status list them, and batch-continue, after committing the resolution, admits them in order. A later conflict stops again with the rest still pending."
+acceptance = [
+    "batch-open of three members whose first two conflict lists the third as pending; after resolving, batch-continue admits it.",
+    "status in the conflicted batch lists the pending member and the batch-continue command.",
+]
+
+[[change.contract.requirements]]
+id = "JOURNAL-LOCK-006"
+outcome = "A journal write serializes only with writes in the same worktree: writes in other worktrees, including other changes and a batch running final, never wait for or refuse on it. A write in the same worktree waits for the current writer for a bounded time before refusing with the reason."
+acceptance = [
+    "While one worktree holds its journal writer lock, a journal write in another worktree of the same repository succeeds.",
+    "A second writer in the same worktree waits for the first and then succeeds.",
+]
+
+[[change.contract.requirements]]
+id = "STATUS-007"
+outcome = "status prints a compact document by default: observation counts by status and only unresolved observations in full; --verbose adds every observation."
+acceptance = [
+    "status by default omits resolved observations but counts them; status --verbose lists them.",
+]
+
+[[change.contract.requirements]]
+id = "PREPARE-008"
+outcome = "A prepare shard may rebuild ignored or derived state and Signetum continues when it exits zero with tracked source unchanged. When one fails, the refusal names the shard and its full declared command, includes the adapter's own expected action when its output carries one, and the retry command."
+acceptance = [
+    "A failing prepare shard whose output carries a JSON result with expected is refused naming the shard, its command and that expected action.",
+    "A prepare shard that writes an ignored file lets workspace preparation pass.",
+]
+
+[[change.contract.requirements]]
+id = "LEFTOVER-009"
+outcome = "maintenance leftovers lists, read-only, checkouts that have no Signetum workspace record and local branches without a checkout that the delivery branch does not contain, each with its tip and the exact removal command. maintenance branch-abandon removes such a branch, and workspace-abandon such an unregistered checkout, only with the owner's confirmation of its exact tip, identity, source and reason, leaving a retirement record."
+acceptance = [
+    "leftovers lists an unregistered checkout and an abandoned branch; branch-abandon with the confirmed tip deletes the branch and records the retirement; a different tip is refused and keeps it.",
+    "workspace-abandon removes a checkout created outside Signetum given its confirmed tip.",
+]
+
+[[change.contract.requirements]]
+id = "WORKERS-010"
+outcome = "The rule that first failures remain failed is unchanged. A failed gate's result lists each first-attempt failed node with its shard and whether it passed only on retry. The host operator may cap every shard's allocated workers with SIGNETUM_VALIDATION_WORKER_LIMIT; each shard's allocation in the receipt records the cap and the observed load average. Adapters bound parallelism by declaring workers and worker_memory_mb and passing {signetum.validation_workers}."
+acceptance = [
+    "A failed gate result lists its first-attempt failed and retry-recovered nodes.",
+    "With the limit set, a shard declaring more workers is allocated at most the limit and its receipt records it.",
+]
+
+[[change.contract.requirements]]
+id = "WHY-011"
+outcome = "change why <clause-id> gathers, read-only, every accepted revision of one decision clause with its statement, rationale and reasons, the owning change's approval actor, date and source, and the commits that changed that change's record and journal."
+acceptance = [
+    "change why for an accepted clause returns its revisions, the approval source and the commits; an unknown clause is refused.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-012"
+outcome = "The Skill references, architecture pages and changelog describe the released vanished nodes, resolve forms, member change ownership, older manifest handling, pending admissions, journal lock scope, compact status, preparation contract, leftover operations, worker limit and change why."
+acceptance = [
+    "Current guidance agrees with observed CLI behavior; historical authorities remain unchanged.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the owners of failure memory, shard execution, change CLI, change scope, manifest reading, workspace operations, batch admission and continuation, journal writer, status, preparation, worker allocation, maintenance and decision history.",
+    "Extend existing functional traversals, reconcile Skill, architecture and changelog text, run ready, integrate and run final.",
+]
+requires_confirmation = [
+    "Relax the rule that first failures remain failed, change the manifest schema, deliver to main, tag, push or publish a release.",
+]
+
+[[change.contract.decisions]]
+id = "delivery-friction-repairs/failure-memory"
+change_id = "delivery-friction-repairs"
+authority = "changes/delivery-friction-repairs/change.toml#decisions/delivery-friction-repairs/failure-memory"
+reason = "Perdura's final kept refusing a node its change had deleted or renamed, which no run can ever report passing; it needed a manual root-cause record each time. Releasing only nodes the workspace's own diff removed keeps every other first failure owed."
+parents = ["owed-nodes-run-first/runner-feedback"]
+
+[[change.contract.decisions.clauses]]
+id = "delivery-friction-repairs/release-vanished"
+change_id = "delivery-friction-repairs"
+action = "amend"
+expected = [{id = "EFFICIENCY-FAIL-001", version = 3}]
+authority = "changes/delivery-friction-repairs/change.toml#decisions/delivery-friction-repairs/failure-memory"
+reason = "A deleted or renamed test cannot pass; its removal in the workspace diff is its accounting."
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-FAIL-001"
+version = 4
+topic = "validation-efficiency"
+scope = ["Validation execution, diagnostics and CI", "Change journals"]
+statement = "A failed gate leaves a machine-local failure receipt for its workspace naming first-attempt failed, retry-recovered and runner-reported unreached nodes. Unreached nodes fail their shard. The next gate in that workspace accepts a remembered node that an observation in a change journal the workspace changed names as evidence with its root cause, whatever its shard selection. Otherwise its shard must be selected again, or the gate refuses before running checks, and the node must report passing in that run, unless that shard passes without reporting it, the workspace changed its test file since its base and that file no longer holds its test; such a vanished node is released and its shard's receipt details name it. A retry success never offsets a first failure."
+rationale = "Only the workspace's own deletion or rename releases a node, so a node that merely went unreported, or whose file the change did not touch, stays owed."
+
+[[change.contract.decisions]]
+id = "delivery-friction-repairs/development-operations"
+change_id = "delivery-friction-repairs"
+authority = "changes/delivery-friction-repairs/change.toml#decisions/delivery-friction-repairs/development-operations"
+reason = "Perdura's parallel delivery showed members losing their own change after a batch sync, admissions abandoned after one conflict, unrelated journal writes refused behind one repository-wide lock, node ids refused as evidence and leftovers that only raw Git could remove."
+parents = ["records-keep-readiness/records-keep-readiness", "workspaces-end-in-a-proven-outcome/workspace-endings"]
+
+[[change.contract.decisions.clauses]]
+id = "delivery-friction-repairs/resolve-forms"
+change_id = "delivery-friction-repairs"
+action = "amend"
+expected = [{id = "RECORDS-RESOLVE-001", version = 1}]
+authority = "changes/delivery-friction-repairs/change.toml#decisions/delivery-friction-repairs/development-operations"
+reason = "Agents name a failing test by its node id; its file is the path evidence."
+
+[[change.contract.decisions.clauses.updates]]
+id = "RECORDS-RESOLVE-001"
+version = 2
+topic = "development-feedback"
+scope = ["Change journals", "Final validation"]
+statement = "A member or batch workspace may write the journal of an approved change in its tree; a batch write does not claim the change, and final attributes a batch commit that changes only change records to those changes. Resolution evidence is a path in the judged tree or a known validation receipt; the semantic resolve writes a pytest node id as its file path and accepts the record's ID as its target. A deferral needs only its reason; an optional follow-up names an approved change on any local branch and is judged only when written. The final review lists every deferred item under unfinished_work."
+rationale = "Normalizing the two forms agents actually type keeps the stored evidence a path without another evidence kind."
+
+[[change.contract.decisions.clauses]]
+id = "delivery-friction-repairs/member-change"
+change_id = "delivery-friction-repairs"
+action = "add"
+expected = [{id = "MEMBER-CHANGE-001", version = 0}]
+authority = "changes/delivery-friction-repairs/change.toml#decisions/delivery-friction-repairs/development-operations"
+reason = "Path contribution alone forgets a member's record once a batch sync brings back identical content."
+
+[[change.contract.decisions.clauses.updates]]
+id = "MEMBER-CHANGE-001"
+version = 1
+topic = "member-synchronization"
+scope = ["Member synchronization and ratchet baselines"]
+statement = "A member's own change packages are those whose change.toml its own first-parent non-merge commits wrote and its base does not hold, in addition to those its contribution paths carry. A synchronization that brings back identical content does not make them inherited; a package that arrives only through a synchronization is not the member's own."
+rationale = "Ownership follows who wrote the record, which a later merge of the same content cannot change."
+
+[[change.contract.decisions.clauses]]
+id = "delivery-friction-repairs/pending-admissions"
+change_id = "delivery-friction-repairs"
+action = "add"
+expected = [{id = "BATCH-PENDING-001", version = 0}]
+authority = "changes/delivery-friction-repairs/change.toml#decisions/delivery-friction-repairs/development-operations"
+reason = "The requested admission set should survive one conflict."
+
+[[change.contract.decisions.clauses.updates]]
+id = "BATCH-PENDING-001"
+version = 1
+topic = "skill-first-development"
+scope = ["Batch admission and continuation"]
+statement = "When batch-open or batch-admit stops at a merge conflict, the members named after the conflicting one are recorded machine-locally as pending for that batch. The conflict result and status list them; batch-continue commits the resolution and then admits them in order, stopping again at the next conflict with the rest pending."
+rationale = "Continuation finishes the operation the agent asked for instead of requiring each remaining admission by hand."
+
+[[change.contract.decisions.clauses]]
+id = "delivery-friction-repairs/journal-writer"
+change_id = "delivery-friction-repairs"
+action = "add"
+expected = [{id = "JOURNAL-WRITER-001", version = 0}]
+authority = "changes/delivery-friction-repairs/change.toml#decisions/delivery-friction-repairs/development-operations"
+reason = "Each worktree writes only its own journal files; a repository-wide lock serialized unrelated work."
+
+[[change.contract.decisions.clauses.updates]]
+id = "JOURNAL-WRITER-001"
+version = 1
+topic = "development-feedback"
+scope = ["Change journals"]
+statement = "Journal writes serialize per worktree through a lock in that worktree's Git directory. Writes in other worktrees never wait for it. A writer in the same worktree waits a bounded time for the holder, then refuses naming the active writer."
+rationale = "The journal files a write reads and appends belong to one worktree; history digests already refuse stale writes."
+
+[[change.contract.decisions.clauses]]
+id = "delivery-friction-repairs/leftovers"
+change_id = "delivery-friction-repairs"
+action = "amend"
+expected = [{id = "WORKSPACE-ABANDON-001", version = 1}]
+authority = "changes/delivery-friction-repairs/change.toml#decisions/delivery-friction-repairs/development-operations"
+reason = "Checkouts and branches created outside Signetum need the same confirmed removal as workspaces."
+
+[[change.contract.decisions.clauses.updates]]
+id = "WORKSPACE-ABANDON-001"
+version = 2
+topic = "workspace-retirement"
+scope = ["Workspace abandonment"]
+statement = "maintenance workspace-abandon removes a checkout, registered as a workspace or not, that proves neither delivered nor contained, and maintenance branch-abandon removes a local branch without a checkout that the delivery branch does not contain, only when given the exact current tip the owner confirmed, the owner's identity, the confirmation source and a reason; the retirement record keeps them with the tip. maintenance leftovers lists such checkouts and branches read-only. Removal refuses the delivery branch and checkout, open Git operations and staged changes, and discards other uncommitted work only with --discard. These are the only removals for undelivered work; batch-discard is removed."
+rationale = "One confirmed, recorded removal covers every leftover the guard keeps agents from deleting with raw Git."
+
+[[change.execution.steps]]
+id = "STEP-GATES"
+requirements = ["VANISHED-001", "PREPARE-008", "WORKERS-010"]
+action = "Pass the workspace's changed test files into shard execution to release vanished owed nodes, rewrap prepare failures with shard, command and adapter expectation, list first-attempt nodes in failed results, and cap worker allocation."
+
+[[change.execution.steps]]
+id = "STEP-OPERATIONS"
+requirements = ["RESOLVE-002", "OWNERSHIP-003", "MANIFEST-004", "CONTINUE-005", "JOURNAL-LOCK-006", "STATUS-007", "LEFTOVER-009", "WHY-011"]
+action = "Extend the change CLI, member scope, workspace-open, admission and continuation, journal writer, status and maintenance owners, reproducing each failure in an existing traversal first."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["VANISHED-001", "RESOLVE-002", "OWNERSHIP-003", "MANIFEST-004", "CONTINUE-005", "JOURNAL-LOCK-006", "STATUS-007", "PREPARE-008", "LEFTOVER-009", "WORKERS-010", "WHY-011", "DOC-012"]
+action = "Reconcile Skill, architecture and changelog, run ready, integrate and run final; stop before delivery."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-08
+source = "Relayed by the coordinating agent on 2026-11-08: the owner asked to fix the eleven process problems found while delivering PyReduce that day, keeping the rule that first failures remain failed and exposing a worker cap instead of weakening it, with commits on a branch through Signetum's normal flow and no release, tag, public push or publication; the coordinator asks the owner before delivery. This implementing session did not hear the approval independently; the requirement wording, the clause amendments and the package split are the implementing session's reading of that direction."
+contract_digest = "sha256:203e59b4a83f56b37c8fff23b0409b997bae78057be2e9f990a549dad7a22abc"
