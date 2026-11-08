@@ -151,11 +151,55 @@ def records_only_ancestors(repository: Path, root: str, base: str, tip: str) -> 
     return tuple(reached)
 
 
+def written_packages(
+    repository: Path, manifest: RepositoryManifest, base: str, tip: str
+) -> tuple[str, ...]:
+    """Change packages whose record the member's own commits wrote and its base lacks.
+
+    Only first-parent non-merge commits count, so a package that arrives through
+    a synchronization merge is never the member's own, and one the member wrote
+    stays its own after a batch synchronization brings back identical content.
+    """
+    root = changes_root(manifest)
+    depth = len(PurePosixPath(root).parts)
+    written: set[str] = set()
+    for commit in git_output(
+        repository, "rev-list", "--first-parent", "--no-merges", f"{base}..{tip}"
+    ).splitlines():
+        for path in git_output(
+            repository, "diff-tree", "--no-commit-id", "--name-only", "-r", commit, "--", root
+        ).splitlines():
+            parts = PurePosixPath(path).parts
+            if len(parts) == depth + 2 and parts[-1] == "change.toml":
+                written.add(parts[depth])
+    return tuple(
+        sorted(
+            change_id
+            for change_id in written
+            if committed_blob(repository, tip, f"{root}/{change_id}/change.toml") is not None
+            and not git_output(
+                repository, "ls-tree", "-d", "--name-only", base, "--", f"{root}/{change_id}"
+            )
+        )
+    )
+
+
 def member_scope(
     repository: Path, manifest: RepositoryManifest, base: str, tip: str
 ) -> DeliveryScope:
-    return delivery_scope(
+    scope = delivery_scope(
         repository, manifest, base, tip, paths=member_contribution_paths(repository, base, tip)
+    )
+    held = {*scope.first_delivered, *(item.change_id for item in scope.previously_delivered)}
+    written = tuple(
+        change_id
+        for change_id in written_packages(repository, manifest, base, tip)
+        if change_id not in held
+    )
+    if not written:
+        return scope
+    return DeliveryScope(
+        tuple(sorted((*scope.first_delivered, *written))), scope.previously_delivered
     )
 
 

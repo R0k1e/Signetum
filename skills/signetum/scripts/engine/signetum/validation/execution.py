@@ -168,6 +168,7 @@ def _resolve_outcome(
     details: dict[str, JsonValue],
     nodes: _NodeObservations,
     required_nodes: frozenset[str] = frozenset(),
+    vanished_nodes: frozenset[str] = frozenset(),
 ) -> ShardOutcome:
     """Execute one shard and decide whether it produced reusable evidence."""
 
@@ -185,7 +186,16 @@ def _resolve_outcome(
         require_original_success(
             [{**defect, "shard": shard.name} for defect in execution.recovered]
         )
-        if missing := sorted(required_nodes - set(execution.passed_nodes)):
+        unreported = required_nodes - set(execution.passed_nodes) - set(execution.failed_nodes)
+        if released := sorted(unreported & vanished_nodes):
+            # The workspace removed these tests; a passing shard that no longer runs them
+            # accounts for them, and the receipt keeps which ones it released.
+            previous = details.get(shard.name)
+            details[shard.name] = {
+                **(previous if isinstance(previous, dict) else {}),
+                "released_vanished_nodes": list(released),
+            }
+        if missing := sorted(required_nodes - set(execution.passed_nodes) - set(released)):
             raise ValidationExecutionError(
                 f"{shard.name}: previously failed nodes did not pass in this run: "
                 + ", ".join(missing)
@@ -257,6 +267,7 @@ def _execute_shards(
     executed: set[str] | None = None,
     advisory_world: bool = False,
     remembered: Mapping[str, frozenset[str]] | None = None,
+    vanished: Mapping[str, frozenset[str]] | None = None,
 ) -> _ExecutionResult:
     """One verdict owner for qualified execution and non-qualifying diagnostics.
 
@@ -317,6 +328,7 @@ def _execute_shards(
                     details=shard_details,
                     nodes=nodes,
                     required_nodes=required_nodes,
+                    vanished_nodes=(vanished or {}).get(name, frozenset()),
                 )
         except ValidationExecutionError as error:
             if (
@@ -365,6 +377,7 @@ def execute_gate(
     *,
     inherited: InheritedEvidence | None = None,
     remembered: Mapping[str, frozenset[str]] | None = None,
+    vanished: Mapping[str, frozenset[str]] | None = None,
 ) -> EvidenceReceipt:
     """Execute one resolved gate and compose only its successful shard evidence.
 
@@ -389,7 +402,9 @@ def execute_gate(
                 and outcome.evidence == "tree"
                 and outcome.status == "passed"
             }
-    result = _execute_shards(graph, gate, inputs, adapter, reusable=reusable, remembered=remembered)
+    result = _execute_shards(
+        graph, gate, inputs, adapter, reusable=reusable, remembered=remembered, vanished=vanished
+    )
     inherited_names, recovered, shard_details = result.inherited, result.recovered, result.details
     receipts = [
         EvidenceReceipt.shard(
@@ -473,6 +488,7 @@ def execute_diagnostic_gate(
     tools: tuple[ToolDeclaration, ...] = (),
     inputs: ValidationInputs | None = None,
     remembered: Mapping[str, frozenset[str]] | None = None,
+    vanished: Mapping[str, frozenset[str]] | None = None,
 ) -> dict[str, object]:
     """Execute diagnostics without granting or storing readiness evidence."""
     projected = inputs or ValidationInputs(
@@ -490,6 +506,7 @@ def execute_diagnostic_gate(
         executed=executed,
         advisory_world=advisory_world,
         remembered=remembered,
+        vanished=vanished,
     )
     if identity is not None and build_evidence_identity(graph, projected, adapter) != identity:
         raise ValidationExecutionError("validation inputs changed during execution")

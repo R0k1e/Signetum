@@ -137,7 +137,10 @@ class RepositoryValidationAdapter:
         started = time.perf_counter()
         allocation = (
             resources.allocate_workers(
-                shard.workers, shard.worker_memory_mb, resources.observe_resources()
+                shard.workers,
+                shard.worker_memory_mb,
+                resources.observe_resources(),
+                limit=resources.worker_limit(),
             )
             if shard.workers
             else {"workers": 0, "declared_workers": 0}
@@ -179,11 +182,16 @@ class RepositoryValidationAdapter:
             ),
             file=sys.stderr,
         )
+        load = resources.load_average()
         return replace(
             execution,
             details={
                 **execution.details,
-                "resource_allocation": allocation,
+                # The load a first failure happened under; it never changes the verdict.
+                "resource_allocation": {
+                    **allocation,
+                    **({"load_average": load} if load is not None else {}),
+                },
                 "elapsed_seconds": elapsed,
                 **({"member_values": values} if values else {}),
             },
@@ -363,6 +371,7 @@ def run_diagnostic_gate(
     inputs: ValidationInputs | None = None,
     exact_source: bool = False,
     remembered: Mapping[str, frozenset[str]] | None = None,
+    vanished: Mapping[str, frozenset[str]] | None = None,
     admission_base: str | None = None,
 ) -> dict[str, object]:
     """Execute checks without granting readiness or publishing delivery evidence."""
@@ -387,6 +396,7 @@ def run_diagnostic_gate(
         tools=tools,
         inputs=inputs,
         remembered=remembered,
+        vanished=vanished,
     )
     if exact_source:
         adapter.require_clean()

@@ -32,7 +32,16 @@ LIFECYCLE = (
     "final",
     "batch-deliver",
 )
-CHANGE = ("current", "history", "record", "resolve", "retract", "reconcile", "retire")
+CHANGE = (
+    "current",
+    "history",
+    "why",
+    "record",
+    "resolve",
+    "retract",
+    "reconcile",
+    "retire",
+)
 COMMANDS = (
     *(
         Command((name,), "lifecycle", prefix=(name,), help=f"Run {name}.", panel="Delivery")

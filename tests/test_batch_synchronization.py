@@ -490,3 +490,100 @@ def test_a_member_migrating_an_older_delivered_manifest_is_admitted(
     capsys.readouterr()
     assert change_cli.main(["status", "--repository", str(batch)]) == 0
     assert "manifest" not in json.loads(capsys.readouterr().out)
+
+
+def test_a_member_synchronized_from_its_batch_keeps_its_own_change(repository):
+    root, _ = repository
+    member = ready_member(root, "owned", "owned.txt")
+    other = ready_member(root, "other", "other.txt")
+    batch = open_batch(root, member)
+    lifecycle.admit(batch, (other,))
+    ops.workspace_sync(member, batch)
+    commit_file(member, "owned-more.txt")
+
+    ready: Any = lifecycle.validate(member, "member")
+
+    assert [item["change_id"] for item in ready["approvals"]] == ["owned"]
+    result: Any = lifecycle.admit(batch, (member,))
+    assert [item["branch"] for item in result["admitted"]] == ["change/owned"]
+    assert (batch / "owned-more.txt").exists()
+
+
+def test_members_after_a_conflict_are_admitted_by_batch_continue(repository, capsys):
+    root, _ = repository
+    first = ready_member(root, "first", "shared.txt", "first")
+    second = ready_member(root, "second", "shared.txt", "second")
+    third = ready_member(root, "third", "third.txt")
+    with pytest.raises(MergeConflict) as conflict:
+        lifecycle.batch_open(root, (first, second, third), name="wave")
+    assert "batch-continue" in conflict.value.expected
+    assert str(third) in conflict.value.expected
+    batch = ops.workspace_destination(root, "batch/wave")
+    capsys.readouterr()
+    assert change_cli.main(["status", "--repository", str(batch)]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["pending_admissions"] == [str(third)]
+    assert "batch-continue" in status["next"]
+    (batch / "shared.txt").write_text("both")
+    git_output(batch, "add", "shared.txt")
+
+    result: Any = lifecycle.continue_batch(batch)
+
+    resumed = result["resumed_admission"]
+    assert [item["branch"] for item in resumed["admitted"]] == ["change/third"]
+    assert (batch / "third.txt").exists()
+    capsys.readouterr()
+    assert change_cli.main(["status", "--repository", str(batch)]) == 0
+    assert "pending_admissions" not in json.loads(capsys.readouterr().out)
+
+
+def test_why_gathers_one_clause_with_its_approval_and_commits(repository, capsys):
+    root, _ = repository
+    member = ready_member(root, "first", "first.txt", clause="RULE-001")
+    capsys.readouterr()
+    assert change_cli.main(["why", "RULE-001", "--repository", str(member)]) == 0
+    explained = json.loads(capsys.readouterr().out)
+    [revision] = explained["revisions"]
+    assert revision["version"] == 1 and revision["statement"] == "The first rule."
+    assert revision["decision_reason"] and revision["edit_reason"]
+    [owner] = explained["changes"]
+    assert owner["change_id"] == "first"
+    assert owner["approval"]["source"] == "Owner confirmed the fixture outcome."
+    assert [item["subject"] for item in owner["commits"]] == [
+        "accept the first rule",
+        "approve change first",
+    ]
+    assert change_cli.main(["why", "RULE-404", "--repository", str(member)]) != 0
+    assert "RULE-404" in json.loads(capsys.readouterr().out.strip().splitlines()[-1])["cause"]
+
+
+def test_a_member_opens_on_an_older_delivered_manifest_and_migrates_it(
+    repository, monkeypatch, capsys
+):
+    root, _ = repository
+    path = root / "signetum.toml"
+    path.write_text(
+        path.read_text().replace(
+            'name = "test:check"\ncommand = ["true"]\n',
+            'name = "test:check"\ncommand = ["true"]\nlegacy = ["removed"]\n',
+        )
+    )
+    git_output(root, "commit", "-am", "deliver a manifest an older engine wrote")
+    git_output(root, "push", "origin", "main")
+    capsys.readouterr()
+    assert change_cli.main(["status", "--repository", str(root)]) == 0
+    assert "legacy" in json.loads(capsys.readouterr().out)["manifest"]["cause"]
+
+    base = git_output(root, "rev-parse", "HEAD")
+    opened_result: Any = ops.workspace_open(root, "change/migrating", base)
+
+    assert opened_result["preparation"]["status"] == "unavailable"
+    assert "legacy" in opened_result["manifest"]["cause"]
+    migrating = Path(str(opened_result["worktree"]))
+    with pytest.raises(manifest_format.UnsupportedManifestError, match="legacy"):
+        lifecycle.validate(migrating, "member")
+    commit_approval(migrating, "migrating")
+    migrated = migrating / "signetum.toml"
+    migrated.write_text(migrated.read_text().replace('legacy = ["removed"]\n', ""))
+    git_output(migrating, "commit", "-am", "migrate the manifest")
+    assert lifecycle.validate(migrating, "member")["status"] == "ready"

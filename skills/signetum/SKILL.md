@@ -55,7 +55,9 @@ scope, shared interfaces and integration; Signetum does not schedule Agents.
 Every workspace ends delivered, contained (its content already reached the
 delivery branch) or abandoned. Delivery and `maintenance cleanup --all-delivered`
 remove the first two; `status` lists what each open workspace proves. Use
-`maintenance workspace-abandon` only with the owner's actual confirmation of that tip.
+`maintenance workspace-abandon`, or `branch-abandon` for a branch without a checkout,
+only with the owner's actual confirmation of that tip; `maintenance leftovers` lists
+checkouts and branches created outside Signetum that need it.
 
 Tell the user which tests change, why, and whether evidence is removed or relaxed.
 Use existing project checks. First failures remain failed after diagnostic retry.

@@ -117,20 +117,46 @@ def observe_resources(
         raise ValidationInfrastructureError(f"resource observation unavailable: {error}") from error
 
 
+WORKER_LIMIT = "SIGNETUM_VALIDATION_WORKER_LIMIT"
+"""A host operator's cap on every shard's allocated workers, for a shared machine."""
+
+
+def worker_limit(environment: dict[str, str] | None = None) -> int | None:
+    value = (os.environ if environment is None else environment).get(WORKER_LIMIT)
+    if value is None or value == "":
+        return None
+    if not value.isdecimal() or int(value) < 1:
+        raise ValidationInfrastructureError(f"{WORKER_LIMIT} must be a positive integer")
+    return int(value)
+
+
+def load_average() -> float | None:
+    """The host's one-minute load average where the platform reports one."""
+    try:
+        return round(os.getloadavg()[0], 2)
+    except (AttributeError, OSError):
+        return None
+
+
 def allocate_workers(
-    declared: int, worker_memory_mb: int, observation: ResourceObservation
+    declared: int,
+    worker_memory_mb: int,
+    observation: ResourceObservation,
+    *,
+    limit: int | None = None,
 ) -> dict[str, int]:
-    """Never launch more workers than either declared or observed capacity."""
+    """Never launch more workers than declared, observed or operator-limited capacity."""
     affordable = (
         observation.available_memory_mb // worker_memory_mb if worker_memory_mb else declared
     )
     if declared and affordable < 1:
         raise ValidationInfrastructureError("available memory cannot afford one declared worker")
-    count = min(declared, observation.cpus, affordable)
+    count = min(declared, observation.cpus, affordable, *(() if limit is None else (limit,)))
     return {
         "workers": count,
         "declared_workers": declared,
         "effective_cpus": observation.cpus,
         "available_memory_mb": observation.available_memory_mb,
         "worker_memory_mb": worker_memory_mb,
+        **({"worker_limit": limit} if limit is not None else {}),
     }

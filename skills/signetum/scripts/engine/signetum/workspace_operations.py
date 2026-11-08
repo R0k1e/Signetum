@@ -13,7 +13,7 @@ from typing import Literal
 
 from signetum import worktrunk as wt
 from signetum.git import git_output, repository_path, run_git
-from signetum.manifest import load_manifest, parse_manifest
+from signetum.manifest import UnsupportedManifestError, load_manifest, parse_manifest
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.policy import delivery_policy
 from signetum.preparation import PreparationResult, prepare_workspace
@@ -58,6 +58,7 @@ def open_workspace(
 ) -> dict[str, object]:
     root = Path(git_output(repository, "rev-parse", "--show-toplevel"))
     source = git_output(root, "rev-parse", "--verify", f"{base}^{{commit}}")
+    unsupported: str | None = None
     destination = workspace_destination(root, branch)
     if branch == delivery_policy(root).branch:
         raise AdmissionError("workspace-open cannot adopt the delivery worktree")
@@ -104,9 +105,14 @@ def open_workspace(
             raise AdmissionError("workspace destination already exists")
         exclude_workspaces(root)
         if kind == "member":
-            manifest = parse_manifest(git_output(root, "show", f"{source}:signetum.toml"))
-            graph, _ = configured_validation(manifest)
-            graph.gate("prepare")
+            try:
+                manifest = parse_manifest(git_output(root, "show", f"{source}:signetum.toml"))
+            except UnsupportedManifestError as error:
+                # The member that migrates an older delivered manifest must be openable.
+                unsupported = str(error)
+            else:
+                graph, _ = configured_validation(manifest)
+                graph.gate("prepare")
         wt.worktrunk(
             root,
             (
@@ -147,6 +153,25 @@ def open_workspace(
             status="pending_admission", worktree=str(workspace.path), executed=[]
         )
     else:
+        if unsupported is None:
+            try:
+                load_manifest(workspace.path / "signetum.toml")
+            except UnsupportedManifestError as error:
+                unsupported = str(error)
+    unloadable: dict[str, object] = {}
+    if unsupported is not None:
+        preparation = PreparationResult(
+            status="unavailable", worktree=str(workspace.path), executed=[]
+        )
+        unloadable = {
+            "manifest": {"loadable": False, "cause": unsupported},
+            "next": (
+                "This engine cannot load the base's signetum.toml. Migrate it in this member and "
+                "commit, then run maintenance worktree-prepare and ready; ready, admission and "
+                "final need the format this engine reads."
+            ),
+        }
+    elif kind != "batch":
         try:
             preparation = worktree_prepare(workspace.path)
         except InfrastructureError as error:
@@ -161,6 +186,7 @@ def open_workspace(
         "source": git_output(workspace.path, "rev-parse", "HEAD"),
         "resumed": resumed,
         "preparation": preparation,
+        **unloadable,
     }
 
 
@@ -524,11 +550,7 @@ def workspace_abandon(
 ) -> dict[str, object]:
     """Remove undelivered work only with the owner's confirmation of its exact tip."""
 
-    for value, name in ((actor, "--actor"), (source, "--source"), (reason, "--reason")):
-        if not value.strip():
-            raise AdmissionError(f"workspace-abandon requires the owner's {name}")
-    if fullmatch(_COMMIT, expected_tip) is None:
-        raise AdmissionError("workspace-abandon requires the confirmed tip as a full commit")
+    _confirmation(actor, source, reason, expected_tip, "workspace-abandon")
     delivery_branch, published = fresh_delivery(repository)
     matches = tuple(item for item in wt.worktrees(repository) if item.path == worktree.resolve())
     if len(matches) != 1:
@@ -641,3 +663,124 @@ def cleanup_delivered(
             ending = removal(target, item, published, protected, require_record=True)
         _settle(target, item, ending, removed, retained)
     return removed, retained
+
+
+def _confirmation(actor: str, source: str, reason: str, expected_tip: str, operation: str) -> None:
+    for value, name in ((actor, "--actor"), (source, "--source"), (reason, "--reason")):
+        if not value.strip():
+            raise AdmissionError(f"{operation} requires the owner's {name}")
+    if fullmatch(_COMMIT, expected_tip) is None:
+        raise AdmissionError(f"{operation} requires the confirmed tip as a full commit")
+
+
+def _last_delivery(repository: Path, branch: str) -> str | None:
+    for name in (f"refs/remotes/origin/{branch}", f"refs/heads/{branch}"):
+        completed = run_git(repository, "rev-parse", "--verify", "--quiet", name)
+        if completed.returncode == 0:
+            return completed.stdout.strip()
+    return None
+
+
+def leftovers(repository: Path) -> dict[str, object]:
+    """List, read-only, checkouts without a workspace record and uncontained loose branches.
+
+    Each row carries its tip and the confirmed removal command; nothing is removed.
+    """
+    branch = delivery_policy(repository).branch
+    delivered = _last_delivery(repository, branch)
+    placeholders = ("--actor", "<owner>", "--source", "<confirmation>", "--reason", "<why>")
+    checked_out: set[str] = set()
+    rows: list[dict[str, object]] = []
+    for name, path, head in branch_checkouts(repository):
+        checked_out.add(name)
+        if name == branch or _record(repository, name) is not None:
+            continue
+        rows.append(
+            {
+                "kind": "unregistered_checkout",
+                "branch": name,
+                "worktree": str(path),
+                "tip": head,
+                "remove": shlex.join(
+                    ("maintenance", "workspace-abandon", str(path), head, *placeholders)
+                ),
+            }
+        )
+    for line in git_output(
+        repository, "for-each-ref", "--format=%(refname:short)%09%(objectname)", "refs/heads"
+    ).splitlines():
+        name, _, tip = line.partition("\t")
+        if name == branch or name in checked_out:
+            continue
+        if delivered is not None and is_ancestor(repository, tip, delivered):
+            continue
+        rows.append(
+            {
+                "kind": "branch_without_checkout",
+                "branch": name,
+                "tip": tip,
+                "remove": shlex.join(("maintenance", "branch-abandon", name, tip, *placeholders)),
+            }
+        )
+    return {
+        "status": "listed",
+        "delivery": delivered,
+        "leftovers": rows,
+        "guidance": (
+            "Remove a leftover only with the owner's confirmation of that exact tip; "
+            "maintenance cleanup removes delivered or contained workspaces without it."
+        ),
+    }
+
+
+def branch_abandon(
+    repository: Path,
+    branch: str,
+    expected_tip: str,
+    *,
+    actor: str,
+    source: str,
+    reason: str,
+) -> dict[str, object]:
+    """Delete a local branch without a checkout only with the owner's confirmed exact tip."""
+
+    _confirmation(actor, source, reason, expected_tip, "branch-abandon")
+    delivery_branch = delivery_policy(repository).branch
+    if branch == delivery_branch:
+        raise AdmissionError("branch-abandon cannot remove the delivery branch")
+    current = run_git(repository, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}")
+    if current.returncode:
+        raise AdmissionError(f"branch-abandon names no local branch: {branch}")
+    checkouts = [path for name, path, _ in branch_checkouts(repository) if name == branch]
+    if checkouts:
+        raise AdmissionError(
+            "branch-abandon refuses a branch that is checked out",
+            expected=f"maintenance workspace-abandon {shlex.quote(str(checkouts[0]))} "
+            f"{expected_tip} --actor ... --source ... --reason ...",
+        )
+    if current.stdout.strip() != expected_tip:
+        raise AdmissionError(
+            "branch tip differs from the confirmed tip; confirm the current tip again"
+        )
+    # Compare-and-delete: a branch that moves after the check is kept.
+    deleted = run_git(repository, "update-ref", "-d", f"refs/heads/{branch}", expected_tip)
+    if deleted.returncode:
+        raise AdmissionError(deleted.stderr.strip() or f"cannot delete branch {branch}")
+    ending: dict[str, object] = {
+        "outcome": "abandoned",
+        "delivery": _last_delivery(repository, delivery_branch),
+        "reason": reason,
+        "authorization": {
+            "actor": actor,
+            "source": source,
+            "recorded_at": datetime.now(UTC).date().isoformat(),
+        },
+    }
+    retired = retire_record(state_root(repository), branch, expected_tip, ending)
+    return {
+        "status": "abandoned",
+        "branch": branch,
+        "tip": expected_tip,
+        **ending,
+        "retirement": str(retired),
+    }
