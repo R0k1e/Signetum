@@ -27,10 +27,20 @@ final again. A conflict stays open for `batch-continue`. Do not discard and
 reopen the batch. If admission or synchronization refuses a decision clause ID
 claimed by two changes, give one change a distinct ID, commit, run ready, retry.
 When the engine no longer loads a delivered `signetum.toml`, migrate it in one
-member and run ready there. `status`, `batch-open`, `batch-admit` and
+member and run ready there; `workspace-open` opens that member with preparation
+`unavailable` and the cause. `status`, `batch-open`, `batch-admit` and
 synchronization read only the locations of the older batch manifest, so that
 member is admitted and the batch gate validates the merged manifest; `status`
 reports the cause. A member that keeps the old manifest is refused.
+
+When `batch-open` or `batch-admit` stops at a conflict, the members named after it
+stay pending; the result and `status` list them, and `batch-continue` admits them
+after committing the resolution.
+
+A remembered failing node that the change deleted or renamed is released when its
+shard passes without it; the receipt lists it. Other first failures stay owed.
+A failed result lists `first_attempt_failures`, including those that passed only on
+retry.
 
 On failure, inspect the structured result, retained diagnostics and exact local
 and remote identities before acting. Preserve work after conflict or publication
@@ -64,6 +74,10 @@ always stays. `status` lists each open workspace with the outcome it proves.
 Abandoned: only for work the owner decides to drop, run
 `maintenance workspace-abandon <worktree> <confirmed-tip> --actor <owner> --source <confirmation> --reason <why>`
 with the owner's actual confirmation of that exact full commit; never infer it.
+`maintenance leftovers` lists checkouts created outside Signetum and branches
+without a checkout that the delivery branch lacks, each with its command; remove
+such a branch with `maintenance branch-abandon <branch> <confirmed-tip> ...` under
+the same confirmation, never raw `git branch -D`.
 Removals leave a retirement record with the tip, outcome and proof under the Git
 common directory's `signetum/retired`.
 

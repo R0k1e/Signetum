@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 import signetum.development_store as store
@@ -266,10 +267,45 @@ def test_a_reselected_failure_that_does_not_report_passing_fails_the_gate(tmp_pa
     ]
 
 
-def test_a_retry_only_pass_is_remembered_as_failed_and_recovered(tmp_path):
-    member, _, _ = _workspaces(tmp_path, {NODE: "recovered"})
-    with pytest.raises(ValidationExecutionError, match="cannot be cleared by retry"):
+def test_a_failing_test_the_member_renames_is_released_and_recorded(tmp_path):
+    stable = "tests/test_stable.py::test_stable"
+    renamed = "tests/test_contract.py::test_contract_holds"
+    member, _, _ = _workspaces(tmp_path, {NODE: "failed", stable: "failed"})
+    (member / "tests").mkdir()
+    (member / "tests/test_contract.py").write_text("def test_contract():\n    assert False\n")
+    _commit(member, "add the contract test")
+    with pytest.raises(ValidationExecutionError):
         lifecycle.validate(member, "member")
+    # The contract test is renamed; the stable node, whose file the member never
+    # touched, merely goes unreported and stays owed.
+    (member / "tests/test_contract.py").write_text("def test_contract_holds():\n    pass\n")
+    (member / "nodes.json").write_text(json.dumps({renamed: "passed"}))
+    _commit(member, "rename the contract test")
+    with pytest.raises(ValidationExecutionError, match=re.escape(stable)) as refusal:
+        lifecycle.validate(member, "member")
+    assert NODE not in str(refusal.value)
+
+    (member / "nodes.json").write_text(json.dumps({renamed: "passed", stable: "passed"}))
+    _commit(member, "repair the stable test")
+    ready = lifecycle.validate(member, "member")
+
+    assert ready["status"] == "ready"
+    evidence: Any = ready["evidence"]
+    details = evidence["extensions"]["shard_details"]["repo:nodes"]
+    assert details["released_vanished_nodes"] == [NODE]
+    assert not failure_path(member, "impl/member").exists()
+
+
+def test_a_retry_only_pass_is_remembered_as_failed_and_recovered(tmp_path, monkeypatch, capsys):
+    member, _, _ = _workspaces(tmp_path, {NODE: "recovered"})
+    monkeypatch.chdir(member)
+    capsys.readouterr()
+    assert lifecycle.main(["ready"]) != 0
+    result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert "cannot be cleared by retry" in result["cause"]
+    assert result["first_attempt_failures"] == [
+        {"shard": "repo:nodes", "node_id": NODE, "passed_on_retry": True}
+    ]
     remembered = _remembered(member, "impl/member")
     assert remembered["failed"] == [{"shard": "repo:nodes", "node_id": NODE}]
     assert remembered["recovered"] == [{"shard": "repo:nodes", "node_id": NODE}]

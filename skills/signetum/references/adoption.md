@@ -108,8 +108,11 @@ Both use the same adoption flow:
    change through `ready`. Ready prepares and checks a temporary detached checkout
    of the committed tip. An ignored file that preparation needs and that is not
    in the commit fails ready. An ignored file preparation does not need does not
-   fail readiness. The editing worktree stays. An environment failure is not
-   permission to weaken application checks.
+   fail readiness. The editing worktree stays. A prepare shard may rebuild stale
+   ignored or derived state and continue; Signetum accepts it when it exits zero
+   with tracked source unchanged, and a failure names the shard, its command and
+   the adapter's `expected` from its last JSON output line. An environment failure
+   is not permission to weaken application checks.
 
 Normal adoption writes only `signetum.toml`; it changes no host settings. No required AGENTS/CLAUDE pointer,
 architecture scaffolding, wrapper or copied engine is added. Legacy generated

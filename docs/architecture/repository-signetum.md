@@ -85,7 +85,14 @@ steps cannot narrow that contract. Significant source history lives in
 `changes/<id>/events.jsonl`, written only by its locked owner. Expected approval
 and history digests, immutable source proofs, protected committed prefixes and
 atomic replacement prevent stale or partial reinterpretation. Exact retries are
-idempotent; refused requests append nothing.
+idempotent; refused requests append nothing. Writes serialize per worktree through
+`signetum-journal.lock` in that worktree's Git directory: other worktrees never
+wait, and a second writer in the same worktree waits up to two minutes. The
+semantic `resolve` takes the observation ID or the record's `--id` as its target
+and writes a pytest node id `path::test` as its file path. `change why <clause>`
+gathers one clause's accepted revisions, reasons, owning approvals and commits;
+`status` lists unresolved observations with counts by status, and `--verbose`
+adds resolved ones.
 
 Current clause decisions are derived. Accepted standalone cross-change authorities
 retain their original basis. Historical ledgers/documents are read-only evidence,

@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import tempfile
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -382,16 +383,35 @@ def reconciliation_summary(
     }
 
 
+WRITER_WAIT_SECONDS = 120.0
+"""How long a journal write waits for another writer in the same worktree."""
+
+
 @contextmanager
 def _writer(repository: Path) -> Iterator[Path]:
+    """Serialize journal writes of one worktree; other worktrees never wait.
+
+    A write reads and appends only the journal files of its own worktree, and the
+    history digest refuses a write whose reviewed view went stale, so the lock
+    lives in the worktree's own Git directory rather than the shared one.
+    """
     common = repository_path(repository, "rev-parse", "--git-common-dir")
     root = common / "signetum"
     root.mkdir(parents=True, exist_ok=True)
-    with (root / "development.lock").open("a+b") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise ValueError("another development journal writer is active") from error
+    location = repository_path(repository, "rev-parse", "--git-dir") / "signetum-journal.lock"
+    with location.open("a+b") as lock:
+        deadline = time.monotonic() + WRITER_WAIT_SECONDS
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError as error:
+                if time.monotonic() >= deadline:
+                    raise ValueError(
+                        "another development journal writer in this worktree is still active "
+                        f"after {WRITER_WAIT_SECONDS:.0f}s; retry once it finishes"
+                    ) from error
+                time.sleep(0.2)
         try:
             yield root
         finally:
@@ -450,7 +470,11 @@ def _resolution_targets(
                 and not source_path(repository, evidence).is_file()
                 and not known_receipt(repository, evidence)
             ):
-                raise ValueError(f"acceptance evidence target is absent: {evidence}")
+                raise ValueError(
+                    f"acceptance evidence target is absent: {evidence}; evidence is a path in "
+                    "the current tree or a validation receipt name, and a pytest node id is "
+                    "written as its file path"
+                )
         # A follow-up is judged once, when written; it may live on any branch.
         if not historical and resolution.followup is not None:
             _require_known_followup(repository, resolution.followup)

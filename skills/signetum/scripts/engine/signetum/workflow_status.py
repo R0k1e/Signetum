@@ -16,7 +16,7 @@ from signetum.change.scope import (
 from signetum.change_record import parse_change_record
 from signetum.development_log import DevelopmentSnapshot
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, ReceiptError
-from signetum.gate_records import failed_tip
+from signetum.gate_records import failed_tip, pending_admissions
 from signetum.git import git_output, repository_path
 from signetum.manifest import ManifestError, load_manifest
 from signetum.serialization import contract_mapping
@@ -39,7 +39,7 @@ def _manifest_cause(repository: Path) -> str | None:
 
 
 def workflow_status(
-    repository: Path, snapshot: DevelopmentSnapshot, *, source: str
+    repository: Path, snapshot: DevelopmentSnapshot, *, source: str, verbose: bool = False
 ) -> dict[str, object]:
     repository = repository.resolve()
     if git_output(repository, "rev-parse", "HEAD") != source:
@@ -77,8 +77,17 @@ def workflow_status(
             )
     relevant = {c["id"] for c in changes}
     scoped = tuple(o for o in snapshot.observations if workspace is None or o.change_id in relevant)
-    observations = [contract_mapping(o) for o in scoped]
+    # Resolved history is retrieved with --verbose or change history; the default stays small.
+    observations = [contract_mapping(o) for o in scoped if verbose or o.status != "resolved"]
+    counts: dict[str, int] = {}
+    for item in scoped:
+        counts[item.status] = counts.get(item.status, 0) + 1
     pending = [o.observation.id for o in scoped if o.status == "pending"]
+    waiting = (
+        [str(item) for item in pending_admissions(repository, branch)]
+        if workspace is not None and workspace.kind == "batch" and branch
+        else []
+    )
     receipts = []
     has_final = False
     # Evidence of an ancestor stands while only change records changed since.
@@ -129,7 +138,12 @@ def workflow_status(
             )
         except (ChangeError, ManifestError):
             order = None
-    if merging:
+    if merging and waiting:
+        next_action = (
+            f"Resolve and stage conflicts, then run batch-continue --batch {repository}; "
+            "it then admits the pending members in order."
+        )
+    elif merging:
         next_action = (
             "Resolve and stage conflicts; use batch-continue --batch <batch> for a batch, "
             "or finish the declared member recovery."
@@ -196,7 +210,9 @@ def workflow_status(
         "workspace": contract_mapping(workspace) if workspace else None,
         "changes": changes,
         "observations": observations,
+        "observation_counts": dict(sorted(counts.items())),
         "pending": pending,
+        **({"pending_admissions": waiting} if waiting else {}),
         "receipts": receipts,
         "workspaces": workspaces,
         **({"manifest": {"loadable": False, "cause": manifest_cause}} if manifest_cause else {}),

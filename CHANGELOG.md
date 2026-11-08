@@ -42,6 +42,36 @@ becomes an optional hook that one command registers in the host's own settings.
   manifest, the batch gate validates the merged manifest, and `status` reports
   the cause.
 
+- Failure memory releases a remembered node that the workspace deleted or renamed:
+  its shard passes without reporting it, a commit since the base touched its test
+  file and that file no longer names the test. The receipt lists it under
+  `released_vanished_nodes`; every other first failure stays owed. Failed results
+  list `first_attempt_failures` with `passed_on_retry`, and `unreached_nodes`.
+- `SIGNETUM_VALIDATION_WORKER_LIMIT` caps every shard's allocated workers on a
+  shared host; each shard's `resource_allocation` records the limit and the load
+  average. Runners bound parallelism through `{signetum.validation_workers}`.
+- `change resolve` accepts the record's `--id` as `--target` and writes a pytest
+  node id as its file path; `--help` and refusals show each expected form with an
+  example. `change why <clause-id>` gathers one clause's revisions, reasons,
+  approvals and commits.
+- A member keeps its own change after `workspace-sync --batch`: a change package
+  whose record its own commits wrote stays its own.
+- `workspace-open` opens a member on a delivered manifest the engine no longer
+  loads, with preparation `unavailable` and the cause, so that member can migrate
+  it; ready, final and journal writes still need the current format.
+- After a conflict in `batch-open` or `batch-admit`, the remaining members stay
+  pending; the result and `status` list them and `batch-continue` admits them.
+- Journal writes lock only their own worktree; other worktrees never wait, and a
+  second writer in the same worktree waits up to two minutes instead of refusing.
+- `status` lists unresolved observations with `observation_counts`; `--verbose`
+  adds resolved ones.
+- A failing prepare shard names itself, its full command and the adapter's own
+  `expected` action; a prepare shard may rebuild ignored state and continue.
+- `maintenance leftovers` lists checkouts created outside Signetum and branches
+  without a checkout that the delivery branch lacks; `maintenance branch-abandon`
+  removes such a branch, and `workspace-abandon` such a checkout, with the owner's
+  confirmed tip and a retirement record.
+
 The release is a candidate until published.
 
 ## 0.4.0

@@ -54,7 +54,9 @@ def run_operation(
         status, expected = _error_category(error)
         log = _archive_operation_failure(repository, str(error), state_root)
         print(f"{operation}: {str(error)[-2000:]}", file=sys.stderr)
-        failure = OperationResult(operation, status, {}, str(error)[-2000:], expected, log)
+        failure = OperationResult(
+            operation, status, _node_fields(error), str(error)[-2000:], expected, log
+        )
         print(json.dumps(failure.document(), sort_keys=True))
         return EXIT_CODES[status]
     outcome = result.pop("status", "passed")
@@ -63,6 +65,24 @@ def run_operation(
     ).document()
     print(json.dumps(document, sort_keys=True))
     return 0
+
+
+def _node_fields(error: Exception) -> dict[str, object]:
+    """First-attempt failed nodes, listed whole even when the diagnostic is truncated."""
+    if not isinstance(error, ValidationExecutionError) or not (
+        error.failed_nodes or error.unreached_nodes
+    ):
+        return {}
+    recovered = set(error.recovered_nodes)
+    return {
+        "first_attempt_failures": [
+            {"shard": shard, "node_id": node, "passed_on_retry": (shard, node) in recovered}
+            for shard, node in error.failed_nodes
+        ],
+        "unreached_nodes": [
+            {"shard": shard, "node_id": node} for shard, node in error.unreached_nodes
+        ],
+    }
 
 
 def _archive_operation_failure(
@@ -114,8 +134,11 @@ def _error_category(error: Exception) -> tuple[OperationStatus, str]:
             "workspace when the repository runs its own engine, otherwise update the Skill. "
             "Ready members whose evidence an older engine produced stay admissible without "
             "rerunning their checks. A manifest older than this engine is migrated in a "
-            "member; status, batch-open and batch-admit read only the locations of an older "
-            "batch manifest, so that member can be admitted.",
+            "member: workspace-open and status read an older manifest, and batch-open and "
+            "batch-admit read only the locations of an older batch manifest, so that member "
+            "can be opened and admitted. ready, final and journal writes need the format this "
+            "engine reads; a member still holding the older manifest takes a delivered "
+            "migration with maintenance workspace-sync or migrates it itself.",
         )
     if isinstance(error, (ValidationInfrastructureError, ProfileResourceError, OSError)):
         return (

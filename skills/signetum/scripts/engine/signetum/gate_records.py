@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
@@ -207,6 +208,55 @@ def require_accounted(
     return {shard: frozenset(nodes) for shard, nodes in required.items()}
 
 
+def _test_name(node_id: str) -> str:
+    """The last pytest-style segment of a node id, without its parameters."""
+    return node_id.rsplit("::", 1)[-1].split("[", 1)[0]
+
+
+def vanished_nodes(
+    repository: Path, base: str, tip: str, owed: Mapping[str, frozenset[str]]
+) -> dict[str, frozenset[str]]:
+    """Owed nodes whose test file this workspace changed and which that file no longer holds.
+
+    A node id ``path::...::name[params]`` vanished when the workspace's diff since
+    its base touches ``path`` and the file at ``tip`` is absent or no longer names
+    ``name``. Execution releases such a node only if its shard passes without
+    reporting it, so a node the change did not remove stays owed.
+    """
+    if not owed:
+        return {}
+    changed = frozenset(
+        filter(
+            None,
+            # Any commit since the base counts, so a test added and removed again still does.
+            git_output(
+                repository,
+                "log",
+                "--format=",
+                "--name-only",
+                "-z",
+                "--no-renames",
+                f"{base}..{tip}",
+                strip=False,
+            ).split("\0"),
+        )
+    )
+    result: dict[str, frozenset[str]] = {}
+    for shard, nodes in owed.items():
+        gone = set()
+        for node in nodes:
+            path, separator, _ = node.partition("::")
+            if not separator or path not in changed:
+                continue
+            shown = run_git(repository, "show", f"{tip}:{path}")
+            text = shown.stdout if shown.returncode == 0 else ""
+            if re.search(rf"\b{re.escape(_test_name(node))}\b", text) is None:
+                gone.add(node)
+        if gone:
+            result[shard] = frozenset(gone)
+    return result
+
+
 def remember_failure(
     repository: Path,
     branch: str,
@@ -267,3 +317,48 @@ def settle_failures(
         return
     document = json.loads(path.read_text(encoding="utf-8"))
     _write(path, {**document, "failed": remaining, "recovered": [], "unreached": []})
+
+
+def _pending_path(repository: Path, branch: str) -> Path:
+    return _location(repository, "pending-admissions", branch)
+
+
+def pending_admissions(repository: Path, branch: str) -> tuple[Path, ...]:
+    """Members a conflicted admission still owes this batch, in requested order."""
+    path = _pending_path(repository, branch)
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return ()
+    except (OSError, ValueError) as error:
+        raise AdmissionError(
+            f"pending admission record is unreadable: {path}",
+            expected="inspect that machine-local record; it lists members still to admit",
+        ) from error
+    members = document.get("members") if isinstance(document, dict) else None
+    if (
+        not isinstance(document, dict)
+        or document.get("schema_version") != 1
+        or document.get("batch") != branch
+        or not isinstance(members, list)
+        or not all(isinstance(item, str) and item for item in members)
+    ):
+        raise AdmissionError(
+            f"pending admission record is invalid: {path}",
+            expected="inspect that machine-local record; it lists members still to admit",
+        )
+    return tuple(Path(item) for item in members)
+
+
+def record_pending_admissions(repository: Path, branch: str, members: tuple[Path, ...]) -> None:
+    if not members:
+        clear_pending_admissions(repository, branch)
+        return
+    _write(
+        _pending_path(repository, branch),
+        {"schema_version": 1, "batch": branch, "members": [str(item) for item in members]},
+    )
+
+
+def clear_pending_admissions(repository: Path, branch: str) -> None:
+    _pending_path(repository, branch).unlink(missing_ok=True)
