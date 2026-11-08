@@ -1,0 +1,56 @@
+[change]
+schema_version = 1
+id = "release-0-5-0"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner directed on 2026-11-08 that Signetum be released once the problems found while delivering PyReduce are fixed. Those fixes were delivered in 0408c76. The unreleased 0.5.0 section on main since fea4374 collects the Skill folder distribution, which is breaking (the plugin is removed and the Skill moved), so by the documented versioning policy this release is the minor 0.5.0."
+
+[change.contract]
+version = 1
+approved_base = "0408c76fdb8fcc27808ea5f2e91045a57de6aaba" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RELEASE-001"
+outcome = "The package, the Skill and the nested engine carry product version 0.5.0, and both lockfiles record that engine version."
+acceptance = [
+    "uv run python -m tools.cli release preflight on the delivered commit reports status valid with every component at 0.5.0.",
+    "The Skill metadata and skills/signetum/scripts/engine/pyproject.toml name 0.5.0 and no current version location names 0.4.0.",
+]
+
+[[change.contract.requirements]]
+id = "NOTES-002"
+outcome = "CHANGELOG.md finalizes the unreleased section as the 0.5.0 version section, keeping its entries and condensing the delivery friction repairs into concise user outcomes, so the release workflow extracts it as the release notes."
+acceptance = [
+    "CHANGELOG.md has a ## 0.5.0 section holding the former unreleased entries and no unreleased section.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Edit the version locations, refresh both lockfiles for the engine version only, rename and condense the changelog section.",
+    "Run ready, open a batch, admit this member, run final and deliver to main, push main and fix hosted CI failures through this change.",
+]
+requires_confirmation = [
+    "Create or push a tag, publish a release, upgrade a dependency, or publish a version other than 0.5.0.",
+]
+
+[[change.execution.steps]]
+id = "STEP-VERSION"
+requirements = ["RELEASE-001"]
+action = "Set 0.5.0 in the engine pyproject and Skill metadata and relock both lockfiles without upgrading dependencies."
+
+[[change.execution.steps]]
+id = "STEP-NOTES"
+requirements = ["NOTES-002"]
+action = "Rename the unreleased changelog heading to 0.5.0 and condense the delivery friction entries."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["RELEASE-001", "NOTES-002"]
+action = "Run release preflight and ready, integrate, deliver and wait for hosted CI on the delivered commit; stop before tagging."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-08
+source = "Repository owner approved release after the identified delivery problems were fixed and accepted the delivery friction contract changes (2026-11-08), relayed by the coordinating agent. The coordinator authorized delivery of the 0.5.0 release change to main and pushing main with hosted CI passing, stopping before any tag, which requires separate authorization naming the commit. This implementing session did not receive approval independently."
+contract_digest = "sha256:2967205a921b52132091cf39f74eb375a291ea2496842fbd03c64d89df098feb"
