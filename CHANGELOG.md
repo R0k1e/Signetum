@@ -3,7 +3,7 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## 0.5.0 (unreleased)
+## 0.5.0
 
 The Skill folder is the whole product again, in every agent tool. The
 `signetum@signetum` plugin and its marketplace are removed; the command guard
@@ -42,35 +42,26 @@ becomes an optional hook that one command registers in the host's own settings.
   manifest, the batch gate validates the merged manifest, and `status` reports
   the cause.
 
-- Failure memory releases a remembered node that the workspace deleted or renamed:
-  its shard passes without reporting it, a commit since the base touched its test
-  file and that file no longer names the test. The receipt lists it under
-  `released_vanished_nodes`; every other first failure stays owed. Failed results
-  list `first_attempt_failures` with `passed_on_retry`, and `unreached_nodes`.
-- `SIGNETUM_VALIDATION_WORKER_LIMIT` caps every shard's allocated workers on a
-  shared host; each shard's `resource_allocation` records the limit and the load
-  average. Runners bound parallelism through `{signetum.validation_workers}`.
-- `change resolve` accepts the record's `--id` as `--target` and writes a pytest
-  node id as its file path; `--help` and refusals show each expected form with an
-  example. `change why <clause-id>` gathers one clause's revisions, reasons,
-  approvals and commits.
-- A member keeps its own change after `workspace-sync --batch`: a change package
-  whose record its own commits wrote stays its own.
+Delivering parallel work needs less manual recovery:
+
+- A remembered failing test that the change deleted or renamed is released when
+  its shard passes without it, and the receipt lists it; every other first
+  failure stays owed. Failed results list `first_attempt_failures`.
+- `SIGNETUM_VALIDATION_WORKER_LIMIT` caps every shard's workers on a shared host;
+  receipts record the allocation and load average.
+- `change resolve` accepts the record's `--id` as target and a pytest node id as
+  evidence, and its help and refusals show each form. `change why <clause-id>`
+  gathers one clause's revisions, approvals and commits.
+- A member keeps its own change after `workspace-sync --batch`.
 - `workspace-open` opens a member on a delivered manifest the engine no longer
-  loads, with preparation `unavailable` and the cause, so that member can migrate
-  it; ready, final and journal writes still need the current format.
-- After a conflict in `batch-open` or `batch-admit`, the remaining members stay
-  pending; the result and `status` list them and `batch-continue` admits them.
-- Journal writes lock only their own worktree; other worktrees never wait, and a
-  second writer in the same worktree waits up to two minutes instead of refusing.
-- `status` lists unresolved observations with `observation_counts`; `--verbose`
-  adds resolved ones.
-- A failing prepare shard names itself, its full command and the adapter's own
-  `expected` action; a prepare shard may rebuild ignored state and continue.
-- `maintenance leftovers` lists checkouts created outside Signetum and branches
-  without a checkout that the delivery branch lacks; `maintenance branch-abandon`
-  removes such a branch, and `workspace-abandon` such a checkout, with the owner's
-  confirmed tip and a retirement record.
+  loads, so that member can migrate it.
+- Members after an admission conflict stay pending; `batch-continue` admits them.
+- Journal writes lock only their own worktree; others never wait.
+- `status` is compact by default; `--verbose` adds resolved observations.
+- A failing prepare shard names itself, its command and the adapter's expected
+  action; a prepare shard may rebuild ignored state and continue.
+- `maintenance leftovers` lists checkouts and branches created outside Signetum;
+  `branch-abandon` and `workspace-abandon` remove them with the owner's confirmed tip.
 
 The release is a candidate until published.
 
