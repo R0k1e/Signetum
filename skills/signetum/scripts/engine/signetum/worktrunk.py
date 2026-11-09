@@ -65,6 +65,78 @@ def declared_argv(command: tuple[str, ...]) -> tuple[str, ...]:
     return (mise_executable(), "exec", "--", *command)
 
 
+# Mise environment configuration files, relative to the project root, by environment name.
+_MISE_ENVIRONMENT_FILES = (
+    "mise.*.toml",
+    ".mise.*.toml",
+    "mise/config.*.toml",
+    ".mise/config.*.toml",
+    ".config/mise.*.toml",
+    ".config/mise/config.*.toml",
+)
+_SELECTED_ENVIRONMENTS: dict[tuple[Path, str], str] = {}
+
+
+def declared_mise_environments(repository: Path) -> dict[str, tuple[str, ...]]:
+    """Mise environments the project declares, each with its configuration files."""
+
+    declared: dict[str, list[str]] = {}
+    for pattern in _MISE_ENVIRONMENT_FILES:
+        prefix, suffix = pattern.split("*")
+        for path in sorted(repository.glob(pattern)):
+            relative = path.relative_to(repository).as_posix()
+            name = relative.removeprefix(prefix).removesuffix(suffix).removesuffix(".local")
+            if name and name != "local" and "." not in name and path.is_file():
+                declared.setdefault(name, []).append(relative)
+    return {name: tuple(files) for name, files in sorted(declared.items())}
+
+
+def _provides(repository: Path, tool: str, environment: Mapping[str, str]) -> bool:
+    """Whether ``tool`` is executable on the PATH Mise gives commands, system tools included."""
+    completed = run_command(
+        repository,
+        declared_argv(("sh", "-c", 'command -v "$1" >/dev/null', "sh", tool)),
+        timeout_seconds=60,
+        environment=environment,
+    )
+    return completed.returncode == 0
+
+
+def _declared_provider(repository: Path, tool: str, environment: Mapping[str, str]) -> str:
+    """The one declared Mise environment providing ``tool``, or a refusal naming them."""
+
+    current = environment.get("MISE_ENV")
+    declared = declared_mise_environments(repository)
+    providers = (
+        ()
+        if current
+        else tuple(
+            name
+            for name in declared
+            if _provides(repository, tool, {**environment, "MISE_ENV": name})
+        )
+    )
+    if len(providers) == 1:
+        return providers[0]
+    listing = ", ".join(f"{name} ({', '.join(files)})" for name, files in declared.items())
+    if providers:
+        advice = "several declared Mise environments provide it: set MISE_ENV to one of " + (
+            ", ".join(providers)
+        )
+    elif declared:
+        advice = (
+            f"this project declares the Mise environments {listing}; set MISE_ENV to the one "
+            f"that declares {tool} and run mise install with it"
+        )
+    else:
+        advice = f"declare {tool} in the project's Mise configuration and run mise install"
+    raise InfrastructureError(
+        f"{tool} is not available through Mise in {repository} "
+        f"(MISE_ENV={current or 'unset'}): {advice}",
+        expected=advice,
+    )
+
+
 def run_tool(
     repository: Path,
     command: tuple[str, ...],
@@ -73,14 +145,43 @@ def run_tool(
     timeout_seconds: float = 1800,
     environment: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """Run a declared tool through Mise under the project's declared Mise environment.
+
+    When the tool is not available under the caller's environment and exactly one
+    environment the project declares provides it, that environment is used.
+    """
     environment = declared_environment(environment)
+    key = (repository.resolve(), command[0])
+    if "MISE_ENV" not in environment and key in _SELECTED_ENVIRONMENTS:
+        environment["MISE_ENV"] = _SELECTED_ENVIRONMENTS[key]
     try:
-        completed = run_command(
-            repository,
-            declared_argv(command),
-            timeout_seconds=timeout_seconds,
-            environment=environment,
-        )
+        unavailable: OSError | None = None
+        try:
+            completed: subprocess.CompletedProcess[str] | None = run_command(
+                repository,
+                declared_argv(command),
+                timeout_seconds=timeout_seconds,
+                environment=environment,
+            )
+        except OSError as error:
+            completed, unavailable = None, error
+        if completed is None or completed.returncode != 0:
+            if _provides(repository, command[0], environment):
+                if unavailable is not None:
+                    raise unavailable
+            else:
+                # The tool never started, so running it under the declared environment is safe.
+                selected = _declared_provider(repository, command[0], environment)
+                _SELECTED_ENVIRONMENTS[key] = selected
+                environment["MISE_ENV"] = selected
+                completed = None
+        if completed is None:
+            completed = run_command(
+                repository,
+                declared_argv(command),
+                timeout_seconds=timeout_seconds,
+                environment=environment,
+            )
     except (OSError, subprocess.TimeoutExpired) as error:
         if required:
             raise InfrastructureError(

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from signetum.lifecycle import sync_batch
 from signetum.operation_cli import OperationParser, run_operation
+from signetum.operations import AdmissionError
 from signetum.workspace_operations import (
     branch_abandon,
     cleanup,
@@ -14,7 +15,7 @@ from signetum.workspace_operations import (
     workspace_sync,
     worktree_prepare,
 )
-from signetum.workspaces import branch_name, read_record, state_root
+from signetum.workspaces import branch_name, primary_worktree, read_record, state_root
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -33,14 +34,19 @@ def _parser() -> argparse.ArgumentParser:
     abandon = commands.add_parser(
         "workspace-abandon",
         description=(
-            "Remove a workspace that is neither delivered nor contained, "
-            "only with the owner's confirmation of its exact tip."
+            "Remove a workspace that is neither delivered nor contained, only with the "
+            "owner's actual confirmation of its exact tip. An Agent may run it, naming the "
+            "owner in --actor and citing in --source where the owner confirmed that tip, "
+            "such as the conversation; never infer a confirmation. The repository is the "
+            "named workspace's own."
         ),
     )
     abandon.add_argument("worktree", type=Path, help="Existing workspace directory.")
     abandon.add_argument("expected_tip", help="Full commit the owner confirmed abandoning.")
     abandon.add_argument("--actor", required=True, help="Owner who confirmed abandonment.")
-    abandon.add_argument("--source", required=True, help="Where the owner confirmed it.")
+    abandon.add_argument(
+        "--source", required=True, help="Where the owner confirmed it, such as the conversation."
+    )
     abandon.add_argument("--reason", required=True, help="Why the work is abandoned.")
     abandon.add_argument("--discard", action="store_true")
     commands.add_parser(
@@ -53,14 +59,18 @@ def _parser() -> argparse.ArgumentParser:
     branch = commands.add_parser(
         "branch-abandon",
         description=(
-            "Delete a local branch without a checkout only with the owner's confirmation of "
-            "its exact tip; a retirement record keeps the tip."
+            "Delete a local branch without a checkout only with the owner's actual "
+            "confirmation of its exact tip; a retirement record keeps the tip. An Agent may "
+            "run it, naming the owner in --actor and citing in --source where the owner "
+            "confirmed that tip; never infer a confirmation."
         ),
     )
     branch.add_argument("branch", help="Local branch name.")
     branch.add_argument("expected_tip", help="Full commit the owner confirmed abandoning.")
     branch.add_argument("--actor", required=True, help="Owner who confirmed abandonment.")
-    branch.add_argument("--source", required=True, help="Where the owner confirmed it.")
+    branch.add_argument(
+        "--source", required=True, help="Where the owner confirmed it, such as the conversation."
+    )
     branch.add_argument("--reason", required=True, help="Why the work is abandoned.")
     return parser
 
@@ -78,7 +88,7 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
         result = dict(worktree_prepare(parsed.worktree.resolve()))
     elif parsed.command == "cleanup":
         result = cleanup(
-            repository,
+            _named_repository(parsed.worktree, repository),
             worktree=parsed.worktree,
             branch=parsed.branch,
             all_delivered=parsed.all_delivered,
@@ -87,7 +97,7 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
         )
     elif parsed.command == "workspace-abandon":
         result = workspace_abandon(
-            repository,
+            _named_repository(parsed.worktree, repository),
             parsed.worktree,
             parsed.expected_tip,
             actor=parsed.actor,
@@ -107,6 +117,21 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
             reason=parsed.reason,
         )
     return result
+
+
+def _named_repository(worktree: Path | None, caller: Path) -> Path:
+    """An operation on a named workspace acts on that workspace's repository.
+
+    Its primary checkout holds the delivery binding and runs no removed workspace.
+    """
+    if worktree is None:
+        return caller
+    if not worktree.is_dir():
+        raise AdmissionError(
+            f"workspace must be an existing worktree directory; a branch name is not a path: "
+            f"{worktree}"
+        )
+    return primary_worktree(worktree.resolve())
 
 
 def main(arguments: list[str] | None = None) -> int:

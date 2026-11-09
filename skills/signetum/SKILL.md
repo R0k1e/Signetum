@@ -46,7 +46,9 @@ Use `status` for blockers and the next action. Develop in registered isolated
 worktrees. The seven delivery operations are `workspace-open`, `ready`,
 `batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
 `ready` is the development loop: commit, run `ready`, fix, commit and rerun it
-until it passes. Never hand back a member or call it done without a passing
+until it passes. A hook those operations install refuses an implementation commit
+before the committed approval of the workspace's own change record; commit the
+approval first, never bypass the hook. Never hand back a member or call it done without a passing
 `ready` on its current tip. `ready --explain` shows its selection without checks.
 Follow [work and validation](references/worktree-validation.md) during development
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
@@ -56,8 +58,10 @@ Every workspace ends delivered, contained (its content already reached the
 delivery branch) or abandoned. Delivery and `maintenance cleanup --all-delivered`
 remove the first two; `status` lists what each open workspace proves. Use
 `maintenance workspace-abandon`, or `branch-abandon` for a branch without a checkout,
-only with the owner's actual confirmation of that tip; `maintenance leftovers` lists
-checkouts and branches created outside Signetum that need it.
+only with the owner's actual confirmation of that tip. You may run it yourself with
+`--source` citing where the owner confirmed it, such as this conversation; never infer
+a confirmation. `maintenance leftovers` lists checkouts and branches created outside
+Signetum that need it.
 
 Tell the user which tests change, why, and whether evidence is removed or relaxed.
 Use existing project checks. First failures remain failed after diagnostic retry.

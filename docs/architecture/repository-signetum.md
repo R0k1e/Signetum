@@ -36,7 +36,12 @@ lock and `pyproject.toml`, not the install path, so the Claude copy, the Codex c
 and an update candidate share one environment; `runtime/host-python` only starts
 the launcher. Nothing is written into the Skill directory, so its content digest
 stays the released one. Setup selects host Python 3.12 and uv 0.12.2 through Mise; a prepared launcher uses that
-interpreter directly instead of selecting the application’s Python. Normal commands verify
+interpreter directly instead of selecting the application’s Python. Tools the
+engine runs through Mise, such as Worktrunk's `wt`, run under the caller's
+`MISE_ENV`; when a tool is missing there and exactly one Mise environment the
+project declares (`mise.<env>.toml` and Mise's other environment file forms)
+provides it, the engine sets that `MISE_ENV`, and otherwise its refusal names
+the tool and the declared environments. Normal commands verify
 the installed environment and supported project contracts; they never install or
 repair tooling. The application environment is not the engine environment. The launcher forwards arguments unchanged; `commands` owns the sole public
 registry used by CLI/help and installed acceptance. Seven lifecycle operations

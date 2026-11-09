@@ -12,6 +12,7 @@ from re import fullmatch
 from typing import Literal
 
 from signetum import worktrunk as wt
+from signetum.commit_check import install_commit_check
 from signetum.git import git_output, repository_path, run_git
 from signetum.manifest import UnsupportedManifestError, load_manifest, parse_manifest
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
@@ -186,6 +187,7 @@ def open_workspace(
         "source": git_output(workspace.path, "rev-parse", "HEAD"),
         "resumed": resumed,
         "preparation": preparation,
+        "commit_check": install_commit_check(workspace.path),
         **unloadable,
     }
 

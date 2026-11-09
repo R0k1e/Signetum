@@ -16,6 +16,7 @@ import signetum.lifecycle as lifecycle
 from change_fixtures import approve_change as _approve_change
 from change_fixtures import approved_record_source, commit_approval, consolidated_approval
 from pydantic import JsonValue
+from signetum.commit_check import install_commit_check
 from signetum.development_store import snapshot as development_snapshot
 from signetum.operations import OperationError
 from signetum.validation import command_digest
@@ -1042,7 +1043,20 @@ def test_admission_runs_only_the_declared_batch_gate(tmp_path, batch_shards):
     assert static["executed"] == batch_shards
 
 
-def _combined_batch(tmp_path):
+def _committed(repository: Path, message: str) -> subprocess.CompletedProcess[str]:
+    """Commit everything through Git's own hooks and report the outcome."""
+    _git(repository, "add", "-A")
+    executable = which("git")
+    assert executable is not None
+    return subprocess.run(  # nosec B603
+        (executable, "-C", str(repository), "commit", "-m", message),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _combined_batch(tmp_path, *, commit_check=False):
     """Two members that pass alone and fail together under a light batch gate."""
     repository = _repository(tmp_path / "repository")
     path = repository / "signetum.toml"
@@ -1066,6 +1080,8 @@ def _combined_batch(tmp_path):
     batch = tmp_path / "batch"
     _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
     _record(batch, "batch/test", base, "batch")
+    if commit_check:
+        assert install_commit_check(batch)["status"] == "installed"
     members = []
     for name in ("left", "right"):
         member = tmp_path / name
@@ -1087,19 +1103,31 @@ def _next(batch):
 
 
 def test_cross_member_failure_surfaces_at_final_and_a_batch_owned_fix_repairs_it(tmp_path):
-    batch = _combined_batch(tmp_path)
+    # The commit check is installed before admission, so its merges also pass it.
+    batch = _combined_batch(tmp_path, commit_check=True)
     run_final = _next(batch)
     with pytest.raises(lifecycle.ValidationExecutionError):
         lifecycle.validate(batch, "final")
     assert _next(batch) != run_final
 
+    admitted = _git(batch, "rev-parse", "HEAD")
+    (batch / "reconciled.txt").write_text("both members together\n")
+    early = _committed(batch, "reconcile before any approval")
+    assert early.returncode != 0 and "approval" in early.stderr
+    assert _git(batch, "rev-parse", "HEAD") == admitted
+    (batch / "reconciled.txt").unlink()
+    _git(batch, "reset", "-q")
+
     _approve_change(batch, "reconcile")
-    _git(batch, "add", ".")
-    _git(batch, "commit", "-m", "approve the batch-owned reconciliation")
+    (batch / "reconciled.txt").write_text("both members together\n")
+    together = _committed(batch, "approve and reconcile in one commit")
+    assert together.returncode != 0
+    (batch / "reconciled.txt").unlink()
+    _git(batch, "reset", "-q")
+    assert _committed(batch, "approve the batch-owned reconciliation").returncode == 0
     assert _next(batch) == run_final
     (batch / "reconciled.txt").write_text("both members together\n")
-    _git(batch, "add", ".")
-    _git(batch, "commit", "-m", "reconcile the combined members")
+    assert _committed(batch, "reconcile the combined members").returncode == 0
     fix = _git(batch, "rev-parse", "HEAD")
 
     final = lifecycle.validate(batch, "final")
@@ -1112,6 +1140,7 @@ def test_cross_member_failure_surfaces_at_final_and_a_batch_owned_fix_repairs_it
 
 
 def test_final_refuses_an_unattributed_direct_batch_commit(tmp_path):
+    # Without the commit check, final remains the backstop.
     batch = _combined_batch(tmp_path)
     (batch / "reconciled.txt").write_text("unapproved repair\n")
     _git(batch, "add", ".")
@@ -1120,3 +1149,40 @@ def test_final_refuses_an_unattributed_direct_batch_commit(tmp_path):
 
     with pytest.raises(OperationError, match=unattributed):
         lifecycle.validate(batch, "final")
+
+
+def test_commit_check_refuses_member_implementation_before_its_committed_approval(tmp_path):
+    repository = _repository(tmp_path / "repository")
+    base = _git(repository, "rev-parse", "HEAD")
+    member = tmp_path / "member"
+    _git(repository, "worktree", "add", "-b", "impl/member", str(member), base)
+    _record(member, "impl/member", base)
+    assert install_commit_check(member)["status"] == "installed"
+    assert install_commit_check(member)["status"] == "installed"
+
+    (member / "implementation.txt").write_text("before approval\n")
+    refused = _committed(member, "implement without a change record")
+    assert refused.returncode != 0 and "approval" in refused.stderr
+    _approve_change(member, "example")
+    together = _committed(member, "approve and implement in one commit")
+    assert together.returncode != 0
+    assert _git(member, "rev-parse", "HEAD") == base
+
+    (member / "implementation.txt").unlink()
+    _git(member, "reset", "-q")
+    assert _committed(member, "approve the change").returncode == 0
+    (member / "implementation.txt").write_text("after approval\n")
+    assert _committed(member, "implement the approved change").returncode == 0
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+
+
+def test_commit_check_keeps_a_foreign_hook(tmp_path):
+    repository = _repository(tmp_path / "repository")
+    hook = repository / ".git/hooks/reference-transaction"
+    hook.write_text("#!/bin/sh\nexit 0\n")
+    hook.chmod(0o755)
+
+    result = install_commit_check(repository)
+
+    assert result["status"] == "skipped"
+    assert hook.read_text() == "#!/bin/sh\nexit 0\n"

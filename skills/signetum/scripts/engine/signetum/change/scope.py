@@ -368,22 +368,37 @@ def approval_order(
             paths = git_output(
                 repository, "diff-tree", "--no-commit-id", "--name-only", "-r", commit
             ).splitlines()
-            if commit in applications or any(
-                not path.startswith((root, decisions)) for path in paths
-            ):
+            if commit in applications or _is_implementation(paths, root, decisions):
                 return ApprovalOrder(approved_at, commit)
-        try:
-            for change_id in change_ids:
-                package = read_package(repository, manifest, change_id, commit)
-                package.require_approval()
-                if contract_digest(package.record.contract) != required_contracts[change_id]:
-                    raise ChangeError("earlier approval does not bind the current contract")
-        except ChangeError:
+        if not _approval_binds(repository, manifest, commit, required_contracts):
             approved_at = None
             continue
         if approved_at is None:
             approved_at = latest = commit
     return ApprovalOrder(latest, None)
+
+
+def _approval_binds(
+    repository: Path,
+    manifest: RepositoryManifest,
+    commit: str,
+    required_contracts: dict[str, str],
+) -> bool:
+    """Whether ``commit`` holds an approval of every change binding its required contract."""
+    try:
+        for change_id, digest in required_contracts.items():
+            package = read_package(repository, manifest, change_id, commit)
+            package.require_approval()
+            if contract_digest(package.record.contract) != digest:
+                return False
+    except ChangeError:
+        return False
+    return True
+
+
+def _is_implementation(paths: list[str], root: str, decisions: str) -> bool:
+    """A commit implements when it changes a path outside change records and decisions."""
+    return any(not path.startswith((root, decisions)) for path in paths)
 
 
 def require_member_changes(
@@ -393,6 +408,26 @@ def require_member_changes(
     tip: str,
 ) -> tuple[str, ...]:
     """Judge own implementation after approval in the package's one branch."""
+
+    carried = carried_changes(repository, manifest, base, tip)
+    if not git_output(repository, "rev-list", "--max-count=1", f"{base}..{tip}"):
+        raise ChangeError("member has no own implementation commits")
+    if not carried:
+        raise ChangeError("member requires an approved change package")
+    order = approval_order(repository, manifest, base, tip, carried)
+    if order.satisfied:
+        return carried
+    raise ChangeError(
+        "member is plan stage: no own implementation commit follows the latest approval"
+        + (f" {order.approval_commit}" if order.approval_commit else ""),
+        expected=APPROVAL_ORDER_REMEDY,
+    )
+
+
+def carried_changes(
+    repository: Path, manifest: RepositoryManifest, base: str, tip: str
+) -> tuple[str, ...]:
+    """The approved change packages a member carries, each bound to the member's base."""
 
     scope = member_scope(repository, manifest, base, tip)
     carried = tuple(
@@ -422,22 +457,64 @@ def require_member_changes(
         package.require_approval()
         if package.record.contract.approved_base != base:
             raise ChangeError("consolidated approval does not match the registered workspace base")
-    if not git_output(repository, "rev-list", "--max-count=1", f"{base}..{tip}"):
-        raise ChangeError("member has no own implementation commits")
-    if not carried:
-        raise ChangeError("member requires an approved change package")
-    order = approval_order(repository, manifest, base, tip, carried)
-    if order.satisfied:
-        return carried
-    raise ChangeError(
-        "member is plan stage: no own implementation commit follows the latest approval"
-        + (f" {order.approval_commit}" if order.approval_commit else ""),
-        expected=APPROVAL_ORDER_REMEDY,
-    )
+    return carried
+
+
+APPROVAL_FIRST_REMEDY = (
+    "Commit the approval first: record the owner's actual approval in the change record "
+    "and commit it on its own, then commit the implementation after it. A commit that "
+    "carries the approval together with implementation does not count."
+)
+
+
+def require_member_commit(
+    repository: Path, manifest: RepositoryManifest, base: str, commit: str
+) -> None:
+    """Judge one new member commit with the approval order ready applies to every commit.
+
+    A commit that changes only change records and decisions always passes. Any
+    other commit must follow, in its parent, the committed approval of each
+    change package the member carries, binding the contract the commit holds.
+    """
+
+    root = changes_root(manifest) + "/"
+    decisions = manifest.repository.decisions.rstrip("/") + "/"
+    paths = git_output(
+        repository, "diff-tree", "--no-commit-id", "--name-only", "-r", commit
+    ).splitlines()
+    if not _is_implementation(paths, root, decisions):
+        return
+    try:
+        carried = carried_changes(repository, manifest, base, commit)
+        if not carried:
+            raise ChangeError("member requires an approved change package")
+        required = {
+            change_id: contract_digest(
+                read_package(repository, manifest, change_id, commit).record.contract
+            )
+            for change_id in carried
+        }
+    except ChangeError as error:
+        raise ChangeError(
+            f"implementation commit {commit} has no approved change package: {error}",
+            expected=APPROVAL_FIRST_REMEDY,
+        ) from error
+    parent = git_output(repository, "rev-parse", f"{commit}^")
+    if not _approval_binds(repository, manifest, parent, required):
+        raise ChangeError(
+            f"implementation commit {commit} does not follow a committed approval of "
+            + ", ".join(sorted(required)),
+            expected=APPROVAL_FIRST_REMEDY,
+        )
 
 
 def batch_owned_commits(
-    repository: Path, manifest: RepositoryManifest, base: str, tip: str
+    repository: Path,
+    manifest: RepositoryManifest,
+    base: str,
+    tip: str,
+    *,
+    judged: str | None = None,
 ) -> list[dict[str, object]]:
     """Attribute each direct batch commit to the batch-owned changes approved before it.
 
@@ -446,7 +523,8 @@ def batch_owned_commits(
     decisions is authority history, attributed to the changes whose records it
     touches. Any other direct commit must follow the committed approval of a
     change record the batch itself introduced, whose contract is still the one
-    at the tip; otherwise it is unattributed.
+    at the tip; otherwise it is unattributed. With ``judged``, only that commit
+    can be refused; the others still establish which approvals precede it.
     """
 
     root = changes_root(manifest) + "/"
@@ -468,16 +546,20 @@ def batch_owned_commits(
             for path in paths
             if is_record_path(path, root) and PurePosixPath(path).name == "change.toml"
         }
-        if any(not path.startswith((root, decisions)) for path in paths):
-            if not approved:
+        if _is_implementation(paths, root, decisions):
+            if not approved and judged in (None, commit):
                 raise ChangeError(
                     f"batch commit {commit} is not attributed to an approved batch-owned change",
                     expected=(
-                        "fix a member-owned defect in its member and admit the new ready tip, "
-                        "or approve a batch-owned change record before committing its fix"
+                        "Fix a member-owned defect in its member and admit the new ready tip. "
+                        "For a defect only the combination shows, commit the approval first: "
+                        "fill the batch's draft change record that batch-open wrote, record "
+                        "the owner's approval, commit it on its own (git add -f, the draft is "
+                        "excluded), then commit the fix after it."
                     ),
                 )
-            attributed.append({"commit": commit, "changes": sorted(approved)})
+            if approved:
+                attributed.append({"commit": commit, "changes": sorted(approved)})
         elif touched:
             attributed.append({"commit": commit, "changes": sorted(touched)})
         for change_id in owned:

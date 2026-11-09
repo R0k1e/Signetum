@@ -47,9 +47,13 @@ and remote identities before acting. Preserve work after conflict or publication
 uncertainty. Resolve an open batch merge through `batch-continue`. After a failed
 final, fix a defect owned by one member in that member, run ready and admit its
 new tip. Fix a defect that appears only in the combination directly in the batch
-under the batch's own change record: approve it, commit, then implement and
-journal the fix. Final refuses other direct implementation commits and its review
-attributes each batch commit to its change. Then run ordinary final again.
+under the batch's own change record: `batch-open` wrote it as an unapproved
+draft at `changes/batch-<task>/change.toml`, excluded from Git status. Fill it,
+record the owner's approval, commit it on its own with `git add -f`, then implement
+and journal the fix. The commit hook refuses the fix before that approval commit
+and final refuses other direct implementation commits; its review attributes each
+batch commit to its change. Then run ordinary final again. An unused draft is
+never delivered.
 There is no special recovery verdict that turns a failed validation green.
 
 Publish only through explicit
@@ -74,6 +78,9 @@ always stays. `status` lists each open workspace with the outcome it proves.
 Abandoned: only for work the owner decides to drop, run
 `maintenance workspace-abandon <worktree> <confirmed-tip> --actor <owner> --source <confirmation> --reason <why>`
 with the owner's actual confirmation of that exact full commit; never infer it.
+An Agent may run it itself: `--actor` names the owner and `--source` cites where
+the owner confirmed that tip, such as the conversation. It acts on the named
+workspace's repository from any directory.
 `maintenance leftovers` lists checkouts created outside Signetum and branches
 without a checkout that the delivery branch lacks, each with its command; remove
 such a branch with `maintenance branch-abandon <branch> <confirmed-tip> ...` under
