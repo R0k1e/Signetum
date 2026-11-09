@@ -171,8 +171,9 @@ def workflow_status(
         elif failed_tip(repository, branch, "final") == source:
             next_action = (
                 "Final failed. Fix a defect owned by one member in that member, run ready and "
-                "admit its new tip; fix a defect that appears only in the combination here under "
-                "a batch-owned change record (approval, implementation, journal); then rerun final."
+                "admit its new tip; fix a defect that appears only in the combination here in the "
+                "batch; final lists it under combination repairs. For a legacy batch, "
+                "commit its batch-owned approval before the fix. Then rerun final."
             )
         else:
             next_action = "Run final on this frozen batch."

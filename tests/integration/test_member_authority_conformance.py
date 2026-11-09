@@ -163,7 +163,7 @@ def test_ready_uses_one_consolidated_record_without_legacy_files(authority, stag
 
 
 @pytest.mark.parametrize("fresh_implementation", [False, True])
-def test_revised_contract_needs_its_own_post_approval_implementation(
+def test_revised_contract_cannot_cover_implementation_in_its_approval_commit(
     authority, fresh_implementation
 ):
     runtime, root, marker, scratch = authority
@@ -181,12 +181,22 @@ def test_revised_contract_needs_its_own_post_approval_implementation(
     if fresh_implementation:
         (member / "implementation.txt").write_text("implementation after revised approval")
         commit(member, "implement revised outcome")
-        assert runtime.validate(member, "member")["status"] == "ready"
-        assert marker.exists()
-    else:
-        with pytest.raises(runtime.AdmissionError, match="plan stage"):
-            runtime.validate(member, "member")
-        assert not marker.exists()
+    with pytest.raises(runtime.AdmissionError):
+        runtime.validate(member, "member")
+    assert not marker.exists()
+
+
+def test_member_reapproval_after_implementation_needs_no_new_code(authority):
+    runtime, root, marker, _scratch = authority
+    member = Path(runtime.workspace_open(root, "plan/reapproved", "main")["worktree"])
+    base = git_output(member, "rev-parse", "HEAD")
+    consolidated_approval(member, base)
+    commit(member, "approve original outcome")
+    implementation(member)
+    consolidated_approval(member, base, outcome="Accept the revised outcome after review.")
+    commit(member, "reapprove the visible implementation")
+    assert runtime.validate(member, "member")["status"] == "ready"
+    assert marker.exists()
 
 
 @pytest.mark.parametrize("edit", ["execution", "contract", "delete"])
@@ -330,3 +340,29 @@ contract_digest = "{digest}"
         with pytest.raises(runtime.AdmissionError):
             runtime.validate(member, "member")
         assert not marker.exists()
+
+
+def test_later_path_bindings_cannot_hide_an_unapproved_implementation(authority):
+    runtime, root, marker, scratch = authority
+    base = git_output(root, "rev-parse", "HEAD")
+    member = scratch / "changed-bindings"
+    branch = "plan/changed-bindings"
+    # Seed the invalid history without a hook so readiness exercises its backstop.
+    git_output(root, "worktree", "add", "-b", branch, str(member), base)
+    write_record(state_root(root), WorkspaceRecord(1, branch, base, "member"))
+    (member / "retired").mkdir()
+    (member / "retired/code.txt").write_text("implementation before approval")
+    commit(member, "implement without approval")
+    early = git_output(member, "rev-parse", "HEAD")
+    checker = importlib.import_module("signetum.commit_check")
+    assert checker.judge(member, branch, base, early) is not None
+    consolidated_approval(member, base)
+    commit(member, "approve the outcome")
+    manifest = member / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace('decisions = "docs/decisions"', 'decisions = "retired"')
+    )
+    implementation(member)
+    with pytest.raises(runtime.AdmissionError):
+        runtime.validate(member, "member")
+    assert not marker.exists()

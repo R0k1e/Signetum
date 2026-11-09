@@ -45,6 +45,9 @@ Preserve existing authorization; installation and passing checks confer none.
 Use `status` for blockers and the next action. Develop in registered isolated
 worktrees. The seven delivery operations are `workspace-open`, `ready`,
 `batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
+`batch-open` requires `--actor` and `--source` citing the owner authorization;
+combination fixes use that recorded authority and appear in final review without
+a separate change draft. Schema-1 batches keep parent-approved batch-owned records.
 `ready` is the development loop: commit, run `ready`, fix, commit and rerun it
 until it passes. A hook those operations install refuses an implementation commit
 before the committed approval of the workspace's own change record; commit the

@@ -255,14 +255,30 @@ def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     monkeypatch.setattr(runtime, "admit", lambda batch, members: {})
     base = git_output(root, "rev-parse", "HEAD")
     declared = (root,)
-    opened = runtime.batch_open(root, declared, name="coordinated-work")
+    opened = runtime.batch_open(
+        root,
+        declared,
+        name="coordinated-work",
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+    )
     batch = Path(str(opened["worktree"]))
     branch = branch_name(batch)
     assert branch == "batch/coordinated-work"
     with pytest.raises(runtime.AdmissionError, match="task slug"):
-        runtime.batch_open(root, declared, name="../unsafe")
+        runtime.batch_open(
+            root,
+            declared,
+            name="../unsafe",
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+        )
     record = read_record(state_root(root), branch)
     assert record.kind == "batch"
+    assert record.schema_version == 2
+    assert record.authorization is not None
+    assert record.authorization.actor == "Owner"
+    assert record.authorization.source == "Owner authorized the fixture batch"
     assert record.base == base
     assert record.members == ("main",)
     owner = importlib.import_module("signetum.workspaces")
@@ -271,3 +287,7 @@ def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     with pytest.raises(owner.WorkspaceError, match="different recorded identity"):
         owner.write_record(owner.state_root(root), owner.WorkspaceRecord(1, branch, base, "member"))
     assert path.read_bytes() == before
+    for actor, source in (("", "approval"), ("Owner", " "), ("Other owner", "Other approval")):
+        with pytest.raises(runtime.AdmissionError):
+            runtime.batch_open(root, declared, name="coordinated-work", actor=actor, source=source)
+        assert path.read_bytes() == before
