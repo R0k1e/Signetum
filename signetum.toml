@@ -340,6 +340,7 @@ requires = [
 # The final gate measures coverage; the hosted final run enforces its threshold.
 [[validation.shards]]
 name = "engine:coverage"
+timeout_seconds = 3600
 command = [
     "uv",
     "run",
