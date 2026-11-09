@@ -299,6 +299,13 @@ There is no repinning operation. Legacy records without an engine remain
 unpinned and status says so; members remain unpinned. A void validation names
 each changed input and its before/after identities.
 
+The commit check also refuses added or modified Proposed decisions using final's
+predicate on the commit and its parent, and rewritten delivered commitments
+using `changed_commitments`. The registered workspace base identifies delivered
+packages; records first introduced in this workspace remain editable under their
+existing rules. These record predicates also apply to records-only commits.
+
+
 Review binds approvals, source journals, admitted receipts, batch commit
 attribution, recovered defects and remaining work. Recheck those inputs after validation and before publication;
 changes require fresh final. The agent shows outcomes, scope, decision changes,

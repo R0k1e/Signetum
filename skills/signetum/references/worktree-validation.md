@@ -21,6 +21,11 @@ call the stable launcher rather than an interpreter in a replaceable cache.
 The check judges each new implementation commit against its parent approval;
 records-only commits and merges retain their existing rules. Ready and final
 provide the same attribution backstop when a hook cannot run.
+It also refuses added or modified Proposed decisions and rewritten delivered
+commitments through the predicates final uses. These checks read committed
+snapshots; the registered base identifies delivered packages, so newly introduced
+packages remain editable. Records-only commits still undergo these record checks.
+
 When a declared tool such as `wt` is missing from the default Mise environment,
 Signetum runs it under the one environment the project declares for it
 (`mise.<env>.toml`); otherwise the refusal names the `MISE_ENV` to set.

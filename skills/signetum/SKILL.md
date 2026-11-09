@@ -51,7 +51,9 @@ a separate change draft. Schema-1 batches keep parent-approved batch-owned recor
 `ready` is the development loop: commit, run `ready`, fix, commit and rerun it
 until it passes. A hook those operations install refuses an implementation commit
 before the committed approval of the workspace's own change record; commit the
-approval first, never bypass the hook. Never hand back a member or call it done without a passing
+approval first, never bypass the hook. It also refuses added or modified Proposed
+decisions and rewritten delivered commitments, including in records-only commits,
+through the predicates final uses. Never hand back a member or call it done without a passing
 `ready` on its current tip. `ready --explain` shows its selection without checks.
 Follow [work and validation](references/worktree-validation.md) during development
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)

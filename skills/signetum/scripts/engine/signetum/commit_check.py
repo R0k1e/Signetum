@@ -1,4 +1,4 @@
-"""Install and functionally verify the early immutable commit verdict."""
+"""Install and verify the early immutable implementation and record verdicts."""
 
 from __future__ import annotations
 
@@ -11,7 +11,15 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
-from signetum.change.scope import ChangeError, commit_attribution, require_member_commit
+from signetum.change.scope import (
+    ChangeError,
+    DeliveryScope,
+    changed_commitments,
+    commit_attribution,
+    delivery_scope,
+    require_member_commit,
+)
+from signetum.decision_proposals import proposal_paths
 from signetum.git import GitError, git_output, isolated_git_environment, repository_path, run_git
 from signetum.manifest import ManifestError, parse_manifest
 from signetum.runtime_identity import engine_source
@@ -143,6 +151,21 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
         return None
     manifest = parse_manifest(git_output(repository, "show", f"{new}:signetum.toml"))
     try:
+        proposals = proposal_paths(repository, manifest, old, new)
+        if proposals:
+            raise ChangeError("commit adds or modifies proposal decisions: " + ", ".join(proposals))
+        # The parent contains this workspace's newly approved packages too. Only
+        # packages already held at the registered base are delivered authority.
+        delivered = delivery_scope(repository, manifest, record.base, new)
+        changed = delivery_scope(repository, manifest, old, new)
+        delivered_ids = {item.change_id for item in delivered.previously_delivered}
+        scope = DeliveryScope(
+            (),
+            tuple(item for item in changed.previously_delivered if item.change_id in delivered_ids),
+        )
+        rewritten = changed_commitments(repository, manifest, old, new, scope)
+        if rewritten:
+            raise ChangeError("commit rewrites delivered commitments: " + ", ".join(rewritten))
         if record.kind == "batch":
             commit_attribution(repository, manifest, record, new)
         else:

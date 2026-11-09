@@ -22,6 +22,7 @@ from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
 from signetum.change.scope import delivered_plans, records_only, records_only_ancestors
 from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
+from signetum.decision_proposals import proposal_paths
 from signetum.delivery import publish_batch
 from signetum.development_store import DevelopmentReviewError
 from signetum.deviations import (
@@ -368,33 +369,13 @@ def _stable_patch_id(repository: Path, base: str, source: str) -> str:
 
 
 def _proposal_paths(repository: Path) -> tuple[str, ...]:
-    """Find affected proposals, leaving unchanged historical intent untouched."""
-
-    manifest = load_manifest(repository / "signetum.toml")
-    base = _recorded_base(repository)
-    changed = _git(
+    """Find affected proposals in the same committed snapshots as the hook."""
+    return proposal_paths(
         repository,
-        "diff",
-        "--name-only",
-        "--diff-filter=ACMRT",
-        "-z",
-        base,
-        "HEAD",
-        "--",
-        manifest.repository.decisions,
+        load_manifest(repository / "signetum.toml"),
+        _recorded_base(repository),
+        _git(repository, "rev-parse", "HEAD"),
     )
-    paths: list[str] = []
-    for line in changed.split("\0"):
-        if not line or not Path(line).match("*ADP-*.md"):
-            continue
-        candidate = repository / line
-        try:
-            head = candidate.read_text(encoding="utf-8")[:512]
-        except (OSError, UnicodeDecodeError):
-            continue
-        if re.search(r"^Status:\s*Proposed\s*$", head, re.MULTILINE):
-            paths.append(line)
-    return tuple(paths)
 
 
 def _require_numbering_base(repository: Path, base: str | None, tip: str) -> None:
