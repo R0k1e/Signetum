@@ -70,7 +70,7 @@ id = "approval-before-commit/commit-time-approval"
 change_id = "approval-before-commit"
 authority = "changes/approval-before-commit/change.toml#decisions/approval-before-commit/commit-time-approval"
 reason = "In PyReduce a batch fix committed before its approval was found only at final, where the batch could never pass again because history bound by journals is not rewritten. Checking the same predicate when the commit is made turns a permanent failure into a refused commit the agent repairs in seconds. A reference-transaction hook sees the actual commit object, is not skipped by commit --no-verify and does not collide with pre-commit hooks that projects already install; Git older than 2.28 keeps only the final backstop. A second, stricter rule was rejected because two rules could disagree. The draft stays uncommitted and excluded so that a batch without a fix delivers no draft and needs no extra step. Reopen if hosts lacking reference-transaction become common or the excluded draft confuses agents in observed use."
-parents = ["one-loop-light-admit-batch-fixes/one-loop"]
+parents = ["one-loop-light-admit-batch-fixes/one-loop", "delivery-friction-repairs/development-operations"]
 
 [[change.contract.decisions.clauses]]
 id = "approval-before-commit/batch-fix"
@@ -137,4 +137,4 @@ action = "Reconcile Skill, references, architecture and changelog, then run read
 actor = "Repository owner"
 recorded_at = 2026-11-09
 source = "Relayed by the coordinating session on 2026-11-09: the owner agreed the plan to close the approval gap in process (batch-open creates the batch-owned record skeleton; a commit hook Signetum installs in every workspace refuses implementation committed before a committed approval, by the predicate final already uses, naming the fix), asked why removing branches is so laborious, and asked to also handle the abandonment problems after the release; the coordinator directed this change in Signetum to its own passing ready, with no publication, tag, release, push, update or PyReduce edit. This implementing session did not hear the approval independently; the requirement wording, the hook mechanism, the excluded draft and the clause amendments are the implementing session's reading of that direction."
-contract_digest = "sha256:ca1d70696b81f1c8b78c88832a1d67efe1e433f92b92d00c5575934dd3f0b80d"
+contract_digest = "sha256:65c3fe9c2491ddf60aa96830c930cd358f1b0995254972f12f3c5cfc86103053"
