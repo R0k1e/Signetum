@@ -13,6 +13,7 @@ from signetum.decision_identity import numbered_targets
 from signetum.development_store import DevelopmentReviewError
 from signetum.development_store import reconciliation_summary as source_reconciliation_summary
 from signetum.deviations import DeviationError, approval_view, reconciliation_summary
+from signetum.engine_pin import require_batch_engine
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
@@ -117,6 +118,8 @@ def validate_workspace(
     execute: Callable[..., EvidenceReceipt] = execute_gate,
     execution_root: Path | None = None,
 ) -> dict[str, object]:
+    if kind == "final":
+        require_batch_engine(repository)
     execution = repository.resolve() if execution_root is None else execution_root.resolve()
     require_clean(repository)
     source = git_output(repository, "rev-parse", "HEAD")

@@ -395,3 +395,25 @@ def test_a_world_shard_without_a_findings_command_cannot_be_waived() -> None:
 def test_validation_inputs_fail_closed(inputs: Callable[[], object]) -> None:
     with pytest.raises(ValidationExecutionError):
         inputs()
+
+
+@pytest.mark.parametrize("diagnostic", [False, True])
+def test_changed_engine_identity_names_before_and_after(diagnostic):
+    class ChangingEngine(Adapter):
+        def identify_tool(self, tool):
+            return "engine-after" if self.executed else "engine-before"
+
+    inputs = ValidationInputs(
+        configuration_path="signetum.toml",
+        profiles=(),
+        lockfiles=(),
+        tools=(ToolDeclaration("signetum-engine", ("identity",)),),
+    )
+    with pytest.raises(ValidationExecutionError) as refused:
+        if diagnostic:
+            execute_diagnostic_gate(_graph(), "final", ChangingEngine(), inputs=inputs)
+        else:
+            execute_gate(_graph(), "final", inputs, ChangingEngine())
+    assert "signetum-engine" in str(refused.value)
+    assert "engine-before" in str(refused.value)
+    assert "engine-after" in str(refused.value)

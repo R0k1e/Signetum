@@ -1085,7 +1085,7 @@ def _combined_batch(tmp_path, *, commit_check=False):
     _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
     _record(batch, "batch/test", base, "batch")
     if commit_check:
-        assert install_commit_check(batch)["status"] == "installed"
+        assert install_commit_check(batch)["status"] == "active"
     members = []
     for name in ("left", "right"):
         member = tmp_path / name
@@ -1180,8 +1180,8 @@ def test_commit_check_refuses_member_implementation_before_its_committed_approva
     member = tmp_path / "member"
     _git(repository, "worktree", "add", "-b", "impl/member", str(member), base)
     _record(member, "impl/member", base)
-    assert install_commit_check(member)["status"] == "installed"
-    assert install_commit_check(member)["status"] == "installed"
+    assert install_commit_check(member)["status"] == "active"
+    assert install_commit_check(member)["status"] == "active"
 
     (member / "implementation.txt").write_text("before approval\n")
     refused = _committed(member, "implement without a change record")
@@ -1207,5 +1207,5 @@ def test_commit_check_keeps_a_foreign_hook(tmp_path):
 
     result = install_commit_check(repository)
 
-    assert result["status"] == "skipped"
+    assert result["status"] == "inactive"
     assert hook.read_text() == "#!/bin/sh\nexit 0\n"

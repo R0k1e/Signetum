@@ -101,3 +101,24 @@ only for requested selection, scheduling or CI partition work.
 Report the furthest evidenced state: ready, integrated or delivered. Show the
 generated final review before explicitly authorized delivery. Human acceptance
 requires its own evidence. The maintained source is [Signetum](https://github.com/R0k1e/Signetum).
+
+Operate consumer repositories through the installed Skill launcher, for example
+`sh ~/.claude/skills/signetum/scripts/signetum <operation>`. Project wrappers
+set `SIGNETUM_SKILL` and call that launcher's `scripts/signetum`; they never
+call an engine in another development checkout. Update the Skill only when no
+batch is open. A batch pins the opening engine; finish it with that engine or
+open a new batch for the same ready members. Repository self-hosting runs batch
+operations from the batch worktree with its own engine.
+
+A project that owns `core.hooksPath` should chain the machine-local Signetum
+shim from its `reference-transaction` hook:
+
+```sh
+input=$(cat)
+shim="$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction"
+if [ -x "$shim" ]; then printf '%s\n' "$input" | "$shim" "$@" || exit $?; fi
+```
+
+Preparation verifies the effective chain with a real Git probe. Check status for
+`commit_check.status`: an inactive check warns with its cause and chaining
+snippet; ready and final still judge immutable commit attribution.

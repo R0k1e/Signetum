@@ -24,6 +24,7 @@ from signetum.synchronization import authorize_source, incorporated_parent_tip, 
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import (
     BatchAuthorization,
+    BatchEngine,
     WorkspaceError,
     WorkspaceRecord,
     branch_checkouts,
@@ -42,12 +43,14 @@ from signetum.workspaces import (
 
 
 def worktree_prepare(repository: Path, *, allow_merge: bool = False) -> PreparationResult:
-    return prepare_workspace(
+    result = prepare_workspace(
         repository,
         lambda: configured_validation(load_manifest(repository / "signetum.toml"))[0],
         wt.run_tool,
         allow_merge=allow_merge,
     )
+    install_commit_check(repository)
+    return result
 
 
 def open_workspace(
@@ -58,6 +61,7 @@ def open_workspace(
     kind: Literal["member", "batch"] = "member",
     members: tuple[str, ...] = (),
     authorization: BatchAuthorization | None = None,
+    engine: BatchEngine | None = None,
 ) -> dict[str, object]:
     root = Path(git_output(repository, "rev-parse", "--show-toplevel"))
     source = git_output(root, "rev-parse", "--verify", f"{base}^{{commit}}")
@@ -82,13 +86,14 @@ def open_workspace(
             write_record(
                 state_root(root),
                 WorkspaceRecord(
-                    schema_version=2 if authorization is not None else 1,
+                    schema_version=2 if authorization is not None or engine is not None else 1,
                     branch=branch,
                     base=source,
                     kind=kind,
                     members=members,
                     parent=parent,
                     authorization=authorization,
+                    engine=engine,
                 ),
             )
         record = read_record(state_root(root), branch)
@@ -102,6 +107,17 @@ def open_workspace(
             or record.authorization.members != authorization.members
         ):
             raise AdmissionError("existing batch has different recorded authorization")
+        if (
+            engine is not None
+            and record.engine != engine
+            and not (
+                record.engine is not None and record.engine.source == engine.source == "repository"
+            )
+        ):
+            raise AdmissionError(
+                f"existing batch has a different engine pin: {record.engine}",
+                expected="finish with the pinned engine or open a new batch",
+            )
         if record.base != source or record.kind != kind or record.parent != parent:
             raise AdmissionError(
                 "existing workspace has a different recorded base or role",
@@ -148,13 +164,14 @@ def open_workspace(
         write_record(
             state_root(root),
             WorkspaceRecord(
-                schema_version=2 if authorization is not None else 1,
+                schema_version=2 if authorization is not None or engine is not None else 1,
                 branch=branch,
                 base=source,
                 kind=kind,
                 members=members,
                 parent=parent,
                 authorization=authorization,
+                engine=engine,
             ),
         )
     if state_root(workspace.path) != state_root(root):

@@ -13,13 +13,14 @@ approval before implementation and preserve commits already bound to evidence.
 If ready refuses as plan stage, add an implementation commit after the named
 approval commit, as its expected action and `status` say; changes inside that
 commit do not count. Never amend, rebase or reorder history to fix it.
-`workspace-open` and `batch-open` install a `reference-transaction` hook that
-applies the same rule to each new commit. In a member, a commit changing anything
-outside change records and decisions needs matching approval in its parent, so
-commit the approval on its own first. In a new batch, combination fixes use the
-authorization recorded at batch-open; legacy batches need parent-approved
-batch-owned changes. Later re-approval does not invalidate earlier implementation. Records-only commits
-and merges pass. It needs Git 2.28; final and ready still check.
+Workspace opening and every successful preparation install or verify the
+`reference-transaction` commit check. Status reports the functionally probed
+`active | inactive` chain and warns when inactive; see the
+[adoption guide](adoption.md) for the project-owned hook snippet. Skill hooks
+call the stable launcher rather than an interpreter in a replaceable cache.
+The check judges each new implementation commit against its parent approval;
+records-only commits and merges retain their existing rules. Ready and final
+provide the same attribution backstop when a hook cannot run.
 When a declared tool such as `wt` is missing from the default Mise environment,
 Signetum runs it under the one environment the project declares for it
 (`mise.<env>.toml`); otherwise the refusal names the `MISE_ENV` to set.

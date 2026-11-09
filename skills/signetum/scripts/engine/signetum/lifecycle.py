@@ -26,6 +26,7 @@ from signetum.development_store import DevelopmentReviewError
 from signetum.deviations import (
     DeviationError,
 )
+from signetum.engine_pin import opening_engine, require_batch_engine
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
@@ -235,6 +236,7 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         record = read_record(_state_root(repository), _branch(repository))
         if record.kind != "batch":
             raise AdmissionError("final requires a registered batch workspace")
+        require_batch_engine(repository)
         _require_no_merge(repository)
         _require_clean(repository)
         proposals = _proposal_paths(repository)
@@ -411,6 +413,7 @@ def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
 
 
 def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
+    require_batch_engine(batch)
     _require_no_merge(batch)
     _require_clean(batch)
     batch_branch = _branch(batch)
@@ -561,6 +564,7 @@ def continue_batch(batch: Path) -> dict[str, object]:
 
 
 def _continue_batch_held(batch: Path) -> dict[str, object]:
+    require_batch_engine(batch)
     merge_head = repository_path(batch, "rev-parse", "--git-path", "MERGE_HEAD")
     if not merge_head.is_file():
         raise AdmissionError("batch has no merge to continue")
@@ -663,6 +667,7 @@ def sync_batch(batch: Path, source: Path | None = None) -> dict[str, object]:
 
 
 def _sync_batch_held(batch: Path) -> dict[str, object]:
+    require_batch_engine(batch)
     _require_no_merge(batch)
     _require_clean(batch)
     branch = _branch(batch)
@@ -858,6 +863,60 @@ def _run_batch_gate(
     return {**static, "admission_base": before}
 
 
+def _open_admission(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
+    """Enter the new batch's repository engine before initial admission."""
+    worktree_prepare(batch)
+    engine = batch / "skills/signetum/scripts/engine"
+    if not (engine / "signetum/lifecycle.py").is_file():
+        raise AdmissionError("repository engine is absent from the batch")
+    program = (
+        "import sys; sys.path.insert(0,sys.argv.pop(1)); "
+        "from signetum.lifecycle import main; raise SystemExit(main())"
+    )
+    python = batch / ".venv/bin/python"
+    if not python.is_file():
+        raise AdmissionError("repository preparation did not provide the batch interpreter")
+    command = [
+        str(python),
+        "-I",
+        "-B",
+        "-c",
+        program,
+        str(engine),
+        "batch-admit",
+        "--batch",
+        str(batch),
+    ]
+    for member in members:
+        command.extend(("--member", str(member)))
+    completed = subprocess.run(command, cwd=batch, text=True, capture_output=True, check=False)
+    try:
+        result = json.loads(completed.stdout.splitlines()[-1])
+        if not isinstance(result, dict):
+            raise ValueError("batch engine returned no operation result")
+    except (ValueError, IndexError) as error:
+        raise InfrastructureError(
+            "batch engine returned no valid operation result: " + completed.stderr.strip()
+        ) from error
+    if completed.returncode:
+        category = {
+            "conflict": MergeConflict,
+            "failed": OperationFailed,
+            "infrastructure_error": InfrastructureError,
+        }.get(result.get("status"), AdmissionError)
+        raise category(
+            str(result.get("cause", completed.stderr.strip())),
+            expected=str(
+                result.get("expected", f"run batch-admit --batch {batch} with its engine")
+            ),
+        )
+    return {
+        key: value
+        for key, value in result.items()
+        if key not in {"operation", "outcome", "exit_code", "schema_version"}
+    }
+
+
 def batch_open(
     repository: Path, members: tuple[Path, ...], name: str | None = None, *, actor: str, source: str
 ) -> dict[str, object]:
@@ -865,6 +924,7 @@ def batch_open(
         raise AdmissionError("batch-open requires explicitly named members")
     if not actor.strip() or not source.strip():
         raise AdmissionError("batch-open requires non-empty actor and source")
+    engine = opening_engine(repository)
     member_names = tuple(_branch(member.resolve()) for member in members)
     task = (
         name
@@ -883,12 +943,15 @@ def batch_open(
         approved_base,
         kind="batch",
         members=member_names,
+        engine=engine,
         authorization=BatchAuthorization(
             actor, source, datetime.now(UTC).isoformat(), member_names
         ),
     )
     batch = Path(str(opened["worktree"]))
-    result = admit(batch, members)
+    result = (
+        _open_admission(batch, members) if engine.source == "repository" else admit(batch, members)
+    )
     return {
         **result,
         "status": "opened",
@@ -909,6 +972,7 @@ def batch_deliver(
 ) -> dict[str, object]:
     _require_worktree_directory(source, "source")
     _require_worktree_directory(target, "target")
+    require_batch_engine(source)
     _require_clean(source)
     _require_clean(target)
     if _git(source, "rev-parse", "HEAD") != expected_tip:

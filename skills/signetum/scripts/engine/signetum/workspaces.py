@@ -56,6 +56,26 @@ class BatchAuthorization:
 
 
 @dataclass(frozen=True)
+class BatchEngine:
+    """Immutable batch-opening identity; repository engines pin the location."""
+
+    version: str
+    implementation: str
+    source: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise WorkspaceError("batch engine version is invalid")
+        if (
+            not isinstance(self.implementation, str)
+            or fullmatch(r"sha256:[0-9a-f]{64}", self.implementation) is None
+        ):
+            raise WorkspaceError("batch engine implementation is invalid")
+        if self.source not in ("skill", "repository"):
+            raise WorkspaceError("batch engine source is invalid")
+
+
+@dataclass(frozen=True)
 class WorkspaceRecord:
     """What a workspace is, written once when the workspace is created."""
 
@@ -68,6 +88,7 @@ class WorkspaceRecord:
     parent: str | None = None
 
     authorization: BatchAuthorization | None = None
+    engine: BatchEngine | None = None
 
     def __post_init__(self) -> None:
         if type(self.schema_version) is not int or self.schema_version not in (1, 2):
@@ -94,6 +115,12 @@ class WorkspaceRecord:
             or self.authorization.members != self.members
         ):
             raise WorkspaceError("only schema-2 batches carry matching authorization")
+        if self.engine is not None and (
+            not isinstance(self.engine, BatchEngine)
+            or self.kind != "batch"
+            or self.schema_version != 2
+        ):
+            raise WorkspaceError("only schema-2 batches carry an engine pin")
         if self.parent is not None and (
             not isinstance(self.parent, str)
             or not self.parent
@@ -111,6 +138,8 @@ def record_document(record: WorkspaceRecord) -> dict[str, object]:
         del document["parent"]
     if record.authorization is None:
         del document["authorization"]
+    if record.engine is None:
+        del document["engine"]
     return document
 
 
@@ -120,7 +149,7 @@ def parse_record(document: object) -> WorkspaceRecord:
     if (
         not isinstance(document, dict)
         or not required.issubset(document)
-        or set(document) - (required | {"members", "parent", "authorization"})
+        or set(document) - (required | {"members", "parent", "authorization", "engine"})
     ):
         raise WorkspaceError("workspace record fields are invalid")
     members = document.get("members", ())
@@ -143,6 +172,11 @@ def parse_record(document: object) -> WorkspaceRecord:
             if isinstance(authorization["members"], list)
             else authorization["members"],
         )
+    engine = document.get("engine")
+    if engine is not None:
+        if not isinstance(engine, dict) or set(engine) != {"version", "implementation", "source"}:
+            raise WorkspaceError("batch engine fields are invalid")
+        engine = BatchEngine(**engine)
     return WorkspaceRecord(
         schema_version=cast(int, document["schema_version"]),
         branch=cast(str, document["branch"]),
@@ -151,6 +185,7 @@ def parse_record(document: object) -> WorkspaceRecord:
         members=cast(tuple[str, ...], members),
         parent=cast(str | None, document.get("parent")),
         authorization=authorization,
+        engine=engine,
     )
 
 
@@ -279,6 +314,7 @@ def advance_batch_base(root: Path, branch: str, previous: str, base: str) -> Non
             kind="batch",
             members=existing.members,
             authorization=existing.authorization,
+            engine=existing.engine,
         )
         descriptor, temporary = tempfile.mkstemp(prefix="record-", dir=path.parent)
         try:
