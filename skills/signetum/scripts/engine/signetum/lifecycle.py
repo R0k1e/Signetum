@@ -13,13 +13,13 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
 
 from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
 from signetum.change.scope import delivered_plans, records_only, records_only_ancestors
-from signetum.change_open import open_batch_draft
 from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
 from signetum.delivery import publish_batch
 from signetum.development_store import DevelopmentReviewError
@@ -29,6 +29,7 @@ from signetum.deviations import (
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
+    failed_tip,
     pending_admissions,
     record_pending_admissions,
     record_verified_batch,
@@ -81,6 +82,7 @@ from signetum.workspace_operations import (
     worktree_prepare,
 )
 from signetum.workspaces import (
+    BatchAuthorization,
     WorkspaceError,
     advance_batch_base,
     read_record,
@@ -835,7 +837,7 @@ def _run_batch_gate(
             executed=set(prepared),
             advisory_world=True,
             remembered=owed,
-            vanished=vanished_nodes(batch, base, source, owed),
+            vanished=vanished_nodes(batch, base, source, owed, failed_tip(batch, branch, None)),
             admission_base=before,
             member_base=before,
         )
@@ -857,10 +859,12 @@ def _run_batch_gate(
 
 
 def batch_open(
-    repository: Path, members: tuple[Path, ...], name: str | None = None
+    repository: Path, members: tuple[Path, ...], name: str | None = None, *, actor: str, source: str
 ) -> dict[str, object]:
     if not members:
         raise AdmissionError("batch-open requires explicitly named members")
+    if not actor.strip() or not source.strip():
+        raise AdmissionError("batch-open requires non-empty actor and source")
     member_names = tuple(_branch(member.resolve()) for member in members)
     task = (
         name
@@ -879,15 +883,16 @@ def batch_open(
         approved_base,
         kind="batch",
         members=member_names,
+        authorization=BatchAuthorization(
+            actor, source, datetime.now(UTC).isoformat(), member_names
+        ),
     )
     batch = Path(str(opened["worktree"]))
-    draft = open_batch_draft(batch, task, approved_base)
     result = admit(batch, members)
     return {
         **result,
         "status": "opened",
         "worktree": str(batch),
-        "change_record": draft,
         "commit_check": opened["commit_check"],
     }
 
@@ -1012,6 +1017,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     opening = commands.add_parser("batch-open")
     opening.add_argument("--name")
+    opening.add_argument("--actor", required=True, help="Owner who authorized this batch.")
+    opening.add_argument("--source", required=True, help="Source of the owner authorization.")
     opening.add_argument("--member", type=Path, action="append", required=True)
     admission = commands.add_parser("batch-admit")
     admission.add_argument("--batch", type=Path, required=True)
@@ -1046,7 +1053,9 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     elif parsed.command == "ready":
         result = explain_ready(repository) if parsed.explain else validate(repository, "member")
     elif parsed.command == "batch-open":
-        result = batch_open(repository, tuple(parsed.member), parsed.name)
+        result = batch_open(
+            repository, tuple(parsed.member), parsed.name, actor=parsed.actor, source=parsed.source
+        )
     elif parsed.command == "batch-admit":
         result = admit(parsed.batch.resolve(), tuple(parsed.member))
     elif parsed.command == "batch-continue":

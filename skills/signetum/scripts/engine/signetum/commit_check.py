@@ -15,7 +15,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from signetum.change.scope import ChangeError, batch_owned_commits, require_member_commit
+from signetum.change.scope import ChangeError, commit_attribution, require_member_commit
 from signetum.git import GitError, git_output, repository_path, run_git
 from signetum.manifest import ManifestError, parse_manifest
 from signetum.workspaces import WorkspaceError, read_record, state_root
@@ -97,7 +97,7 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
     manifest = parse_manifest(git_output(repository, "show", f"{new}:signetum.toml"))
     try:
         if record.kind == "batch":
-            batch_owned_commits(repository, manifest, record.base, new, judged=new)
+            commit_attribution(repository, manifest, record, new)
         else:
             require_member_commit(repository, manifest, record.base, new)
     except ChangeError as error:

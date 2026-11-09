@@ -1,0 +1,117 @@
+[change]
+schema_version = 1
+id = "attribution-at-the-commit"
+
+[change.source]
+kind = "human_direction"
+summary = "Owner approved the structural change plan on 2026-11-09, including all eight recommended answers. This member owns only A, B, F1 and F4, based on main e8bd4d4; historical authorities are approval-before-commit and one-loop-light-admit-batch-fixes."
+
+[change.contract]
+version = 1
+approved_base = "e8bd4d4b7d723c9137d3c194435c34200e1f7245"
+
+[[change.contract.requirements]]
+id = "ATTR-001"
+outcome = "Attribute every implementation commit using its own parent approval, shared by commit check and final, never a later tip contract. Legacy batch approvals remain valid after re-approval; reviews expose authority and parent contract digests."
+acceptance = [
+    "Functional histories cover legacy re-approval, absent approval refusal and shared hook/final verdicts.",
+]
+
+[[change.contract.requirements]]
+id = "MEMBER-002"
+outcome = "Every member implementation commit must pass require_member_commit; each tip package is approved and has covered implementation. Re-approval after implementation needs no extra implementation commit."
+acceptance = [
+    "Member ready accepts implementation followed by contract amendment and re-approval, and refuses approval bundled with implementation.",
+]
+
+[[change.contract.requirements]]
+id = "BATCH-003"
+outcome = "batch-open requires actor and source, records immutable batch-only authorization with timestamp and initial members in schema 2, accepts schema 1, and creates no excluded draft. Combination fixes use that authorization without journal ceremony; final lists commit, subject, diffstat and authorization. Legacy batches retain batch-owned approval authority."
+acceptance = [
+    "Functional public batch-open and final exercise authorization, repair review, record round trips and legacy behavior.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-004"
+outcome = "Reconcile current architecture and Skill instructions for M1 behavior, leaving engine pinning, hook chaining, test retirement, F5 and release to their owners."
+acceptance = [
+    "Current instructions match the implemented command and qualification rules; ready passes.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement M1 owners, extend functional throwaway-repository tests, reconcile affected current documentation and run ready.",
+]
+requires_confirmation = [
+    "Expand beyond M1, batch, integrate, deliver, push, tag, release or modify PyReduce.",
+]
+
+[[change.contract.decisions]]
+id = "attribution-at-the-commit/action-time-verdicts"
+change_id = "attribution-at-the-commit"
+authority = "changes/attribution-at-the-commit/change.toml#decisions/attribution-at-the-commit/action-time-verdicts"
+parents = [
+    "approval-before-commit/commit-time-approval",
+    "one-loop-light-admit-batch-fixes/one-loop",
+]
+reason = "Owner approved structural plan proposals A, B, F1 and F4. PyReduce history showed tip-based re-approval retroactively invalidating approved work and excluded drafts adding ceremony. Immutable commit and parent inputs give hook and final one verdict; a side ledger would be incomplete and mutable. Batch authorization explicitly owns combination repairs rather than claiming member contracts. Reopen if immutable history cannot supply authority or review fails to expose repairs. M3 owns subsequent hook installation and engine identity changes."
+
+[[change.contract.decisions.clauses]]
+id = "attribution-at-the-commit/batch-fix-001"
+change_id = "attribution-at-the-commit"
+action = "amend"
+expected = [
+    { id = "BATCH-FIX-001", version = 2 },
+]
+authority = "changes/attribution-at-the-commit/change.toml#decisions/attribution-at-the-commit/action-time-verdicts"
+reason = "Apply the approved M1 action-time attribution boundary."
+
+[[change.contract.decisions.clauses.updates]]
+id = "BATCH-FIX-001"
+version = 3
+topic = "skill-first-development"
+scope = [
+    "Member readiness",
+    "Batch admission and continuation",
+    "Final validation",
+]
+statement = "Combination-only defects may be repaired directly in a batch under the actor, source, timestamp and initial members recorded by batch-open. Final lists those commits, subjects, diffstats and authorization for review; no batch-owned change or journal ceremony is required. Member defects stay in members and conflict continuation is unchanged. Schema-1 batches retain parent-approved batch-owned change authority."
+rationale = "Immutable action inputs prevent later re-approval from invalidating authorized work; explicit batch authorization keeps repairs reviewable."
+
+[[change.contract.decisions.clauses]]
+id = "attribution-at-the-commit/commit-check-001"
+change_id = "attribution-at-the-commit"
+action = "amend"
+expected = [
+    { id = "COMMIT-CHECK-001", version = 1 },
+]
+authority = "changes/attribution-at-the-commit/change.toml#decisions/attribution-at-the-commit/action-time-verdicts"
+reason = "Apply the approved M1 action-time attribution boundary."
+
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-CHECK-001"
+version = 2
+topic = "skill-first-development"
+scope = [
+    "Member readiness",
+    "Batch admission and continuation",
+    "Final validation",
+]
+statement = "The existing reference-transaction hook judges each implementation commit from that commit and its parent, using the same attribution function as final and the member predicate used by ready. Later re-approval never changes earlier verdicts. Member tip packages must be approved and each must have covered implementation, without requiring implementation after re-approval. Hook installation and missing-engine behavior remain unchanged in this member."
+rationale = "Immutable action inputs prevent later re-approval from invalidating authorized work; explicit batch authorization keeps repairs reviewable."
+
+[[change.execution.steps]]
+id = "STEP-M1"
+requirements = [
+    "ATTR-001",
+    "MEMBER-002",
+    "BATCH-003",
+    "DOC-004",
+]
+action = "Extend scope, workspace records, batch opening, hook judging and final review; extend existing functional member and batch traversals, retain rejection evidence, replace obsolete draft coverage with authorization coverage, reconcile docs and finish at passing ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-09
+source = "Repository owner approved the structural plan and all eight open questions as recommended (2026-11-09). This session implements only member M1."
+contract_digest = "sha256:8b3252584e44b3bcf256b93d38e998d4f997e36d2e33299c706bf5f2fb9217a4"

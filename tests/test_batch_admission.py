@@ -23,7 +23,7 @@ from signetum.validation import command_digest
 from signetum.validation.execution import ShardExecution, build_evidence_identity
 from signetum.validation.ratchet import member_values
 from signetum.workflow_status import workflow_status
-from signetum.workspaces import WorkspaceRecord, write_record
+from signetum.workspaces import WorkspaceRecord, read_record, state_root, write_record
 
 
 def _load_module():
@@ -225,7 +225,7 @@ def test_manifest_gate_retains_commands_and_dependency_order(tmp_path: Path) -> 
 
 
 def test_delivery_provenance_uses_actual_package_plans_and_named_member(tmp_path):
-    member, batch, base = _member_and_batch(tmp_path)
+    member, batch, base = _member_and_batch(tmp_path, implemented=False)
     _approve_change(member)
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve package")
@@ -384,9 +384,20 @@ def test_final_refuses_proposal_decisions(tmp_path: Path, modified: bool) -> Non
 
 
 def _member_and_batch(
-    tmp_path: Path, *, path: str = "src/feature.txt", approved: bool = False
+    tmp_path: Path,
+    *,
+    path: str = "src/feature.txt",
+    approved: bool = False,
+    implemented: bool = True,
+    changes_root: str = "changes",
 ) -> tuple[Path, Path, str]:
     repository = _repository(tmp_path / "repository")
+    if changes_root != "changes":
+        manifest = repository / "signetum.toml"
+        manifest.write_text(
+            manifest.read_text().replace('changes = "changes"', f'changes = "{changes_root}"')
+        )
+        _git(repository, "commit", "-am", "declare the package root")
     base = _git(repository, "rev-parse", "HEAD")
     member = tmp_path / "member"
     batch = tmp_path / "batch"
@@ -396,6 +407,8 @@ def _member_and_batch(
     _record(batch, "batch/test", base, "batch")
     if approved:
         commit_approval(member)
+    if not implemented:
+        return member, batch, base
     target = member / path
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("work\n", encoding="utf-8")
@@ -698,7 +711,7 @@ def test_admission_does_not_accept_a_proposed_decision(tmp_path):
 
 
 def test_actual_change_paths_supply_review_and_plans_without_a_trailer(tmp_path):
-    member, batch, _ = _member_and_batch(tmp_path)
+    member, batch, _ = _member_and_batch(tmp_path, implemented=False)
     _approve_change(member)
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve change")
@@ -718,7 +731,7 @@ def test_actual_change_paths_supply_review_and_plans_without_a_trailer(tmp_path)
 
 
 def test_member_with_only_an_approved_package_is_plan_stage(tmp_path):
-    member, _, _ = _member_and_batch(tmp_path)
+    member, _, _ = _member_and_batch(tmp_path, implemented=False)
     _approve_change(member)
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve the package only")
@@ -726,31 +739,22 @@ def test_member_with_only_an_approved_package_is_plan_stage(tmp_path):
         lifecycle.validate(member, "member")
 
 
-def test_a_reapproval_after_implementation_names_the_remedy(tmp_path, monkeypatch, capsys):
+def test_a_reapproval_after_implementation_is_ready_without_extra_code(
+    tmp_path, monkeypatch, capsys
+):
     member, _, base = _member_and_batch(tmp_path, approved=True)
     consolidated_approval(member, base, outcome="Implement the revised confirmed behavior.")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "re-approve the revised outcome")
     approval = _git(member, "rev-parse", "HEAD")
     monkeypatch.chdir(member)
-
-    def next_action() -> object:
-        source = _git(member, "rev-parse", "HEAD")
-        return workflow_status(member, development_snapshot(member), source=source)["next"]
-
-    assert lifecycle.main(["ready"]) == 2
-    refusal = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
-    assert refusal["status"] == "invalid"
-    assert approval in refusal["cause"]
-    # Status and the refusal give one remedy, distinct from the generic retry advice.
-    assert refusal["expected"] == next_action()
-    assert refusal["expected"] != lifecycle.AdmissionError("x").expected
-
-    (member / "src/feature.txt").write_text("revised work\n", encoding="utf-8")
-    _git(member, "add", ".")
-    _git(member, "commit", "-m", "implement the revised outcome")
-    assert next_action() != refusal["expected"]
-    assert lifecycle.validate(member, "member")["status"] == "ready"
+    assert lifecycle.main(["ready"]) == 0
+    result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert result["status"] == "passed"
+    assert result["outcome"] == "ready"
+    assert result["source"] == approval
+    assert result["approvals"][0]["change_id"] == "example"
+    assert _git(member, "rev-parse", "HEAD") == approval
 
 
 def test_member_refuses_an_unapproved_change_before_executing_checks(tmp_path):
@@ -816,7 +820,7 @@ def test_final_lists_previous_plan_edits_without_reopening_old_approval(tmp_path
 
 
 def test_an_approved_change_cannot_continue_in_a_second_member_workspace(tmp_path):
-    member, _, base = _member_and_batch(tmp_path)
+    member, _, base = _member_and_batch(tmp_path, implemented=False)
     _approve_change(member)
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve package")
@@ -832,11 +836,9 @@ def test_an_approved_change_cannot_continue_in_a_second_member_workspace(tmp_pat
 
 
 def test_change_scope_uses_the_declared_package_root(tmp_path):
-    member, batch, _ = _member_and_batch(tmp_path)
+    member, batch, _ = _member_and_batch(tmp_path, implemented=False, changes_root="work")
     _approve_change(member)
     (member / "changes").rename(member / "work")
-    manifest = member / "signetum.toml"
-    manifest.write_text(manifest.read_text().replace('changes = "changes"', 'changes = "work"'))
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve package under declared root")
     (member / "implemented.txt").write_text("behavior")
@@ -885,10 +887,12 @@ def test_ready_and_admission_refuse_an_implementation_without_a_change_package(t
 
 @pytest.mark.parametrize("resolved", [False, True])
 def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_path, resolved):
-    member, batch, base = _member_and_batch(tmp_path)
+    member, batch, base = _member_and_batch(tmp_path, implemented=False)
     path = consolidated_approval(member, base)
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve consolidated member")
+    (member / "src").mkdir()
+    (member / "src/feature.txt").write_text("implementation after approval")
     prefix = "signetum"
     store = importlib.import_module(prefix + ".development_store")
     records = importlib.import_module(prefix + ".change_record")
@@ -1129,12 +1133,31 @@ def test_cross_member_failure_surfaces_at_final_and_a_batch_owned_fix_repairs_it
     (batch / "reconciled.txt").write_text("both members together\n")
     assert _committed(batch, "reconcile the combined members").returncode == 0
     fix = _git(batch, "rev-parse", "HEAD")
+    consolidated_approval(
+        batch,
+        read_record(state_root(batch), "batch/test").base,
+        change_id="reconcile",
+        outcome="Accept the reviewed combination repair and refinement.",
+    )
+    assert _committed(batch, "reapprove the visible combination repair").returncode == 0
+    (batch / "refinement.txt").write_text("follow-up under the revised contract")
+    assert _committed(batch, "refine the combination").returncode == 0
+    revised_fix = _git(batch, "rev-parse", "HEAD")
 
     final = lifecycle.validate(batch, "final")
 
     review = final["delivery_review"]
     assert isinstance(review, dict)
-    assert {"commit": fix, "changes": ["reconcile"]} in review["inputs"]["batch_commits"]
+    assert any(
+        item["commit"] == fix
+        and item["changes"] == ["reconcile"]
+        and item["authority"] == "change"
+        and item["contract_digests"]
+        for item in review["inputs"]["batch_commits"]
+    )
+    repairs = {item["commit"]: item for item in review["inputs"]["batch_commits"]}
+    assert repairs[fix]["contract_digests"] != repairs[revised_fix]["contract_digests"]
+    assert review["inputs"]["combination_repairs"] == []
     assert "reconcile" in review["inputs"]["source_journals"]["changes"]
     assert "reconcile" in [item["change_id"] for item in review["approvals"]]
 

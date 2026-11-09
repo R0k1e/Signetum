@@ -124,7 +124,13 @@ contract_digest = "{digest}"
 
 
 def open_batch(root, member):
-    return Path(str(lifecycle.batch_open(root, (member,))["worktree"]))
+    return Path(
+        str(
+            lifecycle.batch_open(
+                root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+            )["worktree"]
+        )
+    )
 
 
 def deliver(root, batch):
@@ -469,7 +475,9 @@ def test_a_member_migrating_an_older_delivered_manifest_is_admitted(
     lifecycle.validate(migrating, "member")
 
     with pytest.raises(manifest_format.UnsupportedManifestError, match="legacy"):
-        lifecycle.batch_open(root, (stale,), name="wave")
+        lifecycle.batch_open(
+            root, (stale,), name="wave", actor="Owner", source="Owner authorized the fixture batch"
+        )
     batch = ops.workspace_destination(root, "batch/wave")
     opened_tip = git_output(batch, "rev-parse", "HEAD")
     capsys.readouterr()
@@ -515,7 +523,13 @@ def test_members_after_a_conflict_are_admitted_by_batch_continue(repository, cap
     second = ready_member(root, "second", "shared.txt", "second")
     third = ready_member(root, "third", "third.txt")
     with pytest.raises(MergeConflict) as conflict:
-        lifecycle.batch_open(root, (first, second, third), name="wave")
+        lifecycle.batch_open(
+            root,
+            (first, second, third),
+            name="wave",
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+        )
     assert "batch-continue" in conflict.value.expected
     assert str(third) in conflict.value.expected
     batch = ops.workspace_destination(root, "batch/wave")

@@ -14,9 +14,11 @@ If ready refuses as plan stage, add an implementation commit after the named
 approval commit, as its expected action and `status` say; changes inside that
 commit do not count. Never amend, rebase or reorder history to fix it.
 `workspace-open` and `batch-open` install a `reference-transaction` hook that
-applies the same rule to each new commit: one changing anything outside change
-records and decisions before the committed approval of the workspace's own change
-record is refused, so commit the approval on its own first. Records-only commits
+applies the same rule to each new commit. In a member, a commit changing anything
+outside change records and decisions needs matching approval in its parent, so
+commit the approval on its own first. In a new batch, combination fixes use the
+authorization recorded at batch-open; legacy batches need parent-approved
+batch-owned changes. Later re-approval does not invalidate earlier implementation. Records-only commits
 and merges pass. It needs Git 2.28; final and ready still check.
 When a declared tool such as `wt` is missing from the default Mise environment,
 Signetum runs it under the one environment the project declares for it
@@ -151,7 +153,14 @@ command that declares `{signetum.priority_nodes_file}` receives those owed nodes
 as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
 through a declared `{signetum.node_report_file}`, whose optional `unreached` list
 fails the gate and makes those entries owed; its optional `failed_checks` names
-non-test checks for the record and is never owed. Every other engine value, such as
+non-test checks for the record and is never owed. An optional `not_collected` list
+releases an unreported owed node only when its shard passes and a commit since
+the failure changed its file. It names nodes absent from collection in files
+collected by that run or no longer present, not tests deselected by a filter.
+Receipt `released_vanished_nodes` entries retain `node_id`, `retiring_commit` and
+`basis: "not_collected"`; runners omitting the field keep the name-absence
+heuristic (`basis: "name_absent"`) and journal release. The packaged pytest runner
+accepts `--priority-nodes {signetum.priority_nodes_file}` to compute it. Every other engine value, such as
 the base, ratchet baseline, contribution paths, admission base, worker cap,
 recovery report and schedule file, is also a declared `{signetum.*}` argument;
 Signetum sets no environment variable for a runner. See the

@@ -23,6 +23,7 @@ from signetum.stacking import branch_tip, is_ancestor, stacked_parent
 from signetum.synchronization import authorize_source, incorporated_parent_tip, recognize_sync
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import (
+    BatchAuthorization,
     WorkspaceError,
     WorkspaceRecord,
     branch_checkouts,
@@ -56,6 +57,7 @@ def open_workspace(
     *,
     kind: Literal["member", "batch"] = "member",
     members: tuple[str, ...] = (),
+    authorization: BatchAuthorization | None = None,
 ) -> dict[str, object]:
     root = Path(git_output(repository, "rev-parse", "--show-toplevel"))
     source = git_output(root, "rev-parse", "--verify", f"{base}^{{commit}}")
@@ -80,18 +82,26 @@ def open_workspace(
             write_record(
                 state_root(root),
                 WorkspaceRecord(
-                    schema_version=1,
+                    schema_version=2 if authorization is not None else 1,
                     branch=branch,
                     base=source,
                     kind=kind,
                     members=members,
                     parent=parent,
+                    authorization=authorization,
                 ),
             )
         record = read_record(state_root(root), branch)
         if parent is not None and record.parent == parent:
             # The parent may have advanced since; the recorded base stays.
             source = record.base
+        if authorization is not None and (
+            record.authorization is None
+            or record.authorization.actor != authorization.actor
+            or record.authorization.source != authorization.source
+            or record.authorization.members != authorization.members
+        ):
+            raise AdmissionError("existing batch has different recorded authorization")
         if record.base != source or record.kind != kind or record.parent != parent:
             raise AdmissionError(
                 "existing workspace has a different recorded base or role",
@@ -138,12 +148,13 @@ def open_workspace(
         write_record(
             state_root(root),
             WorkspaceRecord(
-                schema_version=1,
+                schema_version=2 if authorization is not None else 1,
                 branch=branch,
                 base=source,
                 kind=kind,
                 members=members,
                 parent=parent,
+                authorization=authorization,
             ),
         )
     if state_root(workspace.path) != state_root(root):
