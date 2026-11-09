@@ -73,7 +73,17 @@ or a file or directory path for a stage that never collected.
 
 Write first-attempt outcomes to the node report as
 `{"failed": [...], "passed": [...], "unreached": [...], "failed_checks": [...]}`;
-`unreached` and `failed_checks` are optional.
+`unreached`, `failed_checks` and `not_collected` are optional.
+`not_collected` lists owed node ids absent from collection whose file was collected
+in this run or no longer exists. Report collection before `-k`, marker or node
+selection filters; never report a node from an existing file excluded from
+collection. The engine releases these nodes only in a passing shard when a commit
+since the remembered failure changed the file. Its `released_vanished_nodes`
+receipt details name `node_id`, `retiring_commit` and `basis: "not_collected"`.
+Omitting the field preserves the name-absence heuristic (`basis: "name_absent"`)
+and journal-observation release. The packaged pytest runner accepts
+`--priority-nodes {signetum.priority_nodes_file}` before `--` and computes this
+report from the first collection, including xdist workers.
 Write it before exiting, or progressively when the shard may reach its
 `timeout_seconds`, since the engine reads it after a time-bound stop too. A failed
 gate remembers failed and unreached entries for the workspace's next gate.

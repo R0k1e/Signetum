@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 
 _reports: list[dict[str, str]] = []
+_collected: set[str] = set()
+_collected_files: set[str] = set()
 _phase_seconds: dict[str, float] = {}
 _collection_started = 0.0
 _collection_seconds = 0.0
@@ -32,6 +34,8 @@ def pytest_configure(config):
     _collection_started = _session_started = 0.0
     _configured = time.perf_counter()
     _reports.clear()
+    _collected.clear()
+    _collected_files.clear()
     _phase_seconds.clear()
     _weights = json.loads(os.environ.get("SIGNETUM_SCHEDULE_WEIGHTS", "{}"))
     # Respect both CLI and repository-configured basetemp. Workers receive the
@@ -56,6 +60,8 @@ def pytest_collection_finish(session):
 
 
 def pytest_collectreport(report):
+    if report.passed and report.nodeid:
+        _collected_files.add(report.nodeid.split("::", 1)[0])
     if report.failed:
         _reports.append(
             {
@@ -74,7 +80,9 @@ def pytest_runtest_logstart(nodeid, location):
         _execution_started = time.perf_counter()
 
 
+@_pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(items):
+    _collected.update(_node_id(item.nodeid) for item in items)
     if nodes := os.environ.get("SIGNETUM_RETRY_NODES"):
         selected = set(json.loads(nodes))
         items[:] = [item for item in items if _node_id(item.nodeid) in selected]
@@ -114,6 +122,8 @@ def pytest_runtest_logreport(report):
 
 @_pytest.hookimpl(optionalhook=True)
 def pytest_testnodedown(node, error):
+    _collected.update(node.workeroutput.get("signetum_collected", ()))
+    _collected_files.update(node.workeroutput.get("signetum_collected_files", ()))
     global _worker_collection_seconds
     _worker_collection_seconds += node.workeroutput.get("signetum_collection_seconds", 0.0)
 
@@ -121,6 +131,8 @@ def pytest_testnodedown(node, error):
 def pytest_sessionfinish(session, exitstatus):
     if hasattr(session.config, "workerinput"):
         session.config.workeroutput["signetum_collection_seconds"] = _collection_seconds
+        session.config.workeroutput["signetum_collected"] = sorted(_collected)
+        session.config.workeroutput["signetum_collected_files"] = sorted(_collected_files)
     # Workers report through the controller. Only that controller owns the file.
     if not hasattr(session.config, "workerinput"):
         Path(os.environ["SIGNETUM_PYTEST_REPORT"]).write_text(
@@ -128,6 +140,8 @@ def pytest_sessionfinish(session, exitstatus):
                 {
                     "exit_code": int(exitstatus),
                     "reports": _reports,
+                    "collected": sorted(_collected),
+                    "collected_files": sorted(_collected_files),
                     "phase_seconds": _phase_seconds,
                     "workers": session.config.getoption("numprocesses", default=0) or 0,
                     "collection_seconds": _collection_seconds,

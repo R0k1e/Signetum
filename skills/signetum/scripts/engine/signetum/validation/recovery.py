@@ -9,16 +9,21 @@ from signetum.serialization import load_json
 from signetum.validation.execution import ShardExecution, ValidationExecutionError
 
 
-def node_outcomes(path: Path | None) -> tuple[tuple[str, ...], ...]:
+def node_outcomes(
+    path: Path | None,
+) -> tuple[
+    tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...] | None
+]:
     """Read the optional first-attempt node report.
 
     ``{"failed": [...], "passed": [...], "unreached": [...], "failed_checks": [...]}``;
-    ``unreached`` and ``failed_checks`` are optional. Returns failed, passed and
-    unreached node ids and the failed non-test check names.
+    ``unreached``, ``failed_checks`` and ``not_collected`` are optional. Returns
+    failed, passed, unreached, failed checks and absent nodes; None distinguishes
+    a legacy runner from one explicitly reporting an empty collection difference.
     """
-    optional = {"unreached", "failed_checks"}
+    optional = {"unreached", "failed_checks", "not_collected"}
     if path is None or not path.exists():
-        return (), (), (), ()
+        return (), (), (), (), None
     try:
         raw = load_json(path.read_text(encoding="utf-8"))
         if (
@@ -38,6 +43,7 @@ def node_outcomes(path: Path | None) -> tuple[tuple[str, ...], ...]:
         tuple(raw["passed"]),
         tuple(raw.get("unreached", ())),
         tuple(raw.get("failed_checks", ())),
+        tuple(raw["not_collected"]) if "not_collected" in raw else None,
     )
 
 
@@ -75,7 +81,7 @@ def shard_execution(
             recovered = tuple(raw)
         except (OSError, ValueError) as error:
             raise ValidationExecutionError(f"invalid recovery report: {error}") from error
-    failed, passed, missed, checks = node_outcomes(nodes)
+    failed, passed, missed, checks, absent = node_outcomes(nodes)
     if completed.returncode == 0 and not missed:
         return ShardExecution(
             True,
@@ -84,6 +90,7 @@ def shard_execution(
             passed_nodes=passed,
             exit_code=0,
             failed_checks=checks,
+            not_collected=absent,
         )
     diagnostic = completed.stdout + completed.stderr
     return ShardExecution(
@@ -95,4 +102,5 @@ def shard_execution(
         unreached_nodes=missed,
         exit_code=completed.returncode,
         failed_checks=checks,
+        not_collected=absent,
     )

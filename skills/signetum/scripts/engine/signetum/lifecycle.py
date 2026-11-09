@@ -29,6 +29,7 @@ from signetum.deviations import (
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
+    failed_tip,
     pending_admissions,
     record_pending_admissions,
     record_verified_batch,
@@ -835,7 +836,7 @@ def _run_batch_gate(
             executed=set(prepared),
             advisory_world=True,
             remembered=owed,
-            vanished=vanished_nodes(batch, base, source, owed),
+            vanished=vanished_nodes(batch, base, source, owed, failed_tip(batch, branch, None)),
             admission_base=before,
             member_base=before,
         )

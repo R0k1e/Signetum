@@ -221,7 +221,7 @@ class RepositoryValidationAdapter:
             # A shard which never returns is otherwise indistinguishable from a
             # slow one, so the gate would wait forever and report nothing.
             # A node report written before the stop still counts.
-            failed, passed, missed, checks = node_outcomes(nodes)
+            failed, passed, missed, checks, absent = node_outcomes(nodes)
             return ShardExecution(
                 False,
                 f"{shard.name} did not return within {shard.timeout_seconds}s",
@@ -229,6 +229,7 @@ class RepositoryValidationAdapter:
                 passed_nodes=passed,
                 unreached_nodes=missed,
                 failed_checks=checks,
+                not_collected=absent,
             )
         return shard_execution(shard.name, completed, report, nodes)
 
@@ -372,7 +373,7 @@ def run_diagnostic_gate(
     inputs: ValidationInputs | None = None,
     exact_source: bool = False,
     remembered: Mapping[str, frozenset[str]] | None = None,
-    vanished: Mapping[str, frozenset[str]] | None = None,
+    vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
     admission_base: str | None = None,
 ) -> dict[str, object]:
     """Execute checks without granting readiness or publishing delivery evidence."""
