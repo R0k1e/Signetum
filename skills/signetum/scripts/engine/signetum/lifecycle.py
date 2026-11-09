@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
 
+from signetum import worktrunk as wt
 from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
 from signetum.change.scope import delivered_plans, records_only, records_only_ancestors
@@ -889,7 +890,7 @@ def _open_admission(batch: Path, members: tuple[Path, ...]) -> dict[str, object]
     ]
     for member in members:
         command.extend(("--member", str(member)))
-    completed = subprocess.run(command, cwd=batch, text=True, capture_output=True, check=False)
+    completed = wt.run_tool(batch, tuple(command), required=False, timeout_seconds=1800)
     try:
         result = json.loads(completed.stdout.splitlines()[-1])
         if not isinstance(result, dict):

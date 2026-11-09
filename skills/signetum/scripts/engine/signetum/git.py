@@ -43,7 +43,9 @@ def isolated_git_environment(source: Mapping[str, str] | None = None) -> dict[st
     return environment
 
 
-def run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+def run_git(
+    repository: Path, *arguments: str, environment: Mapping[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     executable = which("git")
     if executable is None:
         raise GitInfrastructureError(
@@ -54,7 +56,7 @@ def run_git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[st
         check=False,
         capture_output=True,
         text=True,
-        env=isolated_git_environment(),
+        env=isolated_git_environment(environment),
     )
 
 

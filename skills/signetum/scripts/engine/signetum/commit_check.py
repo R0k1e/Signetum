@@ -6,11 +6,9 @@ import json
 import os
 import re
 import shlex
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from shutil import which
 from uuid import uuid4
 
 from signetum.change.scope import ChangeError, commit_attribution, require_member_commit
@@ -70,26 +68,13 @@ def _probe(worktree: Path, target: Path) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="signetum-hook-probe-") as temporary:
         probe = Path(temporary) / "observed"
         ref = "refs/signetum/probe/" + uuid4().hex
-        executable = which("git")
-        if executable is None:
-            raise GitError("Git executable is unavailable")
         environment = isolated_git_environment()
         environment["SIGNETUM_COMMIT_CHECK_PROBE"] = str(probe)
-
-        def update(*arguments: str) -> subprocess.CompletedProcess[str]:
-            return subprocess.run(  # noqa: S603 -- resolved Git and owned probe ref
-                [executable, "-C", str(worktree), "update-ref", *arguments],
-                env=environment,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-
-        created = update(ref, "HEAD")
+        created = run_git(worktree, "update-ref", ref, "HEAD", environment=environment)
         try:
             active = created.returncode == 0 and probe.exists()
         finally:
-            deleted = update("-d", ref)
+            deleted = run_git(worktree, "update-ref", "-d", ref, environment=environment)
         return {
             "status": "active" if active and deleted.returncode == 0 else "inactive",
             "hook": str(target),
