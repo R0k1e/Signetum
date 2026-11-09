@@ -1186,3 +1186,85 @@ def test_commit_check_keeps_a_foreign_hook(tmp_path):
 
     assert result["status"] == "skipped"
     assert hook.read_text() == "#!/bin/sh\nexit 0\n"
+
+
+@pytest.mark.parametrize("kind", ["member", "batch"])
+@pytest.mark.parametrize(
+    "edit",
+    [
+        "proposal-add",
+        "proposal-edit",
+        "contract",
+        "approval",
+        "delete",
+        "legacy-review",
+        "legacy-spec",
+    ],
+)
+def test_commit_check_refuses_record_violations_before_the_branch_moves(tmp_path, kind, edit):
+    repository = _repository(tmp_path / "repository")
+    commit_approval(repository, "delivered")
+    proposal = repository / "docs/decisions/ADP-historical.md"
+    proposal.parent.mkdir(parents=True)
+    proposal.write_text("# Historical\n\nStatus: Proposed\n")
+    assert _committed(repository, "retain historical proposal").returncode == 0
+    legacy = repository / "changes/legacy"
+    (legacy / "specs").mkdir(parents=True)
+    (legacy / "review.toml").write_text("# Delivered review\n")
+    (legacy / "specs/behavior.toml").write_text("# Delivered specification\n")
+    assert _committed(repository, "retain legacy commitments").returncode == 0
+    base = _git(repository, "rev-parse", "HEAD")
+    branch = f"{kind}/records"
+    _git(repository, "checkout", "-b", branch)
+    _record(repository, branch, base, kind)
+    assert install_commit_check(repository)["status"] == "installed"
+
+    if edit.startswith("proposal"):
+        if edit == "proposal-add":
+            proposal = proposal.with_name("ADP-new.md")
+        proposal.write_text("# Changed\n\nStatus: Proposed\n")
+        path = proposal
+    elif edit.startswith("legacy"):
+        path = legacy / ("review.toml" if edit == "legacy-review" else "specs/behavior.toml")
+        path.write_text("# Rewritten commitment\n")
+    else:
+        path = repository / "changes/delivered/change.toml"
+        if edit == "delete":
+            path.unlink()
+        elif edit == "approval":
+            path.write_text(path.read_text().replace('actor = "', 'actor = "Changed '))
+        else:
+            path.write_text(path.read_text().replace('outcome = "', 'outcome = "Changed '))
+
+    refused = _committed(repository, "attempt invalid record change")
+    assert refused.returncode != 0
+    assert str(path.relative_to(repository)) in refused.stderr
+    assert _git(repository, "rev-parse", "HEAD") == base
+
+
+@pytest.mark.parametrize("kind", ["member", "batch"])
+def test_commit_check_allows_record_refinements_and_unchanged_historical_proposals(tmp_path, kind):
+    repository = _repository(tmp_path / "repository")
+    commit_approval(repository, "delivered")
+    proposal = repository / "docs/decisions/ADP-historical.md"
+    proposal.parent.mkdir(parents=True)
+    proposal.write_text("# Historical\n\nStatus: Proposed\n")
+    assert _committed(repository, "retain historical proposal").returncode == 0
+    base = _git(repository, "rev-parse", "HEAD")
+    branch = f"{kind}/records"
+    _git(repository, "checkout", "-b", branch)
+    _record(repository, branch, base, kind)
+    assert install_commit_check(repository)["status"] == "installed"
+    commit_approval(repository, "current")
+    path = repository / "changes/delivered/change.toml"
+    original = path.read_text()
+    refined = original.replace("Implement and validate", "Implement and carefully validate")
+    assert refined != original
+    path.write_text(refined)
+    accepted = proposal.with_name("ADP-accepted.md")
+    accepted.write_text("# Accepted\n\nStatus: Accepted\n")
+    assert _committed(repository, "refine execution and add accepted decision").returncode == 0
+    # A package introduced after the registered base is still this workspace's intent.
+    current = repository / "changes/current/change.toml"
+    current.write_text(current.read_text().replace('outcome = "', 'outcome = "Refined '))
+    assert _committed(repository, "refine new contract").returncode == 0

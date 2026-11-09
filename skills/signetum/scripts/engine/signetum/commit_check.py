@@ -1,4 +1,4 @@
-"""Refuse a workspace commit that implements before its committed approval.
+"""Refuse unapproved implementation and invalid record changes at commit time.
 
 Git runs the installed ``reference-transaction`` hook before a ref moves. For a
 new single-parent commit on the tip of a registered workspace branch it applies
@@ -15,7 +15,15 @@ import sys
 import tempfile
 from pathlib import Path
 
-from signetum.change.scope import ChangeError, batch_owned_commits, require_member_commit
+from signetum.change.scope import (
+    ChangeError,
+    DeliveryScope,
+    batch_owned_commits,
+    changed_commitments,
+    delivery_scope,
+    require_member_commit,
+)
+from signetum.decision_proposals import proposal_paths
 from signetum.git import GitError, git_output, repository_path, run_git
 from signetum.manifest import ManifestError, parse_manifest
 from signetum.workspaces import WorkspaceError, read_record, state_root
@@ -96,6 +104,21 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
         return None
     manifest = parse_manifest(git_output(repository, "show", f"{new}:signetum.toml"))
     try:
+        proposals = proposal_paths(repository, manifest, old, new)
+        if proposals:
+            raise ChangeError("commit adds or modifies proposal decisions: " + ", ".join(proposals))
+        # The parent contains this workspace's newly approved packages too. Only
+        # packages already held at the registered base are delivered authority.
+        delivered = delivery_scope(repository, manifest, record.base, new)
+        changed = delivery_scope(repository, manifest, old, new)
+        delivered_ids = {item.change_id for item in delivered.previously_delivered}
+        scope = DeliveryScope(
+            (),
+            tuple(item for item in changed.previously_delivered if item.change_id in delivered_ids),
+        )
+        rewritten = changed_commitments(repository, manifest, old, new, scope)
+        if rewritten:
+            raise ChangeError("commit rewrites delivered commitments: " + ", ".join(rewritten))
         if record.kind == "batch":
             batch_owned_commits(repository, manifest, record.base, new, judged=new)
         else:

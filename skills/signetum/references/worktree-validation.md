@@ -16,8 +16,11 @@ commit do not count. Never amend, rebase or reorder history to fix it.
 `workspace-open` and `batch-open` install a `reference-transaction` hook that
 applies the same rule to each new commit: one changing anything outside change
 records and decisions before the committed approval of the workspace's own change
-record is refused, so commit the approval on its own first. Records-only commits
-and merges pass. It needs Git 2.28; final and ready still check.
+record is refused, so commit the approval on its own first. It also refuses
+added or modified Proposed decisions and rewritten delivered commitments through
+the predicates final uses. These checks read committed snapshots; the registered
+base identifies delivered packages, so newly introduced packages remain editable.
+Records-only commits still undergo these record checks; merges pass. It needs Git 2.28; final and ready still check.
 When a declared tool such as `wt` is missing from the default Mise environment,
 Signetum runs it under the one environment the project declares for it
 (`mise.<env>.toml`); otherwise the refusal names the `MISE_ENV` to set.

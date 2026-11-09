@@ -262,8 +262,12 @@ in a batch, and the approval order `ready` applies in a member: a commit that
 changes a path outside change records and decisions needs, in its parent, a
 committed approval of the workspace's own change records binding the contract the
 commit holds. It refuses otherwise and names the remedy, commit the approval
-first. Records-only commits, merges, branch creation and deletion and other refs
-pass. A missing engine warns and passes; Git older than 2.28 runs no such hook;
+first. The same commit check also refuses added or modified Proposed decisions,
+using final's predicate on the commit and its parent, and rewritten delivered
+commitments, using `changed_commitments`. Delivered packages are identified by
+the registered workspace base; records first introduced in this workspace remain
+editable under their existing rules. These record predicates also apply to
+records-only commits. Merges, branch creation and deletion and other refs pass. A missing engine warns and passes; Git older than 2.28 runs no such hook;
 final and `ready` remain the backstop in both cases.
 
 Review binds approvals, source journals, admitted receipts, batch commit
