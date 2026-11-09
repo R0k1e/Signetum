@@ -116,7 +116,9 @@ def local_repository(tmp_path, monkeypatch):
             timeout=kwargs["timeout_seconds"],
         )
         if result.returncode:
-            raise InfrastructureError(f"fixture preparation exited {result.returncode}")
+            raise InfrastructureError(
+                f"fixture preparation exited {result.returncode}: {result.stdout}{result.stderr}"
+            )
         return result
 
     monkeypatch.setattr(wt, "worktrunk", native_worktrunk)

@@ -3,26 +3,39 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## Unreleased
+## 0.7.0
 
-- Pin batch engines at opening, refuse foreign checkout engines and mismatched
-  batch operations, and name every changed validation input when evidence is void.
-- Verify the effective commit-hook chain after preparation, preserve foreign
-  hooks and expose inactive checks in status. Skill shims call the stable
-  launcher through `maintenance commit-check`.
+Judge work when it happens, keep batch execution stable, and repay test debt
+according to what was actually owed.
 
-- Judge implementation attribution against each commit's parent approval, so
-  later contract re-approval preserves earlier authorized work. Member re-approval
-  after implementation needs no extra code commit.
-- `batch-open` requires `--actor` and `--source` and stores immutable batch
-  authorization in schema-2 workspace records instead of an excluded draft.
-  Combination repairs need no separate change record; final lists their commits,
-  subjects, diffstats and authorization. Schema-1 batches retain legacy authority.
+- Attribute each implementation commit against its parent approval and path
+  bindings. Later re-approval preserves earlier authorized work; member
+  re-approval after implementation needs no extra code commit.
+- `batch-open` now requires `--actor` and `--source`, recording immutable owner
+  authorization in schema-2 workspace registrations instead of an excluded
+  draft. Combination repairs use that authorization and appear in final review.
+  Existing schema-1 batches retain their legacy authority; older engines cannot
+  read the new registration format.
+- Pin a batch's engine when it opens and refuse mismatched batch operations.
+  Self-hosted engines stay bound to the batch checkout, while installed engines
+  retain their version and implementation identity. Legacy unpinned batches
+  remain usable. Invalidated evidence names every changed input.
+- Verify the effective commit-hook chain after preparation, preserve project
+  hooks, and expose inactive checks with a chaining remedy in status. Installed
+  Skill shims use the stable launcher through `maintenance commit-check`.
+- Refuse added or modified Proposed decisions and rewritten delivered commitments
+  before the branch moves, including records-only commits, using final's existing
+  predicates. Valid new records and execution refinements remain allowed.
 - Passing shards can release retired owed parametrized cases through optional
   node-report `not_collected`, bound to a file-changing commit since the failure.
-  Receipt details retain the retiring commit and basis; runners omitting the
-  field keep the existing name-absence and journal release behavior. The packaged
-  pytest runner supports `--priority-nodes` to report collection retirement.
+  Receipts retain the retiring commit and basis; runners omitting the field keep
+  existing release behavior. The packaged pytest runner supports
+  `--priority-nodes` to report collection retirement.
+- A node owed only because it was unreached is discharged when the runner reports
+  a non-failing terminal outcome, including a declared skip. Actual failure and
+  retry-recovered debt still require a pass or existing journal evidence release.
+  Receipts identify discharge outcomes and preserve debt provenance across
+  failed or partial gates.
 
 ## 0.6.0
 
