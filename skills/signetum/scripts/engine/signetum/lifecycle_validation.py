@@ -16,6 +16,7 @@ from signetum.deviations import DeviationError, approval_view, reconciliation_su
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
+    failed_tip,
     forget_failures,
     remember_failure,
     require_accounted,
@@ -246,7 +247,9 @@ def validate_workspace(
             adapter,
             inherited=inherited,
             remembered=owed,
-            vanished=vanished_nodes(repository, gate_base, source, owed),
+            vanished=vanished_nodes(
+                repository, gate_base, source, owed, failed_tip(repository, branch, None)
+            ),
         )
     except ValidationExecutionError as error:
         remember_failure(

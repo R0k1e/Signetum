@@ -292,7 +292,15 @@ def test_a_failing_test_the_member_renames_is_released_and_recorded(tmp_path):
     assert ready["status"] == "ready"
     evidence: Any = ready["evidence"]
     details = evidence["extensions"]["shard_details"]["repo:nodes"]
-    assert details["released_vanished_nodes"] == [NODE]
+    assert details["released_vanished_nodes"] == [
+        {
+            "node_id": NODE,
+            "retiring_commit": git_output(
+                member, "log", "-1", "--format=%H", "--", "tests/test_contract.py"
+            ),
+            "basis": "name_absent",
+        }
+    ]
     assert not failure_path(member, "impl/member").exists()
 
 
@@ -511,3 +519,90 @@ def test_a_shard_without_a_report_and_one_skipped_after_it_are_both_recorded(tmp
     remembered = _remembered(member, "impl/member")
     assert remembered["failed_shards"] == expected
     assert remembered["failed"] == []
+
+
+@pytest.mark.parametrize("mode", ["retired", "unchanged", "excluded", "failed", "legacy"])
+def test_collection_retirement_requires_a_passing_run_and_a_changed_file(tmp_path, mode):
+    node = NODE + "[removed]"
+    member, _, _ = _workspaces(tmp_path, {node: "failed"})
+    test = member / "tests/test_contract.py"
+    test.parent.mkdir()
+    test.write_text("def test_contract(): pass\n# removed parameter\n")
+    _commit(member, "add parametrized contract")
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    if mode != "unchanged":
+        test.write_text("def test_contract(): pass\n")
+    (member / "nodes.json").write_text("{}")
+    if mode != "legacy":
+        runner = member / "nodes.py"
+        runner.write_text(
+            runner.read_text().replace(
+                '{"failed": first_failed, "passed": passed}',
+                '{"failed": first_failed, "passed": passed, "not_collected": '
+                + ("[]" if mode == "excluded" else repr([node]))
+                + "}",
+            )
+        )
+    if mode == "failed":
+        (member / "nodes.json").write_text(json.dumps({"other::test_failure": "failed"}))
+    _commit(member, "retire parameter and report collection")
+    retiring = git_output(member, "rev-parse", "HEAD")
+    if mode != "retired":
+        with pytest.raises(ValidationExecutionError):
+            lifecycle.validate(member, "member")
+        remembered: Any = _remembered(member, "impl/member")
+        assert {"shard": "repo:nodes", "node_id": node} in remembered["failed"]
+        return
+    ready = lifecycle.validate(member, "member")
+    evidence: Any = ready["evidence"]
+    assert evidence["extensions"]["shard_details"]["repo:nodes"]["released_vanished_nodes"] == [
+        {"node_id": node, "retiring_commit": retiring, "basis": "not_collected"}
+    ]
+    assert not failure_path(member, "impl/member").exists()
+    # The collecting run settled the obligation: a later gate need not report retirement again.
+    (member / "nodes.py").write_text(NODES)
+    _commit(member, "use legacy runner again")
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+
+
+def test_packaged_runner_releases_a_removed_parameter_through_ready(tmp_path):
+    command = (
+        sys.executable,
+        "-m",
+        "signetum.validation.pytest_runner",
+        "--node-report",
+        "{signetum.node_report_file}",
+        "--priority-nodes",
+        "{signetum.priority_nodes_file}",
+        "--",
+        "-q",
+        "-o",
+        "addopts=",
+        "--rootdir",
+        ".",
+        "tests",
+    )
+    member, _, _ = _workspaces(tmp_path, {}, command)
+    (member / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
+    test = member / "tests/test_contract.py"
+    test.parent.mkdir()
+    test.write_text(
+        "import pytest\n@pytest.mark.parametrize('value', ['kept', 'removed'])\n"
+        "def test_contract(value): assert value == 'kept'\n"
+    )
+    _commit(member, "add failing parameter")
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    test.write_text(
+        "import pytest\n@pytest.mark.parametrize('value', ['kept'])\n"
+        "def test_contract(value): assert value == 'kept'\n"
+    )
+    _commit(member, "remove retired parameter")
+    retiring = git_output(member, "rev-parse", "HEAD")
+    ready = lifecycle.validate(member, "member")
+    evidence: Any = ready["evidence"]
+    assert evidence["extensions"]["shard_details"]["repo:nodes"]["released_vanished_nodes"] == [
+        {"node_id": NODE + "[removed]", "retiring_commit": retiring, "basis": "not_collected"}
+    ]
+    assert not failure_path(member, "impl/member").exists()

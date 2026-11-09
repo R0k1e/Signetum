@@ -43,7 +43,16 @@ any other node whose shard is not selected again, and such a reselected node mus
 report passing in that run, unless that shard passes without reporting it, a
 commit since the workspace base touched its test file and the file at the gate's
 tip no longer names its test: such a vanished node is released and the shard's
-receipt details list it under `released_vanished_nodes`. A passing gate removes
+receipt details list it under `released_vanished_nodes` with `node_id`, the last
+`retiring_commit` touching its file and `basis: "name_absent"`. A runner may instead
+report optional `not_collected` owed node ids: files collected by this run whose
+collection did not produce that node, or files that no longer exist. A passing
+shard releases such an unreported node only when a commit between the failure tip
+and gate tip changed its file; the details bind the last such `retiring_commit`
+and `basis: "not_collected"`. Collection observes nodes before selection filters,
+so deselection does not retire a node. Runners omitting the field keep the name
+heuristic and journal release. Once released, a node leaves failure memory and
+later gates do not re-judge its retirement. A passing gate removes
 the receipt. A failed operation result lists `first_attempt_failures` with each
 node's shard and whether it passed only on retry, `unreached_nodes` and
 `failed_shards`, and its `cause` ends with a line naming every failed shard and

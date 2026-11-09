@@ -12,6 +12,11 @@ their original release history. Git and accepted change records retain reasoning
   authorization in schema-2 workspace records instead of an excluded draft.
   Combination repairs need no separate change record; final lists their commits,
   subjects, diffstats and authorization. Schema-1 batches retain legacy authority.
+- Passing shards can release retired owed parametrized cases through optional
+  node-report `not_collected`, bound to a file-changing commit since the failure.
+  Receipt details retain the retiring commit and basis; runners omitting the
+  field keep the existing name-absence and journal release behavior. The packaged
+  pytest runner supports `--priority-nodes` to report collection retirement.
 
 ## 0.6.0
 

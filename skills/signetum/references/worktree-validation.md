@@ -153,7 +153,14 @@ command that declares `{signetum.priority_nodes_file}` receives those owed nodes
 as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
 through a declared `{signetum.node_report_file}`, whose optional `unreached` list
 fails the gate and makes those entries owed; its optional `failed_checks` names
-non-test checks for the record and is never owed. Every other engine value, such as
+non-test checks for the record and is never owed. An optional `not_collected` list
+releases an unreported owed node only when its shard passes and a commit since
+the failure changed its file. It names nodes absent from collection in files
+collected by that run or no longer present, not tests deselected by a filter.
+Receipt `released_vanished_nodes` entries retain `node_id`, `retiring_commit` and
+`basis: "not_collected"`; runners omitting the field keep the name-absence
+heuristic (`basis: "name_absent"`) and journal release. The packaged pytest runner
+accepts `--priority-nodes {signetum.priority_nodes_file}` to compute it. Every other engine value, such as
 the base, ratchet baseline, contribution paths, admission base, worker cap,
 recovery report and schedule file, is also a declared `{signetum.*}` argument;
 Signetum sets no environment variable for a runner. See the
