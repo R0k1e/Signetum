@@ -5,6 +5,12 @@ their original release history. Git and accepted change records retain reasoning
 
 ## Unreleased
 
+- Pin batch engines at opening, refuse foreign checkout engines and mismatched
+  batch operations, and name every changed validation input when evidence is void.
+- Verify the effective commit-hook chain after preparation, preserve foreign
+  hooks and expose inactive checks in status. Skill shims call the stable
+  launcher through `maintenance commit-check`.
+
 - Judge implementation attribution against each commit's parent approval, so
   later contract re-approval preserves earlier authorized work. Member re-approval
   after implementation needs no extra code commit.

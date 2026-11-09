@@ -1,6 +1,7 @@
 """Observe the executed engine content, independently of an application environment."""
 
 import json
+import os
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -29,6 +30,25 @@ def identity() -> dict[str, object]:
         "python": sys.version,
         "dependencies": {name: version(name) for name in ("pydantic", "PyYAML", "typer")},
     }
+
+
+def engine_source(repository: Path) -> str:
+    """Classify the executed engine, never trusting a launcher marker alone."""
+    skill = os.environ.get("SIGNETUM_SKILL")
+    cache = (
+        Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share")))
+        / "signetum/runtime"
+    )
+    prefix = Path(sys.prefix).resolve()
+    if (
+        skill
+        and prefix.is_relative_to(cache.resolve())
+        and Path(__file__).resolve().is_relative_to(prefix)
+    ):
+        return "skill"
+    if Path(__file__).resolve().is_relative_to(repository.resolve()):
+        return "repository"
+    return "checkout"
 
 
 if __name__ == "__main__":

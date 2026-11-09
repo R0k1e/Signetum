@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from signetum.commit_check import main as commit_check
 from signetum.lifecycle import sync_batch
 from signetum.operation_cli import OperationParser, run_operation
 from signetum.operations import AdmissionError
@@ -21,6 +22,7 @@ from signetum.workspaces import branch_name, primary_worktree, read_record, stat
 def _parser() -> argparse.ArgumentParser:
     parser = OperationParser(prog="maintenance")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("commit-check")
     sync = commands.add_parser("workspace-sync")
     sync.add_argument("--batch", type=Path)
     prepare = commands.add_parser("worktree-prepare")
@@ -136,6 +138,8 @@ def _named_repository(worktree: Path | None, caller: Path) -> Path:
 
 def main(arguments: list[str] | None = None) -> int:
     supplied = sys.argv[1:] if arguments is None else arguments
+    if supplied == ["commit-check"]:
+        return commit_check()
     operation = supplied[0] if supplied else "maintenance"
     repository = Path.cwd().resolve()
     return run_operation(

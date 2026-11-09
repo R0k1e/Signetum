@@ -262,21 +262,42 @@ includes the authority and contract digests at the parent, including superseded
 contracts. Old excluded drafts remain unused unless approved and committed as
 legacy authority. Records-only commits are attributed to the records they touch.
 
-`workspace-open` and `batch-open` install a `reference-transaction` hook in the
-effective hooks directory (`git rev-parse --git-path hooks`, honouring
-`core.hooksPath`); they report it as skipped, never replacing anything, when a
-foreign hook of that name exists or the directory lies inside a worktree. Git
-runs it before a ref moves, also for `commit --no-verify`. For a new
-single-parent commit on the tip of a registered workspace branch, the hook runs
-`signetum.commit_check` with the engine interpreter that installed it, which
-applies to that one commit the attribution rule above, through the same function,
-in a batch, and the approval order `ready` applies in a member. In a member, a commit that
-changes a path outside change records and decisions needs, in its parent, a
-committed approval of the workspace's own change records binding the contract the
-commit holds. It refuses otherwise and names the remedy, commit the approval
-first. Records-only commits, merges, branch creation and deletion and other refs
-pass. A missing engine warns and passes; Git older than 2.28 runs no such hook;
-final and `ready` remain the backstop in both cases.
+`workspace-open`, `batch-open` and every successful preparation install or
+verify the commit check. The machine-local shim at
+`$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction` calls the
+installed Skill launcher for Skill engines, so cache replacement during update
+does not strand a hook on a removed interpreter. Repository engines use their
+interpreter. `maintenance commit-check` reads the reference transaction on stdin.
+The effective hooks directory honours `core.hooksPath`; Signetum preserves a
+foreign hook and never writes into tracked source. A project-owned
+`reference-transaction` chains the shim with this committable contract:
+
+```sh
+input=$(cat)
+shim="$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction"
+if [ -x "$shim" ]; then printf '%s\n' "$input" | "$shim" "$@" || exit $?; fi
+```
+
+Installation probes a temporary `refs/signetum/probe/` ref through Git; the shim
+touches the probe before filtering branch refs, and the ref is deleted.
+Status reports `active` or `inactive`, its cause and the chaining snippet;
+it re-probes when the effective hook path or hook file changes. An inactive
+check warns and does not refuse workspace opening. Git older than 2.28 cannot
+run this hook. The same immutable attribution predicate remains the ready/final
+backstop. Branch creation/deletion, other refs and merges retain their existing
+rules; an implementation commit still requires its parent approval.
+
+Batch-open captures `engine = {version, implementation, source}` in its schema-2
+workspace record. An installed Skill engine pins version and implementation;
+a self-hosted repository engine pins its location inside the batch worktree,
+because admission legitimately changes its source. Initial self-hosted admission
+enters that batch's engine. A foreign checkout engine cannot open a batch: invoke
+the installed Skill launcher instead. Admission, continuation, batch sync, final
+and delivery refuse mismatches before work, naming the pin and the remedy:
+finish with that engine or open a new batch for the same ready members.
+There is no repinning operation. Legacy records without an engine remain
+unpinned and status says so; members remain unpinned. A void validation names
+each changed input and its before/after identities.
 
 Review binds approvals, source journals, admitted receipts, batch commit
 attribution, recovered defects and remaining work. Recheck those inputs after validation and before publication;

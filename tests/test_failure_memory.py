@@ -17,7 +17,7 @@ from signetum.change_record import contract_digest, parse_change_record
 from signetum.gate_records import failure_path
 from signetum.git import git_output
 from signetum.validation.execution import ValidationExecutionError
-from signetum.workspaces import WorkspaceRecord, write_record
+from signetum.workspaces import BatchAuthorization, WorkspaceRecord, write_record
 
 NODE = "tests/test_contract.py::test_contract"
 
@@ -159,7 +159,21 @@ def _workspaces(
         git_output(root, "worktree", "add", "-b", branch, str(path), base)
         write_record(
             lifecycle._state_root(path),
-            WorkspaceRecord(schema_version=1, branch=branch, base=base, kind=kind),
+            WorkspaceRecord(
+                schema_version=2 if kind == "batch" else 1,
+                branch=branch,
+                base=base,
+                kind=kind,
+                members=("impl/member",) if kind == "batch" else (),
+                authorization=BatchAuthorization(
+                    "Owner",
+                    "Owner authorized failure-memory fixture repairs",
+                    "2026-11-09T00:00:00+00:00",
+                    ("impl/member",),
+                )
+                if kind == "batch"
+                else None,
+            ),
         )
     consolidated_approval(member, base)
     _commit(member, "approve change example")

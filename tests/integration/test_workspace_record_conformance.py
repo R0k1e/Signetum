@@ -54,10 +54,53 @@ for schema,kind in ((1,'batch'),(2,'member')):
     try: m.WorkspaceRecord(schema,'other',base,kind,('plan/example',),authorization=authorization)
     except m.WorkspaceError: pass
     else: raise AssertionError('authorization accepted outside schema-2 batch')
+pin=m.BatchEngine(version='0.7.0',implementation='sha256:'+'c'*64,source='skill')
+batch=m.WorkspaceRecord(schema_version=2,branch='batch/pin',base=base,kind='batch',engine=pin)
+m.write_record(root,batch)
+assert m.read_record(root,'batch/pin')==batch
+for source in ('checkout','unknown'):
+    try: m.BatchEngine(version='0.7.0',implementation='sha256:'+'c'*64,source=source)
+    except m.WorkspaceError: pass
+    else: raise AssertionError('foreign engine pin accepted')
+try: m.write_record(root,m.WorkspaceRecord(schema_version=2,branch='batch/pin',base=base,
+    kind='batch',engine=m.BatchEngine(version='0.7.0',implementation='sha256:'+'d'*64,source='skill')))
+except m.WorkspaceError: pass
+else: raise AssertionError('engine pin was replaced')
+assert m.read_record(root,'batch/pin')==batch
+m.advance_batch_base(root,'batch/pin',base,'b'*40)
+assert m.read_record(root,'batch/pin').engine==pin
 assert 'pydantic' not in sys.modules
 """
     result = subprocess.run(  # noqa: S603 -- fixed interpreter and disposable storage contract
         [sys.executable, "-I", "-S", "-c", script, str(source), module, str(tmp_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_engine_source_is_bound_to_the_executed_module_location(tmp_path):
+    script = """import os,sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from signetum.runtime_identity import engine_source
+source=Path(sys.argv[1])
+assert engine_source(source) == 'repository'
+assert engine_source(Path(sys.argv[2])) == 'checkout'
+os.environ['SIGNETUM_SKILL']=str(source)
+assert engine_source(Path(sys.argv[2])) == 'checkout'
+"""
+    result = subprocess.run(  # noqa: S603 -- actual source import and disposable paths
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            script,
+            str(ROOT / "skills/signetum/scripts/engine"),
+            str(tmp_path),
+        ],
         capture_output=True,
         text=True,
         check=False,

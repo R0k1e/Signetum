@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, date, datetime
 from typing import Protocol
 
@@ -168,6 +168,31 @@ class ValidationInputs:
             raise ValidationExecutionError("lockfile inputs must be unique and sorted")
         if len(self.tools) != len({tool.name for tool in self.tools}):
             raise ValidationExecutionError("tool inputs must have unique names")
+
+
+def require_unchanged_identity(before: EvidenceIdentity, after: EvidenceIdentity) -> None:
+    """Name each changed tool, artifact or source identity."""
+
+    def entries(identity: EvidenceIdentity) -> dict[str, object]:
+        values = asdict(identity)
+        values.pop("tools")
+        values.pop("lockfiles")
+        values.update({"tool:" + tool.name: tool.identity for tool in identity.tools})
+        values.update(
+            {"lockfile:" + artifact.path: artifact.digest for artifact in identity.lockfiles}
+        )
+        return values
+
+    old, new = entries(before), entries(after)
+    changed = [
+        f"{name}: before={old.get(name)!r}, after={new.get(name)!r}"
+        for name in sorted(old.keys() | new.keys())
+        if old.get(name) != new.get(name)
+    ]
+    if changed:
+        raise ValidationExecutionError(
+            "validation inputs changed during execution: " + "; ".join(changed)
+        )
 
 
 def build_evidence_identity(
@@ -497,8 +522,7 @@ def execute_gate(
         )
         for outcome in result.outcomes
     ]
-    if build_evidence_identity(graph, inputs, adapter) != identity:
-        raise ValidationExecutionError("validation inputs changed during execution")
+    require_unchanged_identity(identity, build_evidence_identity(graph, inputs, adapter))
     receipt = combine_shard_evidence(
         gate=gate,
         required_shards=graph.execution_order(gate),
@@ -590,8 +614,8 @@ def execute_diagnostic_gate(
         remembered=remembered,
         vanished=vanished,
     )
-    if identity is not None and build_evidence_identity(graph, projected, adapter) != identity:
-        raise ValidationExecutionError("validation inputs changed during execution")
+    if identity is not None:
+        require_unchanged_identity(identity, build_evidence_identity(graph, projected, adapter))
     return {
         "executed": result.names,
         "advisories": result.advisories,

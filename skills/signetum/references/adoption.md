@@ -136,7 +136,8 @@ a checkout a tool points at, is refused; update it through that repository and
 run `setup`. Update when no Agent session is working, because the swap replaces
 the running folder. `identity` reports complete Skill content and actual
 engine/dependency identity. Project configuration stays manifest format 5 and
-protocol 2, with no engine implementation pin. Omitted evidence fields mean the
+protocol 2, with no project-level engine implementation pin. Batches separately record their
+opening engine. Omitted evidence fields mean the
 published evidence protocol and schema digest.
 
 - `update --check` compares the newest release without preparing or replacing.
@@ -145,8 +146,8 @@ published evidence protocol and schema digest.
 - `install --release <tag>` places a specific published release.
 
 Compatible implementation changes require no project edit or commit. Verification
-still records actual runtime identity, so old-runtime evidence cannot qualify a
-new runtime. Changed configuration/protocol contracts return migration_required
+still records actual runtime identity. Members remain unpinned; batch operations
+require the recorded batch engine. Changed configuration/protocol contracts return migration_required
 before the folder is replaced, and without editing the project. Migrate required
 bindings and callers through a separately approved adoption preview, qualify and
 deliver, then run `update` again. Existing active workspaces and receipts
@@ -155,3 +156,24 @@ are not automatically migrated.
 For the one-time v4-to-v5 configuration migration, set schema_version to 5 and
 remove signetum.engine_digest; preserve unrelated project commands and inputs.
 The engine remains in the installed Skill. Do not add an application dependency.
+
+Operate consumer repositories through the installed Skill launcher, for example
+`sh ~/.claude/skills/signetum/scripts/signetum <operation>`. Project wrappers
+set `SIGNETUM_SKILL` and call that launcher's `scripts/signetum`; they never
+call an engine in another development checkout. Update the Skill only when no
+batch is open. A batch pins the opening engine; finish it with that engine or
+open a new batch for the same ready members. Repository self-hosting runs batch
+operations from the batch worktree with its own engine.
+
+A project that owns `core.hooksPath` should chain the machine-local Signetum
+shim from its `reference-transaction` hook:
+
+```sh
+input=$(cat)
+shim="$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction"
+if [ -x "$shim" ]; then printf '%s\n' "$input" | "$shim" "$@" || exit $?; fi
+```
+
+Preparation verifies the effective chain with a real Git probe. Check status for
+`commit_check.status`: an inactive check warns with its cause and chaining
+snippet; ready and final still judge immutable commit attribution.
