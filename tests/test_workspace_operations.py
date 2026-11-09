@@ -27,6 +27,7 @@ from signetum.workspaces import (
     state_root,
     workspace_destination,
 )
+from signetum.worktrunk import run_tool as actual_run_tool
 
 
 def opened(repository, branch):
@@ -1290,6 +1291,9 @@ def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypat
     monkeypatch.setattr(runtime_identity, "engine_source", actual_engine_source)
     monkeypatch.setattr(runtime_identity, "__file__", str(engine / "signetum/runtime_identity.py"))
     monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(tmp_path))
+
+    # The handoff must use the production environment isolation and result contract.
+    monkeypatch.setattr(wt, "run_tool", actual_run_tool)
 
     result = lifecycle.batch_open(root, (member,), actor="Owner", source="Approved self-hosting")
 
