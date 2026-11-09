@@ -26,12 +26,45 @@ NodeIdentity = tuple[str, str]
 """One test node as ``(shard, node_id)``."""
 
 
+@dataclass(frozen=True)
+class ShardFailure:
+    """One shard of a gate that did not pass, as the failure record and result list it.
+
+    ``exit_code`` is ``None`` when the shard produced no exit status: it was
+    stopped at its time bound, its command was unavailable, it was skipped, or
+    its verdict came from a ratchet comparison. ``checks`` are the failed check
+    names its runner reported; they are reported only, never owed.
+    """
+
+    shard: str
+    exit_code: int | None = None
+    checks: tuple[str, ...] = ()
+    skipped_after: tuple[str, ...] = ()
+
+    def document(self) -> dict[str, JsonValue]:
+        document: dict[str, JsonValue] = {
+            "shard": self.shard,
+            "exit_code": self.exit_code,
+            "checks": list(self.checks),
+        }
+        if self.skipped_after:
+            document["skipped_after"] = list(self.skipped_after)
+        return document
+
+    def summary(self) -> str:
+        if self.skipped_after:
+            return f"{self.shard} (skipped after {', '.join(self.skipped_after)})"
+        status = "no exit status" if self.exit_code is None else f"exit {self.exit_code}"
+        return f"{self.shard} ({status}{': ' + ', '.join(self.checks) if self.checks else ''})"
+
+
 class ValidationExecutionError(ValueError):
     """A declared tool or shard could not produce successful evidence.
 
     A failed gate carries the nodes its runners reported failing on the first
     attempt, those that passed only on retry, and the shards that passed, so
-    the lifecycle can remember them for the workspace's next gate.
+    the lifecycle can remember them for the workspace's next gate. It also
+    carries every shard that did not pass, for the failure record and result.
     """
 
     def __init__(
@@ -42,12 +75,14 @@ class ValidationExecutionError(ValueError):
         recovered_nodes: tuple[NodeIdentity, ...] = (),
         passed_shards: tuple[str, ...] = (),
         unreached_nodes: tuple[NodeIdentity, ...] = (),
+        failed_shards: tuple[ShardFailure, ...] = (),
     ) -> None:
         super().__init__(message)
         self.failed_nodes = failed_nodes
         self.recovered_nodes = recovered_nodes
         self.passed_shards = passed_shards
         self.unreached_nodes = unreached_nodes
+        self.failed_shards = failed_shards
 
 
 class ValidationInfrastructureError(ValidationExecutionError):
@@ -66,6 +101,10 @@ class ShardExecution:
     passed_nodes: tuple[str, ...] = ()
     unreached_nodes: tuple[str, ...] = ()
     """Selected nodes the runner reported it did not run; they fail the shard."""
+    exit_code: int | None = None
+    """The command's exit status; ``None`` when it produced none."""
+    failed_checks: tuple[str, ...] = ()
+    """Non-test checks the runner reported failing; reported only, never owed."""
 
 
 @dataclass(frozen=True)
@@ -233,8 +272,10 @@ class _NodeObservations:
     failed: list[NodeIdentity] = field(default_factory=list)
     recovered: list[NodeIdentity] = field(default_factory=list)
     unreached: list[NodeIdentity] = field(default_factory=list)
+    executions: dict[str, ShardExecution] = field(default_factory=dict)
 
     def observe(self, shard: str, execution: ShardExecution) -> None:
+        self.executions[shard] = execution
         self.unreached.extend(
             node
             for node in ((shard, item) for item in execution.unreached_nodes)
@@ -285,6 +326,7 @@ def _execute_shards(
     shard_by_name = {shard.name: shard for shard in graph.shards}
     today = inputs.today or datetime.now(UTC).date()
     failures: list[str] = []
+    failed_shards: list[ShardFailure] = []
     validation_failed = False
     unproven: set[str] = set()
     # Infrastructure stops dependents of either kind; a failed verdict gates only requires.
@@ -299,6 +341,7 @@ def _execute_shards(
             if unavailable.intersection(blocked):
                 unavailable.add(name)
             failures.append(f"{name}: skipped after {', '.join(blocked)}")
+            failed_shards.append(ShardFailure(name, skipped_after=tuple(blocked)))
             continue
         required_nodes = remembered.get(name, frozenset())
         if (
@@ -340,6 +383,12 @@ def _execute_shards(
                 continue
             unproven.add(name)
             failures.append(str(error))
+            observed = nodes.executions.get(name)
+            failed_shards.append(
+                ShardFailure(name, observed.exit_code, observed.failed_checks)
+                if observed is not None
+                else ShardFailure(name)
+            )
             if isinstance(error, ValidationInfrastructureError):
                 unavailable.add(name)
             else:
@@ -359,12 +408,17 @@ def _execute_shards(
                 f"{len(nodes.unreached)} selected nodes unreached; "
                 "remembered as owed for the next gate, which schedules them first"
             )
+        # Last, so a diagnostic truncated from the front still names every failure.
+        failures.append(
+            "failed shards: " + "; ".join(failure.summary() for failure in failed_shards)
+        )
         raise failure_type(
             "; ".join(failures),
             failed_nodes=tuple(nodes.failed),
             recovered_nodes=tuple(nodes.recovered),
             passed_shards=tuple(passed),
             unreached_nodes=tuple(nodes.unreached),
+            failed_shards=tuple(failed_shards),
         )
     return result
 
@@ -470,6 +524,7 @@ def require_original_success(defects: object) -> None:
 
 __all__ = [
     "ShardExecution",
+    "ShardFailure",
     "ValidationAdapter",
     "ValidationExecutionError",
     "ValidationInputs",

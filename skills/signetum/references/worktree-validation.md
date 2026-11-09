@@ -13,6 +13,14 @@ approval before implementation and preserve commits already bound to evidence.
 If ready refuses as plan stage, add an implementation commit after the named
 approval commit, as its expected action and `status` say; changes inside that
 commit do not count. Never amend, rebase or reorder history to fix it.
+`workspace-open` and `batch-open` install a `reference-transaction` hook that
+applies the same rule to each new commit: one changing anything outside change
+records and decisions before the committed approval of the workspace's own change
+record is refused, so commit the approval on its own first. Records-only commits
+and merges pass. It needs Git 2.28; final and ready still check.
+When a declared tool such as `wt` is missing from the default Mise environment,
+Signetum runs it under the one environment the project declares for it
+(`mise.<env>.toml`); otherwise the refusal names the `MISE_ENV` to set.
 
 Only `workspace-open` creates a registered worktree. Read history with read-only
 commands (`git log/show/diff/blame`, `git show <commit>:<path>`). When a full older
@@ -130,7 +138,11 @@ Commit significant source events before validation freezes the source. Run the
 repository's targeted checks during work and its member gate for ready. A first
 failure remains failed even when a diagnostic retry passes; after fixing it,
 run ordinary validation again. A failed gate remembers its failed and retry-only
-nodes for the workspace. A committed `change record` observation that names a node
+nodes for the workspace. Its failure record, `signetum/failures/<workspace>.json`
+under the Git common directory, and the failed result's `failed_shards` list every
+shard that did not pass with its exit code and the failed checks its runner
+reported. Read them, fix every listed failure in one round, then run ready again;
+the `cause` alone may name only part of them. A committed `change record` observation that names a node
 with `--evidence <node-id>` and states its root cause in `--reason` releases it,
 even when its shard is still selected. Otherwise the next gate refuses before checks
 unless the node is selected again, and then it must pass. Moving a failed test out
@@ -138,7 +150,8 @@ of scope never offsets that failure, and neither does a retry-only pass. A shard
 command that declares `{signetum.priority_nodes_file}` receives those owed nodes
 as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
 through a declared `{signetum.node_report_file}`, whose optional `unreached` list
-fails the gate and makes those entries owed. Every other engine value, such as
+fails the gate and makes those entries owed; its optional `failed_checks` names
+non-test checks for the record and is never owed. Every other engine value, such as
 the base, ratchet baseline, contribution paths, admission base, worker cap,
 recovery report and schedule file, is also a declared `{signetum.*}` argument;
 Signetum sets no environment variable for a runner. See the

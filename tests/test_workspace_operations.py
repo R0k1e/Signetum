@@ -11,6 +11,7 @@ from change_fixtures import approve_change, commit_approval
 from signetum import lifecycle, maintenance
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
+from signetum.commit_check import install_commit_check
 from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
@@ -630,6 +631,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     repository, monkeypatch
 ):
     root, _ = repository
+    monkeypatch.setattr(ops, "install_commit_check", install_commit_check)
     base = git_output(root, "rev-parse", "HEAD")
     member = opened(root, "plan/example")
     commit_approval(member, "example")
@@ -638,8 +640,17 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     opened_batch = lifecycle.batch_open(root, (member,))
     batch = Path(str(opened_batch["worktree"]))
     assert git_output(batch, "symbolic-ref", "--short", "HEAD") == "batch/example"
+    draft = opened_batch["change_record"]
+    assert isinstance(draft, dict) and draft["status"] == "written"
+    assert "approval" not in (batch / draft["path"]).read_text()
+    assert git_output(batch, "status", "--porcelain") == ""
+    assert opened_batch["commit_check"] == {
+        "status": "installed",
+        "hook": str(root / ".git/hooks/reference-transaction"),
+    }
     retried = lifecycle.batch_open(root, (member,))
     assert retried["worktree"] == str(batch)
+    assert retried["change_record"] == {"status": "kept", "path": draft["path"]}
     final = lifecycle.validate(batch, "final")
     tip = final["source"]
     assert isinstance(tip, str)
@@ -650,6 +661,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     assert result["remote"] == delivered
     assert git_output(root, "show", "-s", "--format=%P", delivered).split() == [base, tip]
     assert (root / "own.txt").is_file()
+    assert not (root / draft["path"]).exists()
     assert member.exists()
     assert not batch.exists()
     assert root.exists()
@@ -810,7 +822,9 @@ def test_cleanup_never_removes_a_contained_workspace_with_uncommitted_work(repos
         ops.cleanup(root, all_delivered=True, discard=True)
 
 
-def test_abandonment_requires_the_owners_confirmation_of_the_exact_tip(repository):
+def test_abandonment_requires_the_owners_confirmation_of_the_exact_tip(
+    repository, monkeypatch, capsys
+):
     root, _ = repository
     member = opened(root, "plan/abandoned")
     tip = commit_file(member, "own.txt")
@@ -845,9 +859,19 @@ def test_abandonment_requires_the_owners_confirmation_of_the_exact_tip(repositor
         abandon(contained, landed)
     assert member.exists() and contained.exists()
 
-    result = abandon(member, tip)
+    unrelated = root.parent / "unrelated"
+    unrelated.mkdir()
+    git_output(unrelated, "init", "-b", "main")
+    monkeypatch.chdir(unrelated)
+    capsys.readouterr()
+    arguments = ["workspace-abandon", str(member), tip]
+    for name, value in owner.items():
+        arguments += [f"--{name}", value]
 
-    assert result["status"] == "abandoned"
+    assert maintenance.main(arguments) == 0
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["outcome"] == "abandoned"
     assert not member.exists()
     assert run_git(root, "rev-parse", "--verify", "refs/heads/plan/abandoned").returncode
     retirement = json.loads(Path(str(result["retirement"])).read_text())
@@ -996,3 +1020,72 @@ def test_preparation_may_rebuild_ignored_state_and_names_the_adapter_on_failure(
 
     assert "test:prepare" in str(refusal.value) and sys.executable in str(refusal.value)
     assert "just prepare --rebuild-stale" in refusal.value.expected
+
+
+def test_batch_open_draft_takes_the_approval_before_a_combination_fix(repository, monkeypatch):
+    root, _ = repository
+    monkeypatch.setattr(ops, "install_commit_check", install_commit_check)
+    base = git_output(root, "rev-parse", "HEAD")
+    member = opened(root, "plan/example")
+    commit_approval(member, "example")
+    commit_file(member, "own.txt")
+    lifecycle.validate(member, "member")
+    opened_batch = lifecycle.batch_open(root, (member,))
+    batch = Path(str(opened_batch["worktree"]))
+    draft = opened_batch["change_record"]
+    assert isinstance(draft, dict)
+    admitted = git_output(batch, "rev-parse", "HEAD")
+
+    (batch / "combined.txt").write_text("fix before approval")
+    git_output(batch, "add", "combined.txt")
+    early = run_git(batch, "commit", "-m", "fix before approval")
+    assert early.returncode != 0 and "approval" in early.stderr
+    assert git_output(batch, "rev-parse", "HEAD") == admitted
+
+    approve_change(batch, "batch-example")
+    git_output(batch, "reset", "-q", "combined.txt")
+    git_output(batch, "add", "-f", draft["path"])
+    git_output(batch, "commit", "-m", "approve the combination fix")
+    git_output(batch, "add", "combined.txt")
+    git_output(batch, "commit", "-m", "fix the combination")
+    fix = git_output(batch, "rev-parse", "HEAD")
+
+    final = lifecycle.validate(batch, "final")
+
+    review = final["delivery_review"]
+    assert isinstance(review, dict)
+    assert {"commit": fix, "changes": ["batch-example"]} in review["inputs"]["batch_commits"]
+    assert git_output(root, "rev-parse", "HEAD") == base
+
+
+def test_a_tool_missing_from_the_default_mise_environment_runs_under_the_declared_one(
+    repository, monkeypatch, tmp_path
+):
+    del repository
+    tools = tmp_path / "maintainer-tools"
+    tools.mkdir()
+    tool = tools / "signetum-fixture-wt"
+    tool.write_text("#!/bin/sh\nprintf maintained\n")
+    tool.chmod(0o755)
+    shim = tmp_path / "mise"
+    shim.write_text(
+        '#!/bin/sh\nshift 2\n[ "${MISE_ENV:-}" = maintainer ] && PATH="'
+        + str(tools)
+        + ':$PATH"\nexec "$@"\n'
+    )
+    shim.chmod(0o755)
+    monkeypatch.setattr(wt, "mise_executable", lambda: str(shim))
+    monkeypatch.setattr(wt, "run_tool", DECLARED_RUN_TOOL)
+    monkeypatch.delenv("MISE_ENV", raising=False)
+    declared = tmp_path / "declared"
+    declared.mkdir()
+    (declared / "mise.maintainer.toml").write_text('[tools]\nworktrunk = "0.74.0"\n')
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "mise.staging.toml").write_text("[tools]\n")
+
+    assert wt.run_tool(declared, (tool.name,)).stdout == "maintained"
+    assert wt.run_tool(declared, (tool.name,)).stdout == "maintained"
+    with pytest.raises(InfrastructureError) as refusal:
+        wt.run_tool(other, (tool.name,))
+    assert tool.name in str(refusal.value) and "staging" in str(refusal.value)

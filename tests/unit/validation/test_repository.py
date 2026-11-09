@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -218,6 +219,30 @@ def test_malformed_recovery_evidence_cannot_be_published_as_success(tmp_path, re
     )
     with pytest.raises(ValidationExecutionError, match="invalid recovery report"):
         RepositoryValidationAdapter(tmp_path).run_shard(ValidationShard("test:recovery", command))
+
+
+@pytest.mark.parametrize(
+    ("checks", "valid"),
+    [(["doc-links", "ruff-check"], True), ("doc-links", False), ([""], False), ([7], False)],
+)
+def test_a_node_report_names_failed_checks_only_as_strings(tmp_path, checks, valid):
+    report = json.dumps({"failed": [], "passed": [], "failed_checks": checks})
+    command = (
+        sys.executable,
+        "-c",
+        "import sys; from pathlib import Path; Path(sys.argv[2]).write_text(sys.argv[1]); "
+        "sys.exit(1)",
+        report,
+        "{signetum.node_report_file}",
+    )
+    adapter = RepositoryValidationAdapter(tmp_path)
+    if not valid:
+        with pytest.raises(ValidationExecutionError, match="invalid node report"):
+            adapter.run_shard(ValidationShard("test:static", command))
+        return
+    execution = adapter.run_shard(ValidationShard("test:static", command))
+    assert not execution.succeeded
+    assert (execution.exit_code, execution.failed_checks) == (1, tuple(checks))
 
 
 @pytest.mark.parametrize(
