@@ -1,0 +1,59 @@
+[change]
+schema_version = 1
+id = "commit-check-covers-records"
+
+[change.source]
+kind = "human_direction"
+summary = "Owner-approved structural plan, member M4 (F5) only. Retained authorities: changes/approval-before-commit/change.toml and docs/decisions/ADP-final-checks-affected-proposals.md. The existing record predicates are knowable when a commit is made; waiting until ready/final leaves immutable bad history."
+
+[change.contract]
+version = 1
+approved_base = "e8bd4d4b7d723c9137d3c194435c34200e1f7245" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RECORDS-001"
+outcome = "For a new single-parent commit advancing a registered member or batch, commit-check refuses added or modified Proposed decisions using the existing final predicate on the commit and parent, and refuses rewritten delivered commitments using changed_commitments. Delivered packages are identified against the registered workspace base; packages introduced in this workspace remain editable. Refusal leaves the branch tip unchanged. Existing exemptions for merges, branch moves and unrelated refs remain."
+acceptance = ["Functional Git-hook tests reject proposed decision additions and edits and delivered commitment rewrites in both roles, with unchanged tips.", "Unchanged historical proposals, accepted decisions, valid new change records and allowed delivered execution refinements remain accepted.", "Final retains its backstop and shares the committed-tree Proposed predicate with the hook."]
+
+[[change.contract.requirements]]
+id = "DOCS-001"
+outcome = "Current architecture and Skill guidance describe the record predicates checked at commit time without broadening M4 into attribution, engine pinning, hook installation, retired tests or release work."
+acceptance = ["Affected current guidance matches the implemented record checks; ready passes on the committed tip."]
+
+[change.contract.autonomy]
+allowed = ["Extract the existing Proposed predicate to a shared committed-tree helper; extend commit-check using existing scope predicates; extend existing functional tests and reconcile affected current guidance; record accepted decisions and run ready."]
+requires_confirmation = ["Schema changes, more than a few hundred production lines, any scope outside F5, integration, delivery, push, tag, release, or PyReduce edits."]
+
+[[change.contract.decisions]]
+id = "commit-check-covers-records/record-predicates"
+change_id = "commit-check-covers-records"
+authority = "changes/commit-check-covers-records/change.toml#decisions/commit-check-covers-records/record-predicates"
+parents = ["approval-before-commit/commit-time-approval"]
+reason = "F5 extends the existing same-predicate rule to records: both predicates can be evaluated from immutable commit inputs without validation. Reuse avoids a stricter parallel rule; keep final as the backstop. A separate record-check clause avoids claiming the COMMIT-CHECK-001 amendment owned by M1/M3. Reopen if this requires schema changes or exceeds a small member."
+
+[[change.contract.decisions.clauses]]
+id = "commit-check-covers-records/add-record-check"
+change_id = "commit-check-covers-records"
+action = "add"
+expected = [{id = "COMMIT-RECORDS-001", version = 0}]
+authority = "changes/commit-check-covers-records/change.toml#decisions/commit-check-covers-records/record-predicates"
+reason = "Records-only commits are exempt from implementation approval ordering, but still obey existing proposal and delivered-commitment predicates."
+
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-RECORDS-001"
+version = 1
+topic = "skill-first-development"
+scope = ["Commit checks", "Final validation"]
+statement = "The commit check applies the shared Proposed-decision predicate to the commit and its parent and changed_commitments to delivered packages identified by the registered workspace base. It refuses added or modified Proposed decisions and rewritten delivered commitments before the branch moves, including records-only commits. Unchanged historical proposals and changes to packages first introduced by the workspace remain subject to their existing rules. Final retains the same predicates as a backstop."
+rationale = "Refusing a decidable record violation at the action prevents immutable invalid history without a second rule or a side ledger."
+
+[[change.execution.steps]]
+id = "STEP-IMPLEMENT"
+requirements = ["RECORDS-001", "DOCS-001"]
+action = "Extend existing functional hook traversals (retain existing approval-order and final backstop evidence), share the Proposed predicate, reuse changed_commitments, reconcile guidance and finish at one passing ready. No coverage removal or relaxed assertions."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-09
+source = 'Repository owner approved the structural plan and all eight open questions as recommended (2026-11-09), relayed through the task, including F5 only as one small member. This contract implements only M4/F5; no delivery or release authority.'
+contract_digest = "sha256:73ddfc1fabe5eac9c2830be77095f0e98da3ebf7495b24c883cc2aaa9408020e"
