@@ -68,13 +68,19 @@ def run_operation(
 
 
 def _node_fields(error: Exception) -> dict[str, object]:
-    """First-attempt failed nodes, listed whole even when the diagnostic is truncated."""
-    if not isinstance(error, ValidationExecutionError) or not (
-        error.failed_nodes or error.unreached_nodes
-    ):
+    """Failed shards and first-attempt failed nodes, whole even when the cause is truncated."""
+    if not isinstance(error, ValidationExecutionError):
         return {}
+    shards = (
+        {"failed_shards": [failure.document() for failure in error.failed_shards]}
+        if error.failed_shards
+        else {}
+    )
+    if not (error.failed_nodes or error.unreached_nodes):
+        return shards
     recovered = set(error.recovered_nodes)
     return {
+        **shards,
         "first_attempt_failures": [
             {"shard": shard, "node_id": node, "passed_on_retry": (shard, node) in recovered}
             for shard, node in error.failed_nodes

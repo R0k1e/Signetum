@@ -238,5 +238,7 @@ def run_ratchet(
             f"new diagnostics: {json.dumps(findings, sort_keys=True)}"
             + _unrecorded_merge_guidance(repository, recorded_base, tip),
             details={"ratchet": details},
+            # The comparison, not an exit status, decided; its new rules are the failed checks.
+            failed_checks=tuple(sorted({rule for _, rule, _ in added})),
         )
     return ShardExecution(True, details={"ratchet": details})

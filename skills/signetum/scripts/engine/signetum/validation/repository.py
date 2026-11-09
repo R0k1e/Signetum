@@ -221,13 +221,14 @@ class RepositoryValidationAdapter:
             # A shard which never returns is otherwise indistinguishable from a
             # slow one, so the gate would wait forever and report nothing.
             # A node report written before the stop still counts.
-            failed, passed, missed = node_outcomes(nodes)
+            failed, passed, missed, checks = node_outcomes(nodes)
             return ShardExecution(
                 False,
                 f"{shard.name} did not return within {shard.timeout_seconds}s",
                 failed_nodes=failed,
                 passed_nodes=passed,
                 unreached_nodes=missed,
+                failed_checks=checks,
             )
         return shard_execution(shard.name, completed, report, nodes)
 

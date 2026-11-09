@@ -22,6 +22,15 @@ their original release history. Git and accepted change records retain reasoning
   otherwise the refusal names the environments to set.
 - `workspace-abandon` and `branch-abandon` say that an Agent may run them with
   `--source` citing where the owner confirmed the exact tip.
+- A failed gate's failure record (`signetum/failures/<workspace>.json`) and the
+  failed operation result list `failed_shards`: every shard that did not pass,
+  with its exit code and the failed checks its runner reported, and for a skipped
+  shard the prerequisites it was skipped after. The `cause` ends with one line
+  naming them all, so a truncated cause no longer hides earlier failures.
+  Previously a run whose static shards failed recorded `"failed": []`.
+- The node report accepts an optional `"failed_checks": [...]` naming non-test
+  checks that failed. They are reported only, never owed. Runners that omit it
+  keep working; their failed shards are listed with the exit code alone.
 
 ## 0.5.0
 

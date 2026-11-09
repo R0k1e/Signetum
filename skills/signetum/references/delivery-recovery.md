@@ -40,10 +40,12 @@ after committing the resolution.
 A remembered failing node that the change deleted or renamed is released when its
 shard passes without it; the receipt lists it. Other first failures stay owed.
 A failed result lists `first_attempt_failures`, including those that passed only on
-retry.
+retry, and `failed_shards`: every shard that did not pass, with its exit code and
+reported failed checks; the workspace's failure record lists the same.
 
 On failure, inspect the structured result, retained diagnostics and exact local
-and remote identities before acting. Preserve work after conflict or publication
+and remote identities before acting. Fix every failed shard and check it lists in
+one round before validating again. Preserve work after conflict or publication
 uncertainty. Resolve an open batch merge through `batch-continue`. After a failed
 final, fix a defect owned by one member in that member, run ready and admit its
 new tip. Fix a defect that appears only in the combination directly in the batch
