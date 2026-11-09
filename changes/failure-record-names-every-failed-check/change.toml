@@ -1,0 +1,97 @@
+[change]
+schema_version = 1
+id = "failure-record-names-every-failed-check"
+
+[change.source]
+kind = "human_direction"
+summary = "Repository owner 2026-11-09, relayed by the coordinating session: after a failed gate in Perdura (PyReduce) the failure record listed only failed test nodes. A run whose perdura:check-corpus shard exited 1 with ruff-check, doc-links and persisted failing, and whose perdura:declarations shard exited 3, recorded \"failed\": [] and a cause naming only the first failing gate, truncated from the front. Agents and the coordinator read the record, fixed only the first named check and lost another full ready run. The record and the operation result must list every failed shard and check of the run so all can be fixed in one round."
+
+[change.contract]
+version = 1
+approved_base = "538ac62cfe2495bff8d0d524b415d2be3fd870a1" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "SHARDS-001"
+outcome = "A failed member, batch or final gate's failure record and the failed operation result list every shard of the run that did not pass under failed_shards, each as {\"shard\", \"exit_code\", \"checks\"}: exit_code is the command's exit status, or null when the shard produced none (time bound, unavailable command, ratchet comparison); checks lists the failed check names its runner reported, empty when it reported none. A shard skipped because a requires prerequisite failed is listed with skipped_after naming those prerequisites. The failed test nodes, retry-recovered and unreached entries and their owed semantics are unchanged; a failed shard is not an owed entry, and a passing gate leaves no failed shards in the record. The result's cause ends with a one-line summary of the failed shards and their checks, so a truncated cause still names all of them."
+acceptance = [
+    "A gate in which a static shard reports two failed checks and exits 1 while a test shard fails a node records both shards with their exit codes, the two check names, and the failed node, in the failure record and in the failed operation result; the cause's last line names both shards.",
+    "A failing shard that writes no node report is listed with its exit code and empty checks; a shard skipped after a failed requires prerequisite is listed with that prerequisite.",
+    "After the next gate passes, the record no longer lists failed shards, and remembered nodes are still required and released exactly as before.",
+]
+
+[[change.contract.requirements]]
+id = "CHECKS-002"
+outcome = "A shard names its failed checks only through the existing declared {signetum.node_report_file}: the report may add \"failed_checks\": [...], non-empty strings naming non-test checks that failed in that run. They are reported, never owed, never scheduled first and never change the shard's verdict, which stays its exit status. The report's failed and passed lists stay required; a malformed failed_checks makes the report invalid like any other malformed field. A shard that does not declare the report, or omits the key, is listed with its exit code alone. A ratchet shard names the rules of the diagnostics its comparison found new, from its structured findings document."
+acceptance = [
+    "A runner report with failed_checks puts exactly those names in the failed shard's checks; a report whose failed_checks is not a list of non-empty strings fails the shard as an invalid node report.",
+    "A failed ratchet shard lists the rules of its new diagnostics as checks.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-003"
+outcome = "The Skill's work-and-validation and delivery-and-recovery references tell an Agent that a failed gate's failure record and result list every failed shard and check, to read them and fix all of them in one round before running ready again. The repository binding guide states the failed_checks report field and the fallback when a runner reports none; the validation architecture and an Unreleased changelog entry describe the record and result fields."
+acceptance = ["Current Skill references, binding guide, architecture and changelog agree with the observed record and result; historical authorities remain unchanged."]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the shard execution core, the repository adapter's node report and ratchet results, the failure record writer and settler, and the operation result owner.",
+    "Extend the existing failure-memory and execution functional traversals with fake runners, reconcile the Skill references, binding guide, architecture and changelog, and run ready in this workspace.",
+]
+requires_confirmation = [
+    "Make failed checks or shards owed entries, change which shards run, their verdicts or the owed-node rules, change Perdura source, integrate a batch, publish, tag or deliver.",
+]
+
+[[change.contract.decisions]]
+id = "failure-record-names-every-failed-check/every-failed-check"
+change_id = "failure-record-names-every-failed-check"
+authority = "changes/failure-record-names-every-failed-check/change.toml#decisions/failure-record-names-every-failed-check/every-failed-check"
+reason = "Perdura's failure record listed only test nodes, so a run whose static shards failed several checks recorded nothing and the Agent fixed one check per ready round. Naming every failed shard and its runner-reported checks in the record and the result lets one round repair them all, without making static checks owed entries."
+parents = ["delivery-friction-repairs/failure-memory", "runner-values-are-declared/all-values-declared"]
+
+[[change.contract.decisions.clauses]]
+id = "failure-record-names-every-failed-check/record-failed-shards"
+change_id = "failure-record-names-every-failed-check"
+action = "amend"
+expected = [{id = "EFFICIENCY-FAIL-001", version = 4}]
+authority = "changes/failure-record-names-every-failed-check/change.toml#decisions/failure-record-names-every-failed-check/every-failed-check"
+reason = "A record that lists only test nodes reads as empty after a static failure."
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-FAIL-001"
+version = 5
+topic = "validation-efficiency"
+scope = ["Validation execution, diagnostics and CI", "Change journals"]
+statement = "A failed gate leaves a machine-local failure receipt for its workspace naming first-attempt failed, retry-recovered and runner-reported unreached nodes, and every shard of the run that did not pass with its exit code, its runner-reported failed checks and, for a skipped shard, the prerequisites it was skipped after; the failed operation result lists the same shards. Failed shards and checks are reported, not owed. Unreached nodes fail their shard. The next gate in that workspace accepts a remembered node that an observation in a change journal the workspace changed names as evidence with its root cause, whatever its shard selection. Otherwise its shard must be selected again, or the gate refuses before running checks, and the node must report passing in that run, unless that shard passes without reporting it, the workspace changed its test file since its base and that file no longer holds its test; such a vanished node is released and its shard's receipt details name it. A retry success never offsets a first failure."
+rationale = "One record of every failure lets one round repair them all; a failed shard without passing evidence runs again anyway, so owing its checks would add no coverage."
+
+[[change.contract.decisions.clauses]]
+id = "failure-record-names-every-failed-check/report-failed-checks"
+change_id = "failure-record-names-every-failed-check"
+action = "amend"
+expected = [{id = "RUNNER-FEEDBACK-001", version = 3}]
+authority = "changes/failure-record-names-every-failed-check/change.toml#decisions/failure-record-names-every-failed-check/every-failed-check"
+reason = "Check names must come from a declared structured channel, not from scraping free-text output."
+
+[[change.contract.decisions.clauses.updates]]
+id = "RUNNER-FEEDBACK-001"
+version = 4
+topic = "validation-efficiency"
+scope = ["Validation execution, diagnostics and CI", "Repository configuration"]
+statement = "A shard command receives engine values only through declared whole-argument {signetum.*} placeholders; the engine sets no environment variable for a runner. {signetum.priority_nodes_file} always exists and lists the shard's owed nodes as {\"schema_version\": 1, \"nodes\": [...]}; it orders execution and never selects or satisfies. {signetum.node_report_file} receives first-attempt {\"failed\": [...], \"passed\": [...], \"unreached\": [...], \"failed_checks\": [...]}, with unreached and failed_checks optional, and is read after the shard ends, including after its time bound; failed_checks names non-test checks that failed and is only reported. {signetum.recovery_report_file} receives retry-recovered nodes, {signetum.validation_workers} is the allocated worker cap and {signetum.schedule_file} is the absolute path of the declared validation.schedule_file, which must be a declared validation input. Range values exist only where the engine has a range and are otherwise explicit empty arguments. Unknown names, partial-argument placeholders, placeholders in findings commands, any but the worker cap in ratchet commands and a schedule placeholder without its setting are refused."
+rationale = "Reusing the declared node report keeps one runner output channel; an optional field keeps every existing runner valid."
+
+[[change.execution.steps]]
+id = "STEP-RECORD"
+requirements = ["SHARDS-001", "CHECKS-002"]
+action = "Carry exit code and reported checks on each shard execution, collect every failed or skipped shard in the execution core, write and clear them in the failure record, list them in the failed result and end the cause with their summary."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["SHARDS-001", "CHECKS-002", "DOC-003"]
+action = "Extend the failure-memory traversal with a static fake runner beside the node runner, reconcile Skill references, binding guide, architecture and changelog, and run ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-09
+source = "Repository owner approved complete failed-shard and failed-check reporting in failure records and operation results (2026-11-09), relayed by the coordinating session. Reporting includes shard id, exit code and failing check names from a stable runner contract, falling back to shard and exit code when names are absent. Owed-node readers remain unchanged; Skill guidance directs repair of every failure in one round. This implementing session did not receive approval independently; requirement wording, the node report field and clause amendments interpret the approved item."
+contract_digest = "sha256:650eeb88b491576411950bbcd59753d5653afb89fd164b039e6e4e3593ed15c5"
