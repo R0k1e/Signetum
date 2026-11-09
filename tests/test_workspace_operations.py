@@ -722,6 +722,12 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
     opened_batch = lifecycle.batch_open(
         member, (member,), actor="Owner", source="Owner authorized the fixture batch"
     )
+    assert (
+        read_record(
+            state_root(Path(str(opened_batch["worktree"]))), "batch/protocol-upgrade"
+        ).engine
+        is None
+    )
     preparation = opened_batch["preparation"]
     static = opened_batch["static"]
     assert isinstance(preparation, dict) and preparation["status"] == "prepared"

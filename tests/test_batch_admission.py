@@ -346,23 +346,15 @@ def test_admission_and_final_preserve_accepted_decision_identities(
     assert incremental_members[0]["admission_commit"] != admitted["admission_commit"]
 
 
-def test_delivery_refuses_numbering_bound_to_another_base(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    source = tmp_path / "source"
-    target = tmp_path / "target"
-    source.mkdir()
-    target.mkdir()
-    monkeypatch.setattr(lifecycle, "_require_clean", lambda path: None)
-    monkeypatch.setattr(lifecycle, "_recorded_base", lambda path, branch=None: "older-base")
-    monkeypatch.setattr(
-        lifecycle,
-        "_git",
-        lambda repository, *arguments, **kwargs: "tip" if repository == source else "approved-base",
-    )
+def test_delivery_refuses_numbering_bound_to_another_base(tmp_path: Path) -> None:
+    repository = _repository(tmp_path / "repository")
+    base = _git(repository, "rev-parse", "HEAD")
+    batch = tmp_path / "batch"
+    _git(repository, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(batch, "batch/test", base, "batch")
 
     with pytest.raises(lifecycle.AdmissionError, match="recorded batch base differs"):
-        lifecycle.batch_deliver(source, target, "approved-base", "tip")
+        lifecycle.batch_deliver(batch, repository, "b" * 40, base)
 
 
 @pytest.mark.parametrize("modified", [False, True])
@@ -1167,7 +1159,7 @@ def test_final_refuses_an_unattributed_direct_batch_commit(tmp_path):
     batch = _combined_batch(tmp_path)
     (batch / "reconciled.txt").write_text("unapproved repair\n")
     _git(batch, "add", ".")
-    _git(batch, "commit", "-m", "repair without a change record")
+    _git(batch, "-c", "core.hooksPath=/dev/null", "commit", "-m", "repair without a change record")
     unattributed = _git(batch, "rev-parse", "HEAD")
 
     with pytest.raises(OperationError, match=unattributed):

@@ -109,6 +109,7 @@ def open_workspace(
             raise AdmissionError("existing batch has different recorded authorization")
         if (
             engine is not None
+            and record.engine is not None
             and record.engine != engine
             and not (
                 record.engine is not None and record.engine.source == engine.source == "repository"

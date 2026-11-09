@@ -950,8 +950,11 @@ def batch_open(
         ),
     )
     batch = Path(str(opened["worktree"]))
+    pin = read_record(_state_root(batch), branch).engine
     result = (
-        _open_admission(batch, members) if engine.source == "repository" else admit(batch, members)
+        _open_admission(batch, members)
+        if pin is not None and pin.source == "repository"
+        else admit(batch, members)
     )
     return {
         **result,
