@@ -1,0 +1,46 @@
+[change]
+schema_version = 1
+id = "release-ci-keeps-tool-bindings"
+
+[change.source]
+kind = "human_direction"
+summary = 'The owner explicitly requested integration, delivery and release of Signetum 0.7.0 on 2026-11-10, including fixing validation failures and publishing only that version. CI run https://github.com/R0k1e/Signetum/actions/runs/42710064172 exposes the remaining Linux failure: the self-hosted fixture copies the root Python project but omits its Mise tool declarations, so the uv shim has no selected version. Retain the release contract in changes/release-0-7-0/change.toml and the tool ownership in changes/engine-pin-and-hook-chain/change.toml; this change owns only the fixture repair.'
+
+[change.contract]
+version = 1
+approved_base = "be592470c55f4d5463c1bcf06ec81112ac7f02f3"
+
+[[change.contract.requirements]]
+id = "CI-001"
+outcome = "The self-hosted handoff acceptance fixture carries the root project's declared Mise tool bindings into its disposable repository and exercises the real handoff successfully with uv resolved through a shim."
+acceptance = [
+    "The existing self-hosted handoff traversal passes with the uv shim first on PATH and no fixture-global uv version.",
+    "Ready, batch and final pass without removing tests, changing assertions or reducing coverage requirements.",
+    "The delivered 0.7.0 candidate passes all required hosted CI targets and combined coverage before its existing authorized release is tagged.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the existing self-hosted handoff fixture to copy the repository tool declaration and verify it under a shim-first diagnostic environment.",
+    "Run ready, batch admission, final and explicit delivery to main, push main, and repair listed hosted acceptance failures within this fixture boundary.",
+    "Complete the already authorized 0.7.0 release after the exact delivered candidate passes hosted CI; keep version, release notes and publication authority in release-0-7-0.",
+]
+requires_confirmation = [
+    "Change product behavior, upgrade dependencies, publish another version, move a published tag or replace published artifacts.",
+]
+
+[[change.execution.steps]]
+id = "STEP-REPAIR"
+requirements = ["CI-001"]
+action = "Copy the root Mise declaration alongside its Python project and lockfile; retain all existing behavioral assertions and verify shim-first execution."
+
+[[change.execution.steps]]
+id = "STEP-QUALIFY"
+requirements = ["CI-001"]
+action = "Complete ready, batch and final under the shared-host load gate, deliver explicitly, and require all hosted targets and combined coverage before publication."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-10
+source = 'Repository owner approved integration, delivery and release of Signetum 0.7.0 and repair of every listed validation failure (2026-11-10). The structural plan and publication of one 0.7.0 release were approved on 2026-11-09. This is the remaining hosted acceptance repair required for that authorized release; no other version is authorized.'
+contract_digest = "sha256:44dc4983711b2608186a77ed96b2c3b2d5dfb0339a4ae2fec132e2f098c911e3"

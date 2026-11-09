@@ -1270,6 +1270,7 @@ def test_repository_pin_follows_batch_location_and_legacy_stays_unpinned(reposit
 
 def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypatch, tmp_path):
     root, _ = repository
+    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(tmp_path))
     source = Path(__file__).resolve().parents[1]
     engine = root / "skills/signetum/scripts/engine"
     shutil.copytree(
@@ -1277,7 +1278,7 @@ def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypat
         engine,
         ignore=shutil.ignore_patterns(".venv", "__pycache__", "dist", "*.egg-info"),
     )
-    for name in ("pyproject.toml", "uv.lock"):
+    for name in ("pyproject.toml", "uv.lock", "mise.toml"):
         shutil.copy2(source / name, root / name)
     (root / ".gitignore").write_text(".venv/\n__pycache__/\n")
     preparation_command(root, ["uv", "sync", "--locked", "--python", sys.executable])
@@ -1290,7 +1291,6 @@ def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypat
     assert lifecycle.validate(member, "member")["status"] == "ready"
     monkeypatch.setattr(runtime_identity, "engine_source", actual_engine_source)
     monkeypatch.setattr(runtime_identity, "__file__", str(engine / "signetum/runtime_identity.py"))
-    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(tmp_path))
 
     # The handoff must use the production environment isolation and result contract.
     monkeypatch.setattr(wt, "run_tool", actual_run_tool)
