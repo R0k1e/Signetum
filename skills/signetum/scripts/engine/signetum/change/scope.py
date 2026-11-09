@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
@@ -16,7 +16,7 @@ from signetum.change_record import (
 from signetum.decision_identity import numbered_targets
 from signetum.development_store import DevelopmentReviewError, decision_application_commits
 from signetum.git import GitError, git_output, run_git
-from signetum.manifest import RepositoryManifest
+from signetum.manifest import RepositoryManifest, parse_bindings
 from signetum.operations import OperationError
 from signetum.source_authority import committed_blob
 from signetum.synchronization import member_contribution_paths
@@ -343,8 +343,6 @@ def approval_order(
             repository, "rev-list", "--reverse", "--first-parent", "--no-merges", f"{base}..{tip}"
         ).splitlines()
     )
-    root = changes_root(manifest) + "/"
-    decisions = manifest.repository.decisions.rstrip("/") + "/"
     applications: frozenset[str] = frozenset()
     if change_ids and any(
         path.endswith("/events.jsonl")
@@ -358,23 +356,28 @@ def approval_order(
     implementation: str | None = None
     approval: str | None = None
     for commit in commits:
+        action_manifest = _action_manifest(repository, manifest, commit)
         paths = git_output(
             repository, "diff-tree", "--no-commit-id", "--name-only", "-r", commit
         ).splitlines()
-        if _is_implementation(paths, root, decisions):
-            require_member_commit(repository, manifest, base, commit)
+        if _is_implementation(
+            paths,
+            changes_root(action_manifest) + "/",
+            action_manifest.repository.decisions.rstrip("/") + "/",
+        ):
+            require_member_commit(repository, action_manifest, base, commit)
         elif commit not in applications:
             continue
         # Accepted decision applications retain the authority-only implementation path.
-        carried = carried_changes(repository, manifest, base, commit)
+        carried = carried_changes(repository, action_manifest, base, commit)
         required = {
             change_id: contract_digest(
-                read_package(repository, manifest, change_id, commit).record.contract
+                read_package(repository, action_manifest, change_id, commit).record.contract
             )
             for change_id in carried
         }
         parent = git_output(repository, "rev-parse", f"{commit}^")
-        if not _approval_binds(repository, manifest, parent, required):
+        if not _approval_binds(repository, action_manifest, parent, required):
             raise ChangeError(
                 f"implementation commit {commit} does not follow approval",
                 expected=APPROVAL_FIRST_REMEDY,
@@ -403,6 +406,25 @@ def _approval_binds(
     except ChangeError:
         return False
     return True
+
+
+def _action_manifest(
+    repository: Path, manifest: RepositoryManifest, commit: str
+) -> RepositoryManifest:
+    """Use the action's path bindings even when later commits change those bindings.
+
+    Attribution reads no validation configuration. Binding-only parsing also
+    permits approval records preceding a validation-format migration.
+    """
+    bindings = parse_bindings(git_output(repository, "show", f"{commit}:signetum.toml"))
+    return replace(
+        manifest,
+        repository=replace(
+            manifest.repository,
+            changes=bindings.repository.changes,
+            decisions=bindings.repository.decisions,
+        ),
+    )
 
 
 def _is_implementation(paths: list[str], root: str, decisions: str) -> bool:
@@ -486,6 +508,7 @@ def require_member_commit(
     change package the member carries, binding the contract the commit holds.
     """
 
+    manifest = _action_manifest(repository, manifest, commit)
     root = changes_root(manifest) + "/"
     decisions = manifest.repository.decisions.rstrip("/") + "/"
     paths = git_output(
@@ -531,6 +554,7 @@ def commit_attribution(
     repository: Path, manifest: RepositoryManifest, record: WorkspaceRecord, commit: str
 ) -> Attribution | None:
     """Attribute one direct batch commit without consulting a later tip."""
+    manifest = _action_manifest(repository, manifest, commit)
     parents = git_output(repository, "rev-list", "--parents", "-n", "1", commit).split()[1:]
     if len(parents) != 1:
         return None

@@ -340,3 +340,29 @@ contract_digest = "{digest}"
         with pytest.raises(runtime.AdmissionError):
             runtime.validate(member, "member")
         assert not marker.exists()
+
+
+def test_later_path_bindings_cannot_hide_an_unapproved_implementation(authority):
+    runtime, root, marker, scratch = authority
+    base = git_output(root, "rev-parse", "HEAD")
+    member = scratch / "changed-bindings"
+    branch = "plan/changed-bindings"
+    # Seed the invalid history without a hook so readiness exercises its backstop.
+    git_output(root, "worktree", "add", "-b", branch, str(member), base)
+    write_record(state_root(root), WorkspaceRecord(1, branch, base, "member"))
+    (member / "retired").mkdir()
+    (member / "retired/code.txt").write_text("implementation before approval")
+    commit(member, "implement without approval")
+    early = git_output(member, "rev-parse", "HEAD")
+    checker = importlib.import_module("signetum.commit_check")
+    assert checker.judge(member, branch, base, early) is not None
+    consolidated_approval(member, base)
+    commit(member, "approve the outcome")
+    manifest = member / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace('decisions = "docs/decisions"', 'decisions = "retired"')
+    )
+    implementation(member)
+    with pytest.raises(runtime.AdmissionError):
+        runtime.validate(member, "member")
+    assert not marker.exists()

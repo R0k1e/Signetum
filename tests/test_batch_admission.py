@@ -389,8 +389,15 @@ def _member_and_batch(
     path: str = "src/feature.txt",
     approved: bool = False,
     implemented: bool = True,
+    changes_root: str = "changes",
 ) -> tuple[Path, Path, str]:
     repository = _repository(tmp_path / "repository")
+    if changes_root != "changes":
+        manifest = repository / "signetum.toml"
+        manifest.write_text(
+            manifest.read_text().replace('changes = "changes"', f'changes = "{changes_root}"')
+        )
+        _git(repository, "commit", "-am", "declare the package root")
     base = _git(repository, "rev-parse", "HEAD")
     member = tmp_path / "member"
     batch = tmp_path / "batch"
@@ -828,13 +835,11 @@ def test_an_approved_change_cannot_continue_in_a_second_member_workspace(tmp_pat
 
 
 def test_change_scope_uses_the_declared_package_root(tmp_path):
-    member, batch, _ = _member_and_batch(tmp_path, implemented=False)
+    member, batch, _ = _member_and_batch(tmp_path, implemented=False, changes_root="work")
     _approve_change(member)
     (member / "changes").rename(member / "work")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "approve package under declared root")
-    manifest = member / "signetum.toml"
-    manifest.write_text(manifest.read_text().replace('changes = "changes"', 'changes = "work"'))
     (member / "implemented.txt").write_text("behavior")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement")
