@@ -1,0 +1,69 @@
+[change]
+schema_version = 1
+id = "release-0-6-0"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner set the goal on 2026-11-09 to deliver the two pending batches and release Signetum. The batch approval-first-commits-and-full-failure-records was delivered in f6c7250. Its unreleased section adds features adopters see: a commit-time refusal of implementation committed before its approval, failed_shards in failure records and results, the optional failed_checks runner field, and Mise environment selection. By the documented versioning policy (minor for normal feature releases, patch for compatible fixes) this release is the minor 0.6.0."
+
+[change.contract]
+version = 1
+approved_base = "f6c7250c5e04009e167a662d4dfb5eb8aba0fbb1" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RELEASE-001"
+outcome = "The package, the Skill and the nested engine carry product version 0.6.0, and both lockfiles record that engine version."
+acceptance = [
+    "uv run python -m tools.cli release preflight on the delivered commit reports status valid with every component at 0.6.0.",
+    "The Skill metadata and skills/signetum/scripts/engine/pyproject.toml name 0.6.0 and no current version location names 0.5.0.",
+]
+
+[[change.contract.requirements]]
+id = "NOTES-002"
+outcome = "CHANGELOG.md finalizes the unreleased section as the 0.6.0 version section, keeping its entries as concise user outcomes, so the release workflow extracts it as the release notes."
+acceptance = [
+    "CHANGELOG.md has a ## 0.6.0 section holding the former unreleased entries and no unreleased section.",
+]
+
+[[change.contract.requirements]]
+id = "PUBLISH-003"
+outcome = "The delivered release commit is tagged v0.6.0 and the hosted release workflow publishes it as a GitHub release."
+acceptance = [
+    "An annotated tag v0.6.0 on the delivered release commit is pushed and gh release view v0.6.0 shows the published Skill archive, release-source.json and SHA256SUMS.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Edit the version locations, refresh both lockfiles for the engine version only, rename and condense the changelog section.",
+    "Run ready, open a batch, admit this member, run final and deliver to main, push main and fix hosted CI failures through this change.",
+    "Create and push the annotated tag v0.6.0 on the delivered commit after hosted CI passes, and let the release workflow publish it.",
+]
+requires_confirmation = [
+    "Upgrade a dependency, publish a version other than 0.6.0, move a published tag or replace published artifacts.",
+]
+
+[[change.execution.steps]]
+id = "STEP-VERSION"
+requirements = ["RELEASE-001"]
+action = "Set 0.6.0 in the engine pyproject and Skill metadata and relock both lockfiles without upgrading dependencies."
+
+[[change.execution.steps]]
+id = "STEP-NOTES"
+requirements = ["NOTES-002"]
+action = "Rename the unreleased changelog heading to 0.6.0 and keep its entries concise."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["RELEASE-001", "NOTES-002"]
+action = "Run release preflight and ready, integrate, deliver and wait for hosted CI on the delivered commit."
+
+[[change.execution.steps]]
+id = "STEP-PUBLISH"
+requirements = ["PUBLISH-003"]
+action = "Tag the delivered commit v0.6.0, push the tag and verify the published release."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-09
+source = "Repository owner approved delivery of the two pending batches and release of Signetum (2026-11-09), relayed by the coordinating agent. Authorization covers batch, final, delivery to main, pushing main, this release change, creating and pushing the release tag and hosted publication. This implementing session did not receive approval independently."
+contract_digest = "sha256:7dda8430d410c8a56d5bd0495356797d229c568d6c440918d76c96b386b62955"
