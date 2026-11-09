@@ -750,7 +750,8 @@ def test_a_reapproval_after_implementation_is_ready_without_extra_code(
     monkeypatch.chdir(member)
     assert lifecycle.main(["ready"]) == 0
     result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
-    assert result["status"] == "ready"
+    assert result["status"] == "passed"
+    assert result["outcome"] == "ready"
     assert result["source"] == approval
     assert result["approvals"][0]["change_id"] == "example"
     assert _git(member, "rev-parse", "HEAD") == approval
