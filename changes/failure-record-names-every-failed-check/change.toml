@@ -46,7 +46,7 @@ id = "failure-record-names-every-failed-check/every-failed-check"
 change_id = "failure-record-names-every-failed-check"
 authority = "changes/failure-record-names-every-failed-check/change.toml#decisions/failure-record-names-every-failed-check/every-failed-check"
 reason = "Perdura's failure record listed only test nodes, so a run whose static shards failed several checks recorded nothing and the Agent fixed one check per ready round. Naming every failed shard and its runner-reported checks in the record and the result lets one round repair them all, without making static checks owed entries."
-parents = ["delivery-friction-repairs/failure-memory", "runner-values-are-declared/all-values-declared"]
+parents = ["delivery-friction-repairs/failure-memory", "runner-values-are-declared/declared-values"]
 
 [[change.contract.decisions.clauses]]
 id = "failure-record-names-every-failed-check/record-failed-shards"
@@ -94,4 +94,4 @@ action = "Extend the failure-memory traversal with a static fake runner beside t
 actor = "Repository owner"
 recorded_at = 2026-11-09
 source = "Repository owner approved complete failed-shard and failed-check reporting in failure records and operation results (2026-11-09), relayed by the coordinating session. Reporting includes shard id, exit code and failing check names from a stable runner contract, falling back to shard and exit code when names are absent. Owed-node readers remain unchanged; Skill guidance directs repair of every failure in one round. This implementing session did not receive approval independently; requirement wording, the node report field and clause amendments interpret the approved item."
-contract_digest = "sha256:650eeb88b491576411950bbcd59753d5653afb89fd164b039e6e4e3593ed15c5"
+contract_digest = "sha256:787218c03b59774acd22239dfa92409c3620083a2e900cac865e6a419149a7aa"
