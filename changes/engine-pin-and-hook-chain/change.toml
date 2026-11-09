@@ -1,0 +1,114 @@
+[change]
+schema_version = 1
+id = "engine-pin-and-hook-chain"
+
+[change.source]
+kind = "human_direction"
+summary = "Owner approved structural plan D, E, F2 and F3 on 2026-11-09. Historical basis: approval-before-commit, skill-is-the-distribution and engine-changes-keep-sibling-evidence; M1 supplies action-time attribution."
+
+[change.contract]
+version = 1
+approved_base = "e8bd4d4b7d723c9137d3c194435c34200e1f7245"
+
+[[change.contract.requirements]]
+id = "ENGINE-001"
+outcome = "Pin batch engine version, implementation and source at open; refuse foreign checkout engines and mismatched batch operations before work. Repository engines pin their batch location; legacy batches remain unpinned; members remain unpinned."
+acceptance = [
+    "Functional lifecycle cases cover source classification, schema compatibility, early mismatch refusal and status.",
+]
+
+[[change.contract.requirements]]
+id = "HOOK-002"
+outcome = "Install a stable launcher-based commit-check shim and maintenance entry; install or functionally verify after preparation, preserve foreign hooks, probe chains and warn for inactive checks with a chaining snippet."
+acceptance = [
+    "Functional workspace preparation and hook-chain cases cover active, inactive and approval refusal.",
+]
+
+[[change.contract.requirements]]
+id = "INPUT-003"
+outcome = "Name each changed validation input with its before and after identities when execution is voided."
+acceptance = [
+    "Functional validation input mutation reports the changed engine/tool identity.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-004"
+outcome = "Reconcile current architecture, Skill and adoption guidance for D, E, F2 and F3 only."
+acceptance = [
+    "Affected instructions match behavior and one ready passes.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement M3, synchronize M1 and M2 through the authorized integration batch, extend functional tests and reconcile docs; finish at ready.",
+]
+requires_confirmation = [
+    "Admit M3, final, delivery, push, tag, release, change PyReduce or expand scope.",
+]
+
+[[change.contract.decisions]]
+id = "engine-pin-and-hook-chain/engine-and-hook"
+change_id = "engine-pin-and-hook-chain"
+authority = "changes/engine-pin-and-hook-chain/change.toml#decisions/engine-pin-and-hook-chain/engine-and-hook"
+parents = [
+    "approval-before-commit/commit-time-approval",
+]
+reason = "Approved D/E/F2/F3: mutable foreign engines invalidated running validation; cached interpreter hooks disappeared after updates and preparation replaced hooksPath. Pin at batch-open and verify hooks at the effective path. No repinning or bypass; inactive hooks warn because immutable attribution remains the backstop. Repository self-hosting pins location so admitted engine changes remain valid; members remain unpinned. Reopen if launcher stability or functional probing cannot preserve project hooks."
+
+[[change.contract.decisions.clauses]]
+id = "engine-pin-and-hook-chain/engine-pin"
+change_id = "engine-pin-and-hook-chain"
+action = "add"
+authority = "changes/engine-pin-and-hook-chain/change.toml#decisions/engine-pin-and-hook-chain/engine-and-hook"
+reason = "Apply owner-approved batch engine boundary."
+expected = [
+    { id = "ENGINE-PIN-001", version = 0 },
+]
+
+[[change.contract.decisions.clauses.updates]]
+id = "ENGINE-PIN-001"
+version = 1
+topic = "skill-first-development"
+scope = [
+    "Batch lifecycle",
+]
+statement = "Batch-open records engine version, implementation and source. Foreign checkout engines cannot open batches; batch operations refuse mismatched engines before work, with no repinning. Repository engines pin the batch location; schema-1 batches remain unpinned and members are not pinned."
+rationale = "Action-time engine identity prevents retroactive invalidation."
+
+[[change.contract.decisions.clauses]]
+id = "engine-pin-and-hook-chain/hook-chain"
+change_id = "engine-pin-and-hook-chain"
+action = "add"
+authority = "changes/engine-pin-and-hook-chain/change.toml#decisions/engine-pin-and-hook-chain/engine-and-hook"
+reason = "Extend COMMIT-CHECK-001 without competing with M1 ownership."
+expected = [
+    { id = "HOOK-CHAIN-001", version = 0 },
+]
+
+[[change.contract.decisions.clauses.updates]]
+id = "HOOK-CHAIN-001"
+version = 1
+topic = "skill-first-development"
+scope = [
+    "Workspace preparation",
+    "Commit checking",
+    "Status",
+]
+statement = "A stable machine-local commit-check shim uses the installed launcher for Skill engines. Install-or-verify runs after preparation and functionally probes the effective reference-transaction hook. Foreign hooks are preserved and can chain the shim; inactive checks warn in status with the chaining contract. Immutable commit attribution remains the backstop."
+rationale = "Preparation may replace hooksPath and runtime cache interpreters disappear on updates."
+
+[[change.execution.steps]]
+id = "STEP-M3"
+requirements = [
+    "ENGINE-001",
+    "HOOK-002",
+    "INPUT-003",
+    "DOC-004",
+]
+action = "Extend engine identity, batch entry guards, record schema, hook installation/probing and diagnostics; extend existing functional boundaries, retain coverage and reconcile current documentation before ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-09
+source = "Repository owner approved the plan and all eight open questions as recommended (2026-11-09). This member implements M3 D, E, F2 and F3."
+contract_digest = "sha256:00c8477429187466247989de9ddaabe7a95fce31eb95d5702d413a0a97a90faa"
