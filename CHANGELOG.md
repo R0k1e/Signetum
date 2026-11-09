@@ -3,7 +3,9 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## Unreleased
+## 0.6.0
+
+Approval now comes first at commit time, and a failed gate names every failure.
 
 - Approval comes before implementation at commit time, not only at final. A
   `reference-transaction` hook that `workspace-open` and `batch-open` install
