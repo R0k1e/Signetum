@@ -1,0 +1,38 @@
+[change]
+schema_version = 1
+id = "mise-provider-probe-under-dash"
+
+[change.source]
+kind = "human_direction"
+summary = "Hosted CI for the delivered batch approval-first-commits-and-full-failure-records (f6c7250, run 42611558189) failed on both Linux targets in tests/test_workspace_operations.py::test_a_tool_missing_from_the_default_mise_environment_runs_under_the_declared_one with \"validation command unavailable\". The declared Mise environment probe of approval-before-commit TOOLS-004 runs `command -v` under /bin/sh; dash, the Linux /bin/sh, exits 127 for a missing command, which the process runner reports as an unavailable command, so the probe raised instead of answering that the tool is absent. The owner's goal of 2026-11-09 requires that delivery to pass hosted CI."
+
+[change.contract]
+version = 1
+approved_base = "f6c7250c5e04009e167a662d4dfb5eb8aba0fbb1" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "PROBE-001"
+outcome = "The declared Mise environment probe answers that a tool is absent with an ordinary failure under every POSIX /bin/sh, including dash, so a tool missing from the default Mise environment runs under the one declared environment that provides it on Linux as on macOS."
+acceptance = [
+    "tests/test_workspace_operations.py::test_a_tool_missing_from_the_default_mise_environment_runs_under_the_declared_one passes on the hosted Linux and macOS targets.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Change the probe command in Mise tool execution.",
+    "Run ready, admit this member to the release batch, run final, deliver to main, push main and fix hosted CI failures through this change.",
+]
+requires_confirmation = [
+    "Change the TOOLS-004 selection rule or its refusal.",
+]
+
+[[change.execution.steps]]
+id = "STEP-PROBE"
+requirements = ["PROBE-001"]
+action = "Make the probe exit 1 when the tool is absent and verify on hosted Linux."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-09
+source = "Repository owner approved delivery and release of Signetum and repair of hosted CI failures through the owning change (2026-11-09), relayed by the coordinating agent. This implementing session did not receive approval independently."
+contract_digest = "sha256:f51a4c936bbf3b31a994f8afbcca0e938bf026aa58a6fad6050667cf321a3899"
