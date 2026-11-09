@@ -43,6 +43,18 @@ A failed result lists `first_attempt_failures`, including those that passed only
 retry, and `failed_shards`: every shard that did not pass, with its exit code and
 reported failed checks; the workspace's failure record lists the same.
 
+A node owed only because it was unreached owes execution: a later runner-reported
+non-failing terminal outcome, including a declared skip, discharges it. Runners
+may report optional `"non_failing": {"node-id": "skipped"}` (or another non-failing
+terminal outcome); `passed` also proves reaching. Collection alone, deselection
+and an absent outcome do not. Failure and retry-recovered debt still requires
+passing or the existing `change record --evidence` release; a skip cannot erase
+an observed failure. Failure takes precedence when debt sources overlap, including
+across failed gates and deferred shards. Receipt shard details (or the failure
+receipt when another obligation fails) list
+`discharged_by_reaching` entries with `node_id` and `outcome`. Existing retirement
+rules remain applicable.
+
 On failure, inspect the structured result, retained diagnostics and exact local
 and remote identities before acting. Fix every failed shard and check it lists in
 one round before validating again. Preserve work after conflict or publication

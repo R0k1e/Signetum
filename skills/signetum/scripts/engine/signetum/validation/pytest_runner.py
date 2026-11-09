@@ -209,7 +209,13 @@ def _report_first_attempt(reports: list[dict[str, str]], destination: str | None
         }
         - set(failed)
     )
-    Path(destination).write_text(json.dumps({"failed": failed, "passed": passed}), encoding="utf-8")
+    skipped = {report["node_id"] for report in reports if report["outcome"] == "skipped"} - set(
+        failed
+    )
+    terminal = {**dict.fromkeys(passed, "passed"), **dict.fromkeys(sorted(skipped), "skipped")}
+    Path(destination).write_text(
+        json.dumps({"failed": failed, "passed": passed, "non_failing": terminal}), encoding="utf-8"
+    )
 
 
 RUNNER_OPTIONS = (

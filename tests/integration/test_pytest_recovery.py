@@ -35,6 +35,8 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
         "    if first: assert False, 'first failure retained'\n"
         + ("    pytest.skip('cannot prove recovery')\n" if retry == "skip" else "")
         + ("    assert False, 'persistent failure'\n" if retry == "fail" else "")
+        + "@pytest.mark.skip(reason='declared platform exclusion')\n"
+        + "def test_platform(): pass\n"
         + "def test_unrelated():\n"
         "    marker = Path(__file__).with_suffix('.unrelated')\n"
         "    assert not marker.exists(), 'unrelated test ran twice'\n"
@@ -71,6 +73,12 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
     outcomes = json.loads(nodes.read_text())
     assert [node.rsplit("::", 1)[-1] for node in outcomes["failed"]] == ["test_flaky[user@example]"]
     assert [node.rsplit("::", 1)[-1] for node in outcomes["passed"]] == ["test_unrelated"]
+    assert {
+        node.rsplit("::", 1)[-1]: outcome for node, outcome in outcomes["non_failing"].items()
+    } == {
+        "test_unrelated": "passed",
+        "test_platform": "skipped",
+    }
 
 
 @pytest.mark.parametrize("workers", [0, 2])

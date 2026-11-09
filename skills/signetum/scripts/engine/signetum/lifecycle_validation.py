@@ -21,6 +21,7 @@ from signetum.gate_records import (
     forget_failures,
     remember_failure,
     require_accounted,
+    unreached_only,
     vanished_nodes,
 )
 from signetum.git import git_output
@@ -250,6 +251,7 @@ def validate_workspace(
             adapter,
             inherited=inherited,
             remembered=owed,
+            reach_only=unreached_only(repository, branch),
             vanished=vanished_nodes(
                 repository, gate_base, source, owed, failed_tip(repository, branch, None)
             ),

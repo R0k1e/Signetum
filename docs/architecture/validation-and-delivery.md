@@ -39,8 +39,9 @@ one), its reported failed checks and, for a skipped shard, `skipped_after`. Fail
 shards are reported, not owed; a passing gate clears them. The next gate in that workspace releases a remembered node that an
 observation in a change journal the workspace changed names as evidence with its
 root cause, whether or not its shard is selected. Before checks start, it refuses
-any other node whose shard is not selected again, and such a reselected node must
-report passing in that run, unless that shard passes without reporting it, a
+any other node whose shard is not selected again. Reselected failure debt must
+report passing; unreached-only debt accepts a non-failing terminal outcome. Either
+kind may also be released when that shard passes without reporting it, a
 commit since the workspace base touched its test file and the file at the gate's
 tip no longer names its test: such a vanished node is released and the shard's
 receipt details list it under `released_vanished_nodes` with `node_id`, the last
@@ -98,6 +99,18 @@ count/time gates. Mutable fixtures are independent; reuse only successful
 immutable preparation. Required host suites remain complete. Repository pytest waits for cheap static
 prerequisites; failed prerequisites block it. A collection error ends that run
 without another full precollection pass or a passing qualification.
+
+A node owed only because it was unreached owes execution: a later runner-reported
+non-failing terminal outcome, including a declared skip, discharges it. Runners
+may report optional `"non_failing": {"node-id": "skipped"}` (or another non-failing
+terminal outcome); `passed` also proves reaching. Collection alone, deselection
+and an absent outcome do not. Failure and retry-recovered debt still requires
+passing or the existing `change record --evidence` release; a skip cannot erase
+an observed failure. Failure takes precedence when debt sources overlap, including
+across failed gates and deferred shards. Receipt shard details (or the failure
+receipt when another obligation fails) list
+`discharged_by_reaching` entries with `node_id` and `outcome`. Existing retirement
+rules remain applicable.
 
 ## Selection and efficient feedback
 
