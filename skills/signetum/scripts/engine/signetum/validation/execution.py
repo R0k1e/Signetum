@@ -103,6 +103,7 @@ class ShardExecution:
     """Selected nodes the runner reported it did not run; they fail the shard."""
     exit_code: int | None = None
     """The command's exit status; ``None`` when it produced none."""
+    not_collected: tuple[str, ...] | None = None
     failed_checks: tuple[str, ...] = ()
     """Non-test checks the runner reported failing; reported only, never owed."""
 
@@ -207,7 +208,7 @@ def _resolve_outcome(
     details: dict[str, JsonValue],
     nodes: _NodeObservations,
     required_nodes: frozenset[str] = frozenset(),
-    vanished_nodes: frozenset[str] = frozenset(),
+    vanished_nodes: Mapping[str, dict[str, str]] | None = None,
 ) -> ShardOutcome:
     """Execute one shard and decide whether it produced reusable evidence."""
 
@@ -226,13 +227,39 @@ def _resolve_outcome(
             [{**defect, "shard": shard.name} for defect in execution.recovered]
         )
         unreported = required_nodes - set(execution.passed_nodes) - set(execution.failed_nodes)
-        if released := sorted(unreported & vanished_nodes):
+        candidates = vanished_nodes or {}
+        released = sorted(
+            node
+            for node in unreported
+            if node in candidates
+            and (
+                node in execution.not_collected and bool(candidates[node]["collection_commit"])
+                if execution.not_collected is not None
+                else candidates[node]["basis"] == "name_absent"
+            )
+        )
+        if released:
             # The workspace removed these tests; a passing shard that no longer runs them
             # accounts for them, and the receipt keeps which ones it released.
             previous = details.get(shard.name)
             details[shard.name] = {
                 **(previous if isinstance(previous, dict) else {}),
-                "released_vanished_nodes": list(released),
+                "released_vanished_nodes": [
+                    {
+                        "node_id": node,
+                        "retiring_commit": (
+                            candidates[node]["collection_commit"]
+                            if execution.not_collected is not None
+                            else candidates[node]["retiring_commit"]
+                        ),
+                        "basis": (
+                            "not_collected"
+                            if execution.not_collected is not None
+                            else "name_absent"
+                        ),
+                    }
+                    for node in released
+                ],
             }
         if missing := sorted(required_nodes - set(execution.passed_nodes) - set(released)):
             raise ValidationExecutionError(
@@ -308,7 +335,7 @@ def _execute_shards(
     executed: set[str] | None = None,
     advisory_world: bool = False,
     remembered: Mapping[str, frozenset[str]] | None = None,
-    vanished: Mapping[str, frozenset[str]] | None = None,
+    vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> _ExecutionResult:
     """One verdict owner for qualified execution and non-qualifying diagnostics.
 
@@ -371,7 +398,7 @@ def _execute_shards(
                     details=shard_details,
                     nodes=nodes,
                     required_nodes=required_nodes,
-                    vanished_nodes=(vanished or {}).get(name, frozenset()),
+                    vanished_nodes=(vanished or {}).get(name),
                 )
         except ValidationExecutionError as error:
             if (
@@ -431,7 +458,7 @@ def execute_gate(
     *,
     inherited: InheritedEvidence | None = None,
     remembered: Mapping[str, frozenset[str]] | None = None,
-    vanished: Mapping[str, frozenset[str]] | None = None,
+    vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> EvidenceReceipt:
     """Execute one resolved gate and compose only its successful shard evidence.
 
@@ -543,7 +570,7 @@ def execute_diagnostic_gate(
     tools: tuple[ToolDeclaration, ...] = (),
     inputs: ValidationInputs | None = None,
     remembered: Mapping[str, frozenset[str]] | None = None,
-    vanished: Mapping[str, frozenset[str]] | None = None,
+    vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> dict[str, object]:
     """Execute diagnostics without granting or storing readiness evidence."""
     projected = inputs or ValidationInputs(

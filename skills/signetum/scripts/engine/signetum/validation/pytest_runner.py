@@ -147,6 +147,29 @@ def _run(
     print(json.dumps(cost), file=sys.stderr)
     if document["exit_code"] != result.returncode:
         return result.returncode, []
+    if nodes is None and (destination := options.get("--node-report")):
+        _report_first_attempt(document["reports"], destination)
+        if priority := options.get("--priority-nodes"):
+            owed = json.loads(Path(priority).read_text(encoding="utf-8"))["nodes"]
+            collected = set(document.get("collected", ()))
+            files = set(document.get("collected_files", ()))
+            # Explicit node selectors do not prove that the rest of that file
+            # was collected. Keep those files owed conservatively.
+            targeted = {
+                Path(argument.split("::", 1)[0]).resolve()
+                for argument in arguments
+                if "::" in argument
+            }
+            files = {name for name in files if Path(name).resolve() not in targeted}
+            absent = sorted(
+                node
+                for node in owed
+                if node not in collected
+                and (node.partition("::")[0] in files or not Path(node.partition("::")[0]).exists())
+            )
+            report_document = json.loads(Path(destination).read_text(encoding="utf-8"))
+            report_document["not_collected"] = absent
+            Path(destination).write_text(json.dumps(report_document), encoding="utf-8")
     return result.returncode, document["reports"]
 
 
@@ -189,7 +212,13 @@ def _report_first_attempt(reports: list[dict[str, str]], destination: str | None
     Path(destination).write_text(json.dumps({"failed": failed, "passed": passed}), encoding="utf-8")
 
 
-RUNNER_OPTIONS = ("--node-report", "--recovery-report", "--workers", "--schedule-file")
+RUNNER_OPTIONS = (
+    "--node-report",
+    "--recovery-report",
+    "--workers",
+    "--schedule-file",
+    "--priority-nodes",
+)
 """Declared before the separator, each usually with its {signetum.*} placeholder."""
 
 
@@ -216,7 +245,8 @@ def main(arguments: list[str] | None = None) -> int:
     with _observed_scratch(context, bool(parent)) as scratch:
         root = Path(scratch)
         status, reports = _run(supplied, root / "first.json", options)
-        _report_first_attempt(reports, node_report)
+        if not node_report or not Path(node_report).exists():
+            _report_first_attempt(reports, node_report)
         if status != 1:
             return status
         failed = sorted({report["node_id"] for report in reports if report["outcome"] == "failed"})

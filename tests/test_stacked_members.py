@@ -114,7 +114,13 @@ def test_admission_requires_the_parent_first_at_the_held_tip(repository):
     base = tip(root)
 
     with pytest.raises(AdmissionError, match="admit the chain in order") as refusal:
-        lifecycle.batch_open(root, (child, parent), name="chain")
+        lifecycle.batch_open(
+            root,
+            (child, parent),
+            name="chain",
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+        )
     assert tip(batch) == base
     assert refusal.value.expected.index(str(parent)) < refusal.value.expected.index(str(child))
 
@@ -129,7 +135,17 @@ def test_final_review_names_the_chain_and_delivery_removes_it(repository):
     parent, child, _ = chain(root)
     lifecycle.validate(child, "member")
     parent_tip, child_tip = tip(parent), tip(child)
-    batch = Path(str(lifecycle.batch_open(root, (parent, child), name="chain")["worktree"]))
+    batch = Path(
+        str(
+            lifecycle.batch_open(
+                root,
+                (parent, child),
+                name="chain",
+                actor="Owner",
+                source="Owner authorized the fixture batch",
+            )["worktree"]
+        )
+    )
 
     final: Any = lifecycle.validate(batch, "final")
 

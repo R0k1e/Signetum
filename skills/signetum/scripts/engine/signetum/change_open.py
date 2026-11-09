@@ -6,7 +6,7 @@ from pathlib import Path
 
 from signetum.change.paths import changes_root
 from signetum.change_record import parse_change_record
-from signetum.git import GitError, run_git
+from signetum.git import GitError
 from signetum.manifest import load_manifest
 from signetum.operation_cli import OperationParser, utility_failure
 from signetum.policy import delivery_policy
@@ -15,7 +15,6 @@ from signetum.workspaces import (
     WorkspaceError,
     branch_name,
     claim_change,
-    exclude_pattern,
     read_record,
     state_root,
 )
@@ -65,41 +64,6 @@ def open_change(repository: Path, name: str) -> dict[str, object]:
         return {"schema_version": 1, "status": "opened", "change": name, "files": (relative,)}
     except (OSError, ValueError, GitError, WorkspaceError) as error:
         raise ChangeOpenError(str(error)) from error
-
-
-def open_batch_draft(batch: Path, task: str, base: str) -> dict[str, object]:
-    """Write the batch's own unapproved change record, excluded from Git status.
-
-    A defect that only the combination shows is fixed under this record, approved
-    and committed before the fix. Left unused, it never reaches final or delivery.
-    """
-
-    name = f"batch-{task}"
-    try:
-        if re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*", name) is None:
-            raise ChangeOpenError(f"batch task {task} is not a change identity")
-        relative = f"{changes_root(load_manifest(batch / 'signetum.toml'))}/{name}/change.toml"
-        path = source_path(batch, relative)
-        if path.exists() or not run_git(batch, "cat-file", "-e", f"HEAD:{relative}").returncode:
-            return {"status": "kept", "path": relative}
-        source = _draft(name, base)
-        parse_change_record(source)
-        claim_change(state_root(batch), name, branch_name(batch))
-        exclude_pattern(batch, f"/{relative}")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("x", encoding="utf-8") as output:
-            output.write(source)
-    except (OSError, ValueError, GitError, WorkspaceError) as error:
-        return {"status": "skipped", "cause": str(error)}
-    return {
-        "status": "written",
-        "path": relative,
-        "next": (
-            "For a defect only this combination shows, fill this record, record the owner's "
-            f"approval and commit it on its own with git add -f {relative} (it is excluded "
-            "from Git status), then commit the fix. Left unused it is never delivered."
-        ),
-    }
 
 
 def _draft(name: str, base: str) -> str:

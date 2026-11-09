@@ -43,7 +43,16 @@ any other node whose shard is not selected again, and such a reselected node mus
 report passing in that run, unless that shard passes without reporting it, a
 commit since the workspace base touched its test file and the file at the gate's
 tip no longer names its test: such a vanished node is released and the shard's
-receipt details list it under `released_vanished_nodes`. A passing gate removes
+receipt details list it under `released_vanished_nodes` with `node_id`, the last
+`retiring_commit` touching its file and `basis: "name_absent"`. A runner may instead
+report optional `not_collected` owed node ids: files collected by this run whose
+collection did not produce that node, or files that no longer exist. A passing
+shard releases such an unreported node only when a commit between the failure tip
+and gate tip changed its file; the details bind the last such `retiring_commit`
+and `basis: "not_collected"`. Collection observes nodes before selection filters,
+so deselection does not retire a node. Runners omitting the field keep the name
+heuristic and journal release. Once released, a node leaves failure memory and
+later gates do not re-judge its retirement. A passing gate removes
 the receipt. A failed operation result lists `first_attempt_failures` with each
 node's shard and whether it passed only on retry, `unreached_nodes` and
 `failed_shards`, and its `cause` ends with a line naming every failed shard and
@@ -143,7 +152,7 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 | --- | --- |
 | `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. A base naming another open member's branch records that parent and its tip. On a base whose manifest this engine cannot load, it opens with preparation `unavailable` and the cause, for the member that migrates it. |
 | `ready [--explain]` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. This is the development loop; `--explain` only shows the selection. |
-| `batch-open [--name slug] --member path ...` | Capture fresh delivery base and admit only named ready members. Only batch synchronization later advances that base. |
+| `batch-open --actor owner --source approval [--name slug] --member path ...` | Capture owner authorization and fresh delivery base, then admit only named ready members. Only batch synchronization later advances that base. |
 | `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. |
 | `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge, then admit the members a conflicted admission left pending. |
 | `final` | Reconcile and validate a frozen batch; emit source-bound receipt and review. |
@@ -156,11 +165,12 @@ a `workspace-sync --batch` that brings back the same record keeps it the member'
 When an admission stops at a conflict, the members named after it are recorded
 under `signetum/pending-admissions`; the conflict result and `status` list them
 and `batch-continue` admits them in order after committing the resolution. Qualification requires current approved contracts
-and their implementation after exact approval: an own commit after the latest
-approval commit binding the current contract. When none follows, ready refuses
-naming that approval commit, and its expected action and the `status` next action
-give the remedy: commit implementation after it, without counting the approval
-commit's own changes or rewriting history. Competing retired formats supply
+and implementation for each carried package. Every own implementation commit
+must have matching approval in its parent. Each package approved at the tip must
+have covered implementation, including an exact accepted decision application
+for authority-only work. Amending and re-approving a contract after implementation
+requires no extra implementation commit. Approval bundled with code remains
+invalid even if later code follows it; history is never rewritten. Competing retired formats supply
 no fallback. Previously delivered intent remains protected; new intent needs its
 own change. Ordinary execution refinements cannot reduce approved outcomes.
 
@@ -235,20 +245,22 @@ every deferred item in its top-level `unfinished_work`. Historical statements re
 active workflow. Exact retirements preserve earlier answers. Final does not
 append its own success to source.
 
-A defect that appears only when members combine may be fixed by commits made
-directly in the batch under the batch's own change record. Final attributes each
-first-parent non-merge batch commit to the batch-owned changes approved before
-it, unchanged at the tip; a commit touching only change records and decisions is
-authority history, attributed to the changes whose records it touches. The batch
-may write journals of the changes it integrates this way, without claiming them, so
-a finding is recorded, resolved or deferred where its evidence is; such a commit
-needs no ready, admission or batch gate. Any other direct commit refuses. Member-owned defects are fixed
-in the member and admitted again; conflict resolution stays with `batch-continue`.
-After a failed final on the current tip, status names both repairs. `batch-open`
-writes that record as an unapproved draft, `changes/batch-<task>/change.toml` on
-the batch base, claims it for the batch and adds it to the shared `info/exclude`,
-so the batch stays clean and an unused draft never reaches final or delivery;
-committing it takes `git add -f`.
+A defect that appears only when members combine may be fixed directly in the
+batch under its immutable authorization. `batch-open` requires `--actor` and
+`--source` citing the owner's authorization and records them with a timestamp
+and the initial members in its schema-2 workspace record. It creates no draft.
+Final lists each implementation commit under `combination_repairs`, with its
+subject, diffstat and authorization. No separate change or journal entry is
+required; the batch may still record findings in integrated member journals.
+Member-owned defects are fixed in the member and admitted again; conflict
+resolution stays with `batch-continue`. Status names both repair paths.
+
+Schema-1 batches retain batch-owned change authority. Each implementation commit
+is attributed using the approved contract in its parent, matching the contract
+at that commit. Re-approval at a later tip never changes that verdict. The review
+includes the authority and contract digests at the parent, including superseded
+contracts. Old excluded drafts remain unused unless approved and committed as
+legacy authority. Records-only commits are attributed to the records they touch.
 
 `workspace-open` and `batch-open` install a `reference-transaction` hook in the
 effective hooks directory (`git rev-parse --git-path hooks`, honouring
@@ -258,7 +270,7 @@ runs it before a ref moves, also for `commit --no-verify`. For a new
 single-parent commit on the tip of a registered workspace branch, the hook runs
 `signetum.commit_check` with the engine interpreter that installed it, which
 applies to that one commit the attribution rule above, through the same function,
-in a batch, and the approval order `ready` applies in a member: a commit that
+in a batch, and the approval order `ready` applies in a member. In a member, a commit that
 changes a path outside change records and decisions needs, in its parent, a
 committed approval of the workspace's own change records binding the contract the
 commit holds. It refuses otherwise and names the remedy, commit the approval

@@ -19,6 +19,7 @@ ROOT = Path(__file__).parents[3]
 
 def collected(command, scratch: Path):
     # Declared engine placeholders are replaced, as the adapter does, outside the tree.
+    (scratch / "priority.json").write_text('{"schema_version": 1, "nodes": []}')
     values = {
         NODE_REPORT_FILE: str(scratch / "nodes.json"),
         PRIORITY_NODES_FILE: str(scratch / "priority.json"),

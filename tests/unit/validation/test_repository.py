@@ -225,8 +225,9 @@ def test_malformed_recovery_evidence_cannot_be_published_as_success(tmp_path, re
     ("checks", "valid"),
     [(["doc-links", "ruff-check"], True), ("doc-links", False), ([""], False), ([7], False)],
 )
-def test_a_node_report_names_failed_checks_only_as_strings(tmp_path, checks, valid):
-    report = json.dumps({"failed": [], "passed": [], "failed_checks": checks})
+@pytest.mark.parametrize("field", ["failed_checks", "not_collected"])
+def test_a_node_report_optional_lists_accept_only_nonempty_strings(tmp_path, checks, valid, field):
+    report = json.dumps({"failed": [], "passed": [], field: checks})
     command = (
         sys.executable,
         "-c",
@@ -242,7 +243,8 @@ def test_a_node_report_names_failed_checks_only_as_strings(tmp_path, checks, val
         return
     execution = adapter.run_shard(ValidationShard("test:static", command))
     assert not execution.succeeded
-    assert (execution.exit_code, execution.failed_checks) == (1, tuple(checks))
+    assert execution.exit_code == 1
+    assert getattr(execution, field) == tuple(checks)
 
 
 @pytest.mark.parametrize(

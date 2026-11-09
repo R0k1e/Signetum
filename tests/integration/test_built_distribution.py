@@ -413,7 +413,11 @@ contract_digest="{digest}"
         '  *) echo "project commit policy refused" >&2; exit 1;;\nesac\n'
     )
     hook.chmod(0o755)
-    batch = Path(run("batch-open", "--member", member)["batch"])
+    batch = Path(
+        run("batch-open", "--actor", "Owner", "--source", "Fixture approval", "--member", member)[
+            "batch"
+        ]
+    )
     assert git_output(batch, "rev-list", "--count", "--first-parent", f"{base}..HEAD") == "1"
     result = run("final", cwd=batch)
     assert result["status"] == "passed"

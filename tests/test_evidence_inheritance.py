@@ -279,7 +279,13 @@ def test_final_executes_test_shards_even_with_ancestor_member_evidence(repositor
     commit_file(member, "docs/note.md")
     runtime.validate(member, "member")
     assert reruns(state) == {"tests": "x", "web": "x", "static": "xx"}
-    batch = Path(str(lifecycle.batch_open(root, (member,))["worktree"]))
+    batch = Path(
+        str(
+            lifecycle.batch_open(
+                root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+            )["worktree"]
+        )
+    )
     before = reruns(state)
     final = runtime.validate(batch, "final")
     after = reruns(state)

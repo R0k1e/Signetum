@@ -229,7 +229,12 @@ def test_the_batch_answers_and_defers_findings_of_an_admitted_change(workspaces,
     final: Any = lifecycle.validate(batch, "final")
 
     review = final["delivery_review"]
-    assert {"commit": records, "changes": ["example"]} in review["inputs"]["batch_commits"]
+    assert any(
+        item["commit"] == records
+        and item["changes"] == ["example"]
+        and item["authority"] == "change"
+        for item in review["inputs"]["batch_commits"]
+    )
     statuses = {
         item["id"]: item["status"]
         for item in review["source_reconciliation"]["changes"][0]["observations"]

@@ -16,9 +16,10 @@ After the owner confirms, record that actual confirmation in `change.approval`
 with actor, date, source and the generated contract digest. Do not invent a
 confirmation or reuse its digest after changing behavior, base or autonomy.
 Commit approval before implementation; implementation committed alongside a
-new approval does not qualify as subsequent implementation. A re-approval resets
-this: ready refuses naming the approval commit, `status` gives the remedy, and the
-next step is a new implementation commit after it, never rewritten history.
+new approval does not qualify as subsequent implementation. Each implementation
+commit is judged against its parent approval. A later contract amendment and
+re-approval can accept the visible implementation without an extra code commit;
+each approved package at the tip must have covered implementation.
 
 Trace to the root cause before asking. Ask related questions together, once.
 The coordinating Agent decides package splits, ordering and batching and reports

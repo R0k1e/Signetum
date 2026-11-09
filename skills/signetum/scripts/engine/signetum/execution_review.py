@@ -1,6 +1,7 @@
 """Bind machine-local execution inputs to one immutable batch review."""
 
 import hashlib
+from dataclasses import asdict
 from pathlib import Path
 
 from signetum.change.scope import batch_owned_commits, delivery_scope
@@ -11,7 +12,7 @@ from signetum.git import git_output
 from signetum.manifest import RepositoryManifest
 from signetum.operations import AdmissionError
 from signetum.provenance import members_and_plans
-from signetum.workspaces import WorkspaceError, read_record, state_root
+from signetum.workspaces import WorkspaceError, branch_name, read_record, state_root
 
 
 class ExecutionReviewInputs(ReviewSnapshot):
@@ -20,6 +21,7 @@ class ExecutionReviewInputs(ReviewSnapshot):
     member_chain: list[dict[str, object]]
     source_journals: SourceReviewInputs
     batch_commits: list[dict[str, object]]
+    combination_repairs: list[dict[str, object]]
 
 
 def execution_review_inputs(
@@ -80,11 +82,30 @@ def execution_review_inputs(
                 "parent_tip": record.base if record is not None and parent else None,
             }
         )
+    batch_commits = batch_owned_commits(repository, manifest, base, tip)
+
+    batch_record = read_record(state_root(repository), branch_name(repository))
+    authorization = (
+        {**asdict(batch_record.authorization), "members": list(batch_record.authorization.members)}
+        if batch_record.authorization
+        else None
+    )
+    repairs = [
+        {
+            "commit": item["commit"],
+            "subject": git_output(repository, "show", "-s", "--format=%s", str(item["commit"])),
+            "diffstat": git_output(repository, "show", "--format=", "--stat", str(item["commit"])),
+            "authorization": authorization,
+        }
+        for item in batch_commits
+        if item["authority"] == "batch-authorization"
+    ]
     return {
         **snapshot,
         "member_evidence": fingerprints,
         "member_tips": tips,
         "member_chain": chain,
         "source_journals": source_journals,
-        "batch_commits": batch_owned_commits(repository, manifest, base, tip),
+        "batch_commits": batch_commits,
+        "combination_repairs": repairs,
     }

@@ -127,13 +127,13 @@ def remembered_failures(repository: Path, branch: str) -> tuple[NodeIdentity, ..
         ) from error
 
 
-def failed_tip(repository: Path, branch: str, gate: str) -> str | None:
+def failed_tip(repository: Path, branch: str, gate: str | None) -> str | None:
     """The tip a remembered failure of ``gate`` observed; unreadable means none."""
     try:
         document = json.loads(failure_path(repository, branch).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(document, dict) or document.get("gate") != gate:
+    if not isinstance(document, dict) or (gate is not None and document.get("gate") != gate):
         return None
     tip = document.get("tip")
     return tip if isinstance(tip, str) else None
@@ -216,46 +216,55 @@ def _test_name(node_id: str) -> str:
 
 
 def vanished_nodes(
-    repository: Path, base: str, tip: str, owed: Mapping[str, frozenset[str]]
-) -> dict[str, frozenset[str]]:
-    """Owed nodes whose test file this workspace changed and which that file no longer holds.
+    repository: Path,
+    base: str,
+    tip: str,
+    owed: Mapping[str, frozenset[str]],
+    failure_start: str | None = None,
+) -> dict[str, dict[str, dict[str, str]]]:
+    """Bind retirement candidates to file history without running project collection.
 
-    A node id ``path::...::name[params]`` vanished when the workspace's diff since
-    its base touches ``path`` and the file at ``tip`` is absent or no longer names
-    ``name``. Execution releases such a node only if its shard passes without
-    reporting it, so a node the change did not remove stays owed.
+    Legacy name absence uses the workspace base. Collection-based release uses
+    only changes after the failed run; execution chooses the applicable basis.
     """
     if not owed:
         return {}
-    changed = frozenset(
-        filter(
-            None,
-            # Any commit since the base counts, so a test added and removed again still does.
-            git_output(
-                repository,
-                "log",
-                "--format=",
-                "--name-only",
-                "-z",
-                "--no-renames",
-                f"{base}..{tip}",
-                strip=False,
-            ).split("\0"),
-        )
-    )
-    result: dict[str, frozenset[str]] = {}
+    result: dict[str, dict[str, dict[str, str]]] = {}
     for shard, nodes in owed.items():
-        gone = set()
         for node in nodes:
             path, separator, _ = node.partition("::")
-            if not separator or path not in changed:
+            if not separator:
+                continue
+            commit = git_output(
+                repository,
+                "log",
+                "-1",
+                "--format=%H",
+                "--no-renames",
+                f"{base}..{tip}",
+                "--",
+                path,
+            )
+            if not commit:
                 continue
             shown = run_git(repository, "show", f"{tip}:{path}")
             text = shown.stdout if shown.returncode == 0 else ""
-            if re.search(rf"\b{re.escape(_test_name(node))}\b", text) is None:
-                gone.add(node)
-        if gone:
-            result[shard] = frozenset(gone)
+            absent = re.search(rf"\b{re.escape(_test_name(node))}\b", text) is None
+            collection_commit = git_output(
+                repository,
+                "log",
+                "-1",
+                "--format=%H",
+                "--no-renames",
+                f"{failure_start or tip}..{tip}",
+                "--",
+                path,
+            )
+            result.setdefault(shard, {})[node] = {
+                "collection_commit": collection_commit,
+                "retiring_commit": commit,
+                "basis": "name_absent" if absent else "not_collected",
+            }
     return result
 
 
