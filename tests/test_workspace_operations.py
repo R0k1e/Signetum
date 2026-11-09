@@ -1277,7 +1277,7 @@ def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypat
         engine,
         ignore=shutil.ignore_patterns(".venv", "__pycache__", "dist", "*.egg-info"),
     )
-    for name in ("pyproject.toml", "uv.lock"):
+    for name in ("pyproject.toml", "uv.lock", "mise.toml"):
         shutil.copy2(source / name, root / name)
     (root / ".gitignore").write_text(".venv/\n__pycache__/\n")
     preparation_command(root, ["uv", "sync", "--locked", "--python", sys.executable])
