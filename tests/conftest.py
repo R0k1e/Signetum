@@ -117,8 +117,7 @@ def local_repository(tmp_path, monkeypatch):
         )
         if result.returncode:
             raise InfrastructureError(
-                f"fixture preparation exited {result.returncode}: "
-                f"{result.stdout}{result.stderr}"
+                f"fixture preparation exited {result.returncode}: {result.stdout}{result.stderr}"
             )
         return result
 
