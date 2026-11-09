@@ -1280,7 +1280,7 @@ def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypat
     for name in ("pyproject.toml", "uv.lock"):
         shutil.copy2(source / name, root / name)
     (root / ".gitignore").write_text(".venv/\n__pycache__/\n")
-    preparation_command(root, ["uv", "sync", "--locked", "--offline", "--python", sys.executable])
+    preparation_command(root, ["uv", "sync", "--locked", "--python", sys.executable])
     git_output(root, "add", ".")
     git_output(root, "commit", "-m", "adopt repository engine for self-hosting")
     git_output(root, "push", "origin", "main")
