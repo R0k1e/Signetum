@@ -1,0 +1,140 @@
+[change]
+schema_version = 1
+id = "approval-before-commit"
+
+[change.source]
+kind = "human_direction"
+summary = "Repository owner approved commit-time approval enforcement and simpler workspace abandonment (2026-11-09), relayed by the coordinating session. A PyReduce batch became unfinalizable because a combination fix preceded its batch-owned approval and was rejected only at final. The approved plan creates the batch-owned draft at batch-open and installs a commit hook using the existing final predicate. Abandonment also failed because it read the caller repository instead of the named workspace and could not select the declared maintainer Mise environment. The owner authorized repair of these workflow problems after release."
+
+[change.contract]
+version = 1
+approved_base = "538ac62cfe2495bff8d0d524b415d2be3fd870a1" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "SKELETON-001"
+outcome = "batch-open writes an unapproved draft change record for the batch, changes/batch-<task>/change.toml bound to the batch base, claims that change for the batch and names the path in its result. The draft is excluded from Git status through the repository's info/exclude, so the batch stays clean and an unused draft never reaches final or delivery; committing it takes git add -f, which the result states. An existing draft or tracked record is kept."
+acceptance = [
+    "After batch-open the batch worktree holds the unapproved draft at the named path, git status reports the batch clean and final on an unchanged batch passes without it.",
+    "The draft filled with a recorded approval, committed with git add -f, followed by a fix commit, passes final with the fix attributed to that change.",
+]
+
+[[change.contract.requirements]]
+id = "COMMIT-CHECK-002"
+outcome = "workspace-open and batch-open install a Signetum reference-transaction hook in the repository's effective hooks directory, keeping a foreign hook of that name or a hooks directory inside a worktree untouched and reporting the hook as skipped with the cause. When a new single-parent commit lands on the tip of a registered workspace branch, the hook refuses it if it changes a path outside change records and decisions while no approval committed before it binds the workspace's own change record with the commit's contract. The verdict is the one final already uses for a batch commit and its member equivalent, evaluated on that one commit by the same function; the refusal names the remedy: commit the approval first, then the implementation. Records-only commits, merges, branch creation and deletion and refs outside registered workspaces pass. When the engine the hook names is missing it warns and passes; final and ready stay the backstop, also for Git older than 2.28, which runs no reference-transaction hook."
+acceptance = [
+    "In a batch, a direct implementation commit without an approved batch-owned record is refused at commit time naming the approval remedy and the branch keeps its tip; after the approval commit the same fix commits.",
+    "In a member, an implementation commit before the approval commit is refused, and a commit carrying the approval together with implementation is refused; implementation after the committed approval commits.",
+    "A records-only commit and a merge commit in a workspace are not refused.",
+]
+
+[[change.contract.requirements]]
+id = "PATH-003"
+outcome = "Maintenance operations that name a workspace path take the repository from that path, not from the caller's current directory: workspace-abandon and cleanup --worktree run from another repository act on the named workspace's repository."
+acceptance = [
+    "workspace-abandon of a workspace run with the current directory in an unrelated repository abandons it and leaves a retirement record.",
+]
+
+[[change.contract.requirements]]
+id = "TOOLS-004"
+outcome = "When a tool Signetum runs through Mise, such as Worktrunk's wt, is not available under the caller's Mise environment and the project declares Mise environment configurations (mise.<env>.toml and the other Mise environment file forms), Signetum runs it under the one declared environment that provides it by setting MISE_ENV. When none or several provide it, the refusal names the tool and the declared environments to set with MISE_ENV instead of only Mise's exec error. A caller's own MISE_ENV is respected."
+acceptance = [
+    "With wt declared only in mise.maintainer.toml and MISE_ENV unset, workspace-open succeeds.",
+    "With a declared environment that does not provide the tool, the failure names the missing tool and the declared environment.",
+]
+
+[[change.contract.requirements]]
+id = "ABANDON-005"
+outcome = "workspace-abandon and branch-abandon keep requiring the owner's actual confirmation of the exact tip. Their help, the Skill and the delivery-recovery reference state that an Agent may run them itself, with --actor naming the owner and --source citing where the owner confirmed that tip, such as the conversation; the Agent never infers a confirmation."
+acceptance = [
+    "The help text, Skill and delivery-recovery reference say an Agent may run the removal with --source citing where the owner confirmed the tip.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-006"
+outcome = "The Skill, its references, the architecture pages and the unreleased changelog describe the batch draft record, the commit-time approval check and its Git 2.28 condition, path-derived repositories, declared Mise environments and the Agent-run abandonment."
+acceptance = [
+    "Current guidance agrees with the observed CLI behavior; historical authorities remain unchanged.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the owners of batch opening, workspace opening, change scope, maintenance, workspace operations and Mise tool execution; add one engine module for the commit check.",
+    "Extend existing functional lifecycle and workspace tests on throwaway repositories, bypassing the hook only where a test exercises the final or ready backstop; reconcile Skill, architecture and changelog text; run ready.",
+]
+requires_confirmation = [
+    "Change the manifest schema, relax what final or ready refuse, integrate, deliver, push, tag, publish, run update on any host, or edit PyReduce.",
+]
+
+[[change.contract.decisions]]
+id = "approval-before-commit/commit-time-approval"
+change_id = "approval-before-commit"
+authority = "changes/approval-before-commit/change.toml#decisions/approval-before-commit/commit-time-approval"
+reason = "In PyReduce a batch fix committed before its approval was found only at final, where the batch could never pass again because history bound by journals is not rewritten. Checking the same predicate when the commit is made turns a permanent failure into a refused commit the agent repairs in seconds. A reference-transaction hook sees the actual commit object, is not skipped by commit --no-verify and does not collide with pre-commit hooks that projects already install; Git older than 2.28 keeps only the final backstop. A second, stricter rule was rejected because two rules could disagree. The draft stays uncommitted and excluded so that a batch without a fix delivers no draft and needs no extra step. Reopen if hosts lacking reference-transaction become common or the excluded draft confuses agents in observed use."
+parents = ["one-loop-light-admit-batch-fixes/one-loop"]
+
+[[change.contract.decisions.clauses]]
+id = "approval-before-commit/batch-fix"
+change_id = "approval-before-commit"
+action = "amend"
+expected = [{id = "BATCH-FIX-001", version = 1}]
+authority = "changes/approval-before-commit/change.toml#decisions/approval-before-commit/commit-time-approval"
+reason = "The batch's own record exists from batch-open, and the attribution rule is also checked when each batch commit is made."
+
+[[change.contract.decisions.clauses.updates]]
+id = "BATCH-FIX-001"
+version = 2
+topic = "skill-first-development"
+scope = ["Batch admission and continuation", "Final validation"]
+statement = "A defect that appears only when members combine may be fixed by commits made directly in the batch under the batch's own approved change record, approval before implementation and journaled, and is validated by the next final. batch-open writes that record as an unapproved draft excluded from Git status, so an unused draft is never delivered. A member-owned defect is fixed in its member and re-admitted. Final refuses a first-parent non-merge batch commit that changes paths outside change records and decisions unless an approved batch-owned change precedes it, and its review attributes each such commit to those changes; the commit check refuses the same commit when it is made. Merge-conflict resolution is unchanged. After a failed final, status names both repairs."
+rationale = "Batch-owned fixes keep combination repairs reviewable without letting unattributed work reach delivery, and a refusal at commit time prevents a batch from becoming permanently unfinalizable."
+
+[[change.contract.decisions.clauses]]
+id = "approval-before-commit/commit-check"
+change_id = "approval-before-commit"
+action = "add"
+expected = [{id = "COMMIT-CHECK-001", version = 0}]
+authority = "changes/approval-before-commit/change.toml#decisions/approval-before-commit/commit-time-approval"
+reason = "Approval order is enforced where the commit is made, by the predicate final and ready already apply."
+
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-CHECK-001"
+version = 1
+topic = "skill-first-development"
+scope = ["Workspace opening", "Member readiness", "Final validation"]
+statement = "workspace-open and batch-open install a reference-transaction hook in the effective hooks directory unless a foreign hook of that name exists or the directory lies in a worktree, which they report. For a new single-parent commit on the tip of a registered workspace branch, the hook applies to that one commit the approval-order verdict final applies to batch commits and ready applies to member commits, through the same function, and refuses an implementation commit that no committed approval of the workspace's own change record precedes, naming the remedy. Records-only commits, merges, branch creation and deletion and other refs pass. A missing engine warns and passes; final and ready remain the backstop."
+rationale = "One rule checked earlier cannot disagree with final, and refusing before the ref moves leaves nothing to rewrite."
+
+[[change.contract.decisions.clauses]]
+id = "approval-before-commit/abandon"
+change_id = "approval-before-commit"
+action = "amend"
+expected = [{id = "WORKSPACE-ABANDON-001", version = 2}]
+authority = "changes/approval-before-commit/change.toml#decisions/approval-before-commit/commit-time-approval"
+reason = "Abandonment failed when run from another repository, and agents were unsure whether they may run it after the owner confirmed."
+
+[[change.contract.decisions.clauses.updates]]
+id = "WORKSPACE-ABANDON-001"
+version = 3
+topic = "workspace-retirement"
+scope = ["Workspace abandonment"]
+statement = "maintenance workspace-abandon removes a checkout, registered as a workspace or not, that proves neither delivered nor contained, and maintenance branch-abandon removes a local branch without a checkout that the delivery branch does not contain, only when given the exact current tip the owner confirmed, the owner's identity, the confirmation source and a reason; the retirement record keeps them with the tip. An Agent may run either itself, citing in --source where the owner confirmed that tip; it never infers a confirmation. workspace-abandon takes the repository from the named checkout. maintenance leftovers lists such checkouts and branches read-only. Removal refuses the delivery branch and checkout, open Git operations and staged changes, and discards other uncommitted work only with --discard. These are the only removals for undelivered work; batch-discard is removed."
+rationale = "One confirmed, recorded removal covers every leftover the guard keeps agents from deleting with raw Git; the owner's confirmation, not who types the command, authorizes it."
+
+[[change.execution.steps]]
+id = "STEP-COMMIT-CHECK"
+requirements = ["SKELETON-001", "COMMIT-CHECK-002"]
+action = "Expose a single-commit form of batch_owned_commits and of the member approval order in change scope, add the hook installer to workspace opening and the hook entry module, write the batch draft in batch-open, and extend the lifecycle tests, bypassing the hook only where a test exercises the backstop."
+[[change.execution.steps]]
+id = "STEP-OPERATIONS"
+requirements = ["PATH-003", "TOOLS-004", "ABANDON-005"]
+action = "Resolve the repository from the named worktree in maintenance, resolve declared Mise environments in Mise tool execution, and update abandonment help; reproduce each failure in an existing traversal first."
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["SKELETON-001", "COMMIT-CHECK-002", "PATH-003", "TOOLS-004", "ABANDON-005", "DOC-006"]
+action = "Reconcile Skill, references, architecture and changelog, then run ready until it passes; stop before integration."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-09
+source = "Relayed by the coordinating session on 2026-11-09: the owner agreed the plan to close the approval gap in process (batch-open creates the batch-owned record skeleton; a commit hook Signetum installs in every workspace refuses implementation committed before a committed approval, by the predicate final already uses, naming the fix), asked why removing branches is so laborious, and asked to also handle the abandonment problems after the release; the coordinator directed this change in Signetum to its own passing ready, with no publication, tag, release, push, update or PyReduce edit. This implementing session did not hear the approval independently; the requirement wording, the hook mechanism, the excluded draft and the clause amendments are the implementing session's reading of that direction."
+contract_digest = "sha256:ca1d70696b81f1c8b78c88832a1d67efe1e433f92b92d00c5575934dd3f0b80d"
