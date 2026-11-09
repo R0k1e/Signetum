@@ -76,6 +76,8 @@ class ValidationExecutionError(ValueError):
         passed_shards: tuple[str, ...] = (),
         unreached_nodes: tuple[NodeIdentity, ...] = (),
         failed_shards: tuple[ShardFailure, ...] = (),
+        discharged_nodes: tuple[NodeIdentity, ...] = (),
+        discharged_by_reaching: tuple[dict[str, str], ...] = (),
     ) -> None:
         super().__init__(message)
         self.failed_nodes = failed_nodes
@@ -83,6 +85,8 @@ class ValidationExecutionError(ValueError):
         self.passed_shards = passed_shards
         self.unreached_nodes = unreached_nodes
         self.failed_shards = failed_shards
+        self.discharged_nodes = discharged_nodes
+        self.discharged_by_reaching = discharged_by_reaching
 
 
 class ValidationInfrastructureError(ValidationExecutionError):
@@ -99,6 +103,7 @@ class ShardExecution:
     details: dict[str, JsonValue] = field(default_factory=dict)
     failed_nodes: tuple[str, ...] = ()
     passed_nodes: tuple[str, ...] = ()
+    non_failing: dict[str, str] = field(default_factory=dict)
     unreached_nodes: tuple[str, ...] = ()
     """Selected nodes the runner reported it did not run; they fail the shard."""
     exit_code: int | None = None
@@ -208,6 +213,7 @@ def _resolve_outcome(
     details: dict[str, JsonValue],
     nodes: _NodeObservations,
     required_nodes: frozenset[str] = frozenset(),
+    reach_only: frozenset[str] = frozenset(),
     vanished_nodes: Mapping[str, dict[str, str]] | None = None,
 ) -> ShardOutcome:
     """Execute one shard and decide whether it produced reusable evidence."""
@@ -217,6 +223,26 @@ def _resolve_outcome(
     if execution.details:
         details[shard.name] = execution.details
     nodes.observe(shard.name, execution)
+    terminal = {**dict.fromkeys(execution.passed_nodes, "passed"), **execution.non_failing}
+    failed = set(execution.failed_nodes) | {str(item["node_id"]) for item in execution.recovered}
+    reached = sorted(
+        required_nodes & reach_only & terminal.keys() - failed - set(execution.unreached_nodes)
+    )
+    nodes.reached.extend(
+        {"shard": shard.name, "node_id": node, "outcome": terminal[node]} for node in reached
+    )
+    nodes.discharged.extend((shard.name, node) for node in reached)
+    nodes.discharged.extend(
+        (shard.name, node) for node in required_nodes & set(execution.passed_nodes) - failed
+    )
+    if reached:
+        previous = details.get(shard.name)
+        details[shard.name] = {
+            **(previous if isinstance(previous, dict) else {}),
+            "discharged_by_reaching": [
+                {"node_id": node, "outcome": terminal[node]} for node in reached
+            ],
+        }
     if execution.unreached_nodes:
         raise ValidationExecutionError(
             (execution.diagnostic or f"{shard.name} reported unreached nodes")
@@ -226,7 +252,12 @@ def _resolve_outcome(
         require_original_success(
             [{**defect, "shard": shard.name} for defect in execution.recovered]
         )
-        unreported = required_nodes - set(execution.passed_nodes) - set(execution.failed_nodes)
+        unreported = (
+            required_nodes
+            - set(execution.passed_nodes)
+            - set(execution.failed_nodes)
+            - set(execution.non_failing)
+        )
         candidates = vanished_nodes or {}
         released = sorted(
             node
@@ -261,7 +292,9 @@ def _resolve_outcome(
                     for node in released
                 ],
             }
-        if missing := sorted(required_nodes - set(execution.passed_nodes) - set(released)):
+        if missing := sorted(
+            required_nodes - set(execution.passed_nodes) - set(released) - set(reached)
+        ):
             raise ValidationExecutionError(
                 f"{shard.name}: previously failed nodes did not pass in this run: "
                 + ", ".join(missing)
@@ -296,6 +329,8 @@ def _resolve_outcome(
 class _NodeObservations:
     """First-attempt node outcomes reported by every shard that ran."""
 
+    reached: list[dict[str, str]] = field(default_factory=list)
+    discharged: list[NodeIdentity] = field(default_factory=list)
     failed: list[NodeIdentity] = field(default_factory=list)
     recovered: list[NodeIdentity] = field(default_factory=list)
     unreached: list[NodeIdentity] = field(default_factory=list)
@@ -334,13 +369,15 @@ def _execute_shards(
     reusable: dict[str, ShardOutcome] | None = None,
     executed: set[str] | None = None,
     advisory_world: bool = False,
+    reach_only: Mapping[str, frozenset[str]] | None = None,
     remembered: Mapping[str, frozenset[str]] | None = None,
     vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> _ExecutionResult:
     """One verdict owner for qualified execution and non-qualifying diagnostics.
 
     ``remembered`` names, per shard, nodes that failed in an earlier gate of the
-    workspace. Such a shard runs in this execution and must report them passing.
+    workspace. Such a shard runs in this execution; failure debt requires passing,
+    while ``reach_only`` debt accepts any reported non-failing terminal outcome.
     """
     result = _ExecutionResult()
     outcomes, names, inherited_names = result.outcomes, result.names, result.inherited
@@ -398,6 +435,7 @@ def _execute_shards(
                     details=shard_details,
                     nodes=nodes,
                     required_nodes=required_nodes,
+                    reach_only=(reach_only or {}).get(name, frozenset()),
                     vanished_nodes=(vanished or {}).get(name),
                 )
         except ValidationExecutionError as error:
@@ -446,6 +484,8 @@ def _execute_shards(
             passed_shards=tuple(passed),
             unreached_nodes=tuple(nodes.unreached),
             failed_shards=tuple(failed_shards),
+            discharged_nodes=tuple(dict.fromkeys(nodes.discharged)),
+            discharged_by_reaching=tuple(nodes.reached),
         )
     return result
 
@@ -457,6 +497,7 @@ def execute_gate(
     adapter: ValidationAdapter,
     *,
     inherited: InheritedEvidence | None = None,
+    reach_only: Mapping[str, frozenset[str]] | None = None,
     remembered: Mapping[str, frozenset[str]] | None = None,
     vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> EvidenceReceipt:
@@ -484,7 +525,14 @@ def execute_gate(
                 and outcome.status == "passed"
             }
     result = _execute_shards(
-        graph, gate, inputs, adapter, reusable=reusable, remembered=remembered, vanished=vanished
+        graph,
+        gate,
+        inputs,
+        adapter,
+        reusable=reusable,
+        remembered=remembered,
+        reach_only=reach_only,
+        vanished=vanished,
     )
     inherited_names, recovered, shard_details = result.inherited, result.recovered, result.details
     receipts = [
@@ -569,6 +617,7 @@ def execute_diagnostic_gate(
     advisory_world: bool = False,
     tools: tuple[ToolDeclaration, ...] = (),
     inputs: ValidationInputs | None = None,
+    reach_only: Mapping[str, frozenset[str]] | None = None,
     remembered: Mapping[str, frozenset[str]] | None = None,
     vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> dict[str, object]:
@@ -588,6 +637,7 @@ def execute_diagnostic_gate(
         executed=executed,
         advisory_world=advisory_world,
         remembered=remembered,
+        reach_only=reach_only,
         vanished=vanished,
     )
     if identity is not None and build_evidence_identity(graph, projected, adapter) != identity:

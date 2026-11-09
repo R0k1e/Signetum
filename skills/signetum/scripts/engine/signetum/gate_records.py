@@ -4,10 +4,10 @@ A failed gate leaves a failure receipt for its workspace, naming failed and
 runner-reported unreached nodes, and every shard that did not pass with its exit
 code and runner-reported failed checks; those shards are reported, not owed.
 Before the next gate in that workspace runs checks, each remembered node must be
-selected again, scheduled first, and then pass, or be named with its root cause
-by an observation in a change journal the workspace changed. A passing batch gate
-records the tip it verified, so the next admission selects only the commits added
-after it.
+selected again, scheduled first, and satisfy its failure or reachability debt, or
+be named with its root cause by an observation in a change journal the workspace
+changed. A passing batch gate records the tip it verified, so the next admission
+selects only the commits added after it.
 """
 
 from __future__ import annotations
@@ -125,6 +125,22 @@ def remembered_failures(repository: Path, branch: str) -> tuple[NodeIdentity, ..
             f"failure receipt is unreadable: {path}: {error}",
             expected="inspect that machine-local receipt; it records failures still owed",
         ) from error
+
+
+def unreached_only(repository: Path, branch: str) -> dict[str, frozenset[str]]:
+    """Read reachability debt, with observed failure taking precedence."""
+    remembered_failures(repository, branch)  # Validate through the existing boundary.
+    try:
+        document = json.loads(failure_path(repository, branch).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    failed = {_node(item) for item in (*document["failed"], *document.get("recovered", []))}
+    result: dict[str, set[str]] = {}
+    for item in document.get("unreached", []):
+        shard, node = _node(item)
+        if (shard, node) not in failed:
+            result.setdefault(shard, set()).add(node)
+    return {shard: frozenset(nodes) for shard, nodes in result.items()}
 
 
 def failed_tip(repository: Path, branch: str, gate: str | None) -> str | None:
@@ -280,15 +296,23 @@ def remember_failure(
 ) -> None:
     """Persist what a failed gate observed, keeping owed nodes it did not prove.
 
-    Selected nodes a runner reported unreached are owed like failed ones. Every
+    Unreached-only debt retains its provenance until a non-failing terminal outcome. Every
     shard that did not pass is listed under ``failed_shards`` for the reader.
     """
-    failed = list(error.failed_nodes)
+    prior_reach = unreached_only(repository, branch)
+    failed = list(dict.fromkeys((*error.failed_nodes, *error.recovered_nodes)))
+    unreached = list(error.unreached_nodes)
     for shard, nodes in sorted(owed.items()):
         if shard in error.passed_shards:
             continue
-        failed.extend((shard, node) for node in sorted(nodes) if (shard, node) not in failed)
-    unreached = [node for node in error.unreached_nodes if node not in failed]
+        for node in sorted(nodes):
+            identity = (shard, node)
+            if identity in error.discharged_nodes or identity in failed:
+                continue
+            target = unreached if node in prior_reach.get(shard, ()) else failed
+            if identity not in target:
+                target.append(identity)
+    unreached = [node for node in unreached if node not in failed]
     _write(
         failure_path(repository, branch),
         {
@@ -306,6 +330,7 @@ def remember_failure(
             ],
             "unreached": [{"shard": shard, "node_id": node} for shard, node in unreached],
             "failed_shards": [failure.document() for failure in error.failed_shards],
+            "discharged_by_reaching": list(error.discharged_by_reaching),
         },
     )
 
@@ -329,9 +354,20 @@ def settle_failures(
         path.unlink(missing_ok=True)
         return
     document = json.loads(path.read_text(encoding="utf-8"))
+    reach = unreached_only(repository, branch)
     _write(
         path,
-        {**document, "failed": remaining, "recovered": [], "unreached": [], "failed_shards": []},
+        {
+            **document,
+            "failed": [
+                item for item in remaining if item["node_id"] not in reach.get(item["shard"], ())
+            ],
+            "unreached": [
+                item for item in remaining if item["node_id"] in reach.get(item["shard"], ())
+            ],
+            "recovered": [],
+            "failed_shards": [],
+        },
     )
 
 

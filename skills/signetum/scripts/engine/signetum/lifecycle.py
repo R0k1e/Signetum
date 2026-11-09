@@ -36,6 +36,7 @@ from signetum.gate_records import (
     remember_failure,
     require_accounted,
     settle_failures,
+    unreached_only,
     vanished_nodes,
     verified_batch_tip,
 )
@@ -837,6 +838,7 @@ def _run_batch_gate(
             executed=set(prepared),
             advisory_world=True,
             remembered=owed,
+            reach_only=unreached_only(batch, branch),
             vanished=vanished_nodes(batch, base, source, owed, failed_tip(batch, branch, None)),
             admission_base=before,
             member_base=before,

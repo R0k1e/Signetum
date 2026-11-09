@@ -12,18 +12,24 @@ from signetum.validation.execution import ShardExecution, ValidationExecutionErr
 def node_outcomes(
     path: Path | None,
 ) -> tuple[
-    tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...] | None
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...] | None,
+    dict[str, str],
 ]:
     """Read the optional first-attempt node report.
 
     ``{"failed": [...], "passed": [...], "unreached": [...], "failed_checks": [...]}``;
-    ``unreached``, ``failed_checks`` and ``not_collected`` are optional. Returns
-    failed, passed, unreached, failed checks and absent nodes; None distinguishes
+    ``unreached``, ``failed_checks``, ``not_collected`` and the ``non_failing``
+    outcome mapping are optional. Returns failed, passed, unreached, failed checks,
+    absent nodes and non-failing terminal outcomes; None distinguishes
     a legacy runner from one explicitly reporting an empty collection difference.
     """
-    optional = {"unreached", "failed_checks", "not_collected"}
+    optional = {"unreached", "failed_checks", "not_collected", "non_failing"}
     if path is None or not path.exists():
-        return (), (), (), (), None
+        return (), (), (), (), None, {}
     try:
         raw = load_json(path.read_text(encoding="utf-8"))
         if (
@@ -32,10 +38,25 @@ def node_outcomes(
             or any(
                 not isinstance(value, list)
                 or any(not isinstance(node, str) or not node for node in value)
-                for value in raw.values()
+                for key, value in raw.items()
+                if key != "non_failing"
             )
         ):
             raise ValueError("invalid node outcome report")
+        terminal = raw.get("non_failing", {})
+        if (
+            not isinstance(terminal, dict)
+            or any(
+                not isinstance(node, str)
+                or not node
+                or not isinstance(outcome, str)
+                or not outcome
+                or outcome in {"failed", "unreached"}
+                for node, outcome in terminal.items()
+            )
+            or set(terminal).intersection((*raw["failed"], *raw.get("unreached", ())))
+        ):
+            raise ValueError("invalid non-failing terminal outcomes")
     except (OSError, ValueError) as error:
         raise ValidationExecutionError(f"invalid node report: {error}") from error
     return (
@@ -44,6 +65,7 @@ def node_outcomes(
         tuple(raw.get("unreached", ())),
         tuple(raw.get("failed_checks", ())),
         tuple(raw["not_collected"]) if "not_collected" in raw else None,
+        terminal,
     )
 
 
@@ -81,7 +103,7 @@ def shard_execution(
             recovered = tuple(raw)
         except (OSError, ValueError) as error:
             raise ValidationExecutionError(f"invalid recovery report: {error}") from error
-    failed, passed, missed, checks, absent = node_outcomes(nodes)
+    failed, passed, missed, checks, absent, terminal = node_outcomes(nodes)
     if completed.returncode == 0 and not missed:
         return ShardExecution(
             True,
@@ -91,6 +113,7 @@ def shard_execution(
             exit_code=0,
             failed_checks=checks,
             not_collected=absent,
+            non_failing=terminal,
         )
     diagnostic = completed.stdout + completed.stderr
     return ShardExecution(
@@ -103,4 +126,5 @@ def shard_execution(
         exit_code=completed.returncode,
         failed_checks=checks,
         not_collected=absent,
+        non_failing=terminal,
     )

@@ -52,7 +52,8 @@ failed = [n for n in ran if nodes[n] == "failed"]
 # Written before a possible stop, so a time-bound kill still reports what did not run.
 option("--node-report").write_text(json.dumps({
     "failed": failed,
-    "passed": [n for n in ran if n not in failed],
+    "passed": [n for n in ran if nodes[n] == "passed"],
+    "non_failing": {n: nodes[n] for n in ran if nodes[n] not in ("failed", "recovered")},
     "unreached": [n for n in ordered if nodes[n] in ("unreached", "hang")],
 }))
 if "hang" in nodes.values():
@@ -606,3 +607,85 @@ def test_packaged_runner_releases_a_removed_parameter_through_ready(tmp_path):
         {"node_id": NODE + "[removed]", "retiring_commit": retiring, "basis": "not_collected"}
     ]
     assert not failure_path(member, "impl/member").exists()
+
+
+@pytest.mark.parametrize(
+    "first, second, clears",
+    [
+        ("unreached", "skipped", True),
+        ("failed", "skipped", False),
+        ("unreached", "failed", False),
+        ("unreached", "xfailed", True),
+    ],
+)
+def test_reaching_repays_only_unreached_debt(tmp_path, monkeypatch, first, second, clears):
+    observed = tmp_path / "observed.jsonl"
+    member, _, _ = _workspaces(tmp_path, {NODE: first}, _runner(observed))
+    monkeypatch.chdir(member)
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    # Another incomplete gate must preserve reachability versus failure provenance.
+    if first == "unreached":
+        _commit_empty(member, "still not reached")
+        with pytest.raises(ValidationExecutionError):
+            lifecycle.validate(member, "member")
+        assert records.unreached_only(member, "impl/member") == {"repo:nodes": frozenset({NODE})}
+    (member / "nodes.json").write_text(json.dumps({NODE: second}))
+    _commit(member, "report terminal outcome")
+    if clears:
+        ready = lifecycle.validate(member, "member")
+        evidence = ready["evidence"]
+        assert isinstance(evidence, dict)
+        details = evidence["extensions"]["shard_details"]["repo:nodes"]
+        assert details["discharged_by_reaching"] == [{"node_id": NODE, "outcome": second}]
+        assert not failure_path(member, "impl/member").exists()
+    else:
+        with pytest.raises(ValidationExecutionError):
+            lifecycle.validate(member, "member")
+        assert _remembered(member, "impl/member")["failed"] == [
+            {"shard": "repo:nodes", "node_id": NODE}
+        ]
+        # Even a later skip must not launder the now-observed failure.
+        (member / "nodes.json").write_text(json.dumps({NODE: "skipped"}))
+        if second == "skipped":
+            _commit_empty(member, "repeat skip after observed failure")
+        else:
+            _commit(member, "skip after observed failure")
+        with pytest.raises(ValidationExecutionError):
+            lifecycle.validate(member, "member")
+
+
+def test_reachability_discharge_survives_another_node_failure(tmp_path, monkeypatch):
+    member, _, _ = _workspaces(
+        tmp_path, {NODE: "unreached", OTHER: "passed"}, _runner(tmp_path / "observed")
+    )
+    monkeypatch.chdir(member)
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    (member / "nodes.json").write_text(json.dumps({NODE: "skipped", OTHER: "failed"}))
+    _commit(member, "reach one node while another fails")
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    memory = _remembered(member, "impl/member")
+    assert memory["failed"] == [{"shard": "repo:nodes", "node_id": OTHER}]
+    assert memory["unreached"] == []
+    assert memory["discharged_by_reaching"] == [
+        {"shard": "repo:nodes", "node_id": NODE, "outcome": "skipped"}
+    ]
+
+
+def test_deferred_unreached_debt_keeps_its_origin(tmp_path):
+    member, _, _ = _workspaces(tmp_path, {NODE: "passed"})
+    records.remember_failure(
+        member,
+        "impl/member",
+        gate="final",
+        base=git_output(member, "rev-parse", "HEAD"),
+        tip=git_output(member, "rev-parse", "HEAD"),
+        error=ValidationExecutionError(unreached_nodes=(("repo:nodes", NODE),)),
+        owed={},
+    )
+    records.settle_failures(
+        member, "impl/member", {"repo:nodes": frozenset({NODE})}, ["repo:check"]
+    )
+    assert records.unreached_only(member, "impl/member") == {"repo:nodes": frozenset({NODE})}

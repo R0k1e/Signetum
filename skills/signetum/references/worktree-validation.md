@@ -147,7 +147,8 @@ reported. Read them, fix every listed failure in one round, then run ready again
 the `cause` alone may name only part of them. A committed `change record` observation that names a node
 with `--evidence <node-id>` and states its root cause in `--reason` releases it,
 even when its shard is still selected. Otherwise the next gate refuses before checks
-unless the node is selected again, and then it must pass. Moving a failed test out
+unless the node is selected again; failure debt must then pass, while
+unreached-only debt accepts a non-failing terminal outcome. Moving a failed test out
 of scope never offsets that failure, and neither does a retry-only pass. A shard
 command that declares `{signetum.priority_nodes_file}` receives those owed nodes
 as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
@@ -181,6 +182,18 @@ Read only for multiple members or integration coordination.
 
 Before delegating, the coordinating Agent names each member's outcome, worktree,
 owned scope, dependencies and shared interfaces in the existing execution plan.
+A node owed only because it was unreached owes execution: a later runner-reported
+non-failing terminal outcome, including a declared skip, discharges it. Runners
+may report optional `"non_failing": {"node-id": "skipped"}` (or another non-failing
+terminal outcome); `passed` also proves reaching. Collection alone, deselection
+and an absent outcome do not. Failure and retry-recovered debt still requires
+passing or the existing `change record --evidence` release; a skip cannot erase
+an observed failure. Failure takes precedence when debt sources overlap, including
+across failed gates and deferred shards. Receipt shard details (or the failure
+receipt when another obligation fails) list
+`discharged_by_reaching` entries with `node_id` and `outcome`. Existing retirement
+rules remain applicable.
+
 Resolve shared contract choices before dependent implementation; synchronize through
 the declared owner instead of changing another member's worktree. Independent
 members can proceed while an affected choice is pending.

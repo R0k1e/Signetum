@@ -299,3 +299,35 @@ def test_unavailable_findings_command_cannot_produce_a_waivable_report(tmp_path)
     )
     with pytest.raises(ValidationInfrastructureError):
         RepositoryValidationAdapter(tmp_path).report_findings(shard)
+
+
+@pytest.mark.parametrize(
+    "terminal, valid",
+    [
+        ({"test_case": "skipped"}, True),
+        ({"test_case": "xfailed"}, True),
+        (["test_case"], False),
+        ({"test_case": ""}, False),
+        ({"test_case": "failed"}, False),
+        ({"test_case": "unreached"}, False),
+        ({"test_case": 7}, False),
+    ],
+)
+def test_runner_non_failing_outcomes_require_an_explicit_terminal_mapping(
+    tmp_path, terminal, valid
+):
+    report = json.dumps({"failed": [], "passed": [], "non_failing": terminal})
+    command = (
+        sys.executable,
+        "-c",
+        "import sys; from pathlib import Path; Path(sys.argv[2]).write_text(sys.argv[1])",
+        report,
+        "{signetum.node_report_file}",
+    )
+    adapter = RepositoryValidationAdapter(tmp_path)
+    if valid:
+        execution = adapter.run_shard(ValidationShard("test:nodes", command))
+        assert execution.non_failing == terminal
+    else:
+        with pytest.raises(ValidationExecutionError, match="invalid node report"):
+            adapter.run_shard(ValidationShard("test:nodes", command))

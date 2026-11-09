@@ -73,7 +73,10 @@ or a file or directory path for a stage that never collected.
 
 Write first-attempt outcomes to the node report as
 `{"failed": [...], "passed": [...], "unreached": [...], "failed_checks": [...]}`;
-`unreached`, `failed_checks` and `not_collected` are optional.
+`unreached`, `failed_checks`, `not_collected` and `non_failing` are optional.
+`non_failing` maps exact node ids to runner-reported non-failing terminal outcomes,
+for example `{"test.py::test_linux": "skipped"}`. Do not report collection or
+deselection as a terminal outcome.
 `not_collected` lists owed node ids absent from collection whose file was collected
 in this run or no longer exists. Report collection before `-k`, marker or node
 selection filters; never report a node from an existing file excluded from
@@ -101,9 +104,12 @@ rules of its new diagnostics.
 The priority file always exists and holds `{"schema_version": 1, "nodes": [...]}`:
 the entries this shard owes, unchanged, empty when none. Run them first, then the
 rest of the same selection. It never narrows selection, and a failing owed entry
-must not stop the others. An owed entry is satisfied only when the node report
-lists that exact entry as passed, so a runner that reported a path must report the
-same path as passed once its stage ran clean. A remembered entry is also released
+must not stop the others. An entry owed only because it was unreached is satisfied
+when the node report lists that exact entry as passed or in `non_failing`, including
+a declared skip. Receipt `discharged_by_reaching` entries retain its node id and
+outcome. Failure or retry-recovered debt requires a reported pass; a later skip
+does not erase it. A runner that reported a stage path must report that same path
+with the applicable outcome. A remembered entry is also released
 by a committed change record observation naming it as evidence with its root cause,
 even inside a shard that is always selected.
 
