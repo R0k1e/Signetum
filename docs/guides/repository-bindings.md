@@ -72,11 +72,21 @@ other `{signetum.*}` argument, a placeholder inside a larger argument, or one in
 or a file or directory path for a stage that never collected.
 
 Write first-attempt outcomes to the node report as
-`{"failed": [...], "passed": [...], "unreached": [...]}`; `unreached` is optional.
+`{"failed": [...], "passed": [...], "unreached": [...], "failed_checks": [...]}`;
+`unreached` and `failed_checks` are optional.
 Write it before exiting, or progressively when the shard may reach its
 `timeout_seconds`, since the engine reads it after a time-bound stop too. A failed
 gate remembers failed and unreached entries for the workspace's next gate.
 Unreached entries fail the shard and the result states their count.
+
+A shard that runs several non-test checks, such as linters or document checks,
+names the ones that failed in `failed_checks`, for example
+`{"failed": [], "passed": [], "failed_checks": ["doc-links", "ruff-check"]}`.
+They appear under that shard in the failure record's and the failed result's
+`failed_shards`, beside its exit code; they are never owed or scheduled, and the
+shard's exit status alone decides its verdict. Without a node report, or without
+the field, the shard is listed with its exit code only. A ratchet shard lists the
+rules of its new diagnostics.
 
 The priority file always exists and holds `{"schema_version": 1, "nodes": [...]}`:
 the entries this shard owes, unchanged, empty when none. Run them first, then the

@@ -22,7 +22,8 @@ findings commands, any but `{signetum.validation_workers}` in ratchet commands, 
 validation input. `{signetum.recovery_report_file}` receives the runner's
 retry-recovered nodes and `{signetum.validation_workers}` the allocated worker cap.
 `{signetum.node_report_file}` receives first-attempt
-`{"failed": [...], "passed": [...]}` with an optional `"unreached": [...]`; the
+`{"failed": [...], "passed": [...]}` with optional `"unreached": [...]` and
+`"failed_checks": [...]`, the non-test checks that failed, reported only; the
 packaged pytest runner takes these as `--node-report`, `--recovery-report`,
 `--workers` and `--schedule-file`. The engine reads it after the
 shard ends, including after its time bound. Unreached entries fail the shard and
@@ -32,7 +33,10 @@ runner to schedule first; it never selects or satisfies an entry. A failed membe
 or final gate writes a failure receipt for its workspace under the Git common
 directory's `signetum/failures`, beside synchronization records. It names the
 workspace, its changes, base, tip, first-attempt failed nodes, nodes that passed
-only on retry and unreached nodes, all owed to the next gate. The next gate in that workspace releases a remembered node that an
+only on retry and unreached nodes, all owed to the next gate, and under
+`failed_shards` every shard that did not pass with its exit code (`null` without
+one), its reported failed checks and, for a skipped shard, `skipped_after`. Failed
+shards are reported, not owed; a passing gate clears them. The next gate in that workspace releases a remembered node that an
 observation in a change journal the workspace changed names as evidence with its
 root cause, whether or not its shard is selected. Before checks start, it refuses
 any other node whose shard is not selected again, and such a reselected node must
@@ -41,7 +45,9 @@ commit since the workspace base touched its test file and the file at the gate's
 tip no longer names its test: such a vanished node is released and the shard's
 receipt details list it under `released_vanished_nodes`. A passing gate removes
 the receipt. A failed operation result lists `first_attempt_failures` with each
-node's shard and whether it passed only on retry, and `unreached_nodes`.
+node's shard and whether it passed only on retry, `unreached_nodes` and
+`failed_shards`, and its `cause` ends with a line naming every failed shard and
+check.
 Same argv does not make distinct shards interchangeable. Only explicit successful
 preparation can be reused within an operation.
 

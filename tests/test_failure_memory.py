@@ -429,3 +429,85 @@ def test_a_runner_stopped_at_its_time_bound_still_reports_unreached_nodes(tmp_pa
     assert _remembered(member, "impl/member")["unreached"] == [
         {"shard": "repo:nodes", "node_id": OTHER}
     ]
+
+
+STATIC = """import json, sys
+from pathlib import Path
+checks = json.loads(Path("checks.json").read_text())
+failed = [name for name, outcome in checks.items() if outcome == "failed"]
+report = sys.argv[sys.argv.index("--node-report") + 1]
+Path(report).write_text(json.dumps({"failed": [], "passed": [], "failed_checks": failed}))
+sys.exit(1 if failed else 0)
+"""
+
+
+def _replace_check(member: Path, command: list[str], *, nodes_require_check: bool = False) -> None:
+    manifest = member / "signetum.toml"
+    text = re.sub(
+        r'(name = "repo:check"\ncommand = ).*\n',
+        lambda match: match.group(1) + json.dumps(command) + "\n",
+        manifest.read_text(),
+    )
+    if nodes_require_check:
+        text = text.replace(
+            'name = "repo:nodes"\n', 'name = "repo:nodes"\nrequires = ["repo:check"]\n'
+        )
+    manifest.write_text(text)
+
+
+def test_every_failed_shard_and_check_is_recorded_beside_owed_nodes(tmp_path, monkeypatch, capsys):
+    member, _, _ = _workspaces(tmp_path, {NODE: "failed"})
+    (member / "static.py").write_text(STATIC)
+    (member / "checks.json").write_text(
+        json.dumps({"doc-links": "failed", "ruff-check": "failed", "typos": "passed"})
+    )
+    _replace_check(
+        member, [sys.executable, "static.py", "--node-report", "{signetum.node_report_file}"]
+    )
+    _commit(member, "check the corpus statically")
+    monkeypatch.chdir(member)
+    capsys.readouterr()
+    assert lifecycle.main(["ready"]) != 0
+    result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    expected = [
+        {"shard": "repo:check", "exit_code": 1, "checks": ["doc-links", "ruff-check"]},
+        {"shard": "repo:nodes", "exit_code": 1, "checks": []},
+    ]
+    assert result["failed_shards"] == expected
+    assert [item["node_id"] for item in result["first_attempt_failures"]] == [NODE]
+    summary = result["cause"].splitlines()[-1]
+    assert all(name in summary for name in ("repo:check", "repo:nodes", "doc-links", "ruff-check"))
+    remembered = _remembered(member, "impl/member")
+    assert remembered["failed_shards"] == expected
+    assert remembered["failed"] == [{"shard": "repo:nodes", "node_id": NODE}]
+
+    # Repairing only the checks leaves the node owed and the record naming its shard alone.
+    (member / "checks.json").write_text(json.dumps({"doc-links": "passed", "ruff-check": "passed"}))
+    _commit(member, "repair the static checks")
+    with pytest.raises(ValidationExecutionError) as failure:
+        lifecycle.validate(member, "member")
+    assert [item.shard for item in failure.value.failed_shards] == ["repo:nodes"]
+    remembered = _remembered(member, "impl/member")
+    assert [item["shard"] for item in remembered["failed_shards"]] == ["repo:nodes"]
+    assert remembered["failed"] == [{"shard": "repo:nodes", "node_id": NODE}]
+
+    (member / "nodes.json").write_text(json.dumps({NODE: "passed"}))
+    _commit(member, "repair the contract")
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+    assert not failure_path(member, "impl/member").exists()
+
+
+def test_a_shard_without_a_report_and_one_skipped_after_it_are_both_recorded(tmp_path):
+    member, _, _ = _workspaces(tmp_path, {NODE: "passed"})
+    _replace_check(member, [sys.executable, "-c", "raise SystemExit(3)"], nodes_require_check=True)
+    _commit(member, "declare a failing declaration check")
+    with pytest.raises(ValidationExecutionError) as failure:
+        lifecycle.validate(member, "member")
+    expected = [
+        {"shard": "repo:check", "exit_code": 3, "checks": []},
+        {"shard": "repo:nodes", "exit_code": None, "checks": [], "skipped_after": ["repo:check"]},
+    ]
+    assert [item.document() for item in failure.value.failed_shards] == expected
+    remembered = _remembered(member, "impl/member")
+    assert remembered["failed_shards"] == expected
+    assert remembered["failed"] == []

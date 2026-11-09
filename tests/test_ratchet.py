@@ -119,8 +119,12 @@ def test_member_accepts_only_inherited_findings_and_final_remains_strict(reposit
 def test_new_occurrence_or_changed_message_blocks_member(repository, extra, runtime):
     _, member, _ = configured(repository)
     commit_file(member, "diagnostics.json", document(OLD, extra))
-    with pytest.raises(execution_failure(runtime), match="new diagnostics"):
+    with pytest.raises(execution_failure(runtime), match="new diagnostics") as failure:
         runtime.validate(member, "member")
+    # The comparison decided, so there is no exit status; the new rule is the failed check.
+    assert [item.document() for item in failure.value.failed_shards] == [
+        {"shard": "test:check", "exit_code": None, "checks": ["old-rule"]}
+    ]
 
 
 def test_baseline_cache_reuses_only_completed_tool_bound_measurements(repository, runtime):

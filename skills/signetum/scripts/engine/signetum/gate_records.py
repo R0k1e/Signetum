@@ -1,11 +1,13 @@
 """Machine-local gate memory beside synchronization records.
 
 A failed gate leaves a failure receipt for its workspace, naming failed and
-runner-reported unreached nodes. Before the next gate in that workspace runs
-checks, each remembered node must be selected again, scheduled first, and then
-pass, or be named with its root cause by an observation in a change journal the
-workspace changed. A passing batch gate records the tip it verified, so the next
-admission selects only the commits added after it.
+runner-reported unreached nodes, and every shard that did not pass with its exit
+code and runner-reported failed checks; those shards are reported, not owed.
+Before the next gate in that workspace runs checks, each remembered node must be
+selected again, scheduled first, and then pass, or be named with its root cause
+by an observation in a change journal the workspace changed. A passing batch gate
+records the tip it verified, so the next admission selects only the commits added
+after it.
 """
 
 from __future__ import annotations
@@ -269,7 +271,8 @@ def remember_failure(
 ) -> None:
     """Persist what a failed gate observed, keeping owed nodes it did not prove.
 
-    Selected nodes a runner reported unreached are owed like failed ones.
+    Selected nodes a runner reported unreached are owed like failed ones. Every
+    shard that did not pass is listed under ``failed_shards`` for the reader.
     """
     failed = list(error.failed_nodes)
     for shard, nodes in sorted(owed.items()):
@@ -293,6 +296,7 @@ def remember_failure(
                 {"shard": shard, "node_id": node} for shard, node in error.recovered_nodes
             ],
             "unreached": [{"shard": shard, "node_id": node} for shard, node in unreached],
+            "failed_shards": [failure.document() for failure in error.failed_shards],
         },
     )
 
@@ -316,7 +320,10 @@ def settle_failures(
         path.unlink(missing_ok=True)
         return
     document = json.loads(path.read_text(encoding="utf-8"))
-    _write(path, {**document, "failed": remaining, "recovered": [], "unreached": []})
+    _write(
+        path,
+        {**document, "failed": remaining, "recovered": [], "unreached": [], "failed_shards": []},
+    )
 
 
 def _pending_path(repository: Path, branch: str) -> Path:
