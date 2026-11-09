@@ -13,6 +13,14 @@ approval before implementation and preserve commits already bound to evidence.
 If ready refuses as plan stage, add an implementation commit after the named
 approval commit, as its expected action and `status` say; changes inside that
 commit do not count. Never amend, rebase or reorder history to fix it.
+`workspace-open` and `batch-open` install a `reference-transaction` hook that
+applies the same rule to each new commit: one changing anything outside change
+records and decisions before the committed approval of the workspace's own change
+record is refused, so commit the approval on its own first. Records-only commits
+and merges pass. It needs Git 2.28; final and ready still check.
+When a declared tool such as `wt` is missing from the default Mise environment,
+Signetum runs it under the one environment the project declares for it
+(`mise.<env>.toml`); otherwise the refusal names the `MISE_ENV` to set.
 
 Only `workspace-open` creates a registered worktree. Read history with read-only
 commands (`git log/show/diff/blame`, `git show <commit>:<path>`). When a full older

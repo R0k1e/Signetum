@@ -19,6 +19,7 @@ from shutil import which
 from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
 from signetum.change.scope import delivered_plans, records_only, records_only_ancestors
+from signetum.change_open import open_batch_draft
 from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
 from signetum.delivery import publish_batch
 from signetum.development_store import DevelopmentReviewError
@@ -880,8 +881,15 @@ def batch_open(
         members=member_names,
     )
     batch = Path(str(opened["worktree"]))
+    draft = open_batch_draft(batch, task, approved_base)
     result = admit(batch, members)
-    return {**result, "status": "opened", "worktree": str(batch)}
+    return {
+        **result,
+        "status": "opened",
+        "worktree": str(batch),
+        "change_record": draft,
+        "commit_check": opened["commit_check"],
+    }
 
 
 def _require_worktree_directory(path: Path, role: str) -> None:

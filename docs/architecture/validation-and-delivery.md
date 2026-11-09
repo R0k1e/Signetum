@@ -238,7 +238,27 @@ may write journals of the changes it integrates this way, without claiming them,
 a finding is recorded, resolved or deferred where its evidence is; such a commit
 needs no ready, admission or batch gate. Any other direct commit refuses. Member-owned defects are fixed
 in the member and admitted again; conflict resolution stays with `batch-continue`.
-After a failed final on the current tip, status names both repairs.
+After a failed final on the current tip, status names both repairs. `batch-open`
+writes that record as an unapproved draft, `changes/batch-<task>/change.toml` on
+the batch base, claims it for the batch and adds it to the shared `info/exclude`,
+so the batch stays clean and an unused draft never reaches final or delivery;
+committing it takes `git add -f`.
+
+`workspace-open` and `batch-open` install a `reference-transaction` hook in the
+effective hooks directory (`git rev-parse --git-path hooks`, honouring
+`core.hooksPath`); they report it as skipped, never replacing anything, when a
+foreign hook of that name exists or the directory lies inside a worktree. Git
+runs it before a ref moves, also for `commit --no-verify`. For a new
+single-parent commit on the tip of a registered workspace branch, the hook runs
+`signetum.commit_check` with the engine interpreter that installed it, which
+applies to that one commit the attribution rule above, through the same function,
+in a batch, and the approval order `ready` applies in a member: a commit that
+changes a path outside change records and decisions needs, in its parent, a
+committed approval of the workspace's own change records binding the contract the
+commit holds. It refuses otherwise and names the remedy, commit the approval
+first. Records-only commits, merges, branch creation and deletion and other refs
+pass. A missing engine warns and passes; Git older than 2.28 runs no such hook;
+final and `ready` remain the backstop in both cases.
 
 Review binds approvals, source journals, admitted receipts, batch commit
 attribution, recovered defects and remaining work. Recheck those inputs after validation and before publication;
@@ -261,7 +281,9 @@ avoids percent signs that break ELF linkers. Refuse symlink escapes and occupied
 paths before preparation; registrations identify branches, not machine paths.
 
 Existing maintenance owns preparation, authorized synchronization, cleanup and
-abandonment. A prepare shard may rebuild ignored or derived state; preparation
+abandonment. An operation naming a workspace path, `workspace-abandon` and
+`cleanup --worktree`, acts on that workspace's repository through its primary
+checkout, whatever the caller's directory. A prepare shard may rebuild ignored or derived state; preparation
 continues when it exits zero with the tracked source and index unchanged. A
 failing prepare shard is refused with its name, full declared command and the
 adapter's own `expected` when its last JSON output line carries one. Every workspace ends delivered, contained or abandoned. One removal
@@ -277,7 +299,8 @@ a changed index and needs an explicit selector. `workspace-abandon` removes only
 uncontained work, including a checkout created outside Signetum, and
 `branch-abandon` a local branch without a checkout, each with the owner's actor,
 confirmation source and reason bound to the exact confirmed tip; branch deletion
-compares that tip atomically. `leftovers` lists, read-only, unregistered checkouts
+compares that tip atomically. An Agent may run either itself, citing in `--source`
+where the owner confirmed that tip, such as the conversation; it never infers one. `leftovers` lists, read-only, unregistered checkouts
 and uncontained branches without a checkout with their removal commands. Each removal retires the registration and writes a
 retirement record with tip, outcome and proof under `signetum/retired`. An
 `active_runtime` checkout can be removed from another checkout after the

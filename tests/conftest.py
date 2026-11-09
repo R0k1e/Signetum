@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from signetum import workspace_operations
 from signetum import worktrunk as wt
 from signetum.git import git_output
 from signetum.operations import InfrastructureError
@@ -120,6 +121,12 @@ def local_repository(tmp_path, monkeypatch):
 
     monkeypatch.setattr(wt, "worktrunk", native_worktrunk)
     monkeypatch.setattr(wt, "run_tool", native_preparation)
+    # Scenarios about other contracts commit freely; approval-order tests opt back in.
+    monkeypatch.setattr(
+        workspace_operations,
+        "install_commit_check",
+        lambda worktree: {"status": "skipped", "cause": "fixture scenario"},
+    )
     return root, state
 
 

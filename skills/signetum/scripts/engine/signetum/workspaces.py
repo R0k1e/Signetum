@@ -320,6 +320,11 @@ def workspace_destination(repository: Path, branch: str) -> Path:
 
 def exclude_workspaces(repository: Path) -> None:
     """Bootstrap ignored managed state even before the primary receives new source."""
+    exclude_pattern(repository, "/.worktrees/")
+
+
+def exclude_pattern(repository: Path, pattern: str) -> None:
+    """Add one pattern to the repository's shared info/exclude once."""
     common = state_root(repository).parent
     exclude = common / "info" / "exclude"
     exclude.parent.mkdir(parents=True, exist_ok=True)
@@ -327,10 +332,8 @@ def exclude_workspaces(repository: Path) -> None:
         fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
         stream.seek(0)
         content = stream.read()
-        if "/.worktrees/" not in content.splitlines():
-            stream.write(
-                ("\n" if content and not content.endswith("\n") else "") + "/.worktrees/\n"
-            )
+        if pattern not in content.splitlines():
+            stream.write(("\n" if content and not content.endswith("\n") else "") + pattern + "\n")
 
 
 RETIRED_DIRECTORY = "retired"
