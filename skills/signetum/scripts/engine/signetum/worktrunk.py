@@ -93,9 +93,10 @@ def declared_mise_environments(repository: Path) -> dict[str, tuple[str, ...]]:
 
 def _provides(repository: Path, tool: str, environment: Mapping[str, str]) -> bool:
     """Whether ``tool`` is executable on the PATH Mise gives commands, system tools included."""
+    # dash exits 127 from `command -v` for an absent tool, which reads as an unavailable command.
     completed = run_command(
         repository,
-        declared_argv(("sh", "-c", 'command -v "$1" >/dev/null', "sh", tool)),
+        declared_argv(("sh", "-c", 'command -v "$1" >/dev/null || exit 1', "sh", tool)),
         timeout_seconds=60,
         environment=environment,
     )
