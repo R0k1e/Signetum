@@ -488,7 +488,7 @@ def test_every_failed_shard_and_check_is_recorded_beside_owed_nodes(tmp_path, mo
         lifecycle.validate(member, "member")
     assert [item.shard for item in failure.value.failed_shards] == ["repo:nodes"]
     remembered = _remembered(member, "impl/member")
-    assert [item["shard"] for item in remembered["failed_shards"]] == ["repo:nodes"]
+    assert remembered["failed_shards"] == [{"shard": "repo:nodes", "exit_code": 1, "checks": []}]
     assert remembered["failed"] == [{"shard": "repo:nodes", "node_id": NODE}]
 
     (member / "nodes.json").write_text(json.dumps({NODE: "passed"}))
