@@ -20,9 +20,10 @@ Updates are explicit; no second Skill copy exists in the repository.
 | `validation/*`, `preparation`, `worktrunk`, `git` | One supervised execution/verdict owner, preparation, tool identities and Git effects. |
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
 | `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
-| `adoption`, `runtime_identity`, Skill `scripts/launch.py` | Exact reviewed bindings, code identity and isolated locked execution. |
+| `adoption`, `runtime_identity`, `engine_pin`, Skill `scripts/launch.py` | Exact reviewed bindings, code identity, batch engine pins and isolated locked execution. |
 | Skill `scripts/command_guard.py`, `scripts/command-guard` | The stdlib-only PreToolUse guard. |
 | Skill `scripts/distribution.py`, `hosts` | Install and update: release verification, staged folder replacement, host hook entries and status guidance. |
+| `commit_check` | Stable commit-check shim, effective hook-chain probing and the immutable verdict entry. |
 | `resources/schemas`, `skill_identity`, `runtime_identity` | Installed schemas, complete Skill identity and runtime identity. |
 | Root `tools/release`, `tools/site`, `tools/product_surface`, `tools/cli` | Repository-only packaging, Pages and public asset checks; excluded from the Skill. |
 
@@ -41,7 +42,9 @@ engine runs through Mise, such as Worktrunk's `wt`, run under the caller's
 `MISE_ENV`; when a tool is missing there and exactly one Mise environment the
 project declares (`mise.<env>.toml` and Mise's other environment file forms)
 provides it, the engine sets that `MISE_ENV`, and otherwise its refusal names
-the tool and the declared environments. Normal commands verify
+the tool and the declared environments. Batch operations use the engine recorded at batch-open. Self-hosting pins the
+batch worktree location; installed Skills pin version and implementation.
+Foreign checkout engines cannot open consumer batches. Normal commands verify
 the installed environment and supported project contracts; they never install or
 repair tooling. The application environment is not the engine environment. The launcher forwards arguments unchanged; `commands` owns the sole public
 registry used by CLI/help and installed acceptance. Seven lifecycle operations

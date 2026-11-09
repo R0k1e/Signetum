@@ -26,6 +26,56 @@ class WorkspaceError(ValueError):
 
 
 @dataclass(frozen=True)
+class BatchAuthorization:
+    """Owner authorization captured once when the batch opens."""
+
+    actor: str
+    source: str
+    recorded_at: str
+    members: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in (self.actor, self.source, self.recorded_at)
+        ):
+            raise WorkspaceError("batch authorization requires actor, source and timestamp")
+        try:
+            moment = datetime.fromisoformat(self.recorded_at)
+        except ValueError as error:
+            raise WorkspaceError("batch authorization timestamp is invalid") from error
+        if moment.tzinfo is None:
+            raise WorkspaceError("batch authorization timestamp requires a timezone")
+        if (
+            not isinstance(self.members, tuple)
+            or not self.members
+            or any(not isinstance(member, str) or not member for member in self.members)
+            or len(set(self.members)) != len(self.members)
+        ):
+            raise WorkspaceError("batch authorization members are invalid")
+
+
+@dataclass(frozen=True)
+class BatchEngine:
+    """Immutable batch-opening identity; repository engines pin the location."""
+
+    version: str
+    implementation: str
+    source: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise WorkspaceError("batch engine version is invalid")
+        if (
+            not isinstance(self.implementation, str)
+            or fullmatch(r"sha256:[0-9a-f]{64}", self.implementation) is None
+        ):
+            raise WorkspaceError("batch engine implementation is invalid")
+        if self.source not in ("skill", "repository"):
+            raise WorkspaceError("batch engine source is invalid")
+
+
+@dataclass(frozen=True)
 class WorkspaceRecord:
     """What a workspace is, written once when the workspace is created."""
 
@@ -37,8 +87,11 @@ class WorkspaceRecord:
     # A stacked member names the member branch whose tip is its base.
     parent: str | None = None
 
+    authorization: BatchAuthorization | None = None
+    engine: BatchEngine | None = None
+
     def __post_init__(self) -> None:
-        if type(self.schema_version) is not int or self.schema_version != 1:
+        if type(self.schema_version) is not int or self.schema_version not in (1, 2):
             raise WorkspaceError(f"unsupported workspace record schema: {self.schema_version}")
         if not isinstance(self.branch, str) or not self.branch:
             raise WorkspaceError("workspace record branch is invalid")
@@ -55,6 +108,19 @@ class WorkspaceRecord:
             raise WorkspaceError("declared members must be non-empty strings")
         if len(self.members) != len(set(self.members)):
             raise WorkspaceError("declared members must be unique")
+        if self.authorization is not None and (
+            not isinstance(self.authorization, BatchAuthorization)
+            or self.kind != "batch"
+            or self.schema_version != 2
+            or self.authorization.members != self.members
+        ):
+            raise WorkspaceError("only schema-2 batches carry matching authorization")
+        if self.engine is not None and (
+            not isinstance(self.engine, BatchEngine)
+            or self.kind != "batch"
+            or self.schema_version != 2
+        ):
+            raise WorkspaceError("only schema-2 batches carry an engine pin")
         if self.parent is not None and (
             not isinstance(self.parent, str)
             or not self.parent
@@ -70,6 +136,10 @@ def record_document(record: WorkspaceRecord) -> dict[str, object]:
     document = asdict(record)
     if record.parent is None:
         del document["parent"]
+    if record.authorization is None:
+        del document["authorization"]
+    if record.engine is None:
+        del document["engine"]
     return document
 
 
@@ -79,12 +149,34 @@ def parse_record(document: object) -> WorkspaceRecord:
     if (
         not isinstance(document, dict)
         or not required.issubset(document)
-        or set(document) - (required | {"members", "parent"})
+        or set(document) - (required | {"members", "parent", "authorization", "engine"})
     ):
         raise WorkspaceError("workspace record fields are invalid")
     members = document.get("members", ())
     if isinstance(members, list):
         members = tuple(members)
+    authorization = document.get("authorization")
+    if authorization is not None:
+        if not isinstance(authorization, dict) or set(authorization) != {
+            "actor",
+            "source",
+            "recorded_at",
+            "members",
+        }:
+            raise WorkspaceError("batch authorization fields are invalid")
+        authorization = BatchAuthorization(
+            actor=authorization["actor"],
+            source=authorization["source"],
+            recorded_at=authorization["recorded_at"],
+            members=tuple(authorization["members"])
+            if isinstance(authorization["members"], list)
+            else authorization["members"],
+        )
+    engine = document.get("engine")
+    if engine is not None:
+        if not isinstance(engine, dict) or set(engine) != {"version", "implementation", "source"}:
+            raise WorkspaceError("batch engine fields are invalid")
+        engine = BatchEngine(**engine)
     return WorkspaceRecord(
         schema_version=cast(int, document["schema_version"]),
         branch=cast(str, document["branch"]),
@@ -92,6 +184,8 @@ def parse_record(document: object) -> WorkspaceRecord:
         kind=cast(Literal["member", "batch"], document["kind"]),
         members=cast(tuple[str, ...], members),
         parent=cast(str | None, document.get("parent")),
+        authorization=authorization,
+        engine=engine,
     )
 
 
@@ -214,7 +308,13 @@ def advance_batch_base(root: Path, branch: str, previous: str, base: str) -> Non
                 f"batch {branch} is recorded at base {existing.base}, not {previous}"
             )
         advanced = WorkspaceRecord(
-            schema_version=1, branch=branch, base=base, kind="batch", members=existing.members
+            schema_version=existing.schema_version,
+            branch=branch,
+            base=base,
+            kind="batch",
+            members=existing.members,
+            authorization=existing.authorization,
+            engine=existing.engine,
         )
         descriptor, temporary = tempfile.mkstemp(prefix="record-", dir=path.parent)
         try:

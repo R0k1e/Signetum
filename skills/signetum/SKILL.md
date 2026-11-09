@@ -45,10 +45,15 @@ Preserve existing authorization; installation and passing checks confer none.
 Use `status` for blockers and the next action. Develop in registered isolated
 worktrees. The seven delivery operations are `workspace-open`, `ready`,
 `batch-open`, `batch-admit`, `batch-continue`, `final`, `batch-deliver`.
+`batch-open` requires `--actor` and `--source` citing the owner authorization;
+combination fixes use that recorded authority and appear in final review without
+a separate change draft. Schema-1 batches keep parent-approved batch-owned records.
 `ready` is the development loop: commit, run `ready`, fix, commit and rerun it
 until it passes. A hook those operations install refuses an implementation commit
 before the committed approval of the workspace's own change record; commit the
-approval first, never bypass the hook. Never hand back a member or call it done without a passing
+approval first, never bypass the hook. It also refuses added or modified Proposed
+decisions and rewritten delivered commitments, including in records-only commits,
+through the predicates final uses. Never hand back a member or call it done without a passing
 `ready` on its current tip. `ready --explain` shows its selection without checks.
 Follow [work and validation](references/worktree-validation.md) during development
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
@@ -98,3 +103,24 @@ only for requested selection, scheduling or CI partition work.
 Report the furthest evidenced state: ready, integrated or delivered. Show the
 generated final review before explicitly authorized delivery. Human acceptance
 requires its own evidence. The maintained source is [Signetum](https://github.com/R0k1e/Signetum).
+
+Operate consumer repositories through the installed Skill launcher, for example
+`sh ~/.claude/skills/signetum/scripts/signetum <operation>`. Project wrappers
+set `SIGNETUM_SKILL` and call that launcher's `scripts/signetum`; they never
+call an engine in another development checkout. Update the Skill only when no
+batch is open. A batch pins the opening engine; finish it with that engine or
+open a new batch for the same ready members. Repository self-hosting runs batch
+operations from the batch worktree with its own engine.
+
+A project that owns `core.hooksPath` should chain the machine-local Signetum
+shim from its `reference-transaction` hook:
+
+```sh
+input=$(cat)
+shim="$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction"
+if [ -x "$shim" ]; then printf '%s\n' "$input" | "$shim" "$@" || exit $?; fi
+```
+
+Preparation verifies the effective chain with a real Git probe. Check status for
+`commit_check.status`: an inactive check warns with its cause and chaining
+snippet; ready and final still judge immutable commit attribution.

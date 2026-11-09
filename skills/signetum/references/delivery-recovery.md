@@ -43,19 +43,30 @@ A failed result lists `first_attempt_failures`, including those that passed only
 retry, and `failed_shards`: every shard that did not pass, with its exit code and
 reported failed checks; the workspace's failure record lists the same.
 
+A node owed only because it was unreached owes execution: a later runner-reported
+non-failing terminal outcome, including a declared skip, discharges it. Runners
+may report optional `"non_failing": {"node-id": "skipped"}` (or another non-failing
+terminal outcome); `passed` also proves reaching. Collection alone, deselection
+and an absent outcome do not. Failure and retry-recovered debt still requires
+passing or the existing `change record --evidence` release; a skip cannot erase
+an observed failure. Failure takes precedence when debt sources overlap, including
+across failed gates and deferred shards. Receipt shard details (or the failure
+receipt when another obligation fails) list
+`discharged_by_reaching` entries with `node_id` and `outcome`. Existing retirement
+rules remain applicable.
+
 On failure, inspect the structured result, retained diagnostics and exact local
 and remote identities before acting. Fix every failed shard and check it lists in
 one round before validating again. Preserve work after conflict or publication
 uncertainty. Resolve an open batch merge through `batch-continue`. After a failed
 final, fix a defect owned by one member in that member, run ready and admit its
 new tip. Fix a defect that appears only in the combination directly in the batch
-under the batch's own change record: `batch-open` wrote it as an unapproved
-draft at `changes/batch-<task>/change.toml`, excluded from Git status. Fill it,
-record the owner's approval, commit it on its own with `git add -f`, then implement
-and journal the fix. The commit hook refuses the fix before that approval commit
-and final refuses other direct implementation commits; its review attributes each
-batch commit to its change. Then run ordinary final again. An unused draft is
-never delivered.
+under the authorization recorded by `batch-open --actor <owner> --source <approval>`.
+Final lists each combination repair with its commit, subject, diffstat and
+authorization. No draft change record or journal entry is required. A schema-1
+batch keeps its legacy rule: commit its batch-owned approval before the fix.
+The hook and final judge each commit against its own parent, so a later
+re-approval never invalidates an earlier authorized fix. Then run final again.
 There is no special recovery verdict that turns a failed validation green.
 
 Publish only through explicit
@@ -99,7 +110,7 @@ reachable from the delivery branch and refuse deletion if the tip has changed.
 Preserve unmerged work. Local workspace cleanup does not prune remote branches.
 
 Batch names default to the member task names. For a combined outcome use
-`batch-open --name <task-slug> --member <path> ...`. Reusing a name does not
+`batch-open --actor <owner> --source <approval> --name <task-slug> --member <path> ...`. Reusing a name does not
 authorize a different base or workspace role. Publication uses a readable
 `Merge <task> into <target>` subject with exact source/base trailers. Ordinary
 Git merges keep project hooks enabled; synthetic `commit-tree` publication does

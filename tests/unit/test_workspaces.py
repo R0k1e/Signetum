@@ -80,7 +80,7 @@ def test_a_missing_record_names_the_path_and_the_adoption_shape(tmp_path: Path) 
     [
         pytest.param("{not json", "unreadable", id="unparsable"),
         pytest.param(
-            json.dumps({"schema_version": 2, "branch": "b", "base": BASE, "kind": "member"}),
+            json.dumps({"schema_version": 3, "branch": "b", "base": BASE, "kind": "member"}),
             "unsupported workspace record schema",
             id="wrong-version",
         ),

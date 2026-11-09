@@ -269,12 +269,13 @@ def test_copies_of_one_engine_share_one_environment_and_stay_unchanged(installed
 
 @pytest.mark.parametrize("existing", [False, True])
 def test_installed_skill_adopts_and_delivers_without_entering_application(
-    installed_skill, tmp_path, existing
+    installed_skill, tmp_path, existing, monkeypatch
 ):
     skill, environment, prepared = installed_skill
     project = tmp_path / "application"
     project.mkdir()
     environment = dict(environment, MISE_TRUSTED_CONFIG_PATHS=str(tmp_path))
+    monkeypatch.setenv("XDG_DATA_HOME", environment["XDG_DATA_HOME"])
     launcher = skill / "scripts/signetum"
 
     def run(*args, cwd=project, ok=True):
@@ -413,7 +414,11 @@ contract_digest="{digest}"
         '  *) echo "project commit policy refused" >&2; exit 1;;\nesac\n'
     )
     hook.chmod(0o755)
-    batch = Path(run("batch-open", "--member", member)["batch"])
+    batch = Path(
+        run("batch-open", "--actor", "Owner", "--source", "Fixture approval", "--member", member)[
+            "batch"
+        ]
+    )
     assert git_output(batch, "rev-list", "--count", "--first-parent", f"{base}..HEAD") == "1"
     result = run("final", cwd=batch)
     assert result["status"] == "passed"
@@ -842,3 +847,66 @@ def test_update_replaces_the_skill_in_place_from_the_newest_release(
     assert (code, result["status"]) == (2, "failed")
     assert "Git work tree" in result["cause"]
     assert content_digest(tracked) == before
+
+
+def test_installed_hook_survives_replacement_of_its_original_runtime(
+    installed_skill, tmp_path, monkeypatch
+):
+    skill, environment, prepared = installed_skill
+    environment = dict(environment, MISE_TRUSTED_CONFIG_PATHS=str(tmp_path))
+    monkeypatch.setenv("XDG_DATA_HOME", environment["XDG_DATA_HOME"])
+    project = tmp_path / "hook-consumer"
+    project.mkdir()
+    git_output(project, "init", "-b", "main")
+    git_output(project, "config", "user.name", "Acceptance owner")
+    git_output(project, "config", "user.email", "fixture@example.invalid")
+    (project / "signetum.toml").write_text(_manifest())
+    (project / "mise.toml").write_text('[tools]\nworktrunk="0.74.0"\n')
+    git_output(project, "add", ".")
+    git_output(project, "commit", "-m", "initialize hook consumer")
+    opened = _launch(
+        skill,
+        "workspace-open",
+        "plan/runtime-update",
+        git_output(project, "rev-parse", "HEAD"),
+        cwd=project,
+        environment=environment,
+    )
+    assert opened.returncode == 0, opened.stdout + opened.stderr
+    document = json.loads(opened.stdout.splitlines()[-1])
+    assert document["commit_check"]["status"] == "active"
+    member = Path(document["worktree"])
+
+    # An update replaces the Skill folder and prepares a new content-addressed
+    # runtime. Exercise that boundary without involving release-network fixtures.
+    package = skill / "scripts/engine/signetum/__init__.py"
+    package.write_text(package.read_text() + "\n# Updated acceptance engine.\n")
+    metadata = skill / "scripts/engine/pyproject.toml"
+    metadata.write_text(metadata.read_text() + "\n# Rebuild the changed fixture package.\n")
+    updated = _launch(skill, "setup", cwd=project, environment=environment)
+    assert updated.returncode == 0, updated.stdout + updated.stderr
+    assert json.loads(updated.stdout.splitlines()[-1])["environment"] != prepared["environment"]
+    original = Path(prepared["environment"]) / "environment"
+    retired = original.with_name("retired-environment")
+    original.rename(retired)
+    try:
+        (member / "implementation.txt").write_text("approval is still required\n")
+        git_output(member, "add", "implementation.txt")
+        refused = subprocess.run(  # noqa: S603 -- real Git in a disposable member
+            [
+                str(shutil.which("git")),
+                "-C",
+                str(member),
+                "commit",
+                "-m",
+                "unapproved implementation",
+            ],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert refused.returncode != 0
+        assert "approval" in refused.stderr
+    finally:
+        retired.rename(original)

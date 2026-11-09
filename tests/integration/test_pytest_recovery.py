@@ -35,6 +35,8 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
         "    if first: assert False, 'first failure retained'\n"
         + ("    pytest.skip('cannot prove recovery')\n" if retry == "skip" else "")
         + ("    assert False, 'persistent failure'\n" if retry == "fail" else "")
+        + "@pytest.mark.skip(reason='declared platform exclusion')\n"
+        + "def test_platform(): pass\n"
         + "def test_unrelated():\n"
         "    marker = Path(__file__).with_suffix('.unrelated')\n"
         "    assert not marker.exists(), 'unrelated test ran twice'\n"
@@ -71,6 +73,12 @@ def test_retry_requires_passed_call_and_retains_first_failure(tmp_path, retry, r
     outcomes = json.loads(nodes.read_text())
     assert [node.rsplit("::", 1)[-1] for node in outcomes["failed"]] == ["test_flaky[user@example]"]
     assert [node.rsplit("::", 1)[-1] for node in outcomes["passed"]] == ["test_unrelated"]
+    assert {
+        node.rsplit("::", 1)[-1]: outcome for node, outcome in outcomes["non_failing"].items()
+    } == {
+        "test_unrelated": "passed",
+        "test_platform": "skipped",
+    }
 
 
 @pytest.mark.parametrize("workers", [0, 2])
@@ -263,3 +271,77 @@ def test_weighted_order_runs_every_test_and_reports_success_cost(tmp_path):
     )
     assert conflict.returncode != 0
     assert observed.read_text().splitlines() == ["heavy", "light"]
+
+
+@pytest.mark.parametrize("workers", [0, 2])
+def test_runner_reports_only_retired_nodes_in_collected_or_deleted_files(tmp_path, workers):
+    (tmp_path / "test_cases.py").write_text(
+        "import pytest\n@pytest.mark.parametrize('value', ['kept', 'deselected'])\n"
+        "def test_case(value): pass\n"
+    )
+    (tmp_path / "test_excluded.py").write_text("def test_present(): pass\n")
+    owed = [
+        "test_cases.py::test_case[removed]",
+        "test_cases.py::test_case[deselected]",
+        "test_excluded.py::test_absent",
+        "test_deleted.py::test_deleted",
+    ]
+    priority, report = tmp_path / "priority.json", tmp_path / "report.json"
+    priority.write_text(json.dumps({"schema_version": 1, "nodes": owed}))
+    result = subprocess.run(  # noqa: S603 -- real packaged runner on private fixtures
+        [
+            sys.executable,
+            "-m",
+            "signetum.validation.pytest_runner",
+            "--priority-nodes",
+            str(priority),
+            "--node-report",
+            str(report),
+            "--workers",
+            str(workers),
+            "--",
+            "-q",
+            "-o",
+            "addopts=",
+            "--rootdir",
+            str(tmp_path),
+            "-k",
+            "kept",
+            "test_cases.py",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    outcomes = json.loads(report.read_text())
+    assert outcomes["not_collected"] == [owed[0], owed[3]]
+    assert outcomes["passed"] == ["test_cases.py::test_case[kept]"]
+    # Selecting one explicit node cannot retire other nodes in its file.
+    targeted = subprocess.run(  # noqa: S603 -- same runner with a narrower public selection
+        [
+            sys.executable,
+            "-m",
+            "signetum.validation.pytest_runner",
+            "--priority-nodes",
+            str(priority),
+            "--node-report",
+            str(report),
+            "--workers",
+            str(workers),
+            "--",
+            "-q",
+            "-o",
+            "addopts=",
+            "--rootdir",
+            str(tmp_path),
+            "test_cases.py::test_case[kept]",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert targeted.returncode == 0, targeted.stdout + targeted.stderr
+    assert json.loads(report.read_text())["not_collected"] == [owed[3]]

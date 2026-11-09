@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from signetum import workspace_operations
+from signetum import runtime_identity, workspace_operations
 from signetum import worktrunk as wt
 from signetum.git import git_output
 from signetum.operations import InfrastructureError
@@ -127,6 +127,9 @@ def local_repository(tmp_path, monkeypatch):
         "install_commit_check",
         lambda worktree: {"status": "skipped", "cause": "fixture scenario"},
     )
+    # These scenarios exercise consumer behavior with a stable installed engine.
+    # Engine-source boundary tests explicitly select the real classifier.
+    monkeypatch.setattr(runtime_identity, "engine_source", lambda repository: "skill")
     return root, state
 
 

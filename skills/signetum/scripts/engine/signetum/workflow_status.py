@@ -14,7 +14,9 @@ from signetum.change.scope import (
     records_only_ancestors,
 )
 from signetum.change_record import parse_change_record
+from signetum.commit_check import commit_check_status
 from signetum.development_log import DevelopmentSnapshot
+from signetum.engine_pin import engine_status
 from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, ReceiptError
 from signetum.gate_records import failed_tip, pending_admissions
 from signetum.git import git_output, repository_path
@@ -171,8 +173,9 @@ def workflow_status(
         elif failed_tip(repository, branch, "final") == source:
             next_action = (
                 "Final failed. Fix a defect owned by one member in that member, run ready and "
-                "admit its new tip; fix a defect that appears only in the combination here under "
-                "a batch-owned change record (approval, implementation, journal); then rerun final."
+                "admit its new tip; fix a defect that appears only in the combination here in the "
+                "batch; final lists it under combination repairs. For a legacy batch, "
+                "commit its batch-owned approval before the fix. Then rerun final."
             )
         else:
             next_action = "Run final on this frozen batch."
@@ -199,10 +202,19 @@ def workflow_status(
         elif receipts:
             order = " -> ".join(admission_order(repository, workspace.branch))
             next_action += f" Admit the chain in order {order}."
+    check = commit_check_status(repository) if workspace is not None else None
+    engine = (
+        engine_status(repository) if workspace is not None and workspace.kind == "batch" else None
+    )
+    if engine is not None and engine["status"] == "mismatch":
+        next_action = str(engine["expected"])
     workspaces = workspace_endings(repository)
     if git_output(repository, "rev-parse", "HEAD") != source:
         raise ValueError("source changed while reading status")
     return {
+        **({"commit_check": check} if check is not None else {}),
+        **({"warnings": [check]} if check is not None and check["status"] == "inactive" else {}),
+        **({"engine": engine} if engine is not None else {}),
         "source": source,
         "branch": branch,
         "dirty": dirty,

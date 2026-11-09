@@ -17,7 +17,7 @@ from signetum.change_record import contract_digest, parse_change_record
 from signetum.gate_records import failure_path
 from signetum.git import git_output
 from signetum.validation.execution import ValidationExecutionError
-from signetum.workspaces import WorkspaceRecord, write_record
+from signetum.workspaces import BatchAuthorization, WorkspaceRecord, write_record
 
 NODE = "tests/test_contract.py::test_contract"
 
@@ -52,7 +52,8 @@ failed = [n for n in ran if nodes[n] == "failed"]
 # Written before a possible stop, so a time-bound kill still reports what did not run.
 option("--node-report").write_text(json.dumps({
     "failed": failed,
-    "passed": [n for n in ran if n not in failed],
+    "passed": [n for n in ran if nodes[n] == "passed"],
+    "non_failing": {n: nodes[n] for n in ran if nodes[n] not in ("failed", "recovered")},
     "unreached": [n for n in ordered if nodes[n] in ("unreached", "hang")],
 }))
 if "hang" in nodes.values():
@@ -159,7 +160,21 @@ def _workspaces(
         git_output(root, "worktree", "add", "-b", branch, str(path), base)
         write_record(
             lifecycle._state_root(path),
-            WorkspaceRecord(schema_version=1, branch=branch, base=base, kind=kind),
+            WorkspaceRecord(
+                schema_version=2 if kind == "batch" else 1,
+                branch=branch,
+                base=base,
+                kind=kind,
+                members=("impl/member",) if kind == "batch" else (),
+                authorization=BatchAuthorization(
+                    "Owner",
+                    "Owner authorized failure-memory fixture repairs",
+                    "2026-11-09T00:00:00+00:00",
+                    ("impl/member",),
+                )
+                if kind == "batch"
+                else None,
+            ),
         )
     consolidated_approval(member, base)
     _commit(member, "approve change example")
@@ -292,7 +307,15 @@ def test_a_failing_test_the_member_renames_is_released_and_recorded(tmp_path):
     assert ready["status"] == "ready"
     evidence: Any = ready["evidence"]
     details = evidence["extensions"]["shard_details"]["repo:nodes"]
-    assert details["released_vanished_nodes"] == [NODE]
+    assert details["released_vanished_nodes"] == [
+        {
+            "node_id": NODE,
+            "retiring_commit": git_output(
+                member, "log", "-1", "--format=%H", "--", "tests/test_contract.py"
+            ),
+            "basis": "name_absent",
+        }
+    ]
     assert not failure_path(member, "impl/member").exists()
 
 
@@ -511,3 +534,172 @@ def test_a_shard_without_a_report_and_one_skipped_after_it_are_both_recorded(tmp
     remembered = _remembered(member, "impl/member")
     assert remembered["failed_shards"] == expected
     assert remembered["failed"] == []
+
+
+@pytest.mark.parametrize("mode", ["retired", "unchanged", "excluded", "failed", "legacy"])
+def test_collection_retirement_requires_a_passing_run_and_a_changed_file(tmp_path, mode):
+    node = NODE + "[removed]"
+    member, _, _ = _workspaces(tmp_path, {node: "failed"})
+    test = member / "tests/test_contract.py"
+    test.parent.mkdir()
+    test.write_text("def test_contract(): pass\n# removed parameter\n")
+    _commit(member, "add parametrized contract")
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    if mode != "unchanged":
+        test.write_text("def test_contract(): pass\n")
+    (member / "nodes.json").write_text("{}")
+    if mode != "legacy":
+        runner = member / "nodes.py"
+        runner.write_text(
+            runner.read_text().replace(
+                '{"failed": first_failed, "passed": passed}',
+                '{"failed": first_failed, "passed": passed, "not_collected": '
+                + ("[]" if mode == "excluded" else repr([node]))
+                + "}",
+            )
+        )
+    if mode == "failed":
+        (member / "nodes.json").write_text(json.dumps({"other::test_failure": "failed"}))
+    _commit(member, "retire parameter and report collection")
+    retiring = git_output(member, "rev-parse", "HEAD")
+    if mode != "retired":
+        with pytest.raises(ValidationExecutionError):
+            lifecycle.validate(member, "member")
+        remembered: Any = _remembered(member, "impl/member")
+        assert {"shard": "repo:nodes", "node_id": node} in remembered["failed"]
+        return
+    ready = lifecycle.validate(member, "member")
+    evidence: Any = ready["evidence"]
+    assert evidence["extensions"]["shard_details"]["repo:nodes"]["released_vanished_nodes"] == [
+        {"node_id": node, "retiring_commit": retiring, "basis": "not_collected"}
+    ]
+    assert not failure_path(member, "impl/member").exists()
+    # The collecting run settled the obligation: a later gate need not report retirement again.
+    (member / "nodes.py").write_text(NODES)
+    _commit(member, "use legacy runner again")
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+
+
+def test_packaged_runner_releases_a_removed_parameter_through_ready(tmp_path):
+    command = (
+        sys.executable,
+        "-m",
+        "signetum.validation.pytest_runner",
+        "--node-report",
+        "{signetum.node_report_file}",
+        "--priority-nodes",
+        "{signetum.priority_nodes_file}",
+        "--",
+        "-q",
+        "-o",
+        "addopts=",
+        "--rootdir",
+        ".",
+        "tests",
+    )
+    member, _, _ = _workspaces(tmp_path, {}, command)
+    (member / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
+    test = member / "tests/test_contract.py"
+    test.parent.mkdir()
+    test.write_text(
+        "import pytest\n@pytest.mark.parametrize('value', ['kept', 'removed'])\n"
+        "def test_contract(value): assert value == 'kept'\n"
+    )
+    _commit(member, "add failing parameter")
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    test.write_text(
+        "import pytest\n@pytest.mark.parametrize('value', ['kept'])\n"
+        "def test_contract(value): assert value == 'kept'\n"
+    )
+    _commit(member, "remove retired parameter")
+    retiring = git_output(member, "rev-parse", "HEAD")
+    ready = lifecycle.validate(member, "member")
+    evidence: Any = ready["evidence"]
+    assert evidence["extensions"]["shard_details"]["repo:nodes"]["released_vanished_nodes"] == [
+        {"node_id": NODE + "[removed]", "retiring_commit": retiring, "basis": "not_collected"}
+    ]
+    assert not failure_path(member, "impl/member").exists()
+
+
+@pytest.mark.parametrize(
+    "first, second, clears",
+    [
+        ("unreached", "skipped", True),
+        ("failed", "skipped", False),
+        ("unreached", "failed", False),
+        ("unreached", "xfailed", True),
+    ],
+)
+def test_reaching_repays_only_unreached_debt(tmp_path, monkeypatch, first, second, clears):
+    observed = tmp_path / "observed.jsonl"
+    member, _, _ = _workspaces(tmp_path, {NODE: first}, _runner(observed))
+    monkeypatch.chdir(member)
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    # Another incomplete gate must preserve reachability versus failure provenance.
+    if first == "unreached":
+        _commit_empty(member, "still not reached")
+        with pytest.raises(ValidationExecutionError):
+            lifecycle.validate(member, "member")
+        assert records.unreached_only(member, "impl/member") == {"repo:nodes": frozenset({NODE})}
+    (member / "nodes.json").write_text(json.dumps({NODE: second}))
+    _commit(member, "report terminal outcome")
+    if clears:
+        ready = lifecycle.validate(member, "member")
+        evidence = ready["evidence"]
+        assert isinstance(evidence, dict)
+        details = evidence["extensions"]["shard_details"]["repo:nodes"]
+        assert details["discharged_by_reaching"] == [{"node_id": NODE, "outcome": second}]
+        assert not failure_path(member, "impl/member").exists()
+    else:
+        with pytest.raises(ValidationExecutionError):
+            lifecycle.validate(member, "member")
+        assert _remembered(member, "impl/member")["failed"] == [
+            {"shard": "repo:nodes", "node_id": NODE}
+        ]
+        # Even a later skip must not launder the now-observed failure.
+        (member / "nodes.json").write_text(json.dumps({NODE: "skipped"}))
+        if second == "skipped":
+            _commit_empty(member, "repeat skip after observed failure")
+        else:
+            _commit(member, "skip after observed failure")
+        with pytest.raises(ValidationExecutionError):
+            lifecycle.validate(member, "member")
+
+
+def test_reachability_discharge_survives_another_node_failure(tmp_path, monkeypatch):
+    member, _, _ = _workspaces(
+        tmp_path, {NODE: "unreached", OTHER: "passed"}, _runner(tmp_path / "observed")
+    )
+    monkeypatch.chdir(member)
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    (member / "nodes.json").write_text(json.dumps({NODE: "skipped", OTHER: "failed"}))
+    _commit(member, "reach one node while another fails")
+    with pytest.raises(ValidationExecutionError):
+        lifecycle.validate(member, "member")
+    memory = _remembered(member, "impl/member")
+    assert memory["failed"] == [{"shard": "repo:nodes", "node_id": OTHER}]
+    assert memory["unreached"] == []
+    assert memory["discharged_by_reaching"] == [
+        {"shard": "repo:nodes", "node_id": NODE, "outcome": "skipped"}
+    ]
+
+
+def test_deferred_unreached_debt_keeps_its_origin(tmp_path):
+    member, _, _ = _workspaces(tmp_path, {NODE: "passed"})
+    records.remember_failure(
+        member,
+        "impl/member",
+        gate="final",
+        base=git_output(member, "rev-parse", "HEAD"),
+        tip=git_output(member, "rev-parse", "HEAD"),
+        error=ValidationExecutionError(unreached_nodes=(("repo:nodes", NODE),)),
+        owed={},
+    )
+    records.settle_failures(
+        member, "impl/member", {"repo:nodes": frozenset({NODE})}, ["repo:check"]
+    )
+    assert records.unreached_only(member, "impl/member") == {"repo:nodes": frozenset({NODE})}

@@ -207,7 +207,9 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     evidence = ready["evidence"]
     assert isinstance(evidence, dict)
     assert set(evidence["identity"]["profiles"]) == {"shared-core@1", binding.identity}
-    admitted = runtime.batch_open(root, (member,))
+    admitted = runtime.batch_open(
+        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+    )
     batch = Path(str(admitted["batch"]))
     final = runtime.validate(batch, "final")
     assert final["status"] == "final"

@@ -1,47 +1,54 @@
-"""Refuse a workspace commit that implements before its committed approval.
-
-Git runs the installed ``reference-transaction`` hook before a ref moves. For a
-new single-parent commit on the tip of a registered workspace branch it applies
-the approval-order verdict final applies to batch commits and ready applies to
-member commits, through the same functions, to that one commit.
-"""
+"""Install and verify the early immutable implementation and record verdicts."""
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
 import sys
 import tempfile
 from pathlib import Path
+from uuid import uuid4
 
-from signetum.change.scope import ChangeError, batch_owned_commits, require_member_commit
-from signetum.git import GitError, git_output, repository_path, run_git
+from signetum.change.scope import (
+    ChangeError,
+    DeliveryScope,
+    changed_commitments,
+    commit_attribution,
+    delivery_scope,
+    require_member_commit,
+)
+from signetum.decision_proposals import proposal_paths
+from signetum.git import GitError, git_output, isolated_git_environment, repository_path, run_git
 from signetum.manifest import ManifestError, parse_manifest
+from signetum.runtime_identity import engine_source
 from signetum.workspaces import WorkspaceError, read_record, state_root
 
 HOOK_NAME = "reference-transaction"
 MARK = "# signetum-commit-check"
 _ZERO = re.compile(r"0+")
+CHAIN = """input=$(cat)
+shim="$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction"
+if [ -x "$shim" ]; then printf '%s\\n' "$input" | "$shim" "$@" || exit $?; fi"""
 
 
-def hook_script(engine: str) -> str:
-    """The hook body; it starts the engine only for prepared branch updates."""
-
-    quoted = shlex.quote(engine)
+def hook_script(engine: str, *, launcher: bool = False) -> str:
+    """A stable entry touches the probe before filtering branch transactions."""
+    command = (
+        shlex.quote(engine) + " maintenance commit-check"
+        if launcher
+        else shlex.quote(engine) + " -I -B -m signetum.maintenance commit-check"
+    )
     return f"""#!/bin/sh
-{MARK}: written by Signetum workspace-open and batch-open, rewritten by each.
+{MARK}
 [ "$1" = prepared ] || exit 0
+if [ -n "${{SIGNETUM_COMMIT_CHECK_PROBE:-}}" ]; then
+    : > "$SIGNETUM_COMMIT_CHECK_PROBE" || exit 1
+fi
 input=$(cat)
 case "$input" in *" refs/heads/"*) ;; *) exit 0 ;; esac
-engine={quoted}
-if [ ! -x "$engine" ]; then
-    printf '%s\\n' "signetum: commit check skipped: its engine $engine is missing; run \
-workspace-open for this workspace again to reinstall it. ready and final still check approval \
-order." >&2
-    exit 0
-fi
-printf '%s\\n' "$input" | "$engine" -I -B -m signetum.commit_check
+printf '%s\\n' "$input" | {command}
 """
 
 
@@ -53,35 +60,83 @@ def _inside_worktree(directory: Path) -> bool:
     return completed.returncode == 0 and completed.stdout.strip() == "true"
 
 
-def install_commit_check(worktree: Path) -> dict[str, object]:
-    """Install or refresh the hook in the effective hooks directory, never replacing another."""
-
-    hooks = repository_path(worktree, "rev-parse", "--git-path", "hooks")
-    target = hooks / HOOK_NAME
-    if _inside_worktree(hooks):
-        return {
-            "status": "skipped",
-            "hook": str(target),
-            "cause": "the hooks directory lies inside a worktree; writing there changes source",
-        }
-    if target.exists() and MARK not in target.read_text(encoding="utf-8", errors="replace"):
-        return {
-            "status": "skipped",
-            "hook": str(target),
-            "cause": f"a {HOOK_NAME} hook not written by Signetum exists; call "
-            f"{sys.executable} -I -B -m signetum.commit_check from it with the same input "
-            "to add the check",
-        }
-    hooks.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix=".signetum-hook-", dir=hooks)
+def _write_hook(target: Path, content: str) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=".signetum-hook-", dir=target.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(hook_script(sys.executable))
+            stream.write(content)
         Path(temporary).chmod(0o755)
         os.replace(temporary, target)
     finally:
         Path(temporary).unlink(missing_ok=True)
-    return {"status": "installed", "hook": str(target)}
+
+
+def _probe(worktree: Path, target: Path) -> dict[str, object]:
+    with tempfile.TemporaryDirectory(prefix="signetum-hook-probe-") as temporary:
+        probe = Path(temporary) / "observed"
+        ref = "refs/signetum/probe/" + uuid4().hex
+        environment = isolated_git_environment()
+        environment["SIGNETUM_COMMIT_CHECK_PROBE"] = str(probe)
+        created = run_git(worktree, "update-ref", ref, "HEAD", environment=environment)
+        try:
+            active = created.returncode == 0 and probe.exists()
+        finally:
+            deleted = run_git(worktree, "update-ref", "-d", ref, environment=environment)
+        return {
+            "status": "active" if active and deleted.returncode == 0 else "inactive",
+            "hook": str(target),
+            **(
+                {}
+                if active and deleted.returncode == 0
+                else {
+                    "cause": created.stderr.strip()
+                    or deleted.stderr.strip()
+                    or "the effective hook did not invoke the Signetum shim",
+                    "chaining": CHAIN,
+                }
+            ),
+        }
+
+
+def _cache(worktree: Path) -> Path:
+    return repository_path(worktree, "rev-parse", "--git-path", "signetum-commit-check.json")
+
+
+def _signature(target: Path) -> list[object]:
+    stat = target.stat() if target.exists() else None
+    return [str(target), stat.st_mtime_ns if stat else None, stat.st_mode if stat else None]
+
+
+def commit_check_status(worktree: Path, *, refresh: bool = False) -> dict[str, object]:
+    target = repository_path(worktree, "rev-parse", "--git-path", "hooks") / HOOK_NAME
+    signature = _signature(target)
+    cache = _cache(worktree)
+    if not refresh:
+        try:
+            document = json.loads(cache.read_text())
+            if document["signature"] == signature:
+                return document["result"]
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+    result = _probe(worktree, target)
+    cache.write_text(json.dumps({"signature": signature, "result": result}) + "\n")
+    return result
+
+
+def install_commit_check(worktree: Path) -> dict[str, object]:
+    """Refresh the local shim, preserve project hooks and probe the actual chain."""
+    shim = state_root(worktree) / "hooks" / HOOK_NAME
+    launcher = engine_source(worktree) == "skill"
+    engine = (
+        str(Path(os.environ["SIGNETUM_SKILL"]) / "scripts/signetum") if launcher else sys.executable
+    )
+    _write_hook(shim, hook_script(engine, launcher=launcher))
+    target = repository_path(worktree, "rev-parse", "--git-path", "hooks") / HOOK_NAME
+    managed = target.exists() and MARK in target.read_text(encoding="utf-8", errors="replace")
+    if not _inside_worktree(target.parent) and (not target.exists() or managed):
+        _write_hook(target, "#!/bin/sh\n" + MARK + "\n" + CHAIN + "\n")
+    return commit_check_status(worktree, refresh=True)
 
 
 def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | None:
@@ -96,8 +151,23 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
         return None
     manifest = parse_manifest(git_output(repository, "show", f"{new}:signetum.toml"))
     try:
+        proposals = proposal_paths(repository, manifest, old, new)
+        if proposals:
+            raise ChangeError("commit adds or modifies proposal decisions: " + ", ".join(proposals))
+        # The parent contains this workspace's newly approved packages too. Only
+        # packages already held at the registered base are delivered authority.
+        delivered = delivery_scope(repository, manifest, record.base, new)
+        changed = delivery_scope(repository, manifest, old, new)
+        delivered_ids = {item.change_id for item in delivered.previously_delivered}
+        scope = DeliveryScope(
+            (),
+            tuple(item for item in changed.previously_delivered if item.change_id in delivered_ids),
+        )
+        rewritten = changed_commitments(repository, manifest, old, new, scope)
+        if rewritten:
+            raise ChangeError("commit rewrites delivered commitments: " + ", ".join(rewritten))
         if record.kind == "batch":
-            batch_owned_commits(repository, manifest, record.base, new, judged=new)
+            commit_attribution(repository, manifest, record, new)
         else:
             require_member_commit(repository, manifest, record.base, new)
     except ChangeError as error:

@@ -13,11 +13,19 @@ approval before implementation and preserve commits already bound to evidence.
 If ready refuses as plan stage, add an implementation commit after the named
 approval commit, as its expected action and `status` say; changes inside that
 commit do not count. Never amend, rebase or reorder history to fix it.
-`workspace-open` and `batch-open` install a `reference-transaction` hook that
-applies the same rule to each new commit: one changing anything outside change
-records and decisions before the committed approval of the workspace's own change
-record is refused, so commit the approval on its own first. Records-only commits
-and merges pass. It needs Git 2.28; final and ready still check.
+Workspace opening and every successful preparation install or verify the
+`reference-transaction` commit check. Status reports the functionally probed
+`active | inactive` chain and warns when inactive; see the
+[adoption guide](adoption.md) for the project-owned hook snippet. Skill hooks
+call the stable launcher rather than an interpreter in a replaceable cache.
+The check judges each new implementation commit against its parent approval;
+records-only commits and merges retain their existing rules. Ready and final
+provide the same attribution backstop when a hook cannot run.
+It also refuses added or modified Proposed decisions and rewritten delivered
+commitments through the predicates final uses. These checks read committed
+snapshots; the registered base identifies delivered packages, so newly introduced
+packages remain editable. Records-only commits still undergo these record checks.
+
 When a declared tool such as `wt` is missing from the default Mise environment,
 Signetum runs it under the one environment the project declares for it
 (`mise.<env>.toml`); otherwise the refusal names the `MISE_ENV` to set.
@@ -145,13 +153,21 @@ reported. Read them, fix every listed failure in one round, then run ready again
 the `cause` alone may name only part of them. A committed `change record` observation that names a node
 with `--evidence <node-id>` and states its root cause in `--reason` releases it,
 even when its shard is still selected. Otherwise the next gate refuses before checks
-unless the node is selected again, and then it must pass. Moving a failed test out
+unless the node is selected again; failure debt must then pass, while
+unreached-only debt accepts a non-failing terminal outcome. Moving a failed test out
 of scope never offsets that failure, and neither does a retry-only pass. A shard
 command that declares `{signetum.priority_nodes_file}` receives those owed nodes
 as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
 through a declared `{signetum.node_report_file}`, whose optional `unreached` list
 fails the gate and makes those entries owed; its optional `failed_checks` names
-non-test checks for the record and is never owed. Every other engine value, such as
+non-test checks for the record and is never owed. An optional `not_collected` list
+releases an unreported owed node only when its shard passes and a commit since
+the failure changed its file. It names nodes absent from collection in files
+collected by that run or no longer present, not tests deselected by a filter.
+Receipt `released_vanished_nodes` entries retain `node_id`, `retiring_commit` and
+`basis: "not_collected"`; runners omitting the field keep the name-absence
+heuristic (`basis: "name_absent"`) and journal release. The packaged pytest runner
+accepts `--priority-nodes {signetum.priority_nodes_file}` to compute it. Every other engine value, such as
 the base, ratchet baseline, contribution paths, admission base, worker cap,
 recovery report and schedule file, is also a declared `{signetum.*}` argument;
 Signetum sets no environment variable for a runner. See the
@@ -172,6 +188,18 @@ Read only for multiple members or integration coordination.
 
 Before delegating, the coordinating Agent names each member's outcome, worktree,
 owned scope, dependencies and shared interfaces in the existing execution plan.
+A node owed only because it was unreached owes execution: a later runner-reported
+non-failing terminal outcome, including a declared skip, discharges it. Runners
+may report optional `"non_failing": {"node-id": "skipped"}` (or another non-failing
+terminal outcome); `passed` also proves reaching. Collection alone, deselection
+and an absent outcome do not. Failure and retry-recovered debt still requires
+passing or the existing `change record --evidence` release; a skip cannot erase
+an observed failure. Failure takes precedence when debt sources overlap, including
+across failed gates and deferred shards. Receipt shard details (or the failure
+receipt when another obligation fails) list
+`discharged_by_reaching` entries with `node_id` and `outcome`. Existing retirement
+rules remain applicable.
+
 Resolve shared contract choices before dependent implementation; synchronize through
 the declared owner instead of changing another member's worktree. Independent
 members can proceed while an affected choice is pending.

@@ -1,0 +1,50 @@
+[change]
+schema_version = 1
+id = "an-unreached-node-is-paid-by-being-reached"
+[change.source]
+kind = "human_direction"
+summary = "M5: discharge reachability debt by a non-failing terminal outcome; preserve failure debt. PyReduce exhausted its job ceiling, then reached all 865 owed nodes but 25 declared platform skips incorrectly kept the batch blocked."
+[change.contract]
+version = 1
+approved_base = "e8bd4d4b7d723c9137d3c194435c34200e1f7245"
+[[change.contract.requirements]]
+id = "REACH-001"
+outcome = "A node owed only because it was unreached is discharged by any runner-reported non-failing terminal outcome, including declared skip. Failure or retry-recovered debt requires passing or the existing journal evidence release. Receipt details identify nodes discharged by reaching and their outcomes. Preserve debt provenance across failed and partial gates."
+acceptance = ["Functional tests prove unreached-to-skipped discharges, failed-to-skipped stays owed, and unreached-to-failed stays owed; receipts expose discharge outcomes."]
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "Reconcile worktree-validation, delivery-recovery and current architecture; retain accepted decision basis once in this change. Finish at one passing ready without advancing main or modifying PyReduce."
+acceptance = ["Affected guidance describes reachability versus failure debt and ready passes on the member tip."]
+[change.contract.autonomy]
+allowed = ["Implement and test M5, synchronize overlapping M1/M2 batch using maintenance workspace-sync, reconcile documentation and commit implementation, run ready subject to host load and PyReduce sentinel."]
+requires_confirmation = ["Batch admission, delivery, push, tag or release; changing selection or first-failure semantics."]
+[[change.contract.decisions]]
+id = "an-unreached-node-is-paid-by-being-reached/reachability"
+change_id = "an-unreached-node-is-paid-by-being-reached"
+authority = "changes/an-unreached-node-is-paid-by-being-reached/change.toml#decisions/an-unreached-node-is-paid-by-being-reached/reachability"
+reason = "A job ceiling establishes missing execution, not a failing test. Requiring a platform-excluded node to pass can never succeed on this host. Reaching it repays that debt. Treating every skip as payment would launder actual failures; retain failure precedence and explicit journal release. Reopen if runners cannot distinguish non-failing terminal outcomes from unreached execution."
+parents = []
+[[change.contract.decisions.clauses]]
+id = "an-unreached-node-is-paid-by-being-reached/reachability-rule"
+change_id = "an-unreached-node-is-paid-by-being-reached"
+action = "add"
+expected = [{ id = "OWED-REACH-001", version = 0 }]
+authority = "changes/an-unreached-node-is-paid-by-being-reached/change.toml#decisions/an-unreached-node-is-paid-by-being-reached/reachability"
+reason = "Reachability debt and failure debt have different obligations."
+[[change.contract.decisions.clauses.updates]]
+id = "OWED-REACH-001"
+version = 1
+topic = "validation-efficiency"
+scope = ["Validation execution and failure memory"]
+statement = "An owed node owed only because it was unreached is discharged when a later run reports a non-failing terminal outcome, including a declared skip; receipts identify the node and outcome. Failed or retry-recovered nodes remain owed until passing or existing explicit journal evidence release; skipping cannot discharge failure debt. Preserve provenance across failed and partial gates. This refines the passing requirement of EFFICIENCY-FAIL-001 without changing retirement or first-failure rules."
+rationale = "Reaching a node repays missing execution; skipping cannot erase an observed failure."
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["REACH-001", "DOC-001"]
+action = "Extend existing functional failure-memory and runner evidence, retain failure/retry/retirement coverage with no relaxed assertions or new skips; implement provenance and receipt outcomes, reconcile docs, commit and run ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-10
+source = 'Repository owner approved correction of the unreached-node failure-debt rule (2026-11-10). The task authorizes M5 outcomes and member-only execution.'
+contract_digest = "sha256:328351fe2e6e4994bfe9e51f868275c6937a6d13c133c4650b3e69a2c4adedaf"

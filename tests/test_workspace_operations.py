@@ -2,22 +2,25 @@
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 from change_fixtures import approve_change, commit_approval
-from signetum import lifecycle, maintenance
+from signetum import lifecycle, maintenance, runtime_identity
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
-from signetum.commit_check import install_commit_check
+from signetum.commit_check import CHAIN, commit_check_status, install_commit_check
 from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
+from signetum.runtime_identity import engine_source as actual_engine_source
 from signetum.synchronization import member_contribution_paths
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import (
+    BatchEngine,
     branch_name,
     exclude_workspaces,
     read_record,
@@ -637,20 +640,24 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     commit_approval(member, "example")
     commit_file(member, "own.txt")
     lifecycle.validate(member, "member")
-    opened_batch = lifecycle.batch_open(root, (member,))
+    opened_batch = lifecycle.batch_open(
+        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+    )
     batch = Path(str(opened_batch["worktree"]))
     assert git_output(batch, "symbolic-ref", "--short", "HEAD") == "batch/example"
-    draft = opened_batch["change_record"]
-    assert isinstance(draft, dict) and draft["status"] == "written"
-    assert "approval" not in (batch / draft["path"]).read_text()
+    assert not (batch / "changes/batch-example").exists()
+    authorization = read_record(state_root(batch), "batch/example").authorization
     assert git_output(batch, "status", "--porcelain") == ""
     assert opened_batch["commit_check"] == {
-        "status": "installed",
+        "status": "active",
         "hook": str(root / ".git/hooks/reference-transaction"),
     }
-    retried = lifecycle.batch_open(root, (member,))
+    retried = lifecycle.batch_open(
+        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+    )
     assert retried["worktree"] == str(batch)
-    assert retried["change_record"] == {"status": "kept", "path": draft["path"]}
+    assert read_record(state_root(batch), "batch/example").authorization == authorization
+    commit_file(batch, "combination.txt")
     final = lifecycle.validate(batch, "final")
     tip = final["source"]
     assert isinstance(tip, str)
@@ -661,7 +668,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     assert result["remote"] == delivered
     assert git_output(root, "show", "-s", "--format=%P", delivered).split() == [base, tip]
     assert (root / "own.txt").is_file()
-    assert not (root / draft["path"]).exists()
+    assert not (root / "changes/batch-example").exists()
     assert member.exists()
     assert not batch.exists()
     assert root.exists()
@@ -691,17 +698,36 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
     ops.write_record(
         ops.state_root(root), ops.WorkspaceRecord(1, "plan/protocol-upgrade", base, "member")
     )
+    commit_approval(member)
     (member / "signetum.toml").write_text(current)
     (member / ".agents/signetum/repo.yaml").write_text("delivery:\n  branch: main\n")
-    commit_approval(member)
+    git_output(member, "commit", "-am", "migrate approved protocol configuration")
     commit_file(member, "implementation.txt")
     lifecycle.validate(member, "member")
     pending = ops.open_workspace(
-        member, "batch/protocol-upgrade", base, kind="batch", members=("plan/protocol-upgrade",)
+        member,
+        "batch/protocol-upgrade",
+        base,
+        kind="batch",
+        members=("plan/protocol-upgrade",),
+        authorization=ops.BatchAuthorization(
+            "Owner",
+            "Owner authorized the fixture batch",
+            "2026-11-09T00:00:00+00:00",
+            ("plan/protocol-upgrade",),
+        ),
     )
     preparation = pending["preparation"]
     assert isinstance(preparation, dict) and preparation["status"] == "pending_admission"
-    opened_batch = lifecycle.batch_open(member, (member,))
+    opened_batch = lifecycle.batch_open(
+        member, (member,), actor="Owner", source="Owner authorized the fixture batch"
+    )
+    assert (
+        read_record(
+            state_root(Path(str(opened_batch["worktree"]))), "batch/protocol-upgrade"
+        ).engine
+        is None
+    )
     preparation = opened_batch["preparation"]
     static = opened_batch["static"]
     assert isinstance(preparation, dict) and preparation["status"] == "prepared"
@@ -938,7 +964,13 @@ def test_delivery_sweeps_every_workspace_that_proves_its_outcome(repository):
     git_output(member, "cherry-pick", landed)
     commit_file(member, "own.txt")
     lifecycle.validate(member, "member")
-    batch = Path(str(lifecycle.batch_open(root, (member,))["worktree"]))
+    batch = Path(
+        str(
+            lifecycle.batch_open(
+                root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+            )["worktree"]
+        )
+    )
     final = lifecycle.validate(batch, "final")
     tip = final["source"]
     assert isinstance(tip, str)
@@ -1022,7 +1054,7 @@ def test_preparation_may_rebuild_ignored_state_and_names_the_adapter_on_failure(
     assert "just prepare --rebuild-stale" in refusal.value.expected
 
 
-def test_batch_open_draft_takes_the_approval_before_a_combination_fix(repository, monkeypatch):
+def test_batch_open_authorizes_combination_fix_without_a_change_draft(repository, monkeypatch):
     root, _ = repository
     monkeypatch.setattr(ops, "install_commit_check", install_commit_check)
     base = git_output(root, "rev-parse", "HEAD")
@@ -1030,31 +1062,32 @@ def test_batch_open_draft_takes_the_approval_before_a_combination_fix(repository
     commit_approval(member, "example")
     commit_file(member, "own.txt")
     lifecycle.validate(member, "member")
-    opened_batch = lifecycle.batch_open(root, (member,))
+    opened_batch = lifecycle.batch_open(
+        root, (member,), actor="Owner", source="Owner authorized integration"
+    )
     batch = Path(str(opened_batch["worktree"]))
-    draft = opened_batch["change_record"]
-    assert isinstance(draft, dict)
-    admitted = git_output(batch, "rev-parse", "HEAD")
-
-    (batch / "combined.txt").write_text("fix before approval")
-    git_output(batch, "add", "combined.txt")
-    early = run_git(batch, "commit", "-m", "fix before approval")
-    assert early.returncode != 0 and "approval" in early.stderr
-    assert git_output(batch, "rev-parse", "HEAD") == admitted
-
-    approve_change(batch, "batch-example")
-    git_output(batch, "reset", "-q", "combined.txt")
-    git_output(batch, "add", "-f", draft["path"])
-    git_output(batch, "commit", "-m", "approve the combination fix")
+    record = read_record(state_root(batch), git_output(batch, "branch", "--show-current"))
+    assert record.schema_version == 2
+    assert record.authorization is not None
+    assert record.authorization.actor == "Owner"
+    assert record.authorization.members == ("plan/example",)
+    assert not (batch / "changes/batch-example").exists()
+    assert not git_output(batch, "status", "--porcelain")
+    (batch / "combined.txt").write_text("fix under batch authorization")
     git_output(batch, "add", "combined.txt")
     git_output(batch, "commit", "-m", "fix the combination")
     fix = git_output(batch, "rev-parse", "HEAD")
-
     final = lifecycle.validate(batch, "final")
-
     review = final["delivery_review"]
     assert isinstance(review, dict)
-    assert {"commit": fix, "changes": ["batch-example"]} in review["inputs"]["batch_commits"]
+    inputs = review["inputs"]
+    item = next(item for item in inputs["batch_commits"] if item["commit"] == fix)
+    assert item["authority"] == "batch-authorization"
+    repair = inputs["combination_repairs"][0]
+    assert repair["commit"] == fix
+    assert repair["authorization"]["source"] == "Owner authorized integration"
+    assert repair["subject"] == "fix the combination"
+    assert "combined.txt" in repair["diffstat"]
     assert git_output(root, "rev-parse", "HEAD") == base
 
 
@@ -1089,3 +1122,182 @@ def test_a_tool_missing_from_the_default_mise_environment_runs_under_the_declare
     with pytest.raises(InfrastructureError) as refusal:
         wt.run_tool(other, (tool.name,))
     assert tool.name in str(refusal.value) and "staging" in str(refusal.value)
+
+
+def test_preparation_reinstalls_check_after_hooks_path_changes(repository, monkeypatch):
+    root, _ = repository
+    monkeypatch.setattr(ops, "install_commit_check", install_commit_check)
+    git_output(root, "config", "extensions.worktreeConfig", "true")
+    member = opened(root, "plan/hook-preparation")
+    commit_approval(member)
+    hooks = state_root(member) / "project-hooks"
+    preparation_command(member, ["git", "config", "--worktree", "core.hooksPath", str(hooks)])
+    git_output(member, "add", "signetum.toml")
+    git_output(member, "commit", "-m", "prepare a project hooks directory")
+
+    ops.worktree_prepare(member)
+
+    assert install_commit_check(member)["status"] == "active"
+    assert (hooks / "reference-transaction").is_file()
+    assert not git_output(member, "for-each-ref", "refs/signetum/probe/")
+    assert git_output(member, "status", "--porcelain") == ""
+
+
+def test_foreign_hook_chain_is_probed_and_enforces_approval(repository, monkeypatch):
+    root, _ = repository
+    # Opening remains allowed even while the project hook is not chained.
+    hooks = state_root(root) / "foreign-hooks"
+    hooks.mkdir()
+    hook = hooks / "reference-transaction"
+    hook.write_text("#!/bin/sh\nexit 0\n")
+    hook.chmod(0o755)
+    git_output(root, "config", "core.hooksPath", str(hooks))
+    monkeypatch.setattr(ops, "install_commit_check", install_commit_check)
+    member = opened(root, "plan/chained")
+    before = hook.read_bytes()
+    inactive = install_commit_check(member)
+    assert inactive["status"] == "inactive"
+    assert hook.read_bytes() == before
+    status = workflow_status(
+        member, snapshot(member), source=git_output(member, "rev-parse", "HEAD")
+    )
+    check = status["commit_check"]
+    assert isinstance(check, dict)
+    assert check["status"] == "inactive"
+
+    hook.write_text("#!/bin/sh\n" + CHAIN + "\n")
+    assert commit_check_status(member)["status"] == "active"
+    (member / "implementation.txt").write_text("unapproved\n")
+    git_output(member, "add", "implementation.txt")
+    refused = run_git(member, "commit", "-m", "implementation before approval")
+    assert refused.returncode != 0
+    assert "approval" in refused.stderr
+    assert not git_output(member, "for-each-ref", "refs/signetum/probe/")
+
+
+def test_pinned_batch_refuses_changed_engine_before_any_batch_work(repository, monkeypatch):
+
+    root, state = repository
+    base = git_output(root, "rev-parse", "HEAD")
+    observed = runtime_identity.identity()
+    batch = Path(
+        str(
+            ops.open_workspace(
+                root,
+                "batch/pinned",
+                base,
+                kind="batch",
+                engine=BatchEngine(
+                    str(observed["version"]), str(observed["implementation"]), "skill"
+                ),
+            )["worktree"]
+        )
+    )
+    pin = read_record(state_root(batch), "batch/pinned").engine
+    assert pin is not None
+    original = runtime_identity.identity
+    monkeypatch.setattr(
+        runtime_identity, "identity", lambda: {**original(), "implementation": "sha256:" + "f" * 64}
+    )
+    before = git_output(batch, "rev-parse", "HEAD")
+    attempts = (state / "attempts").read_text() if (state / "attempts").exists() else None
+    for action in (
+        lambda: lifecycle.admit(batch, ()),
+        lambda: lifecycle.continue_batch(batch),
+        lambda: lifecycle.sync_batch(batch),
+        lambda: lifecycle.validate(batch, "final"),
+        lambda: lifecycle.batch_deliver(batch, root, base, before),
+    ):
+        with pytest.raises(AdmissionError) as refused:
+            action()
+        assert pin.version in str(refused.value)
+        assert pin.implementation in str(refused.value)
+        assert "new batch" in refused.value.expected
+    assert git_output(batch, "rev-parse", "HEAD") == before
+    assert ((state / "attempts").read_text() if (state / "attempts").exists() else None) == attempts
+    status = workflow_status(batch, snapshot(batch), source=before)
+    engine = status["engine"]
+    assert isinstance(engine, dict)
+    assert engine["status"] == "mismatch"
+
+
+def test_foreign_checkout_cannot_open_batch(repository, monkeypatch):
+
+    root, _ = repository
+    monkeypatch.setattr(runtime_identity, "engine_source", lambda repository: "checkout")
+    before = git_output(root, "worktree", "list", "--porcelain")
+    with pytest.raises(AdmissionError) as refused:
+        lifecycle.batch_open(root, (root,), name="foreign", actor="Owner", source="Approved")
+    assert "installed Skill" in refused.value.expected
+    assert git_output(root, "worktree", "list", "--porcelain") == before
+
+
+def test_repository_pin_follows_batch_location_and_legacy_stays_unpinned(repository, monkeypatch):
+    root, _ = repository
+    base = git_output(root, "rev-parse", "HEAD")
+    legacy = Path(str(ops.open_workspace(root, "batch/legacy", base, kind="batch")["worktree"]))
+    status = workflow_status(legacy, snapshot(legacy), source=base)
+    engine = status["engine"]
+    assert isinstance(engine, dict) and engine["status"] == "unpinned"
+
+    batch = Path(
+        str(
+            ops.open_workspace(
+                root,
+                "batch/repository-engine",
+                base,
+                kind="batch",
+                engine=BatchEngine("0.7.0", "sha256:" + "0" * 64, "repository"),
+            )["worktree"]
+        )
+    )
+    monkeypatch.setattr(runtime_identity, "engine_source", actual_engine_source)
+    monkeypatch.setattr(runtime_identity, "__file__", str(batch / "engine.py"))
+    status = workflow_status(batch, snapshot(batch), source=base)
+    engine = status["engine"]
+    assert isinstance(engine, dict) and engine["status"] == "matched"
+    # The repository pin accepts source evolution at the same batch location.
+    (batch / "engine.py").write_text("# admitted engine change\n")
+    status = workflow_status(batch, snapshot(batch), source=base)
+    engine = status["engine"]
+    assert isinstance(engine, dict) and engine["status"] == "matched"
+    monkeypatch.setattr(runtime_identity, "__file__", str(root / "engine.py"))
+    status = workflow_status(batch, snapshot(batch), source=base)
+    engine = status["engine"]
+    assert isinstance(engine, dict) and engine["status"] == "mismatch"
+
+
+def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypatch, tmp_path):
+    root, _ = repository
+    source = Path(__file__).resolve().parents[1]
+    engine = root / "skills/signetum/scripts/engine"
+    shutil.copytree(
+        source / "skills/signetum/scripts/engine",
+        engine,
+        ignore=shutil.ignore_patterns(".venv", "__pycache__", "dist", "*.egg-info"),
+    )
+    for name in ("pyproject.toml", "uv.lock"):
+        shutil.copy2(source / name, root / name)
+    (root / ".gitignore").write_text(".venv/\n__pycache__/\n")
+    preparation_command(root, ["uv", "sync", "--locked", "--offline", "--python", sys.executable])
+    git_output(root, "add", ".")
+    git_output(root, "commit", "-m", "adopt repository engine for self-hosting")
+    git_output(root, "push", "origin", "main")
+    member = opened(root, "plan/self-hosted")
+    commit_approval(member)
+    commit_file(member, "self-hosted.txt")
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+    monkeypatch.setattr(runtime_identity, "engine_source", actual_engine_source)
+    monkeypatch.setattr(runtime_identity, "__file__", str(engine / "signetum/runtime_identity.py"))
+    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(tmp_path))
+
+    result = lifecycle.batch_open(root, (member,), actor="Owner", source="Approved self-hosting")
+
+    batch = Path(str(result["batch"]))
+    pin = read_record(state_root(batch), branch_name(batch)).engine
+    assert pin is not None and pin.source == "repository"
+    assert (batch / "self-hosted.txt").is_file()
+    assert result["admitted"]
+    # The opening checkout cannot act for the batch after the handoff.
+    with pytest.raises(AdmissionError):
+        lifecycle.admit(batch, ())

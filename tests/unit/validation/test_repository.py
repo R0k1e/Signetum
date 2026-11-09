@@ -225,8 +225,9 @@ def test_malformed_recovery_evidence_cannot_be_published_as_success(tmp_path, re
     ("checks", "valid"),
     [(["doc-links", "ruff-check"], True), ("doc-links", False), ([""], False), ([7], False)],
 )
-def test_a_node_report_names_failed_checks_only_as_strings(tmp_path, checks, valid):
-    report = json.dumps({"failed": [], "passed": [], "failed_checks": checks})
+@pytest.mark.parametrize("field", ["failed_checks", "not_collected"])
+def test_a_node_report_optional_lists_accept_only_nonempty_strings(tmp_path, checks, valid, field):
+    report = json.dumps({"failed": [], "passed": [], field: checks})
     command = (
         sys.executable,
         "-c",
@@ -242,7 +243,8 @@ def test_a_node_report_names_failed_checks_only_as_strings(tmp_path, checks, val
         return
     execution = adapter.run_shard(ValidationShard("test:static", command))
     assert not execution.succeeded
-    assert (execution.exit_code, execution.failed_checks) == (1, tuple(checks))
+    assert execution.exit_code == 1
+    assert getattr(execution, field) == tuple(checks)
 
 
 @pytest.mark.parametrize(
@@ -297,3 +299,35 @@ def test_unavailable_findings_command_cannot_produce_a_waivable_report(tmp_path)
     )
     with pytest.raises(ValidationInfrastructureError):
         RepositoryValidationAdapter(tmp_path).report_findings(shard)
+
+
+@pytest.mark.parametrize(
+    "terminal, valid",
+    [
+        ({"test_case": "skipped"}, True),
+        ({"test_case": "xfailed"}, True),
+        (["test_case"], False),
+        ({"test_case": ""}, False),
+        ({"test_case": "failed"}, False),
+        ({"test_case": "unreached"}, False),
+        ({"test_case": 7}, False),
+    ],
+)
+def test_runner_non_failing_outcomes_require_an_explicit_terminal_mapping(
+    tmp_path, terminal, valid
+):
+    report = json.dumps({"failed": [], "passed": [], "non_failing": terminal})
+    command = (
+        sys.executable,
+        "-c",
+        "import sys; from pathlib import Path; Path(sys.argv[2]).write_text(sys.argv[1])",
+        report,
+        "{signetum.node_report_file}",
+    )
+    adapter = RepositoryValidationAdapter(tmp_path)
+    if valid:
+        execution = adapter.run_shard(ValidationShard("test:nodes", command))
+        assert execution.non_failing == terminal
+    else:
+        with pytest.raises(ValidationExecutionError, match="invalid node report"):
+            adapter.run_shard(ValidationShard("test:nodes", command))
