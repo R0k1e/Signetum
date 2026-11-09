@@ -43,6 +43,17 @@ for bad in invalid:
     try: m.read_record(root,'plan/example')
     except m.WorkspaceError: pass
     else: raise AssertionError('invalid record was accepted')
+authorization=m.BatchAuthorization(
+    'Owner','Fixture approval','2026-11-09T00:00:00+00:00',('plan/example',))
+record=m.WorkspaceRecord(2,'batch/example',base,'batch',('plan/example',),authorization=authorization)
+path=m.write_record(root,record)
+assert m.parse_record(json.loads(path.read_text()))==record
+m.advance_batch_base(root,record.branch,base,'b'*40)
+assert m.read_record(root,record.branch).authorization==authorization
+for schema,kind in ((1,'batch'),(2,'member')):
+    try: m.WorkspaceRecord(schema,'other',base,kind,('plan/example',),authorization=authorization)
+    except m.WorkspaceError: pass
+    else: raise AssertionError('authorization accepted outside schema-2 batch')
 assert 'pydantic' not in sys.modules
 """
     result = subprocess.run(  # noqa: S603 -- fixed interpreter and disposable storage contract
