@@ -91,6 +91,17 @@ to a delivery commit with no merge resolution of its own, or each path it change
 already has its content there. After publication `batch-deliver` sweeps every
 registered workspace, removing those that prove either, and lists the rest with
 the reason they stay; `maintenance cleanup --all-delivered` runs the same sweep.
+Both sweeps also find local `change/*` and `batch/*` branches without a registered
+worktree, even when their workspace record is gone. Use
+`maintenance cleanup --branch batch/<task>` to select one such branch. Cleanup
+requires delivered or contained proof against fetched delivery, then uses
+non-forced `git branch -d`; a Git refusal retains the branch with its diagnostic,
+including contained content whose history Git still considers unmerged. Each
+removed branch appears in `removed` (or delivery
+`removed_worktrees`), without a `worktree` field for a branch-only removal. An
+empty all-delivered sweep succeeds without removing anything. Other loose branch
+names and branches still registered to any checkout are excluded from this
+branch-only sweep.
 Uncommitted work, an open Git operation, a fresh base or any uncontained content
 always stays. `status` lists each open workspace with the outcome it proves.
 Abandoned: only for work the owner decides to drop, run

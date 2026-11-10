@@ -61,7 +61,11 @@ for integration, review, explicit delivery and cleanup. The coordinating Agent o
 scope, shared interfaces and integration; Signetum does not schedule Agents.
 Every workspace ends delivered, contained (its content already reached the
 delivery branch) or abandoned. Delivery and `maintenance cleanup --all-delivered`
-remove the first two; `status` lists what each open workspace proves. Use
+remove the first two; their sweeps also recover delivered or contained local
+`change/*` and `batch/*` branches whose worktrees are already gone, subject to
+non-forced Git deletion. `maintenance cleanup --branch <branch>` selects one.
+Git refusals retain the branch with a diagnostic. `status` lists what each open
+workspace proves. Use
 `maintenance workspace-abandon`, or `branch-abandon` for a branch without a checkout,
 only with the owner's actual confirmation of that tip. You may run it yourself with
 `--source` citing where the owner confirmed it, such as this conversation; never infer

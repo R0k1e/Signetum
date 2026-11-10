@@ -533,6 +533,55 @@ def _settle(
         removed.append(remove_workspace(repository, item, ending, discard=discard))
 
 
+def _loose_branches(
+    repository: Path, delivery_branch: str, selected_branch: str | None = None
+) -> tuple[tuple[str, str], ...]:
+    """Select only Signetum branches absent from Git's complete checkout registry."""
+
+    checked_out = {name for name, _, _ in branch_checkouts(repository)}
+    candidates = []
+    for line in git_output(
+        repository, "for-each-ref", "--format=%(refname)%09%(objectname)", "refs/heads"
+    ).splitlines():
+        ref, _, tip = line.partition("\t")
+        name = ref.removeprefix("refs/heads/")
+        if (
+            name != delivery_branch
+            and name not in checked_out
+            and name.startswith(("change/", "batch/"))
+            and (selected_branch is None or name == selected_branch)
+        ):
+            candidates.append((name, tip))
+    return tuple(candidates)
+
+
+def _settle_loose_branches(
+    repository: Path,
+    candidates: tuple[tuple[str, str], ...],
+    delivered: str,
+    removed: list[dict[str, object]],
+    retained: list[dict[str, str]],
+) -> None:
+    for name, tip in candidates:
+        proof = content_proof(repository, tip, delivered)
+        if proof is None:
+            retained.append({"branch": name, "reason": "not_contained"})
+            continue
+        # Recheck identity and checkouts after proving content. Git independently
+        # refuses an unmerged or checked-out branch; never replace -d with -D.
+        if branch_tip(repository, name) != tip:
+            retained.append({"branch": name, "reason": "advanced"})
+            continue
+        deleted = run_git(repository, "branch", "-d", "--", name)
+        if deleted.returncode:
+            retained.append(
+                {"branch": name, "reason": "git_refused", "diagnostic": deleted.stderr.strip()}
+            )
+            continue
+        retired = retire_record(state_root(repository), name, tip, proof)
+        removed.append({"branch": name, "tip": tip, **proof, "retirement": str(retired)})
+
+
 def cleanup(
     repository: Path,
     *,
@@ -561,8 +610,13 @@ def cleanup(
         or item.branch == branch
         or (worktree is not None and item.path == worktree.resolve())
     )
-    if not selected:
-        raise AdmissionError("cleanup selector names no registered workspace")
+    loose = (
+        _loose_branches(repository, delivery_branch, branch)
+        if all_delivered or branch is not None
+        else ()
+    )
+    if not selected and not loose and not all_delivered:
+        raise AdmissionError("cleanup selector names no registered workspace or Signetum branch")
     removed: list[dict[str, object]] = []
     retained: list[dict[str, str]] = []
     for item in selected:
@@ -570,6 +624,7 @@ def cleanup(
             repository, item, published, protected, discard=discard, require_record=all_delivered
         )
         _settle(repository, item, ending, removed, retained, discard=discard)
+    _settle_loose_branches(repository, loose, published, removed, retained)
     return {"status": "cleaned", "remote": published, "removed": removed, "retained": retained}
 
 
@@ -678,7 +733,7 @@ def workspace_endings(repository: Path) -> list[dict[str, object]]:
 def cleanup_delivered(
     target: Path, source: Path, members: list[dict[str, str]]
 ) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
-    """Sweep every registered workspace after publication with the one predicate."""
+    """Sweep proven workspaces and loose Signetum branches after publication."""
 
     branch, published = fresh_delivery(target)
     inventory = wt.worktrees(target)
@@ -700,6 +755,7 @@ def cleanup_delivered(
         else:
             ending = removal(target, item, published, protected, require_record=True)
         _settle(target, item, ending, removed, retained)
+    _settle_loose_branches(target, _loose_branches(target, branch), published, removed, retained)
     return removed, retained
 
 
