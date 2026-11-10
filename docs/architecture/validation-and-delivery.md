@@ -297,8 +297,19 @@ Status reports `active` or `inactive`, its cause and the chaining snippet;
 it re-probes when the effective hook path or hook file changes. An inactive
 check warns and does not refuse workspace opening. Git older than 2.28 cannot
 run this hook. The same immutable attribution predicate remains the ready/final
-backstop. Branch creation/deletion, other refs and merges retain their existing
-rules; an implementation commit still requires its parent approval.
+backstop. Branch creation/deletion and other refs retain their existing rules; an
+implementation commit still requires its parent approval. Before member sync,
+batch sync or admission starts Git's merge, Signetum records the exact first
+parent, source and prepared Signetum trailer lines in worktree-local Git state.
+During the reference transaction, a candidate merge whose parents and pending
+MERGE_HEAD match that operation must carry exactly those lines, including their
+multiplicity. Subjects remain editable. Missing, changed, duplicate or extra
+Signetum lines refuse before the branch moves, naming `git commit --no-edit`
+and, for a batch, `batch-continue`. Ordinary commits and unrelated merges retain
+their existing rules. The prepared message is independent of editable MERGE_MSG.
+After a manual `--no-edit` commit, `batch-continue` accepts only the exact recorded
+merge at HEAD, validates it and completes base advancement and pending admissions;
+it also retains the staged-resolution path that commits with `--no-edit`.
 
 Batch-open captures `engine = {version, implementation, source}` in its schema-2
 workspace record. An installed Skill engine pins version and implementation;

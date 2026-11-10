@@ -448,6 +448,38 @@ def conflicted_sync(repository, branch):
     return member, base
 
 
+def test_sync_hook_refuses_lost_or_changed_authority(repository):
+    member, base = conflicted_sync(repository, "plan/checked-sync")
+    assert install_commit_check(member)["status"] == "active"
+    before = git_output(member, "rev-parse", "HEAD")
+    merge_message = ops.repository_path(member, "rev-parse", "--git-path", "MERGE_MSG")
+    prepared = merge_message.read_text()
+    trailer = next(line for line in prepared.splitlines() if line.startswith("Signetum-Sync:"))
+    messages = {
+        "own": "resolve the conflicts",
+        "missing": prepared.replace(trailer, ""),
+        "altered": prepared.replace(trailer, "Signetum-Sync: wrong"),
+        "duplicate": prepared + "\n" + trailer,
+        "extra": prepared + "\nSignetum-Unexpected: value",
+    }
+    # Reuse the same pending real merge for the message matrix.
+    for message in messages.values():
+        refused = run_git(member, "commit", "-m", message)
+        assert refused.returncode != 0
+        assert "git commit --no-edit" in refused.stderr
+        assert git_output(member, "rev-parse", "HEAD") == before
+        assert run_git(member, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
+    git_output(member, "commit", "--no-edit")
+    assert set(
+        member_contribution_paths(member, base, git_output(member, "rev-parse", "HEAD"))
+    ) == {"seed.txt"}
+
+    # A stale prepared merge record must not affect subsequent ordinary commits.
+    commit_approval(member)
+    commit_file(member, "ordinary.txt")
+    assert git_output(member, "show", "-s", "--format=%s", "HEAD") == "implement ordinary.txt"
+
+
 def test_conflicted_sync_committed_without_editing_is_verified(repository):
     member, base = conflicted_sync(repository, "plan/no-edit")
     git_output(member, "commit", "--no-edit")
@@ -476,6 +508,7 @@ def test_rerunning_sync_does_not_recognize_a_manual_merge(repository):
     commit_file(root, "delivered.txt")
     git_output(root, "push", "origin", "main")
     git_output(member, "fetch", "origin", "main")
+    assert install_commit_check(member)["status"] == "active"
     git_output(member, "merge", "--no-ff", "FETCH_HEAD", "-m", "manual merge")
     assert ops.workspace_sync(member)["status"] != "recognized"
     tip = git_output(member, "rev-parse", "HEAD")

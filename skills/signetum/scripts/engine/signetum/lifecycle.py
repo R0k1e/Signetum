@@ -55,12 +55,18 @@ from signetum.operations import (
     OperationFailed,
 )
 from signetum.policy import delivery_policy
+from signetum.preparation import PreparationResult
 from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.repository_selection import select_repository
 from signetum.source_admission import require_source_admission
 from signetum.stacking import require_parent_admitted
-from signetum.synchronization import member_contribution_paths
+from signetum.synchronization import (
+    member_contribution_paths,
+    prepare_merge,
+    prepared_merge,
+    preserves_merge_message,
+)
 from signetum.validation import (
     ValidationGraph,
 )
@@ -463,6 +469,7 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
                 *(f"Signetum-Plan: {plan}" for plan in plans),
             )
         )
+        prepare_merge(batch, member_tip, message)
         git = _git_executable()
         completed = subprocess.run(  # nosec B603
             (
@@ -493,7 +500,8 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
                 raise MergeConflict(
                     diagnostic or "batch has an open merge",
                     expected=(
-                        f"resolve and stage paths, then batch-continue --batch {batch}{remaining}"
+                        f"resolve and stage paths, commit with git commit --no-edit, "
+                        f"then batch-continue --batch {batch}{remaining}"
                     ),
                 )
             raise OperationFailed(diagnostic or "batch merge failed")
@@ -550,7 +558,7 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     require_batch_engine(batch)
     merge_head = repository_path(batch, "rev-parse", "--git-path", "MERGE_HEAD")
     if not merge_head.is_file():
-        raise AdmissionError("batch has no merge to continue")
+        return _continue_committed_batch_merge(batch)
     unmerged = _git(batch, "diff", "--name-only", "--diff-filter=U")
     if unmerged:
         raise AdmissionError(f"unresolved merge paths: {unmerged}")
@@ -594,6 +602,48 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     if completed.returncode != 0:
         raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
     committed = _git(batch, "rev-parse", "HEAD")
+    return _finish_batch_merge(batch, committed, other, preparation, static, repaired)
+
+
+def _continue_committed_batch_merge(batch: Path) -> dict[str, object]:
+    """Continue only the exact prepared merge the operator committed with --no-edit."""
+    _require_clean(batch)
+    committed = _git(batch, "rev-parse", "HEAD")
+    parents = _git(batch, "show", "-s", "--format=%P", committed).split()
+    if len(parents) != 2:
+        raise AdmissionError("batch has no merge to continue")
+    before, other = parents
+    prepared = prepared_merge(batch, before, other)
+    if (
+        prepared is None
+        or not preserves_merge_message(batch, committed, prepared)
+        or verified_batch_tip(batch, _branch(batch), _recorded_base(batch)) == committed
+    ):
+        raise AdmissionError("batch has no recorded merge to continue")
+    against_first = set(_git(batch, "diff", "--name-only", before, committed).splitlines())
+    against_second = set(_git(batch, "diff", "--name-only", other, committed).splitlines())
+    preparation = worktree_prepare(batch)
+    static = _run_batch_gate(
+        batch,
+        _branch(batch),
+        committed,
+        preparation["executed"],
+        selector=batch,
+        recorded_tip=False,
+    )
+    return _finish_batch_merge(
+        batch, committed, other, preparation, static, tuple(sorted(against_first & against_second))
+    )
+
+
+def _finish_batch_merge(
+    batch: Path,
+    committed: str,
+    other: str,
+    preparation: PreparationResult,
+    static: dict[str, object],
+    repaired: tuple[str, ...],
+) -> dict[str, object]:
     batch_base = _recorded_base(batch)
     if batch_base is None:
         raise AdmissionError("continued admission has no approved batch base")
@@ -700,6 +750,7 @@ def _sync_batch_held(batch: Path) -> dict[str, object]:
                 f"Signetum-Previous-Batch-Base: {base}",
             )
         )
+        prepare_merge(batch, delivered, message)
         if _is_ancestor(batch, delivered, tip):
             # A member already synchronized this tip; record the base move as a merge.
             merged = _git(
@@ -719,7 +770,10 @@ def _sync_batch_held(batch: Path) -> dict[str, object]:
             if _git(batch, "diff", "--name-only", "--diff-filter=U"):
                 raise MergeConflict(
                     diagnostic or "batch synchronization has an open merge",
-                    expected=f"resolve and stage paths, then batch-continue --batch {batch}",
+                    expected=(
+                        f"resolve and stage paths, commit with git commit --no-edit, "
+                        f"then batch-continue --batch {batch}"
+                    ),
                 )
             raise OperationFailed(diagnostic or "batch synchronization merge failed")
         tip = _git(batch, "rev-parse", "HEAD")
