@@ -28,7 +28,7 @@ acceptance = ["Reconcile affected Skill reference and validation/delivery archit
 [[change.contract.decisions]]
 id = "cleanup-delivered-branches/branch-cleanup"
 change_id = "cleanup-delivered-branches"
-authority = "changes/cleanup-delivered-branches/change.toml#REQ-001"
+authority = "changes/cleanup-delivered-branches/change.toml#decisions/cleanup-delivered-branches/branch-cleanup"
 reason = "Owner explicitly requested non-forced cleanup of loose Signetum branches."
 [[change.contract.decisions.clauses]]
 id = "cleanup-delivered-branches/loose-branches"
@@ -36,7 +36,7 @@ change_id = "cleanup-delivered-branches"
 action = "add"
 expected = [{ id = "WORKSPACE-LOOSE-001", version = 0 }]
 reason = "The owner explicitly requests safe cleanup of Signetum branches whose worktree is already gone."
-authority = "changes/cleanup-delivered-branches/change.toml#REQ-001"
+authority = "changes/cleanup-delivered-branches/change.toml#decisions/cleanup-delivered-branches/branch-cleanup"
 [[change.contract.decisions.clauses.updates]]
 id = "WORKSPACE-LOOSE-001"
 version = 1
@@ -61,5 +61,5 @@ action = "Reconcile current references, resolve significant findings through cha
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-10
-source = "Owner's 2026-11-10 task explicitly directs both cleanup selectors to remove delivered or contained loose change/* and batch/* branches through non-forced Git deletion, repair normal delivery cleanup, add real Git tests and reference docs, approve change.toml in a standalone first commit, and stop at one passing Ready without admission, delivery, tag or release."
-contract_digest = "sha256:f0347b8cdc402a509197068bef66d715f19a315b1c1bfafa319d996917200aa3"
+source = "Owner's 2026-11-10 task explicitly directs safe loose Signetum branch cleanup, delivery cleanup repair, real Git tests and docs, approval committed before implementation, and one passing Ready without admission, delivery, tag or release. The decision authority anchor is corrected to the owning contract decision; requested behavior and autonomy are unchanged."
+contract_digest = "sha256:ed8780619e8da99d44d8b8417de740bac1ddb39adc5a061be0801b5e4d91ac15"
