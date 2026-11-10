@@ -29,6 +29,7 @@ acceptance = ["Reconcile affected Skill reference and validation/delivery archit
 id = "cleanup-delivered-branches/branch-cleanup"
 change_id = "cleanup-delivered-branches"
 authority = "changes/cleanup-delivered-branches/change.toml#decisions/cleanup-delivered-branches/branch-cleanup"
+parents = ["workspaces-end-in-a-proven-outcome/workspace-endings"]
 reason = "Owner explicitly requested non-forced cleanup of loose Signetum branches."
 [[change.contract.decisions.clauses]]
 id = "cleanup-delivered-branches/loose-branches"
@@ -61,5 +62,5 @@ action = "Reconcile current references, resolve significant findings through cha
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-10
-source = "Owner's 2026-11-10 task explicitly directs safe loose Signetum branch cleanup, delivery cleanup repair, real Git tests and docs, approval committed before implementation, and one passing Ready without admission, delivery, tag or release. The decision authority anchor is corrected to the owning contract decision; requested behavior and autonomy are unchanged."
-contract_digest = "sha256:ed8780619e8da99d44d8b8417de740bac1ddb39adc5a061be0801b5e4d91ac15"
+source = "Owner task on 2026-11-10 explicitly authorizes this cleanup, delivery repair, tests and docs through one passing Ready; no admission, delivery, tag or release. Decision ancestry and authority anchors bind the retained workspace-retirement context; requested behavior is unchanged."
+contract_digest = "sha256:54ceaae998e4cfef9cab90b5d8dc7cd61b90a575754191fd41319878130e7a9c"
