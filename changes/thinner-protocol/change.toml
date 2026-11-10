@@ -65,11 +65,11 @@ id = "thinner-protocol/six-invariants"
 change_id = "thinner-protocol"
 authority = "changes/thinner-protocol/change.toml#decisions/thinner-protocol/six-invariants"
 parents = [
-    "attribution-at-the-commit/commit-check-001",
-    "retired-tests-released-once/collected-retirement",
-    "an-unreached-node-is-paid-by-being-reached/reachability-rule",
-    "failure-record-names-every-failed-check/report-failed-checks",
-    "one-admission-rule/admission-clause",
+    "an-unreached-node-is-paid-by-being-reached/reachability",
+    "attribution-at-the-commit/action-time-verdicts",
+    "failure-record-names-every-failed-check/every-failed-check",
+    "one-admission-rule/current-source-verdict",
+    "retired-tests-released-once/collection-release",
 ]
 reason = "The owner approved the thinner protocol on 2026-11-10. The measured friction supports recording scope and observations instead of refusing. Retain authorization before implementation, exact evidence, fully validated integrated delivery, explicit delivery authority, isolated workspaces with explicit merge resolution/trailers, and exclusive clause ownership. Keep stacking and cleanup. Reject retaining contract re-approval and owed-node discharge because they add process cost beyond these invariants. Reopen if the retained invariants cannot be established. Resource scheduling, concurrency, environment preparation and test selection belong to repository configuration and the operating model."
 
@@ -205,4 +205,4 @@ action = "Extend existing owners and public traversals, remove obsolete ledger r
 actor = "Repository owner"
 recorded_at = 2026-11-10
 source = "The Signetum 0.8.0 thinner protocol plan is authorized for implementation and validation; delivery and release remain excluded."
-contract_digest = "sha256:66a3a3b50fcf9029bf393e391459e805ae5f85622394475b959d39d500b5bce3"
+contract_digest = "sha256:715317937730d72742711092c28d9fd922eda25976f7ac4e90a5e337c0985a02"
