@@ -252,6 +252,7 @@ def _refused(repository: Path, capsys, *arguments: str) -> dict[str, Any]:
     code = change_cli.main([*arguments, "--repository", str(repository)])
     payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert code != 0, payload
+    assert payload["next_command"] == f"signetum change {arguments[0]} --help"
     return payload
 
 

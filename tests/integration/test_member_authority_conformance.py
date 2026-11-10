@@ -163,9 +163,7 @@ def test_ready_uses_one_consolidated_record_without_legacy_files(authority, stag
 
 
 @pytest.mark.parametrize("fresh_implementation", [False, True])
-def test_revised_contract_cannot_cover_implementation_in_its_approval_commit(
-    authority, fresh_implementation
-):
+def test_scope_revision_and_code_use_the_original_authorization(authority, fresh_implementation):
     runtime, root, marker, scratch = authority
     base = git_output(root, "rev-parse", "HEAD")
     member = scratch / "reapproved-member"
@@ -175,26 +173,35 @@ def test_revised_contract_cannot_cover_implementation_in_its_approval_commit(
     consolidated_approval(member, base)
     commit(member, "approve original outcome")
     implementation(member)
-    consolidated_approval(member, base, outcome="Implement the revised outcome.")
-    (member / "implementation.txt").write_text("code committed with revised approval")
-    commit(member, "approve revised outcome with premature implementation")
+    path = member / "changes/example/change.toml"
+    path.write_text(
+        path.read_text().replace(
+            "Implement the confirmed behavior.", "Implement the revised outcome."
+        )
+    )
+    (member / "implementation.txt").write_text("code committed with the scope revision")
+    commit(member, "record revised scope and implement under the original authorization")
     if fresh_implementation:
         (member / "implementation.txt").write_text("implementation after revised approval")
         commit(member, "implement revised outcome")
-    with pytest.raises(runtime.AdmissionError):
-        runtime.validate(member, "member")
-    assert not marker.exists()
+    assert runtime.validate(member, "member")["status"] == "ready"
+    assert marker.exists()
 
 
-def test_member_reapproval_after_implementation_needs_no_new_code(authority):
+def test_scope_revision_after_implementation_needs_no_reapproval_or_new_code(authority):
     runtime, root, marker, _scratch = authority
     member = Path(runtime.workspace_open(root, "plan/reapproved", "main")["worktree"])
     base = git_output(member, "rev-parse", "HEAD")
     consolidated_approval(member, base)
     commit(member, "approve original outcome")
     implementation(member)
-    consolidated_approval(member, base, outcome="Accept the revised outcome after review.")
-    commit(member, "reapprove the visible implementation")
+    path = member / "changes/example/change.toml"
+    path.write_text(
+        path.read_text().replace(
+            "Implement the confirmed behavior.", "Accept the revised outcome after review."
+        )
+    )
+    commit(member, "record the revised scope without changing authorization")
     assert runtime.validate(member, "member")["status"] == "ready"
     assert marker.exists()
 

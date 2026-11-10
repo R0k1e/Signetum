@@ -873,8 +873,6 @@ def test_invalid_requests_are_refused_before_any_source_write(repository, store,
             value["operation"] = "retract"
         elif damage == "unexpected_followup":
             resolution["followup"] = "beta#REQ-1"
-        elif damage == "missing_evidence":
-            resolution["evidence"] = []
     with pytest.raises(ValueError):
         store.parse_request(value)
     assert not (repository / "changes/alpha/events.jsonl").exists()

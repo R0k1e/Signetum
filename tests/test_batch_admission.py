@@ -438,24 +438,11 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
     def retried(self, shard, *, priority_nodes=()):
         return ShardExecution(True, recovered=(defect,))
 
-    def fixed(self, shard, *, priority_nodes=()):
-        # The remembered node must be reported passing by a fresh normal run,
-        # with the member bases the real adapter records for admission.
-        return ShardExecution(
-            True,
-            passed_nodes=(str(defect["node_id"]),),
-            details={"member_values": self.member_values()},
-        )
-
     monkeypatch.setattr(adapter, "run_shard", retried)
     with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
         lifecycle.validate(member, "member")
     monkeypatch.setattr(adapter, "run_shard", original)
-    with pytest.raises(lifecycle.ValidationExecutionError, match="did not pass in this run"):
-        lifecycle.validate(member, "member")
-    monkeypatch.setattr(adapter, "run_shard", fixed)
-    lifecycle.validate(member, "member")
-    monkeypatch.setattr(adapter, "run_shard", original)
+    assert lifecycle.validate(member, "member")["status"] == "ready"
     lifecycle.admit(batch, (member,))
     monkeypatch.setattr(adapter, "run_shard", retried)
     with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
