@@ -1358,12 +1358,15 @@ def test_cleanup_removes_delivered_branches_without_checkouts(
     if registered:
         ops.write_record(state_root(root), ops.WorkspaceRecord(1, branch, tip, "member"))
     git_output(root, "branch", "personal/keep", tip)
-    selected = {"all_delivered": True} if selector == "all" else {"branch": branch}
+    result = (
+        ops.cleanup(root, all_delivered=True)
+        if selector == "all"
+        else ops.cleanup(root, branch=branch)
+    )
 
-    result = ops.cleanup(root, **selected)
-
-    assert len(result["removed"]) == 1
-    removed = result["removed"][0]
+    removed_rows = result["removed"]
+    assert isinstance(removed_rows, list) and len(removed_rows) == 1
+    removed = removed_rows[0]
     assert removed["branch"] == branch and removed["tip"] == tip
     assert removed["outcome"] == "delivered"
     retirement = json.loads(Path(removed["retirement"]).read_text())
@@ -1390,8 +1393,10 @@ def test_cleanup_keeps_unmerged_loose_branches_even_when_content_landed(reposito
     result = ops.cleanup(root, branch="change/loose")
 
     assert result["removed"] == []
-    assert result["retained"][0]["branch"] == "change/loose"
-    assert result["retained"][0]["reason"] == ("git_refused" if contained else "not_contained")
+    retained = result["retained"]
+    assert isinstance(retained, list) and len(retained) == 1
+    assert retained[0]["branch"] == "change/loose"
+    assert retained[0]["reason"] == ("git_refused" if contained else "not_contained")
     assert git_output(root, "rev-parse", "change/loose") == tip
     assert read_record(state_root(root), "change/loose").branch == "change/loose"
 
@@ -1432,7 +1437,9 @@ def test_branch_only_cleanup_never_adopts_other_names(repository, branch):
     if branch == "main":
         result = ops.cleanup(root, branch=branch)
         assert result["removed"] == []
-        assert result["retained"][0]["reason"] == "protected"
+        retained = result["retained"]
+        assert isinstance(retained, list)
+        assert retained[0]["reason"] == "protected"
     else:
         with pytest.raises(AdmissionError):
             ops.cleanup(root, branch=branch)
