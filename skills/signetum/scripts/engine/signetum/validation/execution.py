@@ -245,12 +245,15 @@ def _resolve_outcome(
             (execution.diagnostic or f"{shard.name} reported unreached nodes")
             + f"\n{shard.name}: {len(execution.unreached_nodes)} selected nodes unreached"
         )
-    if execution.failed_nodes:
-        raise ValidationExecutionError(f"{shard.name} reported failed nodes")
     if execution.succeeded:
         require_original_success(
             [{**defect, "shard": shard.name} for defect in execution.recovered]
         )
+    if execution.failed_nodes:
+        raise ValidationExecutionError(
+            execution.diagnostic or f"{shard.name} reported failed nodes"
+        )
+    if execution.succeeded:
         recovered.extend({**defect, "shard": shard.name} for defect in execution.recovered)
         return ShardOutcome(shard.name, shard.digest, shard.evidence, "passed", observed_at)
     if shard.evidence != "world":

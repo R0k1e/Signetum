@@ -1,5 +1,5 @@
 [change]
-schema_version = 1
+schema_version = 2
 id = "thinner-protocol"
 
 [change.source]
@@ -204,5 +204,4 @@ action = "Extend existing owners and public traversals, remove obsolete ledger r
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-10
-source = "The Signetum 0.8.0 thinner protocol plan is authorized for implementation and validation; delivery and release remain excluded."
-contract_digest = "sha256:d42e06c3cf2031ea68f7b910950ca9d87a4ab76403f21d9e7683edb6ac4c7ef1"
+statement = "The Signetum 0.8.0 thinner protocol plan is authorized for implementation and validation; delivery and release remain excluded."
