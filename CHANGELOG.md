@@ -3,6 +3,14 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.7.2
+
+- Cleanup with `--all-delivered` or `--branch` now also finds Signetum branches
+  whose worktrees are gone, proves their delivered or contained content, and
+  removes them with non-forced Git deletion, reporting each removal or refusal.
+- The delivery sweep includes these orphaned `change/*` and `batch/*` branches;
+  existing protections for active workspaces and uncommitted work remain in place.
+
 ## 0.7.1
 
 - Refuse synchronization and admission merge commits that drop, alter or duplicate
