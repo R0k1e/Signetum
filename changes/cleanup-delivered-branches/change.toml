@@ -1,0 +1,65 @@
+[change]
+schema_version = 1
+id = "cleanup-delivered-branches"
+
+[change.source]
+kind = "human_direction"
+summary = "Owner requested cleanup of delivered Signetum branches without worktrees and repair of delivery residue on 2026-11-10, after batch/judge-at-the-action and batch/release-0-7-1 survived v0.7.1. Relevant retained authority: changes/workspaces-end-in-a-proven-outcome/change.toml and its accepted WORKSPACE-END-001 rule, plus the abandonment boundary retained in changes/approval-before-commit/change.toml."
+
+[change.contract]
+version = 1
+approved_base = "cf4a84f2f8569156b59eb3c04b3b655c65551472" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "REQ-001"
+outcome = "Cleanup --all-delivered and --branch consider local change/* and batch/* branches without registered worktrees, prove delivered or contained content against fetched delivery, and delete only through non-forced Git branch deletion. Report each removed branch and retain branches Git refuses to delete."
+acceptance = ["Real temporary Git repositories cover both selectors, both Signetum namespaces, absent workspace records, merged tips, contained but unmerged tips, uncontained tips, and unrelated or checked-out branches.", "Successful branch removal records its tip and outcome; Git's unmerged refusal preserves the branch and is reported."]
+
+[[change.contract.requirements]]
+id = "REQ-002"
+outcome = "Trace delivery and release residue and repair the shared delivery cleanup path so a normal eligible delivery removes worktrees and branches, including loose Signetum branches. Preserve active-runtime and other existing protections."
+acceptance = ["A real Git delivery test verifies worktree and branch absence, and loose branch residue is swept after publication.", "A representative test uses actual Worktrunk to exercise the production removal boundary; existing protection tests remain.", "Record verified root cause and any historical evidence limit in the owning journal."]
+
+[[change.contract.requirements]]
+id = "REQ-003"
+outcome = "Current cleanup references describe branch-only selection, safe deletion limits and delivery sweep behavior; the implemented member stops at one passing Ready."
+acceptance = ["Reconcile affected Skill reference and validation/delivery architecture.", "Run focused functional tests and project member checks through Ready; do not admit, deliver, tag or release."]
+
+[[change.contract.decisions]]
+id = "cleanup-delivered-branches/branch-cleanup"
+change_id = "cleanup-delivered-branches"
+authority = "changes/cleanup-delivered-branches/change.toml#REQ-001"
+reason = "Owner explicitly requested non-forced cleanup of loose Signetum branches."
+[[change.contract.decisions.clauses]]
+id = "cleanup-delivered-branches/loose-branches"
+change_id = "cleanup-delivered-branches"
+action = "add"
+expected = [{ id = "WORKSPACE-LOOSE-001", version = 0 }]
+reason = "The owner explicitly requests safe cleanup of Signetum branches whose worktree is already gone."
+authority = "changes/cleanup-delivered-branches/change.toml#REQ-001"
+[[change.contract.decisions.clauses.updates]]
+id = "WORKSPACE-LOOSE-001"
+version = 1
+topic = "workspace-retirement"
+scope = ["Cleanup and delivery sweep of branches without worktrees"]
+statement = "Cleanup --all-delivered, cleanup --branch and the delivery sweep also consider local change/* and batch/* branches without any registered checkout. They require delivered or contained proof against fetched delivery and non-forced Git branch deletion; Git refusal retains the branch. Workspace protections and owner-confirmed abandonment remain unchanged. Each successful branch deletion reports and retires its exact observed tip."
+rationale = "Worktree-only inventory cannot recover after the directory and registration disappear; namespace and content proof bound automatic selection, while Git's non-forced deletion remains an independent unmerged-work guard. Containment alone never authorizes forced deletion of a loose branch."
+
+[change.contract.autonomy]
+allowed = ["Implement the requested cleanup and delivery repair in existing owners, extend real Git functional tests and representative actual Worktrunk coverage, update affected reference docs, record significant findings, commit and run one passing member Ready."]
+requires_confirmation = ["Admission, delivery, pushing, tagging or release; scope expansion; editing installed skills or PyReduce."]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["REQ-001", "REQ-002"]
+action = "Extend existing workspace cleanup/delivery traversals and add loose-branch functional cases before implementation; retain all prior evidence without relaxed assertions. Trace actual Worktrunk removal independently of the fixture adapter, repair shared cleanup owners, and record the verified cause."
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["REQ-003"]
+action = "Reconcile current references, resolve significant findings through change utilities, run focused tests, commit and run Ready using the repository engine."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-10
+source = "Owner's 2026-11-10 task explicitly directs both cleanup selectors to remove delivered or contained loose change/* and batch/* branches through non-forced Git deletion, repair normal delivery cleanup, add real Git tests and reference docs, approve change.toml in a standalone first commit, and stop at one passing Ready without admission, delivery, tag or release."
+contract_digest = "sha256:f0347b8cdc402a509197068bef66d715f19a315b1c1bfafa319d996917200aa3"
