@@ -31,14 +31,8 @@ from signetum.workflow_status import workflow_status
 from signetum.workspaces import current_branch, read_change_owner, read_record, state_root
 
 EXAMPLES = {
-    "record": (
-        "change record --id flaky-login --requirement REQ-001 --summary 'What was found' "
-        "--reason 'Why it matters' --evidence tests/test_login.py::test_login"
-    ),
-    "resolve": (
-        "change resolve --id fix-login --target <change>/flaky-login/observation "
-        "--reason 'What resolves it' --evidence tests/test_login.py"
-    ),
+    "record": ("change record --summary 'What was found'"),
+    "resolve": ("change resolve --target <observation-id> --reason 'What resolves it'"),
     "retract": (
         "change retract --id withdraw-fix --target <change>/flaky-login/observation "
         "--resolution <change>/fix-login/resolution --reason 'Why the answer was wrong'"

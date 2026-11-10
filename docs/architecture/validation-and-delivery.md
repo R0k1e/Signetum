@@ -75,18 +75,6 @@ immutable preparation. Required host suites remain complete. Repository pytest w
 prerequisites; failed prerequisites block it. A collection error ends that run
 without another full precollection pass or a passing qualification.
 
-A node owed only because it was unreached owes execution: a later runner-reported
-non-failing terminal outcome, including a declared skip, discharges it. Runners
-may report optional `"non_failing": {"node-id": "skipped"}` (or another non-failing
-terminal outcome); `passed` also proves reaching. Collection alone, deselection
-and an absent outcome do not. Failure and retry-recovered debt still requires
-passing or the existing `change record --evidence` release; a skip cannot erase
-an observed failure. Failure takes precedence when debt sources overlap, including
-across failed gates and deferred shards. Receipt shard details (or the failure
-receipt when another obligation fails) list
-`discharged_by_reaching` entries with `node_id` and `outcome`. Existing retirement
-rules remain applicable.
-
 ## Selection and efficient feedback
 
 `ready` is the development loop; `ready --explain` shows its selection without
@@ -127,9 +115,8 @@ passing gate, starting at its recorded base, not the cumulative batch. A
 records-only increment runs source admission and no batch gate check. Otherwise they run
 only the declared batch gate, resolved with any provider targets; it may run no
 integration checks. Final stays complete, so cross-member failures surface there
-rather than at admission. A remembered node whose shard the batch gate does not
-run stays owed to final. Only a passing batch gate advances
-that verified tip, so a refused or failed increment stays owed. One admission of
+rather than at admission. Only a passing batch gate advances that verified tip;
+a refused or failed increment remains unverified. One admission of
 several members is one increment. A batch shard declaring
 `{signetum.admission_base}` receives its start commit, so a project selector can
 use the same range; elsewhere it is an explicit empty argument. A provider

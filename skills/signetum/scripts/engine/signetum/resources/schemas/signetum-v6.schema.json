@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://signetum.invalid/schemas/signetum-v6.schema.json",
-  "title": "Signetum repository configuration v5",
+  "title": "Signetum repository configuration v6",
   "type": "object",
   "additionalProperties": false,
   "required": [

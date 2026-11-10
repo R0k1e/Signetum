@@ -124,7 +124,19 @@ def utility_failure(operation: str, error: Exception, **fields: object) -> int:
         {
             "state_change": "not_confirmed",
             "next_command": f"signetum change {operation} --help"
-            if operation in {"record", "resolve", "retract", "reconcile", "retire"}
+            if operation
+            in {
+                "open",
+                "view",
+                "record",
+                "resolve",
+                "retract",
+                "reconcile",
+                "retire",
+                "current",
+                "history",
+                "why",
+            }
             else f"signetum {operation} --help",
             **fields,
         },
