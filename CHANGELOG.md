@@ -3,6 +3,13 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.7.1
+
+- Refuse synchronization and admission merge commits that drop, alter or duplicate
+  Signetum's prepared trailers, preserving the branch tip and merge authority.
+- Conflict recovery now directs users to `git commit --no-edit` and, for batches,
+  `batch-continue`, so the prepared merge message survives resolution.
+
 ## 0.7.0
 
 Judge work when it happens, keep batch execution stable, and repay test debt
