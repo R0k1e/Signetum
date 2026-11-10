@@ -138,7 +138,7 @@ scope = [
     "Validation execution and failure memory",
 ]
 statement = "Owed-node accounting and discharge are withdrawn; old ledgers are ignored. Current-run failure and unreached-node verdicts remain enforced."
-status = "withdrawn"
+status = "active"
 topic = "validation-efficiency"
 version = 2
 
@@ -205,4 +205,4 @@ action = "Extend existing owners and public traversals, remove obsolete ledger r
 actor = "Repository owner"
 recorded_at = 2026-11-10
 source = "The Signetum 0.8.0 thinner protocol plan is authorized for implementation and validation; delivery and release remain excluded."
-contract_digest = "sha256:715317937730d72742711092c28d9fd922eda25976f7ac4e90a5e337c0985a02"
+contract_digest = "sha256:d42e06c3cf2031ea68f7b910950ca9d87a4ab76403f21d9e7683edb6ac4c7ef1"
