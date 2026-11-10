@@ -378,6 +378,16 @@ invoking process finishes. There is no background deletion, readiness cleanup or
 new public lifecycle operation. Status reads the last fetched delivery branch;
 cleanup fetches again before it removes anything.
 
+Cleanup `--all-delivered`, cleanup `--branch` and the delivery sweep also select
+local `change/*` and `batch/*` branches with no registered checkout, independently
+of workspace-record existence. They require the same delivered/contained content
+proof, then attempt non-forced `git branch -d`. Git refusal retains the branch and
+reports its diagnostic; containment does not authorize forced deletion of a loose
+branch. A successful branch-only removal retires its record, reports its tip and
+proof in the existing removed list, and omits the worktree field. An empty
+all-delivered sweep is a successful no-op. Other branch names and all branches
+still registered to a checkout are excluded from the branch-only sweep.
+
 ## Hosted checks and releases
 
 CI and release share one reusable workflow and run the declared complete gate

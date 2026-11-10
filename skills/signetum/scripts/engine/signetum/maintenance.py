@@ -29,8 +29,12 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("worktree", type=Path)
     clean = commands.add_parser("cleanup")
     clean.add_argument("--worktree", type=Path)
-    clean.add_argument("--branch")
-    clean.add_argument("--all-delivered", action="store_true")
+    clean.add_argument("--branch", help="Workspace branch or loose change/* or batch/* branch.")
+    clean.add_argument(
+        "--all-delivered",
+        action="store_true",
+        help="Sweep proven workspaces and loose Signetum branches; Git may refuse branch deletion.",
+    )
     clean.add_argument("--protected-worktree", type=Path, action="append", default=[])
     clean.add_argument("--discard", action="store_true")
     abandon = commands.add_parser(
