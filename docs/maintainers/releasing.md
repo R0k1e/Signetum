@@ -30,7 +30,11 @@ RepoSeal tags remain unchanged. A version entry is a candidate until published. 
 in CHANGELOG.md concise and focused on user outcomes; do not maintain another
 announcement with the same facts.
 
-Deliver the reviewed source explicitly. Require successful CI for that exact
+Deliver the reviewed source explicitly. Delivery sweeps proven workspaces and
+loose `change/*` and `batch/*` branches. If the running engine protects its own
+checkout, finish that invocation and run `maintenance cleanup --all-delivered`
+from the delivery checkout; inspect retained reasons and Git deletion refusals.
+Require successful CI for that exact
 commit and verify the public Skill path and Pages deployment. CI and release
 share one reusable validation workflow and the declared final gate, including
 native acceptance and dependency audit. All Linux/macOS targets must pass and

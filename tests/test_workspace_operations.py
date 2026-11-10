@@ -28,6 +28,7 @@ from signetum.workspaces import (
     workspace_destination,
 )
 from signetum.worktrunk import run_tool as actual_run_tool
+from signetum.worktrunk import worktrunk as actual_worktrunk
 
 
 def opened(repository, branch):
@@ -270,14 +271,15 @@ def land(repository, *commits):
     git_output(repository, "push", "origin", "main")
 
 
-def removed_outcomes(removed):
+def removed_outcomes(removed, repository=None):
     assert isinstance(removed, list)
     for row in removed:
         retirement = json.loads(Path(row["retirement"]).read_text())
         assert retirement["branch"] == row["branch"] and retirement["tip"] == row["tip"]
         assert retirement["outcome"] == row["outcome"]
-        assert not Path(row["worktree"]).exists()
-        primary = Path(row["worktree"]).parents[1]
+        if "worktree" in row:
+            assert not Path(row["worktree"]).exists()
+        primary = repository if repository is not None else Path(row["worktree"]).parents[1]
         assert run_git(primary, "rev-parse", "--verify", f"refs/heads/{row['branch']}").returncode
     return {row["branch"]: row["outcome"] for row in removed}
 
@@ -1009,12 +1011,14 @@ def test_delivery_sweeps_every_workspace_that_proves_its_outcome(repository):
     tip = final["source"]
     assert isinstance(tip, str)
 
+    git_output(root, "branch", "batch/already-gone", base)
     result = lifecycle.batch_deliver(batch, root, base, tip)
 
-    assert removed_outcomes(result["removed_worktrees"]) == {
+    assert removed_outcomes(result["removed_worktrees"], root) == {
         "plan/example": "delivered",
         "batch/example": "delivered",
         "plan/sibling": "contained",
+        "batch/already-gone": "delivered",
     }
     retained = result["retained_worktrees"]
     assert isinstance(retained, list)
@@ -1338,3 +1342,106 @@ def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypat
     # The opening checkout cannot act for the batch after the handoff.
     with pytest.raises(AdmissionError):
         lifecycle.admit(batch, ())
+
+
+@pytest.mark.parametrize("selector", ["all", "branch"])
+@pytest.mark.parametrize("namespace", ["change", "batch"])
+@pytest.mark.parametrize("registered", [False, True])
+def test_cleanup_removes_delivered_branches_without_checkouts(
+    repository, selector, namespace, registered
+):
+    root, _ = repository
+    branch = f"{namespace}/gone"
+    tip = commit_file(root, "delivered.txt")
+    git_output(root, "push", "origin", "main")
+    git_output(root, "branch", branch, tip)
+    if registered:
+        ops.write_record(state_root(root), ops.WorkspaceRecord(1, branch, tip, "member"))
+    git_output(root, "branch", "personal/keep", tip)
+    result = (
+        ops.cleanup(root, all_delivered=True)
+        if selector == "all"
+        else ops.cleanup(root, branch=branch)
+    )
+
+    removed_rows = result["removed"]
+    assert isinstance(removed_rows, list) and len(removed_rows) == 1
+    removed = removed_rows[0]
+    assert removed["branch"] == branch and removed["tip"] == tip
+    assert removed["outcome"] == "delivered"
+    retirement = json.loads(Path(removed["retirement"]).read_text())
+    assert retirement["tip"] == tip and retirement["outcome"] == "delivered"
+    assert bool(retirement["record"]) == registered
+    assert not ops.record_path(state_root(root), branch).exists()
+    assert run_git(root, "show-ref", "--verify", f"refs/heads/{branch}").returncode
+    assert git_output(root, "rev-parse", "personal/keep") == tip
+    assert result["retained"] == []
+    if selector == "all":
+        assert ops.cleanup(root, all_delivered=True)["removed"] == []
+
+
+@pytest.mark.parametrize("contained", [False, True])
+def test_cleanup_keeps_unmerged_loose_branches_even_when_content_landed(repository, contained):
+    root, _ = repository
+    member = opened(root, "change/loose")
+    tip = commit_file(member, "own.txt")
+    if contained:
+        land(root, tip)
+    # Model an interrupted removal, retaining its Signetum record and branch.
+    git_output(root, "worktree", "remove", str(member))
+
+    result = ops.cleanup(root, branch="change/loose")
+
+    assert result["removed"] == []
+    retained = result["retained"]
+    assert isinstance(retained, list) and len(retained) == 1
+    assert retained[0]["branch"] == "change/loose"
+    assert retained[0]["reason"] == ("git_refused" if contained else "not_contained")
+    assert git_output(root, "rev-parse", "change/loose") == tip
+    assert read_record(state_root(root), "change/loose").branch == "change/loose"
+
+
+def test_actual_worktrunk_cleanup_removes_both_worktree_and_branch(
+    repository, monkeypatch, tmp_path
+):
+    root, _ = repository
+    source = Path(__file__).resolve().parents[1]
+    shutil.copy2(source / "mise.toml", root / "mise.toml")
+    git_output(root, "add", "mise.toml")
+    git_output(root, "commit", "-m", "declare host tools")
+    member = opened(root, "change/actual-removal")
+    commit_file(member, "landed.txt")
+    publish_member(root, member)
+    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(tmp_path))
+    config = tmp_path / "worktrunk.toml"
+    config.write_text("")
+
+    def isolated_worktrunk(repository, arguments, *, json_output=False):
+        return actual_worktrunk(
+            repository, ("--config", str(config), *arguments), json_output=json_output
+        )
+
+    monkeypatch.setattr(wt, "worktrunk", isolated_worktrunk)
+    monkeypatch.setattr(wt, "run_tool", actual_run_tool)
+
+    result = ops.cleanup(root, branch="change/actual-removal")
+
+    assert removed_outcomes(result["removed"]) == {"change/actual-removal": "delivered"}
+
+
+@pytest.mark.parametrize("branch", ["main", "personal/keep", "batch/missing"])
+def test_branch_only_cleanup_never_adopts_other_names(repository, branch):
+    root, _ = repository
+    tip = git_output(root, "rev-parse", "HEAD")
+    git_output(root, "branch", "personal/keep", tip)
+    if branch == "main":
+        result = ops.cleanup(root, branch=branch)
+        assert result["removed"] == []
+        retained = result["retained"]
+        assert isinstance(retained, list)
+        assert retained[0]["reason"] == "protected"
+    else:
+        with pytest.raises(AdmissionError):
+            ops.cleanup(root, branch=branch)
+    assert git_output(root, "rev-parse", "personal/keep") == tip
+    assert git_output(root, "rev-parse", "main") == tip
