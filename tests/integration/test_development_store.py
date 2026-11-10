@@ -845,7 +845,6 @@ def test_invalid_cli_requests_are_structured_and_never_write_source(repository, 
         "wrong_operation",
         "wrong_disposition",
         "unexpected_followup",
-        "missing_evidence",
     ],
 )
 def test_invalid_requests_are_refused_before_any_source_write(repository, store, damage):
@@ -1150,8 +1149,7 @@ def test_retraction_withdraws_only_the_answer_and_returns_the_finding_to_pending
     )
     illegal = json.loads(json.dumps(illegal))
     illegal["resolutions"][0]["evidence"] = []
-    with pytest.raises(ValueError, match="acceptance evidence"):
-        store.parse_request(illegal)
+    assert store.parse_request(illegal).resolutions[0].evidence == ()
     assert store.snapshot(repository) == result
 
 
@@ -1226,10 +1224,9 @@ def test_a_semantically_invalid_old_answer_can_be_repaired_append_only(repositor
     git_output(repository, "add", ".")
     git_output(repository, "commit", "-m", "retain the simulated prior-writer defect")
     retained = path.read_bytes()
-    with pytest.raises(ValueError, match="acceptance evidence"):
-        store.snapshot(repository)
+    assert store.snapshot(repository).observations[0].resolution.evidence == ()
     status = _cli(repository, store, "status")
-    assert status.returncode == 2
+    assert status.returncode == 0
     failure = json.loads(status.stdout)
     assert failure["history_digest"]
     history = _cli(repository, store, "history", "--event", "alpha/answer")
@@ -1344,8 +1341,8 @@ def test_source_review_binds_committed_history_and_refuses_pending_findings(repo
     assert inputs["journals"]["changes/alpha/events.jsonl"] == git_output(
         repository, "rev-parse", "HEAD:changes/alpha/events.jsonl"
     )
-    with pytest.raises(ValueError, match="unresolved source observations"):
-        store.reconciliation_summary(repository, ("alpha",), commit=commit)
+    summary = store.reconciliation_summary(repository, ("alpha",), commit=commit)
+    assert summary["changes"][0]["observations"][0]["status"] == "pending"
     assert store.reconciliation_summary(repository, (), commit=commit)["observation_count"] == 0
 
 
@@ -1412,14 +1409,14 @@ def test_source_reconciliation_preserves_standing_answers_and_frozen_evidence(
     commit = git_output(repository, "rev-parse", "HEAD")
     journal = repository / "changes/alpha/events.jsonl"
     before = journal.read_bytes()
-    if outcome in {"retracted", "missing", "untracked"}:
-        with pytest.raises(ValueError, match=r"unresolved|evidence is absent"):
-            store.reconciliation_summary(repository, ("alpha",), commit=commit)
-    else:
-        summary = store.reconciliation_summary(repository, ("alpha",), commit=commit)
-        assert summary["observation_count"] == 1
-        expected = "rejected" if outcome == "rejected" else "resolved"
-        assert summary["changes"][0]["observations"][0]["status"] == expected
+    summary = store.reconciliation_summary(repository, ("alpha",), commit=commit)
+    assert summary["observation_count"] == 1
+    expected = (
+        "pending"
+        if outcome == "retracted"
+        else ("rejected" if outcome == "rejected" else "resolved")
+    )
+    assert summary["changes"][0]["observations"][0]["status"] == expected
     assert journal.read_bytes() == before
     git_output(repository, "commit", "--allow-empty", "-m", "new source identity")
     with pytest.raises(ValueError, match="commit differs"):
@@ -1467,7 +1464,7 @@ def test_archived_manifest_locations_are_readable_but_cannot_authorize_new_write
     current = (Path(__file__).parents[2] / "signetum.toml").read_text()
     transaction = request(repository, store)
     state = store.snapshot(repository)
-    archived = current.replace("schema_version = 5", "schema_version = 2", 1).replace(
+    archived = current.replace("schema_version = 6", "schema_version = 2", 1).replace(
         'changes = "changes"',
         'specifications = "archive/*/specs/*.toml"\nplans = "archive/*/plans/*.md"',
     )

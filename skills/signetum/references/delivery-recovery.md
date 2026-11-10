@@ -42,23 +42,11 @@ after the resolution. Preserve the prepared Signetum trailers with
 `git commit --no-edit`, then run `batch-continue`; it also accepts the staged
 resolution and commits it with `--no-edit` itself.
 
-A remembered failing node that the change deleted or renamed is released when its
-shard passes without it; the receipt lists it. Other first failures stay owed.
-A failed result lists `first_attempt_failures`, including those that passed only on
-retry, and `failed_shards`: every shard that did not pass, with its exit code and
-reported failed checks; the workspace's failure record lists the same.
-
-A node owed only because it was unreached owes execution: a later runner-reported
-non-failing terminal outcome, including a declared skip, discharges it. Runners
-may report optional `"non_failing": {"node-id": "skipped"}` (or another non-failing
-terminal outcome); `passed` also proves reaching. Collection alone, deselection
-and an absent outcome do not. Failure and retry-recovered debt still requires
-passing or the existing `change record --evidence` release; a skip cannot erase
-an observed failure. Failure takes precedence when debt sources overlap, including
-across failed gates and deferred shards. Receipt shard details (or the failure
-receipt when another obligation fails) list
-`discharged_by_reaching` entries with `node_id` and `outcome`. Existing retirement
-rules remain applicable.
+Failure receipts are diagnostics only. Historical owed ledgers are ignored;
+there is no node retirement or discharge ceremony. First failure remains failure
+within a run, and an unreached selected node fails it. Final runs the complete
+repository-selected gate. Pending observations and deferrals remain visible in
+`unfinished_work` without blocking qualification.
 
 On failure, inspect the structured result, retained diagnostics and exact local
 and remote identities before acting. Fix every failed shard and check it lists in

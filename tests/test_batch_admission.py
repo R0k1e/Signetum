@@ -9,7 +9,7 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 from shutil import which
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 import signetum.lifecycle as lifecycle
@@ -932,10 +932,6 @@ def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_
     (member / "implemented.txt").write_text("implementation after approval")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement and retain significant events")
-    if not resolved:
-        with pytest.raises(lifecycle.AdmissionError, match="unresolved source observations"):
-            lifecycle.validate(member, "member")
-        return
     lifecycle.validate(member, "member")
     lifecycle.admit(batch, (member,))
     tip = _git(batch, "rev-parse", "HEAD")
@@ -954,19 +950,12 @@ def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_
         )
         _git(member, "add", ".")
         _git(member, "commit", "-m", "retain a discovery beyond the admitted tip")
-    if not resolved:
-        with pytest.raises(lifecycle.AdmissionError, match="unresolved source observations"):
-            lifecycle.validate(batch, "final")
-    else:
-        result = lifecycle.validate(batch, "final")
-        receipt = result["receipt"]
-        assert isinstance(receipt, str)
-        review = json.loads(Path(receipt).read_text())["delivery_review"]
-        assert review["inputs"]["source_journals"]["journals"]["changes/example/events.jsonl"]
-        assert review["source_reconciliation"]["observation_count"] == 1
-        assert (
-            review["source_reconciliation"]["changes"][0]["observations"][0]["status"] == "resolved"
-        )
+    result: Any = lifecycle.validate(batch, "final")
+    reconciliation = result["delivery_review"]["source_reconciliation"]
+    assert reconciliation["observation_count"] == 1
+    assert result["source"] == tip
+    unfinished = result["delivery_review"]["unfinished_work"]
+    assert [row["id"] for row in unfinished] == ([] if resolved else ["example/finding"])
     assert journal.read_bytes() == before
     assert _git(batch, "rev-parse", "HEAD") == tip
 

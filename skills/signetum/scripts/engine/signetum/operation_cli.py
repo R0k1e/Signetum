@@ -55,7 +55,12 @@ def run_operation(
         log = _archive_operation_failure(repository, str(error), state_root)
         print(f"{operation}: {str(error)[-2000:]}", file=sys.stderr)
         failure = OperationResult(
-            operation, status, _node_fields(error), str(error)[-2000:], expected, log
+            operation,
+            status,
+            {**_node_fields(error), "next_command": "signetum status"},
+            str(error)[-2000:],
+            expected,
+            log,
         )
         print(json.dumps(failure.document(), sort_keys=True))
         return EXIT_CODES[status]
@@ -116,7 +121,13 @@ def utility_failure(operation: str, error: Exception, **fields: object) -> int:
     result = OperationResult(
         operation,
         status,
-        {"state_change": "not_confirmed", **fields},
+        {
+            "state_change": "not_confirmed",
+            "next_command": f"signetum change {operation} --help"
+            if operation in {"record", "resolve", "retract", "reconcile", "retire"}
+            else f"signetum {operation} --help",
+            **fields,
+        },
         str(error)[-2000:],
         expected,
         log,

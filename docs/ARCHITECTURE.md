@@ -27,3 +27,13 @@ Current authorities describe actual behavior and owners. Reconcile affected page
 in the implementing change; leave unaffected pages alone. New reasoning belongs
 once in the owning change and significant append history. Standalone decisions
 are conditional cross-change authorities; accepted historical sources are retained.
+
+The 0.8 protocol enforces six invariants: owner authorization before the first
+implementation commit; evidence bound to exact content; delivery of a fully
+validated integrated batch tree; explicit owner delivery authorization; isolated
+workspaces with explicit merge resolution and checked trailers; and exclusive
+change ownership of decision clauses. Stacking and safe cleanup remain enforced.
+Scope revisions and observations are recorded for review, never re-approved or
+used as gate blockers. Failure receipts are diagnostics, not an owed-node ledger.
+Repository configuration and the operating model own resource scheduling,
+concurrency, environment preparation and test selection.

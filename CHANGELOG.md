@@ -3,6 +3,21 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.8.0
+
+- Enforce six delivery invariants while recording scope revisions without
+  contract-digest binding or re-approval. Approval uses actor, date and a neutral
+  statement; final review derives later contract revisions from source history.
+- Pending observations never block qualification. Record needs a summary;
+  resolve needs an observation and reason, with optional evidence.
+- Remove owed-node accounting and M5 discharge. Failure receipts retain current
+  diagnostics; final still completes every repository-selected shard without
+  failure or unreached nodes.
+- Infer current member changes, generate optional journal IDs, retry writer
+  contention briefly and name open-merge paths and recovery commands.
+- Add record schema 2 and configuration schema 6 while reading 0.7 records and
+  configuration unchanged. Update reports consumer migration guidance.
+
 ## 0.7.2
 
 - Cleanup with `--all-delivered` or `--branch` now also finds Signetum branches

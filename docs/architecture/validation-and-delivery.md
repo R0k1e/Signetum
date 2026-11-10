@@ -27,37 +27,12 @@ retry-recovered nodes and `{signetum.validation_workers}` the allocated worker c
 packaged pytest runner takes these as `--node-report`, `--recovery-report`,
 `--workers` and `--schedule-file`. The engine reads it after the
 shard ends, including after its time bound. Unreached entries fail the shard and
-the result states their count. `{signetum.priority_nodes_file}` always exists and
-holds the shard's owed entries as `{"schema_version": 1, "nodes": [...]}` for the
-runner to schedule first; it never selects or satisfies an entry. A failed member, batch
-or final gate writes a failure receipt for its workspace under the Git common
-directory's `signetum/failures`, beside synchronization records. It names the
-workspace, its changes, base, tip, first-attempt failed nodes, nodes that passed
-only on retry and unreached nodes, all owed to the next gate, and under
-`failed_shards` every shard that did not pass with its exit code (`null` without
-one), its reported failed checks and, for a skipped shard, `skipped_after`. Failed
-shards are reported, not owed; a passing gate clears them. The next gate in that workspace releases a remembered node that an
-observation in a change journal the workspace changed names as evidence with its
-root cause, whether or not its shard is selected. Before checks start, it refuses
-any other node whose shard is not selected again. Reselected failure debt must
-report passing; unreached-only debt accepts a non-failing terminal outcome. Either
-kind may also be released when that shard passes without reporting it, a
-commit since the workspace base touched its test file and the file at the gate's
-tip no longer names its test: such a vanished node is released and the shard's
-receipt details list it under `released_vanished_nodes` with `node_id`, the last
-`retiring_commit` touching its file and `basis: "name_absent"`. A runner may instead
-report optional `not_collected` owed node ids: files collected by this run whose
-collection did not produce that node, or files that no longer exist. A passing
-shard releases such an unreported node only when a commit between the failure tip
-and gate tip changed its file; the details bind the last such `retiring_commit`
-and `basis: "not_collected"`. Collection observes nodes before selection filters,
-so deselection does not retire a node. Runners omitting the field keep the name
-heuristic and journal release. Once released, a node leaves failure memory and
-later gates do not re-judge its retirement. A passing gate removes
-the receipt. A failed operation result lists `first_attempt_failures` with each
-node's shard and whether it passed only on retry, `unreached_nodes` and
-`failed_shards`, and its `cause` ends with a line naming every failed shard and
-check.
+the result states their count. `{signetum.priority_nodes_file}` remains an empty compatibility input. Failure
+receipts retain only the current run's failed shards, checks, first-attempt
+failures, retry-recovered nodes and unreached nodes. They never create debt for
+a later gate; old ledgers are ignored. Unreached nodes and first failures fail
+the current run. Final executes every repository-selected shard to completion
+without failure or unreached nodes.
 Same argv does not make distinct shards interchangeable. Only explicit successful
 preparation can be reused within an operation.
 
@@ -130,10 +105,11 @@ reuses that receipt's passing evidence for its exact command and matching input
 identities. A rule or coverage affects the shards and gates it names and their
 `requires` prerequisites; a modified test file is an ordinary path; an unexplained
 path reruns every shard; a path inside a change directory affects none. A shard
-without such evidence, or one owing remembered nodes, reruns. Batch admission,
+without such evidence reruns. Batch admission,
 continuation and final never inherit.
 Source admission still requires approved packages, intact journal ancestry and
-resolved observations at ready, admission, continuation and final. Static checks still run.
+committed journals at ready, admission, continuation and final. Observations never
+block. Static checks still run.
 
 A records-only range changes only paths inside change directories and keeps the
 contract digest of every change record it changes: journal events, or approval
@@ -181,8 +157,8 @@ and `batch-continue` admits them in order after committing the resolution. Quali
 and implementation for each carried package. Every own implementation commit
 must have matching approval in its parent. Each package approved at the tip must
 have covered implementation, including an exact accepted decision application
-for authority-only work. Amending and re-approving a contract after implementation
-requires no extra implementation commit. Approval bundled with code remains
+for authority-only work. Contract revisions after authorization are recorded only; final lists their
+commits and changed fields per change, without requiring re-approval. Approval bundled with code remains
 invalid even if later code follows it; history is never rewritten. Competing retired formats supply
 no fallback. Previously delivered intent remains protected; new intent needs its
 own change. Ordinary execution refinements cannot reduce approved outcomes.
@@ -250,11 +226,10 @@ delivered records a verified synchronization brought into it.
 
 Final rejects Proposed decisions added or modified within the declared decision
 directory against its registered base; unchanged historical proposals remain
-read-only context. Final reconciles selected source journals and affected standing answers. Pending
-findings, effective evidence that is neither in the reviewed tree nor a known
-validation receipt, or uncommitted source suffixes refuse. A deferral carries its
+read-only context. Final reconciles selected source journals and affected standing answers. Uncommitted source journal suffixes refuse. Pending observations and optional
+resolution evidence do not block qualification. A deferral carries its
 reason and an optional follow-up change, judged only when written; the review lists
-every deferred item in its top-level `unfinished_work`. Historical statements retain original proof without another
+every pending observation and deferred item in its top-level `unfinished_work`. Historical statements retain original proof without another
 active workflow. Exact retirements preserve earlier answers. Final does not
 append its own success to source.
 
@@ -269,8 +244,8 @@ Member-owned defects are fixed in the member and admitted again; conflict
 resolution stays with `batch-continue`. Status names both repair paths.
 
 Schema-1 batches retain batch-owned change authority. Each implementation commit
-is attributed using the approved contract in its parent, matching the contract
-at that commit. Re-approval at a later tip never changes that verdict. The review
+is attributed using the approved contract in its parent, without requiring the contract to match the later scope. Authorization is recorded
+once; final review derives contract revisions since approval from source history. The review
 includes the authority and contract digests at the parent, including superseded
 contracts. Old excluded drafts remain unused unless approved and committed as
 legacy authority. Records-only commits are attributed to the records they touch.

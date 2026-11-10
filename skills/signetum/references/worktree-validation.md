@@ -115,23 +115,26 @@ standing answer and accepted decision changes. Ordinary writes take semantic
 arguments; the tool binds the current approved change and history identity:
 
 ```text
-change record --id finding --requirement REQ-001 --summary "What was found" --reason "Why it matters"
-change resolve --id fix --target <observation-id> --reason "What resolves it" --evidence <source-path>
+change record --summary "What was found"
+change resolve --target <observation-id> --reason "What resolves it"
 change reconcile --id accepted-decisions --reason "Apply the approved proposals" --accept-decisions
 ```
 
 Use the returned observation ID as the exact resolution target; the record's
 `--id` also works. `change resolve --help` shows every form with examples. `--id` is a
 stable retry identity: the same content is idempotent; changed content needs a
-new identity. Add `--change` when more than one approved change matches the
-workspace base. `--expected-history` can explicitly bind a previously reviewed
-view; a stale write refuses. Evidence is a path in the current tree or the name of
-a validation receipt; resolve writes a pytest node id `path::test` as its file.
-Writes in other worktrees never wait for each other. `change why <clause-id>`
+new identity. Omit `--id` to generate one. The current member infers its change;
+use `--change <id>` when a batch has several possible changes. Requirements,
+reason and evidence on record, and evidence on resolve, are optional. `--expected-history` can explicitly bind a previously reviewed
+view; a stale write refuses. Evidence is optional descriptive context; it does
+not qualify validation or block a gate. Resolve writes a pytest node ID as its file.
+Writes in other worktrees never wait for each other. A writer in the same
+worktree retries briefly before naming the retry command. `change why <clause-id>`
 shows one decision clause's revisions, reasons, approval source and commits. A deferred resolution uses `--disposition deferred` with a
 `--reason` that says who decided and what remains owed; an optional `--followup
 change-id[#REQ-ID]` names an approved change on any local branch. The final
-review lists every deferral under `unfinished_work`. A commit that changes only
+review lists every pending observation and deferral under `unfinished_work`.
+Observations never block ready, admission, continuation or final. A commit that changes only
 change records keeps the member's ready evidence: `ready` starts no check, and
 re-admission runs no batch gate. In a batch, the same commands record, resolve or
 defer findings of the changes it integrates; commit them there, and final checks them.
@@ -150,35 +153,14 @@ replacement or edit JSONL. Ordinary command output stays in local logs.
 Commit significant source events before validation freezes the source. Run the
 repository's targeted checks during work and its member gate for ready. A first
 failure remains failed even when a diagnostic retry passes; after fixing it,
-run ordinary validation again. A failed gate remembers its failed and retry-only
-nodes for the workspace. Its failure record, `signetum/failures/<workspace>.json`
-under the Git common directory, and the failed result's `failed_shards` list every
-shard that did not pass with its exit code and the failed checks its runner
-reported. Read them, fix every listed failure in one round, then run ready again;
-the `cause` alone may name only part of them. A committed `change record` observation that names a node
-with `--evidence <node-id>` and states its root cause in `--reason` releases it,
-even when its shard is still selected. Otherwise the next gate refuses before checks
-unless the node is selected again; failure debt must then pass, while
-unreached-only debt accepts a non-failing terminal outcome. Moving a failed test out
-of scope never offsets that failure, and neither does a retry-only pass. A shard
-command that declares `{signetum.priority_nodes_file}` receives those owed nodes
-as `{"schema_version": 1, "nodes": [...]}` to run first. Node outcomes come only
-through a declared `{signetum.node_report_file}`, whose optional `unreached` list
-fails the gate and makes those entries owed; its optional `failed_checks` names
-non-test checks for the record and is never owed. An optional `not_collected` list
-releases an unreported owed node only when its shard passes and a commit since
-the failure changed its file. It names nodes absent from collection in files
-collected by that run or no longer present, not tests deselected by a filter.
-Receipt `released_vanished_nodes` entries retain `node_id`, `retiring_commit` and
-`basis: "not_collected"`; runners omitting the field keep the name-absence
-heuristic (`basis: "name_absent"`) and journal release. The packaged pytest runner
-accepts `--priority-nodes {signetum.priority_nodes_file}` to compute it. Every other engine value, such as
-the base, ratchet baseline, contribution paths, admission base, worker cap,
-recovery report and schedule file, is also a declared `{signetum.*}` argument;
-Signetum sets no environment variable for a runner. See the
-[repository binding guide](https://github.com/R0k1e/Signetum/blob/main/docs/guides/repository-bindings.md)
-for the runner contract and order-only `after` prerequisites. Process settlement checks only positively owned
-jobs and refuses successful commands that leave owned children behind.
+run ordinary validation again. Failure receipts retain current-run failed shards,
+checks, failed nodes, retry-recovered nodes and unreached nodes for diagnosis.
+They create no owed-node ledger or later selection obligation. An unreached
+selected node fails that run. Final runs every shard the repository selects to
+completion without failure or unreached nodes. The compatibility
+`{signetum.priority_nodes_file}` contains an empty node list. Repository
+configuration and the operating model own scheduling, preparation, concurrency
+and test selection; these are not protocol invariants.
 
 Preserve unrelated files and processes. Stop at a clean ready unless integration
 or delivery is authorized. Validation never appends its own success to source.
@@ -193,18 +175,6 @@ Read only for multiple members or integration coordination.
 
 Before delegating, the coordinating Agent names each member's outcome, worktree,
 owned scope, dependencies and shared interfaces in the existing execution plan.
-A node owed only because it was unreached owes execution: a later runner-reported
-non-failing terminal outcome, including a declared skip, discharges it. Runners
-may report optional `"non_failing": {"node-id": "skipped"}` (or another non-failing
-terminal outcome); `passed` also proves reaching. Collection alone, deselection
-and an absent outcome do not. Failure and retry-recovered debt still requires
-passing or the existing `change record --evidence` release; a skip cannot erase
-an observed failure. Failure takes precedence when debt sources overlap, including
-across failed gates and deferred shards. Receipt shard details (or the failure
-receipt when another obligation fails) list
-`discharged_by_reaching` entries with `node_id` and `outcome`. Existing retirement
-rules remain applicable.
-
 Resolve shared contract choices before dependent implementation; synchronize through
 the declared owner instead of changing another member's worktree. Independent
 members can proceed while an affected choice is pending.

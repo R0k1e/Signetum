@@ -20,9 +20,9 @@ ObjectId = Annotated[str, Constraints(pattern="^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 @dataclass(frozen=True, kw_only=True)
 class DevelopmentObservation(FrozenContract):
     id: Identifier
-    requirements: Annotated[tuple[ClauseId, ...], Constraints(min_length=1)]
+    requirements: tuple[ClauseId, ...] = ()
     summary: Text
-    reason: Text
+    reason: str = ""
     evidence: tuple[Text, ...] = ()
 
 
@@ -127,11 +127,6 @@ def transaction_identities(transaction: DevelopmentTransaction) -> tuple[str, ..
 def validate_resolution(resolution: DevelopmentResolution) -> None:
     if resolution.status != "deferred" and resolution.followup is not None:
         raise ValueError("only deferred work can name a follow-up change")
-    if resolution.status == "resolved" and not resolution.evidence:
-        raise ValueError(
-            "resolved work requires acceptance evidence: a path in the current tree or a "
-            "validation receipt name; otherwise use the deferred or rejected disposition"
-        )
 
 
 def validate_transaction(

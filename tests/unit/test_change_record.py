@@ -19,7 +19,7 @@ from signetum.status import models as states
 from signetum.status import projector
 
 
-def test_recorded_approval_binds_behavior_but_not_routine_plan_refinement(record_source):
+def test_recorded_authorization_survives_contract_and_plan_revisions(record_source):
     record = parse_change_record(record_source)
     approved = replace(
         record,
@@ -35,10 +35,9 @@ def test_recorded_approval_binds_behavior_but_not_routine_plan_refinement(record
     refined = replace(approved, execution=replace(approved.execution, steps=(step,)))
     validate_change_record(refined)
     changed = replace(record.contract.requirements[0], outcome="A different behavior.")
-    with pytest.raises(ValueError, match="does not bind"):
-        validate_change_record(
-            replace(approved, contract=replace(record.contract, requirements=(changed,)))
-        )
+    validate_change_record(
+        replace(approved, contract=replace(record.contract, requirements=(changed,)))
+    )
 
 
 @pytest.mark.parametrize("damage", ["missing", "unknown", "duplicate"])
@@ -66,7 +65,7 @@ def test_steps_cannot_omit_invent_or_duplicate_requirement_ownership(record_sour
 
 
 @pytest.mark.parametrize("boundary", ["base", "autonomy", "excluded"])
-def test_recorded_approval_cannot_survive_a_changed_execution_boundary(record_source, boundary):
+def test_recorded_authorization_survives_changed_execution_boundaries(record_source, boundary):
     record = parse_change_record(record_source)
     approval = RecordedApproval(
         actor="Owner",
@@ -82,8 +81,7 @@ def test_recorded_approval_cannot_survive_a_changed_execution_boundary(record_so
         )
     else:
         changed = replace(record.contract, excluded=())
-    with pytest.raises(ValueError, match="does not bind"):
-        validate_change_record(replace(record, contract=changed, approval=approval))
+    validate_change_record(replace(record, contract=changed, approval=approval))
 
 
 @pytest.mark.parametrize(
@@ -146,3 +144,21 @@ def test_concise_proposal_shows_the_exact_base_and_retirement_to_be_confirmed(re
     assert isinstance(proposal, dict)
     assert proposal["targets"] == ["obsolete.py"]
     assert proposal["reason"] == retirement.reason
+
+
+def test_minimal_free_text_approval_and_legacy_digest_are_compatible(record_source):
+    source = record_source.replace("schema_version = 1", "schema_version = 2", 1)
+    source += """
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-10
+statement = "The revised behavior is authorized."
+"""
+    record = parse_change_record(source)
+    assert record.approval is not None
+    assert record.approval.statement == "The revised behavior is authorized."
+    assert parse_change_record(source + 'contract_digest = "ignored legacy value"\n').approval
+    with pytest.raises(ValueError, match="statement"):
+        parse_change_record(
+            source.replace('statement = "The revised behavior is authorized."', 'statement = ""')
+        )

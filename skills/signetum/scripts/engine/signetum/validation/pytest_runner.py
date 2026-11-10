@@ -149,27 +149,6 @@ def _run(
         return result.returncode, []
     if nodes is None and (destination := options.get("--node-report")):
         _report_first_attempt(document["reports"], destination)
-        if priority := options.get("--priority-nodes"):
-            owed = json.loads(Path(priority).read_text(encoding="utf-8"))["nodes"]
-            collected = set(document.get("collected", ()))
-            files = set(document.get("collected_files", ()))
-            # Explicit node selectors do not prove that the rest of that file
-            # was collected. Keep those files owed conservatively.
-            targeted = {
-                Path(argument.split("::", 1)[0]).resolve()
-                for argument in arguments
-                if "::" in argument
-            }
-            files = {name for name in files if Path(name).resolve() not in targeted}
-            absent = sorted(
-                node
-                for node in owed
-                if node not in collected
-                and (node.partition("::")[0] in files or not Path(node.partition("::")[0]).exists())
-            )
-            report_document = json.loads(Path(destination).read_text(encoding="utf-8"))
-            report_document["not_collected"] = absent
-            Path(destination).write_text(json.dumps(report_document), encoding="utf-8")
     return result.returncode, document["reports"]
 
 

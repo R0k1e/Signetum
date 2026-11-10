@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 from change_fixtures import commit_approval
 from signetum import change_cli, lifecycle
-from signetum.change_record import contract_digest, parse_change_record
 from signetum.development_store import snapshot as development_snapshot
+from signetum.gate_records import failure_path
 from signetum.workflow_status import workflow_status
 from test_batch_admission import _git, _record, _repository
 
@@ -73,7 +73,7 @@ shards = ["repo:static", "repo:tests"]
 def workspaces(tmp_path):
     """One approved, implemented member and an open batch, both cut from one base."""
     log = tmp_path / "checks.log"
-    root = _repository(tmp_path / "repository")
+    root = _repository(tmp_path / "record-repository")
     (root / "signetum.toml").write_text(_manifest(log))
     _git(root, "commit", "-am", "log every check")
     base = _git(root, "rev-parse", "HEAD")
@@ -178,11 +178,9 @@ def test_a_contract_change_inherits_shards_its_paths_do_not_affect(workspaces):
     _checks(log)
     record = member / "changes/example/change.toml"
     text = record.read_text()
-    old = contract_digest(parse_change_record(text).contract)
     text = text.replace("Implement the confirmed behavior.", "Implement the clarified behavior.")
-    contract = text.split("[change.approval]")[0]
-    record.write_text(text.replace(old, contract_digest(parse_change_record(contract).contract)))
-    _git(member, "commit", "-am", "re-approve the clarified contract")
+    record.write_text(text)
+    _git(member, "commit", "-am", "record the clarified contract without re-approval")
     (member / "docs").mkdir()
     (member / "docs/note.md").write_text("Clarified.\n")
     _git(member, "add", ".")
@@ -203,9 +201,7 @@ def test_the_batch_answers_and_defers_findings_of_an_admitted_change(workspaces,
     _checks(log)
 
     _observe(batch, capsys, "answered")
-    with pytest.raises(AssertionError):
-        _resolve(batch, capsys, "answered", "nowhere.txt")
-    _resolve(batch, capsys, "answered", "behavior.txt", receipt)
+    _resolve(batch, capsys, "answered", "nowhere.txt", receipt)
     _observe(batch, capsys, "owed")
     _journal(
         batch,
@@ -298,3 +294,77 @@ def test_resolve_accepts_the_record_id_and_a_node_id_and_status_stays_compact(wo
     assert compact["observation_counts"] == {"pending": 1, "resolved": 1}
     verbose: Any = _journal(member, capsys, "status", "--verbose")
     assert len(verbose["observations"]) == 2
+
+
+def test_07_records_read_ready_final_and_deliver_under_08(workspaces, capsys, local_repository):
+    """Legacy digests, failure ledgers and pending journals survive the public lifecycle."""
+    member, batch, log = workspaces
+    root = member.parent / "record-repository"
+    _git(root, "push", "origin", "main")
+    record = member / "changes/example/change.toml"
+    original = record.read_text()
+    assert "contract_digest" in original and "schema_version = 1" in original
+    # A scope revision retains the original approval and digest.
+    record.write_text(original.replace("Implement the confirmed behavior.", "Clarified outcome."))
+    _git(member, "commit", "-am", "record scope revision without re-approval")
+    _journal(
+        member,
+        capsys,
+        "record",
+        "--id",
+        "legacy-pending",
+        "--requirement",
+        "REQ-1",
+        "--summary",
+        "Remaining optional follow-up",
+        "--reason",
+        "Retain the 0.7 observation.",
+    )
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "retain pending observation")
+    for workspace, branch in ((member, "impl/member"), (batch, "batch/test")):
+        path = failure_path(workspace, branch)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "workspace": branch,
+                    "failed": [{"shard": "removed:shard", "node_id": "removed.py::test_old"}],
+                    "unreached": [{"shard": "removed:shard", "node_id": "old.py::test_unreached"}],
+                }
+            )
+        )
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+    lifecycle.admit(batch, (member,))
+    failure_path(batch, "batch/test").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "workspace": "batch/test",
+                "failed": [{"shard": "removed:shard", "node_id": "old.py::test_old"}],
+            }
+        )
+    )
+    _checks(log)
+    final: Any = lifecycle.validate(batch, "final")
+    assert sorted(_checks(log)) == ["static", "tests"]
+    review = final["delivery_review"]
+    assert review["unfinished_work"][0]["summary"] == "Remaining optional follow-up"
+    revisions = review["approvals"][0]["contract_revisions"]
+    assert len(revisions) == 1 and "requirements" in revisions[0]["fields"]
+    source = final["source"]
+    delivered: Any = lifecycle.batch_deliver(batch, root, final["base"], source)
+    assert delivered["status"] == "delivered"
+    assert _git(root, "merge-base", "--is-ancestor", source, "main") == ""
+
+
+def test_resolve_requires_only_observation_and_reason(workspaces, capsys):
+    member, _, _ = workspaces
+    observed: Any = _journal(member, capsys, "record", "--summary", "An optional finding")
+    target = observed["observations"][0]["observation"]["id"]
+    resolved: Any = _journal(
+        member, capsys, "resolve", "--target", target, "--reason", "Existing behavior answers it."
+    )
+    assert resolved["observations"][0]["status"] == "resolved"
+    assert resolved["observations"][0]["effective_evidence"] == []

@@ -17,12 +17,8 @@ from signetum.engine_pin import require_batch_engine
 from signetum.evidence.receipts import EvidenceReceipt
 from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
-    failed_tip,
     forget_failures,
     remember_failure,
-    require_accounted,
-    unreached_only,
-    vanished_nodes,
 )
 from signetum.git import git_output
 from signetum.manifest import RepositoryManifest, load_manifest
@@ -59,7 +55,7 @@ class AdapterFactory(Protocol):
 
 
 def _carried_approval(view: dict[str, object]) -> dict[str, object]:
-    """Expose the recorded approval text. The digest, not the wording, binds it."""
+    """Expose the recorded owner authorization; evidence binds exact source."""
 
     approval = view.get("approval")
     change_id = view.get("change_id")
@@ -69,7 +65,7 @@ def _carried_approval(view: dict[str, object]) -> dict[str, object]:
         "change_id": change_id,
         "actor": approval["actor"],
         "recorded_at": approval["recorded_at"],
-        "source": approval["source"],
+        "statement": approval.get("statement") or approval.get("source"),
         "contract_digest": view["contract_digest"],
     }
 
@@ -101,7 +97,7 @@ def _unfinished_work(
             }
             for change in observations["changes"]
             for row in change["observations"]
-            if row["status"] == "deferred"
+            if row["status"] in {"pending", "deferred"}
         ),
     ]
 
@@ -242,7 +238,6 @@ def validate_workspace(
     gate_base = git_output(repository, "rev-parse", base) if base else evidence_base
     if gate_base is None:
         raise AdmissionError("validation has no recorded workspace base")
-    owed = require_accounted(repository, branch, gate_base, graph.execution_order(gate))
     try:
         receipt = execute(
             graph,
@@ -250,16 +245,9 @@ def validate_workspace(
             inputs,
             adapter,
             inherited=inherited,
-            remembered=owed,
-            reach_only=unreached_only(repository, branch),
-            vanished=vanished_nodes(
-                repository, gate_base, source, owed, failed_tip(repository, branch, None)
-            ),
         )
     except ValidationExecutionError as error:
-        remember_failure(
-            repository, branch, gate=gate, base=gate_base, tip=source, error=error, owed=owed
-        )
+        remember_failure(repository, branch, gate=gate, base=gate_base, tip=source, error=error)
         raise
     try:
         require_clean(execution)
@@ -300,7 +288,10 @@ def validate_workspace(
             "inputs": review_inputs,
             "recovered_flake_defects": member_recoveries
             + recovery_projection(receipt, receipt_path, member=None),
-            "approvals": approvals,
+            "approvals": [
+                {**item, **review_inputs["authorization_history"].get(str(item["change_id"]), {})}
+                for item in approvals
+            ],
             "reconciliation": reconciliation,
             "source_reconciliation": source_reconciliation,
             "previously_delivered": [
