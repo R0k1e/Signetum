@@ -20,7 +20,12 @@ from signetum.policy import delivery_policy
 from signetum.preparation import PreparationResult, prepare_workspace
 from signetum.provenance import attested_base, members_and_plans
 from signetum.stacking import branch_tip, is_ancestor, stacked_parent
-from signetum.synchronization import authorize_source, incorporated_parent_tip, recognize_sync
+from signetum.synchronization import (
+    authorize_source,
+    incorporated_parent_tip,
+    prepare_merge,
+    recognize_sync,
+)
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import (
     BatchAuthorization,
@@ -252,16 +257,18 @@ def _sync_source(
 
 def _merge_source(repository: Path, source: str, label: str) -> dict[str, object]:
     before = git_output(repository, "rev-parse", "HEAD")
+    message = (
+        f"Merge {label} into {branch_name(repository)}\n\n"
+        f"Signetum-Sync: {source}\nSignetum-Sync-Source: {label}"
+    )
+    prepare_merge(repository, source, message)
     completed = run_git(
         repository,
         "merge",
         "--no-ff",
         source,
         "-m",
-        (
-            f"Merge {label} into {branch_name(repository)}\n\n"
-            f"Signetum-Sync: {source}\nSignetum-Sync-Source: {label}"
-        ),
+        message,
     )
     if completed.returncode:
         diagnostic = completed.stderr.strip() or completed.stdout.strip()

@@ -23,6 +23,7 @@ from signetum.decision_proposals import proposal_paths
 from signetum.git import GitError, git_output, isolated_git_environment, repository_path, run_git
 from signetum.manifest import ManifestError, parse_manifest
 from signetum.runtime_identity import engine_source
+from signetum.synchronization import prepared_merge, preserves_merge_message
 from signetum.workspaces import WorkspaceError, read_record, state_root
 
 HOOK_NAME = "reference-transaction"
@@ -146,8 +147,21 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
         record = read_record(state_root(repository), branch)
     except WorkspaceError:
         return None
-    if git_output(repository, "rev-list", "--parents", "-n", "1", new).split()[1:] != [old]:
-        # Merges, branch moves and rewrites keep their own provenance checks.
+    parents = git_output(repository, "rev-list", "--parents", "-n", "1", new).split()[1:]
+    if len(parents) == 2 and parents[0] == old:
+        merge_head = run_git(repository, "rev-parse", "--verify", "MERGE_HEAD")
+        if merge_head.returncode == 0 and merge_head.stdout.strip() == parents[1]:
+            prepared = prepared_merge(repository, old, parents[1])
+            if prepared is not None and not preserves_merge_message(repository, new, prepared):
+                return ChangeError(
+                    "merge message does not preserve the prepared Signetum trailers",
+                    expected=(
+                        "commit with git commit --no-edit to preserve the prepared merge message"
+                        + ("; then run batch-continue" if record.kind == "batch" else "")
+                    ),
+                )
+    if parents != [old]:
+        # Unrelated merges, branch moves and rewrites keep their provenance checks.
         return None
     manifest = parse_manifest(git_output(repository, "show", f"{new}:signetum.toml"))
     try:

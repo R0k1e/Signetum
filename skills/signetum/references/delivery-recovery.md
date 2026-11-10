@@ -23,8 +23,11 @@ admitted receipts remain bound to that exact review.
 When another batch delivers first, run `maintenance workspace-sync` in the open
 batch. It merges the new delivery tip, advances the recorded batch base, keeps
 every admitted member and runs the batch gate over the merged commits; then run
-final again. A conflict stays open for `batch-continue`. Do not discard and
-reopen the batch. If admission or synchronization refuses a decision clause ID
+final again. A conflict retains the prepared message: resolve and stage paths, run
+`git commit --no-edit`, then `batch-continue`. The commit check refuses replacement
+messages unless they carry exactly the Signetum trailers prepared for the recorded
+merge. `batch-continue` also accepts a staged, uncommitted resolution and commits
+it with `--no-edit`. Do not discard and reopen the batch. If admission or synchronization refuses a decision clause ID
 claimed by two changes, give one change a distinct ID, commit, run ready, retry.
 When the engine no longer loads a delivered `signetum.toml`, migrate it in one
 member and run ready there; `workspace-open` opens that member with preparation
@@ -35,7 +38,9 @@ reports the cause. A member that keeps the old manifest is refused.
 
 When `batch-open` or `batch-admit` stops at a conflict, the members named after it
 stay pending; the result and `status` list them, and `batch-continue` admits them
-after committing the resolution.
+after the resolution. Preserve the prepared Signetum trailers with
+`git commit --no-edit`, then run `batch-continue`; it also accepts the staged
+resolution and commits it with `--no-edit` itself.
 
 A remembered failing node that the change deleted or renamed is released when its
 shard passes without it; the receipt lists it. Other first failures stay owed.
