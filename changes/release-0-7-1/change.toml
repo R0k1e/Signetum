@@ -1,0 +1,69 @@
+[change]
+schema_version = 1
+id = "release-0-7-1"
+
+[change.source]
+kind = "human_direction"
+summary = 'The owner explicitly requested integration, delivery and release of Signetum 0.7.1 on 2026-11-10 The preserve-merge-message member prevents synchronization and admission merges from losing prepared Signetum trailers at commit time. This compatible correction is a patch release. Retained release authorities are docs/maintainers/releasing.md, docs/decisions/ADP-reviewed-release-notes.md and changes/release-0-6-0/change.toml.'
+
+[change.contract]
+version = 1
+approved_base = "76326761d1cd0fd1c8be4f557537309646329b6d" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RELEASE-001"
+outcome = "The package, the Skill and the nested engine carry product version 0.7.1, and both lockfiles record that engine version."
+acceptance = [
+    "uv run python -m tools.cli release preflight on the delivered commit reports status valid with the package and Skill at 0.7.1 and the schema identity unchanged.",
+    "The Skill metadata and skills/signetum/scripts/engine/pyproject.toml name 0.7.1 and no current product-version location names 0.7.0.",
+]
+
+[[change.contract.requirements]]
+id = "NOTES-002"
+outcome = "CHANGELOG.md adds reviewed 0.7.1 notes describing commit-time preservation of prepared merge trailers and the git commit --no-edit recovery instruction; the release workflow extracts those notes."
+acceptance = [
+    "CHANGELOG.md has one concise ## 0.7.1 section describing the compatible fix and no unreleased section.",
+]
+
+[[change.contract.requirements]]
+id = "PUBLISH-003"
+outcome = "The delivered release commit is tagged v0.7.1 and the hosted release workflow publishes it as a GitHub release."
+acceptance = [
+    "An annotated tag v0.7.1 on the delivered release commit is pushed and gh release view v0.7.1 shows the published Skill archive, release-source.json and SHA256SUMS.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Edit the version locations, refresh both lockfiles for the engine version only, add the concise changelog version section.",
+    "Run ready, open a batch, admit this member, run final and deliver to main, push main and fix hosted CI failures through this change.",
+    "Create and push the annotated tag v0.7.1 on the delivered commit after hosted CI passes, and let the release workflow publish it.",
+]
+requires_confirmation = [
+    "Upgrade a dependency, publish a version other than 0.7.1, move a published tag or replace published artifacts.",
+]
+
+[[change.execution.steps]]
+id = "STEP-VERSION"
+requirements = ["RELEASE-001"]
+action = "Set 0.7.1 in the engine pyproject and Skill metadata and relock both lockfiles without upgrading dependencies."
+
+[[change.execution.steps]]
+id = "STEP-NOTES"
+requirements = ["NOTES-002"]
+action = "Add the reviewed 0.7.1 changelog section for the merge-message correction."
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["RELEASE-001", "NOTES-002"]
+action = "Run ready subject to the shared-host load gate, integrate in an explicitly authorized release batch, run final, deliver and wait for hosted CI on the delivered commit."
+
+[[change.execution.steps]]
+id = "STEP-PUBLISH"
+requirements = ["PUBLISH-003"]
+action = "Tag the delivered commit v0.7.1 after successful hosted CI, push only that tag, verify public artifacts, Pages, isolated install/adoption and update --check from an old scratch Skill without updating the installed Skill."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-10
+source = 'Repository owner approved integration, delivery and publication of Signetum 0.7.1 (2026-11-10), including pushing main and annotated v0.7.1, publishing reviewed GitHub notes and verifying the public release from isolated scratch copies. Installed Skills and PyReduce must remain unchanged.'
+contract_digest = "sha256:edf01d2f9cda688d7fe7cc6553ad2cea27770238cff50233f89cd5701ca809f4"
