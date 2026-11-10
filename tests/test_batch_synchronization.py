@@ -12,6 +12,7 @@ from signetum import change_cli, lifecycle, maintenance
 from signetum import manifest as manifest_format
 from signetum import workspace_operations as ops
 from signetum.change_record import contract_digest, parse_change_record
+from signetum.commit_check import install_commit_check
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError, MergeConflict
 from signetum.provenance import members_and_plans
@@ -195,8 +196,9 @@ def test_open_batch_takes_a_sibling_delivery_and_delivers(repository, monkeypatc
     }
 
 
+@pytest.mark.parametrize("manual_commit", [False, True])
 def test_conflicting_sibling_delivery_completes_through_batch_continue(
-    repository, monkeypatch, capsys
+    repository, monkeypatch, capsys, manual_commit
 ):
     root, _ = repository
     original = git_output(root, "rev-parse", "HEAD")
@@ -211,11 +213,21 @@ def test_conflicting_sibling_delivery_completes_through_batch_continue(
     assert code != 0
     assert refusal["status"] == "conflict", refusal
     assert "batch-continue" in refusal["expected"]
+    assert "git commit --no-edit" in refusal["expected"]
     assert lifecycle._recorded_base(batch_b) == original
     with pytest.raises(MergeConflict, match="open merge"):
         lifecycle.validate(batch_b, "final")
     (batch_b / "shared.txt").write_text("first and second")
     git_output(batch_b, "add", "shared.txt")
+    assert install_commit_check(batch_b)["status"] == "active"
+    before = git_output(batch_b, "rev-parse", "HEAD")
+    refused = run_git(batch_b, "commit", "-m", "resolve the sync conflict")
+    assert refused.returncode != 0
+    assert "git commit --no-edit" in refused.stderr
+    assert "batch-continue" in refused.stderr
+    assert git_output(batch_b, "rev-parse", "HEAD") == before
+    if manual_commit:
+        git_output(batch_b, "commit", "--no-edit")
     continued = lifecycle.continue_batch(batch_b)
     tip = git_output(batch_b, "rev-parse", "HEAD")
     assert continued["batch_commit"] == tip
@@ -517,7 +529,8 @@ def test_a_member_synchronized_from_its_batch_keeps_its_own_change(repository):
     assert (batch / "owned-more.txt").exists()
 
 
-def test_members_after_a_conflict_are_admitted_by_batch_continue(repository, capsys):
+@pytest.mark.parametrize("manual_commit", [False, True])
+def test_members_after_a_conflict_are_admitted_by_batch_continue(repository, capsys, manual_commit):
     root, _ = repository
     first = ready_member(root, "first", "shared.txt", "first")
     second = ready_member(root, "second", "shared.txt", "second")
@@ -541,6 +554,15 @@ def test_members_after_a_conflict_are_admitted_by_batch_continue(repository, cap
     (batch / "shared.txt").write_text("both")
     git_output(batch, "add", "shared.txt")
 
+    assert "git commit --no-edit" in conflict.value.expected
+    assert install_commit_check(batch)["status"] == "active"
+    before = git_output(batch, "rev-parse", "HEAD")
+    refused = run_git(batch, "commit", "-m", "resolve the admission conflict")
+    assert refused.returncode != 0
+    assert "git commit --no-edit" in refused.stderr
+    assert git_output(batch, "rev-parse", "HEAD") == before
+    if manual_commit:
+        git_output(batch, "commit", "--no-edit")
     result: Any = lifecycle.continue_batch(batch)
 
     resumed = result["resumed_admission"]

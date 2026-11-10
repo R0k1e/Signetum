@@ -19,8 +19,9 @@ Workspace opening and every successful preparation install or verify the
 [adoption guide](adoption.md) for the project-owned hook snippet. Skill hooks
 call the stable launcher rather than an interpreter in a replaceable cache.
 The check judges each new implementation commit against its parent approval;
-records-only commits and merges retain their existing rules. Ready and final
-provide the same attribution backstop when a hook cannot run.
+records-only commits retain their existing rules. A recorded synchronization or
+admission merge must keep exactly the Signetum trailers prepared for it. Ready
+and final provide the same attribution backstop when a hook cannot run.
 It also refuses added or modified Proposed decisions and rewritten delivered
 commitments through the predicates final uses. These checks read committed
 snapshots; the registered base identifies delivered packages, so newly introduced
@@ -96,8 +97,12 @@ test inventory. Stop repeating verification once relevant checks pass unless a
 new change or unresolved concern requires another run.
 
 When `maintenance workspace-sync` stops on a conflict, resolve the paths and
-commit with `git commit --no-edit`, which keeps the pre-filled `Signetum-Sync`
-trailer. If the trailer was lost, rerun the same `workspace-sync`: it recognizes
+commit with `git commit --no-edit`, which keeps the pre-filled Signetum trailers. The commit check refuses a message that drops, changes, duplicates or
+adds Signetum trailer lines while that recorded merge is in progress, and names
+`git commit --no-edit`. In a batch, follow it with `batch-continue` to validate
+and finish the recorded operation; `batch-continue` can also commit a staged
+resolution itself using `--no-edit`. If an older or inactive hook allowed the
+trailer to be lost in a member, rerun the same `workspace-sync`: it recognizes
 the merge it recorded, so the source's paths stop counting as the member's own.
 
 ## Significant records
