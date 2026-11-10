@@ -1,0 +1,59 @@
+[change]
+schema_version = 1
+id = "preserve-merge-message"
+
+[change.source]
+kind = "human_direction"
+summary = "PyReduce lost Signetum's prepared batch synchronization trailers when an agent resolved conflicts with git commit -m. The commit check exempted merges and provenance failed only at the next operation. Retained authorities: changes/approval-before-commit/change.toml, changes/attribution-at-the-commit/change.toml, changes/engine-pin-and-hook-chain/change.toml and docs/decisions/ADP-readable-integration-identities.md."
+
+[change.contract]
+version = 1
+approved_base = "76326761d1cd0fd1c8be4f557537309646329b6d"
+
+[[change.contract.requirements]]
+id = "MERGE-001"
+outcome = "The existing commit-time hook refuses a merge while a Signetum member synchronization, batch synchronization or admission is in progress, with MERGE_HEAD matching the recorded operation source, unless its message carries exactly the Signetum trailers prepared for that operation. Refusal preserves the branch tip and names git commit --no-edit and batch continuation where applicable. Ordinary commits and unrelated merges retain existing rules."
+acceptance = ["Functional real Git hook tests refuse own-message commits and altered, missing or duplicate prepared trailers with an unchanged tip, and accept git commit --no-edit.", "Member sync, batch sync and admission are covered; ordinary commit behavior remains covered by retained hook tests."]
+
+[[change.contract.requirements]]
+id = "GUIDANCE-001"
+outcome = "Conflict expected text for workspace-sync and batch-admit names git commit --no-edit and batch-continue where applicable; worktree-validation, delivery-recovery and affected architecture describe the early refusal. Finish at one passing ready without integration or publication."
+acceptance = ["Functional conflict traversals expose recovery instructions; affected guidance matches behavior and ready passes at the final committed tip."]
+
+[change.contract.autonomy]
+allowed = ["Extend the existing merge preparation and reference-transaction owners with machine-local operation identity and exact trailer checking; extend functional tests, reconcile current references, record the accepted decision and run ready using uv with the requested load guard."]
+requires_confirmation = ["Scope expansion, schema changes, batching, delivery, push, tag, release, history rewriting, or changes to PyReduce or installed skills."]
+
+[[change.contract.decisions]]
+id = "preserve-merge-message/prevent-lost-merge-authority"
+change_id = "preserve-merge-message"
+authority = "changes/preserve-merge-message/change.toml#decisions/preserve-merge-message/prevent-lost-merge-authority"
+parents = ["approval-before-commit/commit-time-approval"]
+reason = "The incident demonstrates that detecting lost trailers only at the next operation creates invalid immutable history. Record the prepared authority before merging and check the actual candidate commit in the existing hook, matching the in-progress source and first parent. Comparing exact Signetum trailers preserves provenance while allowing ordinary subject text and Git conflict comments. Documentation alone did not prevent git commit -m; checking arbitrary merges would exceed the recorded operation's authority. Reopen if Git no longer exposes pending merge identity during the reference transaction."
+
+[[change.contract.decisions.clauses]]
+id = "preserve-merge-message/add-merge-check"
+change_id = "preserve-merge-message"
+action = "add"
+expected = [{id = "COMMIT-MERGE-001", version = 0}]
+authority = "changes/preserve-merge-message/change.toml#decisions/preserve-merge-message/prevent-lost-merge-authority"
+reason = "Refuse lost recorded merge authority before the branch advances."
+
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-MERGE-001"
+version = 1
+topic = "skill-first-development"
+scope = ["Commit checks", "Workspace synchronization", "Batch admission"]
+statement = "During a recorded Signetum synchronization or admission merge, the commit check matches the pending MERGE_HEAD and candidate parents to that operation and requires exactly its prepared Signetum trailers. Refusal names git commit --no-edit and batch-continue for a batch. Ordinary commits and unrelated merges retain their existing rules."
+rationale = "Checking prepared provenance at commit time prevents an avoidable immutable history failure."
+
+[[change.execution.steps]]
+id = "STEP-IMPLEMENT"
+requirements = ["MERGE-001", "GUIDANCE-001"]
+action = "Retain existing hook and provenance tests; extend existing workspace and batch conflict traversals for the real commit boundary and exact trailer variants, implement recorded pending merge checks, reconcile guidance and finish at one passing ready. No removed coverage, relaxed assertions or new skips."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-10
+source = 'Repository owner approved commit-time enforcement of prepared Signetum merge trailers (2026-11-10), relayed through the task. This member is authorized through ready only.'
+contract_digest = "sha256:6dce34327266117fdb4750d18ba05910c53a52c842b6283735058f8bd294a807"

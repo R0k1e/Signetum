@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from functools import cache
 from pathlib import Path
 
-from signetum.git import git_output
+from signetum.git import git_output, repository_path
 from signetum.workspaces import state_root
 
 
@@ -194,3 +194,47 @@ def member_contribution_paths(repository: Path, base: str, tip: str) -> tuple[st
             owned.difference_update(paths - differences)
             owned.update(paths & differences)
     return tuple(sorted(owned))
+
+
+def _pending_merge_path(repository: Path) -> Path:
+    return repository_path(repository, "rev-parse", "--git-path", "signetum-pending-merge.json")
+
+
+def _signetum_lines(message: str) -> list[str]:
+    return sorted(
+        line for line in message.splitlines() if line.lstrip().lower().startswith("signetum-")
+    )
+
+
+def prepare_merge(repository: Path, source: str, message: str) -> None:
+    """Bind the prepared authority to this worktree's next merge before Git starts."""
+    _write(
+        _pending_merge_path(repository),
+        {
+            "before": git_output(repository, "rev-parse", "HEAD"),
+            "source": source,
+            "trailers": _signetum_lines(message),
+        },
+    )
+
+
+def prepared_merge(repository: Path, before: str, source: str) -> tuple[str, ...] | None:
+    record = _read(_pending_merge_path(repository))
+    if (
+        isinstance(record, dict)
+        and record.get("before") == before
+        and record.get("source") == source
+    ):
+        trailers = record.get("trailers")
+        if (
+            isinstance(trailers, list)
+            and trailers
+            and all(isinstance(line, str) for line in trailers)
+        ):
+            return tuple(trailers)
+    return None
+
+
+def preserves_merge_message(repository: Path, commit: str, trailers: tuple[str, ...]) -> bool:
+    body = git_output(repository, "show", "-s", "--format=%B", commit)
+    return tuple(_signetum_lines(body)) == trailers
