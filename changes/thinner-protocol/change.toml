@@ -1,0 +1,207 @@
+[change]
+schema_version = 2
+id = "thinner-protocol"
+
+[change.source]
+kind = "human_direction"
+summary = "Owner authorization dated 2026-11-10 for Signetum 0.8.0. PyReduce evidence over 11 days: 1,708 refused operations, about 23% validation/conflicts and 77% process friction (open merge 532, approval binding/format 229, journal concurrency 186, command usage 156). Historical authorities: ADP-protocol-core-and-project-extensions.md and ADP-contained-current-development.md; accepted action-time attribution and failure-accounting clauses are revised here."
+
+[change.contract]
+version = 1
+approved_base = "3adf624902f50238cce586d9530d00720d4a6f39"
+
+[[change.contract.requirements]]
+id = "AUTH-001"
+outcome = "Authorize once; ignore historical contract digests, accept actor/date/neutral statement, derive contract revisions since approval for delivery review."
+acceptance = [
+    "Commit-order tests preserve approval before implementation and reviews expose revisions.",
+]
+
+[[change.contract.requirements]]
+id = "OBS-001"
+outcome = "Observations never block qualification; record requires summary only and resolve requires observation and reason only; unfinished review lists unresolved work."
+acceptance = [
+    "Public journal and lifecycle tests cover minimal writes, pending review and compatibility.",
+]
+
+[[change.contract.requirements]]
+id = "FINAL-001"
+outcome = "Remove owed-node memory and M5 discharge logic; final executes all repository-selected shards with no failures or unreached nodes."
+acceptance = [
+    "Retain first-failure, exact-tip, integrated-tree and explicit-delivery tests; replace ledger-only tests.",
+]
+
+[[change.contract.requirements]]
+id = "UX-001"
+outcome = "Infer workspace change, give actionable refusal commands including open-merge recovery, and retry the journal writer lock briefly."
+acceptance = [
+    "Public CLI and deterministic contention tests exercise inference and recovery.",
+]
+
+[[change.contract.requirements]]
+id = "COMPAT-001"
+outcome = "Read 0.7 records including digest approvals, owed ledgers and pending observations through ready/final/delivery; bump record/config schema and version to 0.8.0 with update guidance."
+acceptance = [
+    "Compatibility public traversal and package/project checks pass.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "Reconcile architecture, Skill and affected references with six retained invariants, stacking and cleanup; scheduling, preparation and selection remain repository concerns."
+acceptance = [
+    "Review affected docs and obtain one passing exact-tip Ready; no real delivery.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Implement the approved seven-part 0.8 plan, update scope by recording only, use throwaway repositories for delivery tests, run project checks and obtain one passing Ready.",
+]
+requires_confirmation = [
+    "Admit, integrate, deliver, push, tag, release, or modify consumer repositories or installed user skills.",
+]
+
+[[change.contract.decisions]]
+id = "thinner-protocol/six-invariants"
+change_id = "thinner-protocol"
+authority = "changes/thinner-protocol/change.toml#decisions/thinner-protocol/six-invariants"
+parents = [
+    "an-unreached-node-is-paid-by-being-reached/reachability",
+    "attribution-at-the-commit/action-time-verdicts",
+    "failure-record-names-every-failed-check/every-failed-check",
+    "one-admission-rule/current-source-verdict",
+    "retired-tests-released-once/collection-release",
+]
+reason = "The owner approved the thinner protocol on 2026-11-10. The measured friction supports recording scope and observations instead of refusing. Retain authorization before implementation, exact evidence, fully validated integrated delivery, explicit delivery authority, isolated workspaces with explicit merge resolution/trailers, and exclusive clause ownership. Keep stacking and cleanup. Reject retaining contract re-approval and owed-node discharge because they add process cost beyond these invariants. Reopen if the retained invariants cannot be established. Resource scheduling, concurrency, environment preparation and test selection belong to repository configuration and the operating model."
+
+[[change.contract.decisions.clauses]]
+id = "thinner-protocol/commit-check-001"
+change_id = "thinner-protocol"
+action = "amend"
+expected = [
+    { id = "COMMIT-CHECK-001", version = 2 },
+]
+authority = "changes/thinner-protocol/change.toml#decisions/thinner-protocol/six-invariants"
+reason = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-CHECK-001"
+rationale = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+requires = []
+scope = [
+    "Member readiness",
+    "Batch admission and continuation",
+    "Final validation",
+]
+statement = "An owner authorization committed before the first implementation commit is required by the shared hook, ready and final predicate. Approval is recorded once with actor, date and a neutral statement. Later scope revisions are recorded, never re-approved; final review derives revisions from change.toml history. Exact content evidence remains mandatory."
+status = "active"
+topic = "skill-first-development"
+version = 3
+
+[[change.contract.decisions.clauses]]
+id = "thinner-protocol/efficiency-fail-001"
+change_id = "thinner-protocol"
+action = "amend"
+expected = [
+    { id = "EFFICIENCY-FAIL-001", version = 6 },
+]
+authority = "changes/thinner-protocol/change.toml#decisions/thinner-protocol/six-invariants"
+reason = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+
+[[change.contract.decisions.clauses.updates]]
+id = "EFFICIENCY-FAIL-001"
+rationale = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+requires = []
+scope = [
+    "Validation execution, diagnostics and CI",
+    "Change journals",
+]
+statement = "A first failure remains a failure within its run. Failure receipts retain diagnostics but create no owed-node ledger or later gate obligation. Final runs every shard the repository selects to completion with no failure or unreached node."
+status = "active"
+topic = "validation-efficiency"
+version = 7
+
+[[change.contract.decisions.clauses]]
+id = "thinner-protocol/owed-reach-001"
+change_id = "thinner-protocol"
+action = "amend"
+expected = [
+    { id = "OWED-REACH-001", version = 1 },
+]
+authority = "changes/thinner-protocol/change.toml#decisions/thinner-protocol/six-invariants"
+reason = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+
+[[change.contract.decisions.clauses.updates]]
+id = "OWED-REACH-001"
+rationale = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+requires = []
+scope = [
+    "Validation execution and failure memory",
+]
+statement = "Owed-node accounting and discharge are withdrawn; old ledgers are ignored. Current-run failure and unreached-node verdicts remain enforced."
+status = "active"
+topic = "validation-efficiency"
+version = 2
+
+[[change.contract.decisions.clauses]]
+id = "thinner-protocol/runner-feedback-001"
+change_id = "thinner-protocol"
+action = "amend"
+expected = [
+    { id = "RUNNER-FEEDBACK-001", version = 4 },
+]
+authority = "changes/thinner-protocol/change.toml#decisions/thinner-protocol/six-invariants"
+reason = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+
+[[change.contract.decisions.clauses.updates]]
+id = "RUNNER-FEEDBACK-001"
+rationale = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+requires = []
+scope = [
+    "Validation execution, diagnostics and CI",
+    "Repository configuration",
+]
+statement = "Runner placeholders retain their declared interface. priority_nodes_file remains an empty compatibility input, with no remembered failure scheduling or debt. Reports describe the current run; repository configuration owns scheduling, preparation and test selection."
+status = "active"
+topic = "validation-efficiency"
+version = 5
+
+[[change.contract.decisions.clauses]]
+id = "thinner-protocol/source-admission-001"
+change_id = "thinner-protocol"
+action = "amend"
+expected = [
+    { id = "SOURCE-ADMISSION-001", version = 1 },
+]
+authority = "changes/thinner-protocol/change.toml#decisions/thinner-protocol/six-invariants"
+reason = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+
+[[change.contract.decisions.clauses.updates]]
+id = "SOURCE-ADMISSION-001"
+rationale = "The approved 0.8 plan removes measured process friction while preserving six delivery invariants."
+requires = []
+scope = [
+    "Member readiness",
+    "Batch admission and continuation",
+    "Final validation",
+]
+statement = "Ready, admission, continuation and final require approved source authority and intact committed journal ancestry. Observations never block; pending and deferred observations appear in final unfinished_work. Record requires a summary and optional requirements; resolve requires an observation and reason, with optional evidence."
+status = "active"
+topic = "skill-first-development"
+version = 2
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = [
+    "AUTH-001",
+    "OBS-001",
+    "FINAL-001",
+    "UX-001",
+    "COMPAT-001",
+    "DOC-001",
+]
+action = "Extend existing owners and public traversals, remove obsolete ledger rules and tests, reconcile current guidance, build and validate the committed member."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-10
+statement = "The Signetum 0.8.0 thinner protocol plan is authorized for implementation and validation; delivery and release remain excluded."

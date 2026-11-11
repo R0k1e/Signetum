@@ -4,11 +4,12 @@ import hashlib
 from dataclasses import asdict
 from pathlib import Path
 
+from signetum.change.revisions import authorization_history
 from signetum.change.scope import batch_owned_commits, delivery_scope
 from signetum.development_store import SourceReviewInputs
 from signetum.development_store import review_inputs as source_review_inputs
 from signetum.deviations import ReviewSnapshot, review_snapshot
-from signetum.git import git_output
+from signetum.git import git_output, run_git
 from signetum.manifest import RepositoryManifest
 from signetum.operations import AdmissionError
 from signetum.provenance import members_and_plans
@@ -22,6 +23,7 @@ class ExecutionReviewInputs(ReviewSnapshot):
     source_journals: SourceReviewInputs
     batch_commits: list[dict[str, object]]
     combination_repairs: list[dict[str, object]]
+    authorization_history: dict[str, dict[str, object]]
 
 
 def execution_review_inputs(
@@ -108,4 +110,17 @@ def execution_review_inputs(
         "source_journals": source_journals,
         "batch_commits": batch_commits,
         "combination_repairs": repairs,
+        "authorization_history": {
+            change: authorization_history(
+                repository, f"{manifest.repository.changes}/{change}/change.toml", tip
+            )
+            for change in source_changes
+            if run_git(
+                repository,
+                "cat-file",
+                "-e",
+                f"{tip}:{manifest.repository.changes}/{change}/change.toml",
+            ).returncode
+            == 0
+        },
     }

@@ -396,13 +396,11 @@ def _approval_binds(
     commit: str,
     required_contracts: dict[str, str],
 ) -> bool:
-    """Whether ``commit`` holds an approval of every change binding its required contract."""
+    """Whether ``commit`` holds an owner authorization for every required change."""
     try:
-        for change_id, digest in required_contracts.items():
+        for change_id in required_contracts:
             package = read_package(repository, manifest, change_id, commit)
             package.require_approval()
-            if contract_digest(package.record.contract) != digest:
-                return False
     except ChangeError:
         return False
     return True
@@ -582,8 +580,8 @@ def commit_attribution(
             before.require_approval()
             current = read_package(repository, manifest, change_id, commit)
             digest = contract_digest(before.record.contract)
-            if digest == contract_digest(current.record.contract):
-                approved[change_id] = digest
+            current.require_approval()
+            approved[change_id] = digest
         except ChangeError:
             continue
     if not approved:

@@ -12,14 +12,12 @@ acceptance, scope and autonomy together. Lead with what the person needs to
 decide, the recommended choice and material alternatives, their basis and impact.
 Keep routine implementation details in the agreed autonomy; do not ask people to
 review protocol syntax or repeated command output. This command never grants approval.
-After the owner confirms, record that actual confirmation in `change.approval`
-with actor, date, source and the generated contract digest. Do not invent a
-confirmation or reuse its digest after changing behavior, base or autonomy.
-Commit approval before implementation; implementation committed alongside a
-new approval does not qualify as subsequent implementation. Each implementation
-commit is judged against its parent approval. A later contract amendment and
-re-approval can accept the visible implementation without an extra code commit;
-each approved package at the tip must have covered implementation.
+After the owner confirms, record `change.approval` with `actor`, `recorded_at`
+and one neutral `statement`. Never quote the owner verbatim. Commit authorization
+alone before the first implementation commit; bundled authorization does not
+qualify. Authorization is recorded once. Later scope changes update change.toml
+and are recorded only, without contract-digest binding or re-approval. Final
+review derives and lists those revisions from source history per change.
 
 Trace to the root cause before asking. Ask related questions together, once.
 The coordinating Agent decides package splits, ordering and batching and reports
@@ -37,7 +35,7 @@ maintained cross-change authority. Put the reasoning there and reference it from
 the change instead of expanding it twice. Ordinary implementation choices create
 neither an ADR nor a journal event. Do not save transcripts or command attempts.
 
-Use the actual confirmation and exact contract digest; preview and tool success
+Use the actual authorization; preview and tool success
 never confer acceptance. Preserve accepted historical records until an explicit
 reviewed migration replaces their authority. Current architecture states implemented
 rules; decision history preserves their formation. No word quota or second summary
@@ -45,8 +43,7 @@ is required.
 
 Honor authorization already given in the conversation, including implementation,
 integration or delivery. Show the generated final review before using existing
-delivery authorization; request it only when missing. A scope change still needs
-its own approval. Do not create another review document or standing summary.
+delivery authorization; request it only when missing. Record later scope changes without re-approval. Do not create another review document or standing summary.
 
 ## Closing an owned change
 
@@ -61,9 +58,8 @@ views and receipts explain status; they are not another maintained authority.
 A deferral states who decided and what remains owed, and may name an approved
 follow-up change. It stays visible in the source log and in the final review's
 unfinished work. An omitted requirement, prose
-non-goal or arbitrary file cannot carry unfinished work. A scope reduction or
-changed accepted outcome requires owner confirmation; freeze only affected work
-while continuing independent work already authorized.
+non-goal or arbitrary file cannot carry unfinished work. Record scope reductions and changed outcomes in change.toml; final review lists
+the revisions without requiring new authorization.
 
 Use `status` to inspect findings. Resolve or justify rejection through the
 journal tools; retract an incorrect answer by its exact resolution ID, then

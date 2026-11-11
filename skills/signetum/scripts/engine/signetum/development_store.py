@@ -15,7 +15,6 @@ from typing import TypedDict
 from signetum.change.models import (
     DecisionStatus,
     complete_decision_replacements,
-    require_relative_path,
 )
 from signetum.change_record import ChangeRecord, contract_digest, parse_change_record
 from signetum.development_log import (
@@ -338,20 +337,6 @@ def reconciliation_summary(
         for item in result.observations
         if item.change_id in inputs["changes"] or item.observation.id in affected
     )
-    pending = [item.observation.id for item in states if item.status == "pending"]
-    if pending:
-        raise DevelopmentReviewError("unresolved source observations: " + ", ".join(pending))
-    try:
-        for state in states:
-            for evidence in state.effective_evidence:
-                if committed_blob_identity(
-                    repository, commit, evidence
-                ) is None and not known_receipt(repository, evidence):
-                    raise ValueError(
-                        f"standing resolution evidence is absent from reviewed source: {evidence}"
-                    )
-    except (OSError, ValueError) as error:
-        raise DevelopmentReviewError(str(error)) from error
     return {
         "schema_version": 1,
         "observation_count": len(states),
@@ -365,7 +350,9 @@ def reconciliation_summary(
                         "requirements": list(item.observation.requirements),
                         "summary": item.observation.summary,
                         "status": item.status,
-                        "reason": item.resolution.reason if item.resolution else None,
+                        "reason": item.resolution.reason
+                        if item.resolution
+                        else item.observation.reason,
                         "followup": item.resolution.followup if item.resolution else None,
                         "evidence": list(item.effective_evidence),
                         "source_event": item.source_event,
@@ -383,7 +370,7 @@ def reconciliation_summary(
     }
 
 
-WRITER_WAIT_SECONDS = 120.0
+WRITER_WAIT_SECONDS = 5.0
 """How long a journal write waits for another writer in the same worktree."""
 
 
@@ -409,7 +396,8 @@ def _writer(repository: Path) -> Iterator[Path]:
                 if time.monotonic() >= deadline:
                     raise ValueError(
                         "another development journal writer in this worktree is still active "
-                        f"after {WRITER_WAIT_SECONDS:.0f}s; retry once it finishes"
+                        f"after {WRITER_WAIT_SECONDS:.0f}s; run change status, "
+                        "then retry the same change command"
                     ) from error
                 time.sleep(0.2)
         try:
@@ -463,18 +451,6 @@ def _resolution_targets(
     for resolution in transaction.resolutions:
         if standing is not None and resolution.id not in standing:
             continue
-        for evidence in resolution.evidence:
-            require_relative_path(evidence)
-            if (
-                not historical
-                and not source_path(repository, evidence).is_file()
-                and not known_receipt(repository, evidence)
-            ):
-                raise ValueError(
-                    f"acceptance evidence target is absent: {evidence}; evidence is a path in "
-                    "the current tree or a validation receipt name, and a pytest node id is "
-                    "written as its file path"
-                )
         # A follow-up is judged once, when written; it may live on any branch.
         if not historical and resolution.followup is not None:
             _require_known_followup(repository, resolution.followup)

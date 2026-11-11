@@ -8,7 +8,6 @@ import subprocess  # nosec B404 -- declarative argv, never a shell
 import sys
 import tempfile
 import time
-from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 
@@ -373,9 +372,6 @@ def run_diagnostic_gate(
     tools: tuple[ToolDeclaration, ...] = (),
     inputs: ValidationInputs | None = None,
     exact_source: bool = False,
-    reach_only: Mapping[str, frozenset[str]] | None = None,
-    remembered: Mapping[str, frozenset[str]] | None = None,
-    vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
     admission_base: str | None = None,
 ) -> dict[str, object]:
     """Execute checks without granting readiness or publishing delivery evidence."""
@@ -399,9 +395,6 @@ def run_diagnostic_gate(
         advisory_world=advisory_world,
         tools=tools,
         inputs=inputs,
-        remembered=remembered,
-        reach_only=reach_only,
-        vanished=vanished,
     )
     if exact_source:
         adapter.require_clean()

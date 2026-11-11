@@ -16,7 +16,7 @@ Updates are explicit; no second Skill copy exists in the repository.
 | `commands`, `cli`, `change_cli`, `operation_cli`, `workflow_status` | Dispatch, structured results and derived views. |
 | `change_record`, `development_log`, `development_store`, `decision_clauses`, `decision_history` | Approved outcomes, significant atomic journal mutations and the derived decision set. |
 | `change/*`, `traceability/*`, `source_authority`, `execution_review` | Scope, immutable source proofs, accounting and review qualification. |
-| `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `delivery`, `synchronization`, `gate_records` | Isolated work, named integration, machine-local gate memory and exact remote-first delivery. |
+| `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `delivery`, `synchronization`, `gate_records` | Isolated work, named integration, machine-local gate diagnostics and exact remote-first delivery. |
 | `validation/*`, `preparation`, `worktrunk`, `git` | One supervised execution/verdict owner, preparation, tool identities and Git effects. |
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
 | `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
@@ -90,12 +90,14 @@ preparation, hooks, failures, integration and delivery boundaries.
 
 One approved change owns outcomes, acceptance, exclusions and autonomy. Execution
 steps cannot narrow that contract. Significant source history lives in
-`changes/<id>/events.jsonl`, written only by its locked owner. Expected approval
+`changes/<id>/events.jsonl`, written only by its locked owner. Expected transaction
 and history digests, immutable source proofs, protected committed prefixes and
 atomic replacement prevent stale or partial reinterpretation. Exact retries are
 idempotent; refused requests append nothing. Writes serialize per worktree through
 `signetum-journal.lock` in that worktree's Git directory: other worktrees never
-wait, and a second writer in the same worktree waits up to two minutes. The
+wait, and a second writer in the same worktree waits briefly and retries. Approval uses actor, recorded_at and a neutral statement, never a verbatim owner
+quote. Historical approval digests are ignored; source history supplies contract
+revisions for final review. Observations never block qualification. The
 semantic `resolve` takes the observation ID or the record's `--id` as its target
 and writes a pytest node id `path::test` as its file path. `change why <clause>`
 gathers one clause's accepted revisions, reasons, owning approvals and commits;

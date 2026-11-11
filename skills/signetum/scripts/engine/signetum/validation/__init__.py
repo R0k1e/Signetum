@@ -29,7 +29,7 @@ def _tuple_of_strings(value: object, field: str) -> tuple[str, ...]:
 EVIDENCE_CLASSES = ("tree", "world")
 
 PRIORITY_NODES_FILE = "{signetum.priority_nodes_file}"
-"""Replaced by a file listing the shard's owed node ids, to run first."""
+"""Replaced by an empty node-list file for compatibility with older runners."""
 NODE_REPORT_FILE = "{signetum.node_report_file}"
 """Replaced by a path for the runner's first-attempt node outcomes."""
 RECOVERY_REPORT_FILE = "{signetum.recovery_report_file}"

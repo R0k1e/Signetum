@@ -154,8 +154,6 @@ def workflow_status(
         next_action = "Open a registered member workspace from an exact approved base."
     elif dirty:
         next_action = "Review local changes and commit approved work before readiness."
-    elif pending:
-        next_action = "Resolve the pending findings through the journal."
     elif manifest_cause is not None and workspace.kind == "batch":
         next_action = (
             "This engine cannot load the batch's signetum.toml. Admit the member that migrates "

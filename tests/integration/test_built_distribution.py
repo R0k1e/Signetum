@@ -827,6 +827,8 @@ def test_update_replaces_the_skill_in_place_from_the_newest_release(
     manifest.write_text(_manifest())
     code, result, calls = hosts.run(updater, "update")
     assert (code, result["status"], calls) == (0, "updated", []), result
+    assert result["migration_guidance"]
+    assert manifest.read_text() == _manifest()
     assert content_digest(plain) == content_digest(hosts.candidate)
     assert sorted(path.name for path in skills.iterdir()) == ["signetum"]
     assert settings.read_bytes() == configured

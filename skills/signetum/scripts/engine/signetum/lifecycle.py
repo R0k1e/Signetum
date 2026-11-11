@@ -32,15 +32,11 @@ from signetum.engine_pin import opening_engine, require_batch_engine
 from signetum.evidence.receipts import ValidationSelection
 from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
-    failed_tip,
+    forget_failures,
     pending_admissions,
     record_pending_admissions,
     record_verified_batch,
     remember_failure,
-    require_accounted,
-    settle_failures,
-    unreached_only,
-    vanished_nodes,
     verified_batch_tip,
 )
 from signetum.git import GitError, GitInfrastructureError, git_output, repository_path, run_git
@@ -561,7 +557,11 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
         return _continue_committed_batch_merge(batch)
     unmerged = _git(batch, "diff", "--name-only", "--diff-filter=U")
     if unmerged:
-        raise AdmissionError(f"unresolved merge paths: {unmerged}")
+        raise AdmissionError(
+            f"unresolved merge paths: {unmerged}",
+            expected=f"git -C {batch} add <resolved-paths>; "
+            f"git -C {batch} commit --no-edit; batch-continue --batch {batch}",
+        )
     staged = _git(batch, "diff", "--cached", "--name-only")
     if not staged:
         raise AdmissionError("batch continuation has no staged resolution")
@@ -869,8 +869,6 @@ def _run_batch_gate(
             record_verified_batch(batch, branch, source)
         return {"status": "records-only", "executed": [], "admission_base": before}
     graph = _batch_graph(batch, selector, before, source)
-    selected = graph.execution_order("batch")
-    owed = require_accounted(batch, branch, base, selected, defer_unselected=True)
     try:
         static = run_diagnostic_gate(
             batch,
@@ -878,9 +876,6 @@ def _run_batch_gate(
             "batch",
             executed=set(prepared),
             advisory_world=True,
-            remembered=owed,
-            reach_only=unreached_only(batch, branch),
-            vanished=vanished_nodes(batch, base, source, owed, failed_tip(batch, branch, None)),
             admission_base=before,
             member_base=before,
         )
@@ -892,10 +887,9 @@ def _run_batch_gate(
             base=base,
             tip=_git(batch, "rev-parse", "HEAD"),
             error=error,
-            owed=owed,
         )
         raise
-    settle_failures(batch, branch, owed, selected)
+    forget_failures(batch, branch)
     if recorded_tip:
         record_verified_batch(batch, branch, source)
     return {**static, "admission_base": before}
