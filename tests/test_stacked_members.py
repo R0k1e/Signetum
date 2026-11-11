@@ -158,6 +158,10 @@ def test_final_review_names_the_chain_and_delivery_removes_it(repository):
     delivered: Any = lifecycle.batch_deliver(
         batch, root, lifecycle._recorded_base(batch), str(final["source"])
     )
-    removed = {item["branch"]: item for item in delivered["removed_worktrees"]}
+    assert delivered["cleanup"]["status"] == "pending"
+    cleaned = ops.cleanup(root, all_delivered=True)
+    removed_rows = cleaned["removed"]
+    assert isinstance(removed_rows, list)
+    removed = {item["branch"]: item for item in removed_rows}
     assert removed[PARENT]["tip"] == parent_tip and removed[CHILD]["tip"] == child_tip
     assert {removed[PARENT]["outcome"], removed[CHILD]["outcome"]} == {"delivered"}

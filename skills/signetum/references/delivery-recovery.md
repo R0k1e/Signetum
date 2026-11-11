@@ -66,28 +66,40 @@ Publish only through explicit
 `batch-deliver <source-worktree> <target-worktree> <expected-base> <expected-batch-tip>`.
 `source` and `target` are existing worktree directories. A branch name is not a
 path. `expected-base` and `expected-batch-tip` are full commits. A changed or
-missing review binding requires fresh final. Publication
+missing versioned publication binding requires fresh final. Final checks all
+semantic review inputs once and fingerprints mutable local evidence and authority
+before and after validation. Delivery verifies the exact commit and those
+fingerprints without reconstructing the review or executing checks. Publication
 recovery confirms the exact remote identity before moving the local target;
 never substitute force-push, history rewriting or ad-hoc cleanup. If delivery
 retains an `active_runtime` checkout, finish the operation, switch to the delivery
 checkout and use its declared cleanup utility to remove that now-unused checkout.
 
+When the owner already authorized publication, run `final --deliver --target
+<delivery-worktree> --actor <owner> --source <authorization>`. It records that
+authority, completes the same full final, and calls the same publication owner
+only after success. Missing authorization is refused before validation starts.
+Separate final and delivery remain available when the review is needed first.
+The push guard checks Git's negotiated old OID and preserves configured hooks;
+receive-pack then rejects a competing update atomically without a forced push.
+
 Every workspace ends in exactly one proven outcome. Delivered: its tip is in the
 delivery branch. Contained: it is clean and its content already reached the
 delivery branch another way, because each commit outside it is patch-equivalent
 to a delivery commit with no merge resolution of its own, or each path it changed
-already has its content there. After publication `batch-deliver` sweeps every
-registered workspace, removing those that prove either, and lists the rest with
-the reason they stay; `maintenance cleanup --all-delivered` runs the same sweep.
-Both sweeps also find local `change/*` and `batch/*` branches without a registered
-worktree, even when their workspace record is gone. Use
+already has its content there. Publication returns immediately with `cleanup.status`
+set to `pending`; it does not remove workspaces. Run `maintenance cleanup
+--all-delivered` separately to remove proven workspaces and list the rest with
+the reason they stay. A cleanup failure has its own verdict and cannot undo or
+change a successful publication. The sweep also finds local `change/*` and
+`batch/*` branches without a registered worktree, even when their workspace
+record is gone. Use
 `maintenance cleanup --branch batch/<task>` to select one such branch. Cleanup
 requires delivered or contained proof against fetched delivery, then uses
 non-forced `git branch -d`; a Git refusal retains the branch with its diagnostic,
 including contained content whose history Git still considers unmerged. Each
-removed branch appears in `removed` (or delivery
-`removed_worktrees`), without a `worktree` field for a branch-only removal. An
-empty all-delivered sweep succeeds without removing anything. Other loose branch
+removed branch appears in `removed`, without a `worktree` field for a branch-only
+removal. An empty all-delivered sweep succeeds without removing anything. Other loose branch
 names and branches still registered to any checkout are excluded from this
 branch-only sweep.
 Uncommitted work, an open Git operation, a fresh base or any uncontained content

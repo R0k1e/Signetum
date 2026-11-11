@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from signetum.operations import AdmissionError, OperationFailed
+from signetum.publication_push import guarded_push
 
 
 class GitCommand(Protocol):
@@ -73,7 +74,13 @@ def publish_batch(
             f"Signetum-Batch-Base: {expected_base}\nSignetum-Batch-Tip: {expected_tip}",
         )
         try:
-            git(source, "push", "origin", f"{delivery_commit}:refs/heads/{target_branch}")
+            guarded_push(
+                source,
+                git=git,
+                target_branch=target_branch,
+                expected_base=expected_base,
+                delivery_commit=delivery_commit,
+            )
         except AdmissionError as error:
             raise OperationFailed(
                 str(error), expected="inspect the remote base and retry batch-deliver"

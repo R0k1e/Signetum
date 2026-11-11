@@ -9,6 +9,7 @@ from contextlib import nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
 from re import fullmatch
+from time import perf_counter
 from typing import Literal
 
 from signetum import worktrunk as wt
@@ -591,6 +592,7 @@ def cleanup(
     protected_worktrees: tuple[Path, ...] = (),
     discard: bool = False,
 ) -> dict[str, object]:
+    started = perf_counter()
     if sum((worktree is not None, branch is not None, all_delivered)) != 1:
         raise AdmissionError("select one worktree, branch, or --all-delivered")
     if discard and all_delivered:
@@ -625,7 +627,13 @@ def cleanup(
         )
         _settle(repository, item, ending, removed, retained, discard=discard)
     _settle_loose_branches(repository, loose, published, removed, retained)
-    return {"status": "cleaned", "remote": published, "removed": removed, "retained": retained}
+    return {
+        "status": "cleaned",
+        "remote": published,
+        "removed": removed,
+        "retained": retained,
+        "elapsed_seconds": perf_counter() - started,
+    }
 
 
 _COMMIT = r"(?:[0-9a-f]{40}|[0-9a-f]{64})"
@@ -728,35 +736,6 @@ def workspace_endings(repository: Path) -> list[dict[str, object]]:
             }
         )
     return rows
-
-
-def cleanup_delivered(
-    target: Path, source: Path, members: list[dict[str, str]]
-) -> tuple[list[dict[str, object]], list[dict[str, str]]]:
-    """Sweep proven workspaces and loose Signetum branches after publication."""
-
-    branch, published = fresh_delivery(target)
-    inventory = wt.worktrees(target)
-    protected = frozenset(
-        (target.resolve(), *(item.path for item in inventory if item.branch == branch))
-    )
-    admitted = {row["branch"]: row["original"] for row in members}
-    parents = git_output(target, "show", "-s", "--format=%P", "HEAD").split()
-    removed: list[dict[str, object]] = []
-    retained: list[dict[str, str]] = []
-    for item in inventory:
-        if item.path in protected:
-            continue
-        if item.path == source.resolve():
-            expected = parents[1] if len(parents) == 2 else None
-            ending = removal(target, item, published, protected, expected_tip=expected)
-        elif item.branch in admitted:
-            ending = removal(target, item, published, protected, expected_tip=admitted[item.branch])
-        else:
-            ending = removal(target, item, published, protected, require_record=True)
-        _settle(target, item, ending, removed, retained)
-    _settle_loose_branches(target, _loose_branches(target, branch), published, removed, retained)
-    return removed, retained
 
 
 def _confirmation(actor: str, source: str, reason: str, expected_tip: str, operation: str) -> None:

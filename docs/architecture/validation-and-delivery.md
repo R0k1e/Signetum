@@ -131,8 +131,8 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 | `batch-open --actor owner --source approval [--name slug] --member path ...` | Capture owner authorization and fresh delivery base, then admit only named ready members. Only batch synchronization later advances that base. |
 | `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. |
 | `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge, then admit the members a conflicted admission left pending. |
-| `final` | Reconcile and validate a frozen batch; emit source-bound receipt and review. |
-| `batch-deliver source target expected-base expected-tip` | Publish only the reviewed exact candidate. `source` and `target` are existing worktree directories; the last two arguments are full commits. Confirm remote identity before moving target. |
+| `final [--deliver --target path --actor owner --source authorization]` | Reconcile and validate a frozen batch; emit source-bound receipt, review and versioned publication binding. Explicit delivery options publish through the same delivery owner only after success. |
+| `batch-deliver source target expected-base expected-tip` | Verify the lightweight publication binding and publish the exact candidate. `source` and `target` are existing worktree directories; the last two arguments are full commits. Confirm remote identity before moving target; report cleanup pending. |
 
 Scope comes from actual committed paths and immutable registrations, never a
 trailer inventing ownership. A member also owns each change package whose
@@ -292,11 +292,20 @@ packages; records first introduced in this workspace remain editable under their
 existing rules. These record predicates also apply to records-only commits.
 
 
-Review binds approvals, source journals, admitted receipts, batch commit
-attribution, recovered defects and remaining work. Recheck those inputs after validation and before publication;
-changes require fresh final. The agent shows outcomes, scope, decision changes,
-test modifications and evidence before explicitly authorized delivery. Existing
-authorization remains valid within its agreed scope. Human
+Final's review binds approvals, source journals, admitted receipts, batch commit
+attribution, recovered defects and remaining work. Immutable object and ancestor
+queries are reused only within that qualification's review lifetime. Final checks
+the committed source and local evidence and authority fingerprints before and
+after validation, then emits publication binding version 1. A receipt without
+that versioned binding requires a new final. Delivery checks its exact commit,
+base, target policy, review and evidence digests, and mutable local fingerprints;
+it never reconstructs the semantic review or runs checks. Legacy discovery bytes
+are fingerprinted without parsing their entries. Changes require fresh final.
+The agent shows outcomes, scope, decision changes, test modifications and evidence
+before requesting missing delivery authorization. Existing explicit authorization
+remains valid within its agreed scope. `final --deliver` requires a target,
+actor and authorization source and records that authority in the final binding.
+Human
 acceptance is a separate state. Final never allocates decision numbers or rewrites authority paths; stable
 accepted filenames remain stable.
 
@@ -304,6 +313,12 @@ Publication recovery inspects exact local/remote holdings and resumes that same
 operation. Never force-push, reset or substitute a direct merge. Structured result
 statuses distinguish passed, invalid, failed, infrastructure error and conflict,
 with retained diagnostics and the applicable recovery action.
+
+Each push uses a temporary hook directory preserving all configured hooks. Its
+pre-push guard requires the negotiated target old OID to equal the expected base
+and the new OID to equal the delivery commit, then forwards the original hook's
+arguments and input unchanged. Git receive-pack atomically compares that old OID.
+No persistent hook or configuration is changed and no forced push is used.
 
 ## Workspaces and local maintenance
 
@@ -319,7 +334,7 @@ checkout, whatever the caller's directory. A prepare shard may rebuild ignored o
 continues when it exits zero with the tracked source and index unchanged. A
 failing prepare shard is refused with its name, full declared command and the
 adapter's own `expected` when its last JSON output line carries one. Every workspace ends delivered, contained or abandoned. One removal
-predicate serves cleanup, the sweep after every `batch-deliver` and the `status`
+predicate serves maintenance cleanup and the `status`
 listing: a clean workspace that advanced from its base proves delivered when its
 tip is an ancestor of the fetched delivery branch, and contained when every
 non-merge commit outside that branch is patch-equivalent to one inside it and no
@@ -340,7 +355,12 @@ invoking process finishes. There is no background deletion, readiness cleanup or
 new public lifecycle operation. Status reads the last fetched delivery branch;
 cleanup fetches again before it removes anything.
 
-Cleanup `--all-delivered`, cleanup `--branch` and the delivery sweep also select
+Publication leaves workspaces in place and returns `cleanup.status = pending`
+with the existing maintenance command. Cleanup is a separate outcome; its
+failure cannot change successful publication or its remote identity. No cleanup
+queue or background deletion process is introduced.
+
+Cleanup `--all-delivered` and cleanup `--branch` also select
 local `change/*` and `batch/*` branches with no registered checkout, independently
 of workspace-record existence. They require the same delivered/contained content
 proof, then attempt non-forced `git branch -d`. Git refusal retains the branch and

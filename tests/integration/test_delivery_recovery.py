@@ -8,9 +8,12 @@ from shutil import which
 import pytest
 from change_fixtures import approve_change
 from signetum import lifecycle
+from signetum import workspace_operations as workspace_ops
+from signetum import worktrunk as wt
 from signetum.execution_review import execution_review_inputs
 from signetum.manifest import load_manifest
-from signetum.operations import OperationFailed
+from signetum.operations import InfrastructureError, OperationFailed
+from signetum.publication_binding import bind_publication, review_local_inputs
 from signetum.workspaces import WorkspaceRecord, write_record
 from test_batch_admission import MANIFEST
 
@@ -59,17 +62,30 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         WorkspaceRecord(schema_version=1, branch="batch/test", base=base, kind="batch"),
     )
     receipts = lifecycle._receipt_root(source)
+    review = {
+        "inputs": execution_review_inputs(
+            source, load_manifest(source / "signetum.toml"), base, tip, receipts
+        )
+    }
+    evidence = {"valid": True}
     (receipts / "final-test.json").write_text(
         json.dumps(
             {
                 "source": tip,
                 "base": base,
                 "valid": True,
-                "delivery_review": {
-                    "inputs": execution_review_inputs(
-                        source, load_manifest(source / "signetum.toml"), base, tip, receipts
-                    )
-                },
+                "delivery_review": review,
+                "evidence": evidence,
+                "publication_binding": bind_publication(
+                    source,
+                    source=tip,
+                    base=base,
+                    review=review,
+                    evidence=evidence,
+                    local_inputs=review_local_inputs(source, review["inputs"], receipts),
+                    members=[],
+                    plans=[],
+                ).document(),
             }
         )
     )
@@ -78,7 +94,6 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     )
     monkeypatch.setattr(lifecycle, "_attested_base", lambda *args: base)
     monkeypatch.setattr(lifecycle, "_delivery_provenance", lambda *args: ([], []))
-    monkeypatch.setattr(lifecycle, "_cleanup_delivered_worktrees", lambda *args: ([], []))
     return source, target, remote, base, tip
 
 
@@ -124,19 +139,16 @@ def test_published_delivery_resumes_local_move(tmp_path, monkeypatch):
     assert git(target, "rev-parse", "HEAD") == published
 
 
-def test_delivery_retries_cleanup_after_target_moved(tmp_path, monkeypatch):
+def test_delivery_defers_cleanup_and_retry_recognizes_publication(tmp_path, monkeypatch):
     source, target, _, base, tip = delivery(tmp_path, monkeypatch)
-
-    def interrupted_cleanup(*args):
-        raise lifecycle.AdmissionError("simulated cleanup interruption")
-
-    monkeypatch.setattr(lifecycle, "_cleanup_delivered_worktrees", interrupted_cleanup)
-    with pytest.raises(lifecycle.AdmissionError, match="cleanup interruption"):
-        lifecycle.batch_deliver(source, target, base, tip)
+    first = lifecycle.batch_deliver(source, target, base, tip)
+    cleanup = first["cleanup"]
+    assert isinstance(cleanup, dict) and cleanup["status"] == "pending"
+    assert source.is_dir()
     published = git(target, "rev-parse", "HEAD")
-    monkeypatch.setattr(lifecycle, "_cleanup_delivered_worktrees", lambda *args: ([], []))
     result = lifecycle.batch_deliver(source, target, base, tip)
     assert result["remote"] == published
+    assert source.is_dir()
 
 
 def test_unrelated_remote_change_is_refused_without_local_move(tmp_path, monkeypatch):
@@ -213,7 +225,124 @@ def test_delivery_refuses_missing_or_altered_source_journal_bindings_before_publ
     else:
         bindings["source_journals"]["history_digest"] = "sha256:" + "0" * 64
     receipt.write_text(json.dumps(document))
-    with pytest.raises(lifecycle.AdmissionError, match="review inputs changed"):
+    with pytest.raises(lifecycle.AdmissionError, match="publication binding changed"):
         lifecycle.batch_deliver(source, target, base, tip)
     assert git(target, "rev-parse", "HEAD") == base
     assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
+
+
+@pytest.mark.parametrize(
+    "damage", ["absent", "version", "evidence", "authority", "remote", "dirty"]
+)
+def test_publication_requires_current_final_binding(tmp_path, monkeypatch, damage):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+    receipt = lifecycle._receipt_root(source) / "final-test.json"
+    document = json.loads(receipt.read_text())
+    if damage == "absent":
+        del document["publication_binding"]
+    elif damage == "version":
+        document["publication_binding"]["schema_version"] = 99
+    elif damage == "evidence":
+        document["evidence"]["valid"] = False
+    elif damage == "authority":
+        record = lifecycle._state_root(source) / "workspaces/batch%2Ftest.json"
+        record.write_bytes(record.read_bytes() + b"\n")
+    elif damage == "remote":
+        replacement = tmp_path / "replacement.git"
+        replacement.mkdir()
+        git(replacement, "init", "--bare")
+        git(target, "push", str(replacement), f"{base}:refs/heads/main")
+        git(source, "remote", "set-url", "origin", str(replacement))
+    else:
+        (source / "content").write_text("unreviewed")
+    receipt.write_text(json.dumps(document))
+    with pytest.raises(lifecycle.AdmissionError):
+        lifecycle.batch_deliver(source, target, base, tip)
+    assert git(target, "rev-parse", "HEAD") == base
+    assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
+
+
+def test_negotiated_remote_advance_to_candidate_ancestor_is_refused(tmp_path, monkeypatch):
+    source, target, remote, base, tip = delivery(tmp_path, monkeypatch)
+    git(source, "push", "origin", f"{tip}:refs/heads/seed")
+    original = lifecycle._git
+    raced = False
+
+    def advance(repository, *arguments, **kwargs):
+        nonlocal raced
+        if "push" in arguments and not raced:
+            raced = True
+            git(remote, "update-ref", "refs/heads/main", tip)
+        return original(repository, *arguments, **kwargs)
+
+    monkeypatch.setattr(lifecycle, "_git", advance)
+    # tip is the proposed delivery's second parent. Ordinary non-forced push
+    # would accept that advance; the negotiated-old guard must refuse it.
+    with pytest.raises(OperationFailed):
+        lifecycle.batch_deliver(source, target, base, tip)
+    assert raced
+    assert git(target, "rev-parse", "HEAD") == base
+    assert git(remote, "rev-parse", "refs/heads/main") == tip
+
+
+@pytest.mark.parametrize("hook_exit", [0, 1])
+def test_publication_preserves_configured_hook_and_its_input(tmp_path, monkeypatch, hook_exit):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+    hooks = tmp_path / "configured hooks"
+    hooks.mkdir()
+    observed = tmp_path / "hook-input"
+    hook = hooks / "pre-push"
+    hook.write_text(f'#!/bin/sh\ncat > "{observed}"\nexit {hook_exit}\n')
+    hook.chmod(0o755)
+    references = tmp_path / "reference-input"
+    reference_hook = hooks / "reference-transaction"
+    reference_hook.write_text(f'#!/bin/sh\ncat >> "{references}"\n')
+    reference_hook.chmod(0o755)
+    git(source, "config", "core.hooksPath", str(hooks))
+    original_hook = hook.read_bytes()
+    if hook_exit:
+        with pytest.raises(OperationFailed):
+            lifecycle.batch_deliver(source, target, base, tip)
+        assert git(target, "rev-parse", "HEAD") == base
+    else:
+        result = lifecycle.batch_deliver(source, target, base, tip)
+        assert result["remote"] == git(target, "rev-parse", "HEAD")
+        assert "refs/remotes/origin/main" in references.read_text()
+    row = observed.read_text().split()
+    assert row[2:] == ["refs/heads/main", base]
+    assert hook.read_bytes() == original_hook
+    assert git(source, "config", "core.hooksPath") == str(hooks)
+
+
+def test_cleanup_failure_does_not_change_a_successful_publication(tmp_path, monkeypatch):
+    source, target, _, base, tip = delivery(tmp_path, monkeypatch)
+    result = lifecycle.batch_deliver(source, target, base, tip)
+    published = result["remote"]
+
+    def unavailable(*args, **kwargs):
+        raise InfrastructureError("fixture Worktrunk unavailable during cleanup")
+
+    monkeypatch.setattr(wt, "worktrunk", unavailable)
+    with pytest.raises(InfrastructureError):
+        workspace_ops.cleanup(target, all_delivered=True)
+    assert result["status"] == "delivered"
+    assert git(target, "rev-parse", "HEAD") == published
+    assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == published
+    assert source.exists()
+
+
+def test_receive_pack_rejects_advance_after_pre_push_negotiation(tmp_path, monkeypatch):
+    source, target, remote, base, tip = delivery(tmp_path, monkeypatch)
+    git(source, "push", "origin", f"{tip}:refs/heads/seed")
+    hooks = tmp_path / "configured-hooks"
+    hooks.mkdir()
+    hook = hooks / "pre-push"
+    hook.write_text(
+        f'#!/bin/sh\ncat > /dev/null\ngit --git-dir="{remote}" update-ref refs/heads/main {tip}\n'
+    )
+    hook.chmod(0o755)
+    git(source, "config", "core.hooksPath", str(hooks))
+    with pytest.raises(OperationFailed):
+        lifecycle.batch_deliver(source, target, base, tip)
+    assert git(target, "rev-parse", "HEAD") == base
+    assert git(remote, "rev-parse", "refs/heads/main") == tip

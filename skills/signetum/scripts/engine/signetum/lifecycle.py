@@ -16,6 +16,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import which
+from time import perf_counter
 
 from signetum import worktrunk as wt
 from signetum.change.member import qualify_member
@@ -24,13 +25,8 @@ from signetum.change.scope import delivered_plans, records_only, records_only_an
 from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
 from signetum.decision_proposals import proposal_paths
 from signetum.delivery import publish_batch
-from signetum.development_store import DevelopmentReviewError
-from signetum.deviations import (
-    DeviationError,
-)
 from signetum.engine_pin import opening_engine, require_batch_engine
 from signetum.evidence.receipts import ValidationSelection
-from signetum.execution_review import execution_review_inputs
 from signetum.gate_records import (
     forget_failures,
     pending_admissions,
@@ -54,6 +50,7 @@ from signetum.policy import delivery_policy
 from signetum.preparation import PreparationResult
 from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
+from signetum.publication_binding import require_publication_binding
 from signetum.repository_selection import select_repository
 from signetum.source_admission import require_source_admission
 from signetum.stacking import require_parent_admitted
@@ -80,7 +77,6 @@ from signetum.validation.repository import (
     run_diagnostic_gate,
 )
 from signetum.validation.repository import configured_validation as _runtime_validation
-from signetum.workspace_operations import cleanup_delivered as _cleanup_delivered_worktrees
 from signetum.workspace_operations import (
     fresh_delivery,
     open_workspace,
@@ -232,11 +228,13 @@ def _ready_member(repository: Path) -> dict[str, object]:
     return result
 
 
-def validate(repository: Path, kind: str) -> dict[str, object]:
+def validate(
+    repository: Path, kind: str, *, delivery_authorization: dict[str, str] | None = None
+) -> dict[str, object]:
     if kind == "member":
         return _ready_member(repository)
     if kind != "final":
-        return _validate_held(repository, kind)
+        return _validate_held(repository, kind, delivery_authorization=delivery_authorization)
     with _exclusive_batch(repository):
         record = read_record(_state_root(repository), _branch(repository))
         if record.kind != "batch":
@@ -247,11 +245,15 @@ def validate(repository: Path, kind: str) -> dict[str, object]:
         proposals = _proposal_paths(repository)
         if proposals:
             raise AdmissionError(f"final refuses proposal decisions: {', '.join(proposals)}")
-        return _validate_held(repository, kind)
+        return _validate_held(repository, kind, delivery_authorization=delivery_authorization)
 
 
 def _validate_held(
-    repository: Path, kind: str, *, execution_root: Path | None = None
+    repository: Path,
+    kind: str,
+    *,
+    execution_root: Path | None = None,
+    delivery_authorization: dict[str, str] | None = None,
 ) -> dict[str, object]:
     return validate_workspace(
         repository,
@@ -264,6 +266,7 @@ def _validate_held(
         check_numbering_base=_require_numbering_base,
         execute=execute_gate,
         execution_root=execution_root,
+        delivery_authorization=delivery_authorization,
     )
 
 
@@ -1007,6 +1010,14 @@ def batch_deliver(
 ) -> dict[str, object]:
     _require_worktree_directory(source, "source")
     _require_worktree_directory(target, "target")
+    with _exclusive_batch(source):
+        return _deliver_held(source, target, expected_base, expected_tip)
+
+
+def _deliver_held(
+    source: Path, target: Path, expected_base: str, expected_tip: str
+) -> dict[str, object]:
+    started = perf_counter()
     require_batch_engine(source)
     _require_clean(source)
     _require_clean(target)
@@ -1015,9 +1026,7 @@ def batch_deliver(
     recorded_base = _recorded_base(source)
     if recorded_base != expected_base:
         raise AdmissionError("recorded batch base differs from expected base")
-    if _attested_base(source, expected_tip) != recorded_base:
-        raise AdmissionError("batch provenance does not attest to the recorded base")
-    final_receipts = sorted(_receipt_root(source).glob("final-*.json"))
+    final_receipts = sorted(_receipt_root(source).glob("final-*.json"), reverse=True)
     if not final_receipts:
         raise AdmissionError("no final receipt exists")
     matching_receipt = next(
@@ -1035,24 +1044,12 @@ def batch_deliver(
         raise AdmissionError("final receipt does not bind the expected batch tip")
 
     payload = json.loads(matching_receipt.read_text(encoding="utf-8"))
-    review = payload.get("delivery_review")
-    try:
-        current_inputs = execution_review_inputs(
-            source,
-            load_manifest(source / "signetum.toml"),
-            expected_base,
-            expected_tip,
-            _receipt_root(source),
-        )
-    except (DeviationError, DevelopmentReviewError) as error:
-        raise AdmissionError(f"delivery review inputs changed: {error}") from error
-    if not isinstance(review, dict) or review.get("inputs") != current_inputs:
-        raise AdmissionError("delivery review inputs changed or are absent; rerun final")
+    binding = require_publication_binding(source, payload, source=expected_tip, base=expected_base)
 
     target_branch = _branch(target)
     if target_branch != delivery_policy(source).branch:
         raise AdmissionError("target branch is not the repository-declared delivery branch")
-    members, plans = _delivery_provenance(source, expected_base, expected_tip)
+    bound_at = perf_counter()
     publication = publish_batch(
         source,
         target,
@@ -1063,7 +1060,6 @@ def batch_deliver(
         remote_tip=_remote_branch_tip,
         is_ancestor=_is_ancestor,
     )
-    removed_worktrees, retained_worktrees = _cleanup_delivered_worktrees(target, source, members)
     return {
         "schema_version": 1,
         "status": "delivered",
@@ -1073,11 +1069,18 @@ def batch_deliver(
         "target_branch": target_branch,
         "delivery_commit": publication.commit,
         "remote": publication.remote,
-        "members": members,
-        "plans": plans,
+        "members": binding.members,
+        "plans": binding.plans,
         "validation": {"final_receipt": str(matching_receipt), "source": expected_tip},
-        "removed_worktrees": removed_worktrees,
-        "retained_worktrees": retained_worktrees,
+        "cleanup": {
+            "status": "pending",
+            "command": ["signetum", "maintenance", "cleanup", "--all-delivered"],
+            "branches": [_branch(source), *(item["branch"] for item in binding.members)],
+        },
+        "phase_seconds": {
+            "binding": bound_at - started,
+            "publication": perf_counter() - bound_at,
+        },
     }
 
 
@@ -1124,7 +1127,11 @@ def _parser() -> argparse.ArgumentParser:
     admission.add_argument("--member", type=Path, action="append", required=True)
     continuation = commands.add_parser("batch-continue")
     continuation.add_argument("--batch", type=Path, required=True)
-    commands.add_parser("final")
+    final = commands.add_parser("final")
+    final.add_argument("--deliver", action="store_true", help="Publish after successful final.")
+    final.add_argument("--target", type=Path, help="Existing delivery worktree directory.")
+    final.add_argument("--actor", help="Owner who explicitly authorized delivery.")
+    final.add_argument("--source", help="Source of the explicit delivery authorization.")
     delivery = commands.add_parser(
         "batch-deliver",
         help="Publish a reviewed batch. Source and target are existing worktree directories.",
@@ -1160,7 +1167,29 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     elif parsed.command == "batch-continue":
         result = continue_batch(parsed.batch.resolve())
     elif parsed.command == "final":
-        result = validate(repository, "final")
+        if parsed.deliver and (
+            parsed.target is None
+            or not parsed.actor
+            or not parsed.actor.strip()
+            or not parsed.source
+            or not parsed.source.strip()
+        ):
+            raise AdmissionError("final --deliver requires --target, --actor and --source")
+        if not parsed.deliver and any((parsed.target, parsed.actor, parsed.source)):
+            raise AdmissionError("delivery options require final --deliver")
+        result = validate(
+            repository,
+            "final",
+            delivery_authorization={"actor": parsed.actor, "source": parsed.source}
+            if parsed.deliver
+            else None,
+        )
+        if parsed.deliver:
+            base, tip = result["base"], result["source"]
+            if not isinstance(base, str) or not isinstance(tip, str):
+                raise AdmissionError("final did not produce exact publication identities")
+            result = batch_deliver(repository, parsed.target.resolve(), base, tip)
+            result["delivery_authorization"] = {"actor": parsed.actor, "source": parsed.source}
     else:
         result = batch_deliver(
             parsed.source.resolve(),
