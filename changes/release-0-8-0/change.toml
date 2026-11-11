@@ -1,0 +1,50 @@
+[change]
+schema_version = 2
+id = "release-0-8-0"
+
+[change.source]
+kind = "human_direction"
+summary = "Release Signetum 0.8.0 after delivery of the thinner protocol. Follow the 0.7.1 release precedent and retained authorities docs/maintainers/releasing.md, docs/decisions/ADP-reviewed-release-notes.md and changes/release-0-7-1/change.toml. The feature already advanced package, Skill and both lockfiles to 0.8.0; verify those identities rather than duplicate the bump."
+
+[change.contract]
+version = 1
+approved_base = "2bcc831e1627989e9cff3800c1503f6a1160fb60" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "RELEASE-001"
+outcome = "The delivered package, Skill and both lockfiles identify 0.8.0 and the release preflight validates their exact source."
+acceptance = ["The release preflight is valid for the delivered source and v0.8.0; package, Skill and engine lock identities agree."]
+
+[[change.contract.requirements]]
+id = "NOTES-002"
+outcome = "The reviewed 0.8.0 changelog describes the thinner protocol, compatibility boundaries, migration and safe cleanup; release notes are extracted from that section."
+acceptance = ["Exactly one concise 0.8.0 section supplies the published RELEASE_NOTES.md and GitHub release body."]
+
+[[change.contract.requirements]]
+id = "PUBLISH-003"
+outcome = "Publish annotated v0.8.0 from the delivered main commit, verify all hosted targets and coverage, public checksums and source identities, isolated installation and update checks, and leave no delivered branch or worktree."
+acceptance = ["CI and Release pass Linux Python 3.12/3.13 and macOS Python 3.13 with combined coverage at least 90%.", "The public release contains the verified Skill archive, metadata, notes and checksums; scratch update --check reports 0.8.0.", "Protocol cleanup and inventory show no delivered change/* or batch/* branches or worktrees."]
+
+[change.contract.autonomy]
+allowed = ["Review existing version bump, refine changelog and release cleanup instructions, run ready, batch admission, final and delivery to main; push main and annotated v0.8.0; let the hosted workflow publish reviewed notes and verify the public release in scratch directories.", "Repair release validation failures through this change without rewriting history."]
+requires_confirmation = ["Upgrade dependencies, publish another version, move a published tag or replace artifacts, or modify installed Skills or consumer repositories."]
+
+[[change.execution.steps]]
+id = "STEP-VERIFY"
+requirements = ["RELEASE-001", "NOTES-002"]
+action = "Verify the existing version identities, refine reviewed notes and cleanup recovery guidance, commit, wait below the load gate and run ready."
+
+[[change.execution.steps]]
+id = "STEP-DELIVER"
+requirements = ["RELEASE-001", "NOTES-002", "PUBLISH-003"]
+action = "Open and admit the release batch, run complete final below the load gate, present its generated review, deliver and verify hosted CI on that exact commit."
+
+[[change.execution.steps]]
+id = "STEP-PUBLISH"
+requirements = ["PUBLISH-003"]
+action = "Tag and push v0.8.0, verify hosted publication, checksums and identities, isolated public install and scratch update checks, Pages and branch/worktree cleanup."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-11
+statement = "Repository owner approved releasing 0.8.0 (2026-11-11)."

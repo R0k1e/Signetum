@@ -15,8 +15,13 @@ their original release history. Git and accepted change records retain reasoning
   failure or unreached nodes.
 - Infer current member changes, generate optional journal IDs, retry writer
   contention briefly and name open-merge paths and recovery commands.
-- Add record schema 2 and configuration schema 6 while reading 0.7 records and
-  configuration unchanged. Update reports consumer migration guidance.
+- Add record schema 2 and configuration schema 6. Existing 0.7 records and
+  format-5 configuration remain readable; historical approval digests and owed
+  ledgers are ignored. New records use the neutral approval statement, and
+  configuration migration happens in a member, separately from Skill updates.
+- Preserve stacking, exact-content evidence, explicit delivery authorization and
+  cleanup of delivered workspaces and orphaned Signetum branches. Update the
+  Skill only after closing open batches; restart sessions after updating.
 
 ## 0.7.2
 
