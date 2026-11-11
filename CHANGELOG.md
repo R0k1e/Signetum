@@ -3,6 +3,24 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.0
+
+The release is a candidate until published.
+
+- Final performs the complete review and validation once, then binds publication
+  to the exact source, base, configuration, member evidence and authorization.
+  Delivery checks those identities without repeating historical review or tests.
+- Add explicit `final --deliver` with owner authorization; separate final and
+  delivery use the same safe publication and recovery path.
+- Guard the negotiated remote base while preserving existing Git hooks, and
+  retain recovery when the remote publication succeeded before local completion.
+- Report cleanup as pending after successful publication. Run
+  `maintenance cleanup --all-delivered` separately; cleanup failure does not
+  turn a completed publication into a failed delivery.
+- Keep configuration schema 6, change schema 2 and validation evidence 3.
+  Earlier final receipts require a fresh final to obtain the versioned publication
+  binding. Finish open batches before updating the Skill and restart sessions.
+
 ## 0.8.0
 
 - Enforce six delivery invariants while recording scope revisions without

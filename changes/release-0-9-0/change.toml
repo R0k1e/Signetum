@@ -1,0 +1,45 @@
+[change]
+schema_version = 2
+id = "release-0-9-0"
+
+[change.source]
+kind = "human_direction"
+summary = "Prepare a local Signetum 0.9.0 release candidate for the delivered lightweight publication implementation. Follow docs/maintainers/releasing.md: the new public final --deliver option warrants a minor version. Preparation does not authorize remote actions, publication or installation."
+
+[change.contract]
+version = 1
+approved_base = "f38a00bfad6ea4c8c0e50f4b681f8ad80b085974" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "IDENTITY-001"
+outcome = "Package, Skill and both lockfiles consistently identify the local 0.9.0 candidate without changing dependencies, schemas or runtime behavior."
+acceptance = ["Locked environment and package build checks pass, and candidate metadata agrees on version 0.9.0."]
+
+[[change.contract.requirements]]
+id = "NOTES-002"
+outcome = "One concise 0.9.0 changelog section describes qualified publication, optional final delivery, independent cleanup and compatibility."
+acceptance = ["Release-note extraction uses exactly one nonempty 0.9.0 section, marked as a candidate until publication."]
+
+[[change.contract.requirements]]
+id = "LOCAL-003"
+outcome = "A committed candidate has passing local validation and inspectable Skill/package artifacts bound to its source; publication and installation remain separate authorized steps."
+acceptance = ["Ready passes on the exact committed tip and local artifacts have recorded source identity and checksums.", "No push, tag, hosted workflow, release, host installation or consumer modification is performed."]
+
+[change.contract.autonomy]
+allowed = ["Update only package and Skill version identities, regenerate their lockfiles without dependency upgrades, add concise reviewed changelog notes, build local artifacts and run local validation."]
+requires_confirmation = ["Push any ref, create any tag, trigger hosted workflows, deliver to main, publish release artifacts, install or update host Skills, modify consumer repositories, or add behavior or dependency changes."]
+
+[[change.execution.steps]]
+id = "STEP-PREPARE"
+requirements = ["IDENTITY-001", "NOTES-002"]
+action = "Update version identities and notes, refresh only the local package lock identities, inspect the diff and commit."
+
+[[change.execution.steps]]
+id = "STEP-VALIDATE"
+requirements = ["IDENTITY-001", "NOTES-002", "LOCAL-003"]
+action = "Run Ready, inspect built artifacts and local archive identities, and present the exact candidate with remaining externally authorized release steps."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-11
+statement = "Repository owner authorized local preparation and validation of the 0.9.0 release candidate."
