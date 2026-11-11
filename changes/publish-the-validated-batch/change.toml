@@ -1,0 +1,78 @@
+[change]
+schema_version = 2
+id = "publish-the-validated-batch"
+
+[change.source]
+kind = "human_direction"
+summary = "Repository owner approved removing repeated semantic review and synchronous cleanup from publication. A measured consumer delivery took 77 seconds: reading 158 journals issued 4022 Git subprocesses and cost about 28 seconds, and seven foreground workspace removals cost about 35 seconds. Final must retain complete qualification while publication checks only the exact qualified identity and mutable local bindings."
+
+[change.contract]
+version = 1
+approved_base = "cc93b6bad8f2784cbc5eaa652c14c5f0f6fcb970" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "QUALIFIED-PUBLICATION"
+outcome = "Final performs complete semantic source review and repository-selected validation, then writes a versioned publication binding to the exact batch commit, base, configuration, member evidence and recorded authorization. Delivery checks that binding, clean source and target, mutable local inputs, explicit delivery authorization and the expected remote base without parsing source journals or reconstructing the semantic review. Legacy final receipts require a fresh final."
+acceptance = ["Real publication traversals reject absent or old bindings, changed commits, dirty source, changed member evidence, changed authorization and advanced targets.", "A large-history diagnostic shows delivery no longer issues one Git process per historical journal entry."]
+
+[[change.contract.requirements]]
+id = "ONE-FINAL-DELIVERY"
+outcome = "An explicitly authorized final --deliver runs final and then the same lightweight delivery owner. Standalone final and batch-deliver remain available. Failed final never publishes, and evidence success never grants publication authority."
+acceptance = ["Public CLI tests cover successful combined and separate paths, missing authorization and failed final without remote updates."]
+
+[[change.contract.requirements]]
+id = "RECOVERABLE-PUBLICATION"
+outcome = "Remote publication confirms the exact expected base atomically. A retry recognizes the same published commit and completes local advancement without creating a new delivery. Concurrent or changed remote publication refuses without force or losing work."
+acceptance = ["Retain remote-first recovery and extend competing-target publication tests."]
+
+[[change.contract.requirements]]
+id = "INDEPENDENT-CLEANUP"
+outcome = "Successful publication returns immediately with cleanup pending rather than synchronously removing workspaces. Existing maintenance cleanup owns safe removal and its own verdict. No new queue or background process is introduced, and cleanup failure cannot change a successful delivery into failure."
+acceptance = ["A publication leaves delivered workspaces and reports the cleanup operation, and existing cleanup removes only proven delivered or contained workspaces.", "Cleanup failure leaves publication and remote state successful."]
+
+[[change.contract.requirements]]
+id = "EFFICIENT-FINAL-REVIEW"
+outcome = "Final's journal validation retains every existing semantic obligation while reusing identical committed Git reads and ancestor queries within one immutable review. Source and mutable binding changes during validation still refuse qualification."
+acceptance = ["Retain source review corruption and in-run-change refusals; compare review results and diagnostic subprocess costs."]
+
+[[change.contract.requirements]]
+id = "CURRENT-GUIDANCE"
+outcome = "Architecture, Skill guidance and command examples describe complete final qualification, lightweight publication, optional combined delivery and separate cleanup, preserving the six protocol invariants."
+acceptance = ["Current docs and shipped CLI agree and repository checks pass."]
+
+[change.contract.autonomy]
+allowed = ["Choose internal binding representation and explicitly version it.", "Extend existing lifecycle, publication and cleanup owners and real CLI tests.", "Batch or memoize immutable Git reads within one review without persistent unqualified caches.", "Measure phases without permanent time thresholds.", "Update current guidance and compatibility refusals."]
+requires_confirmation = ["Admit, integrate, deliver, push, tag or release this change.", "Modify installed Skills or consumer repositories.", "Add background workers or a durable cleanup queue.", "Weaken final completeness or the six protocol invariants."]
+
+[[change.contract.decisions]]
+id = "publish-the-validated-batch/publication-boundary"
+change_id = "publish-the-validated-batch"
+parents = []
+authority = "changes/publish-the-validated-batch/change.toml#decisions/publish-the-validated-batch/publication-boundary"
+reason = "Complete semantic review belongs to final. Repeating it during publication adds thousands of Git processes without new evidence when the frozen commit is unchanged. The publication binding retains exact immutable source and mutable local inputs; publication checks those identities and the atomic remote base. Cleanup is an independent maintenance outcome after publication, not a condition of delivery success. A background deletion design is unnecessary because existing maintenance cleanup already owns safe removal. Reopen if exact reviewed inputs or remote-first recovery cannot be established by the binding."
+
+[[change.contract.decisions.clauses]]
+id = "publish-the-validated-batch/binding"
+change_id = "publish-the-validated-batch"
+action = "add"
+expected = [{id = "QUALIFIED-PUBLICATION-001", version = 0}]
+authority = "changes/publish-the-validated-batch/change.toml#decisions/publish-the-validated-batch/publication-boundary"
+reason = "Separate final semantic qualification from lightweight publication without changing authority."
+
+[[change.contract.decisions.clauses.updates]]
+id = "QUALIFIED-PUBLICATION-001"
+version = 1
+topic = "qualified-publication"
+scope = ["Final qualification", "Publication and recovery", "Workspace cleanup"]
+statement = "Final fully validates source and review inputs and emits a versioned publication binding. Delivery verifies the frozen source, mutable local bindings, authorization and expected remote base without reconstructing source history or executing checks. Explicit final --deliver uses the same delivery owner after success. Publication succeeds independently of later maintenance cleanup; no cleanup worker or queue is required."
+rationale = "Repeated semantic review and synchronous tree deletion do not strengthen exact-source publication and dominate its latency."
+
+[[change.execution.steps]]
+id = "IMPLEMENT"
+requirements = ["QUALIFIED-PUBLICATION", "ONE-FINAL-DELIVERY", "RECOVERABLE-PUBLICATION", "INDEPENDENT-CLEANUP", "EFFICIENT-FINAL-REVIEW", "CURRENT-GUIDANCE"]
+action = "Accept the publication-boundary decision, extend existing owners and functional tests, reconcile docs, inspect artifacts and obtain passing Ready on committed source."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-11
+statement = "Repository owner authorized implementation and validation of lightweight exact-source publication, optional combined final delivery and independent cleanup."
