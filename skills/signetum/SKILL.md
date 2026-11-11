@@ -63,8 +63,9 @@ and parallel coordination; use [delivery and recovery](references/delivery-recov
 for integration, review, explicit delivery and cleanup. The coordinating Agent owns
 scope, shared interfaces and integration; Signetum does not schedule Agents.
 Every workspace ends delivered, contained (its content already reached the
-delivery branch) or abandoned. Delivery and `maintenance cleanup --all-delivered`
-remove the first two; their sweeps also recover delivered or contained local
+delivery branch) or abandoned. Publication leaves workspaces in place and reports
+cleanup as pending. `maintenance cleanup --all-delivered` removes the first two;
+its sweep also recovers delivered or contained local
 `change/*` and `batch/*` branches whose worktrees are already gone, subject to
 non-forced Git deletion. `maintenance cleanup --branch <branch>` selects one.
 Git refusals retain the branch with a diagnostic. `status` lists what each open
@@ -111,8 +112,15 @@ For concurrent/background/lazy paths read [stability](references/stability.md).
 Read [optional validation optimization](references/validation-optimization.md)
 only for requested selection, scheduling or CI partition work.
 
-Report the furthest evidenced state: ready, integrated or delivered. Show the
-generated final review before explicitly authorized delivery. Human acceptance
+Report the furthest evidenced state: ready, integrated or delivered. Final performs
+complete semantic review and emits a versioned publication binding. Delivery only
+verifies that binding, exact source, local evidence and authority, and the expected
+remote base; it never reparses historical journals or runs checks. Old final
+receipts without that binding require a fresh final. Show the generated final
+review before delivery when authorization is still missing. With explicit prior
+delivery authorization, `final --deliver --target <worktree> --actor <owner>
+--source <authorization>` validates then publishes through the same owner.
+Cleanup is a separate maintenance operation, not a publication prerequisite. Human acceptance
 requires its own evidence. The maintained source is [Signetum](https://github.com/R0k1e/Signetum).
 
 Operate consumer repositories through the installed Skill launcher, for example

@@ -4,6 +4,7 @@ import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Protocol
 
 from signetum.change.member import qualify_member
@@ -20,9 +21,11 @@ from signetum.gate_records import (
     forget_failures,
     remember_failure,
 )
-from signetum.git import git_output
+from signetum.git import git_output, immutable_git_reads
 from signetum.manifest import RepositoryManifest, load_manifest
 from signetum.operations import AdmissionError
+from signetum.provenance import members_and_plans
+from signetum.publication_binding import bind_publication, review_local_inputs
 from signetum.repository_selection import select_repository
 from signetum.source_admission import require_source_admission
 from signetum.synchronization import member_contribution_paths
@@ -102,6 +105,7 @@ def _unfinished_work(
     ]
 
 
+@immutable_git_reads()
 def validate_workspace(
     repository: Path,
     kind: str,
@@ -114,9 +118,12 @@ def validate_workspace(
     check_numbering_base: Callable[[Path, str | None, str], None],
     execute: Callable[..., EvidenceReceipt] = execute_gate,
     execution_root: Path | None = None,
+    delivery_authorization: dict[str, str] | None = None,
 ) -> dict[str, object]:
     if kind == "final":
         require_batch_engine(repository)
+    elif delivery_authorization is not None:
+        raise AdmissionError("delivery authorization belongs to final only")
     execution = repository.resolve() if execution_root is None else execution_root.resolve()
     require_clean(repository)
     source = git_output(repository, "rev-parse", "HEAD")
@@ -132,6 +139,7 @@ def validate_workspace(
     evidence_base = recorded_base(repository) if kind == "final" else None
     scope = None
     member_recoveries = []
+    review_started = perf_counter()
     if kind == "final":
         if evidence_base is None:
             raise AdmissionError("final has no recorded batch base")
@@ -169,6 +177,9 @@ def validate_workspace(
                 approval_view(repository, change_id, root=changes_root(manifest))
                 for change_id in change_ids
             ]
+            publication_inputs = review_local_inputs(
+                repository, review_inputs, receipt_root(repository)
+            )
         except (DeviationError, DevelopmentReviewError) as error:
             raise AdmissionError(f"execution reconciliation failed: {error}") from error
     else:
@@ -238,6 +249,7 @@ def validate_workspace(
     gate_base = git_output(repository, "rev-parse", base) if base else evidence_base
     if gate_base is None:
         raise AdmissionError("validation has no recorded workspace base")
+    validation_started = perf_counter()
     try:
         receipt = execute(
             graph,
@@ -249,6 +261,7 @@ def validate_workspace(
     except ValidationExecutionError as error:
         remember_failure(repository, branch, gate=gate, base=gate_base, tip=source, error=error)
         raise
+    validated_at = perf_counter()
     try:
         require_clean(execution)
     except AdmissionError as error:
@@ -256,20 +269,12 @@ def validate_workspace(
     if kind == "final":
         if evidence_base is None:
             raise AdmissionError("final has no recorded batch base")
-        try:
-            if (
-                execution_review_inputs(
-                    repository, manifest, evidence_base, source, receipt_root(repository)
-                )
-                != review_inputs
-            ):
-                raise AdmissionError(
-                    "delivery review inputs changed during validation; rerun final"
-                )
-        except (DeviationError, DevelopmentReviewError) as error:
-            raise AdmissionError(
-                f"delivery review inputs changed during validation: {error}"
-            ) from error
+        if (
+            git_output(repository, "rev-parse", "HEAD") != source
+            or review_local_inputs(repository, review_inputs, receipt_root(repository))
+            != publication_inputs
+        ):
+            raise AdmissionError("delivery review inputs changed during validation; rerun final")
     receipt_path = ReceiptStore(receipt_root(repository)).write(gate, receipt)
     payload = {
         "schema_version": 2,
@@ -283,6 +288,8 @@ def validate_workspace(
     if kind == "member":
         payload["approvals"] = approvals
     if reconciliation is not None and approvals is not None and scope is not None:
+        if delivery_authorization is not None:
+            payload["delivery_authorization"] = delivery_authorization
         payload["delivery_review"] = {
             "unfinished_work": _unfinished_work(reconciliation, source_reconciliation),
             "inputs": review_inputs,
@@ -298,6 +305,28 @@ def validate_workspace(
                 {"change_id": item.change_id, "paths": list(item.paths)}
                 for item in scope.previously_delivered
             ],
+        }
+        if evidence_base is None:
+            raise AdmissionError("final has no recorded publication base")
+        if review_inputs["member_chain"]:
+            members, plans = members_and_plans(repository, evidence_base, source)
+            payload["publication_binding"] = bind_publication(
+                repository,
+                source=source,
+                base=evidence_base,
+                review=payload["delivery_review"],
+                evidence=payload["evidence"],
+                local_inputs=publication_inputs,
+                members=members,
+                plans=plans,
+                authorization=delivery_authorization,
+            ).document()
+        else:
+            payload["publication_unavailable"] = "batch contains no admitted member provenance"
+        payload["phase_seconds"] = {
+            "review_and_preconditions": validation_started - review_started,
+            "validation": validated_at - validation_started,
+            "binding": perf_counter() - validated_at,
         }
     lifecycle_receipt = receipt_path.with_name(
         receipt_path.name.replace(f"{gate}-", f"{gate}-lifecycle-")

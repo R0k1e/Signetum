@@ -19,8 +19,8 @@ batch-admit batch *args:
 batch-continue batch:
     just _lifecycle batch-continue --batch "$@"
 
-final:
-    just _lifecycle final
+final *args:
+    just _lifecycle final "$@"
 
 batch-deliver source target expected-base expected-batch-tip:
     just _lifecycle batch-deliver "$@"

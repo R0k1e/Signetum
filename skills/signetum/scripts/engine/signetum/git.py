@@ -7,7 +7,9 @@ import re
 
 # Git uses a resolved executable, explicit argv and no shell.
 import subprocess  # nosec B404
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from shutil import which
 
@@ -22,6 +24,38 @@ class GitInfrastructureError(GitError):
     """Git is unavailable, without changing ordinary Git refusal semantics."""
 
     status = OperationStatus.INFRASTRUCTURE_ERROR
+
+
+_READS: ContextVar[dict[tuple[Path, tuple[str, ...]], subprocess.CompletedProcess[str]] | None] = (
+    ContextVar("immutable_git_reads", default=None)
+)
+
+
+@contextmanager
+def immutable_git_reads() -> Iterator[None]:
+    """Reuse exact object and ancestry queries only within one review lifetime."""
+    if _READS.get() is not None:
+        yield
+        return
+    token = _READS.set({})
+    try:
+        yield
+    finally:
+        _READS.reset(token)
+
+
+def _immutable_query(arguments: tuple[str, ...]) -> bool:
+    identity = r"[0-9a-f]{40}(?:[0-9a-f]{24})?"
+    if len(arguments) == 4 and arguments[:2] == ("merge-base", "--is-ancestor"):
+        return all(re.fullmatch(identity, value) for value in arguments[2:])
+    if len(arguments) >= 3 and arguments[:2] == ("cat-file", "blob"):
+        return len(arguments) == 3 and re.fullmatch(identity, arguments[2]) is not None
+    if len(arguments) >= 4 and arguments[:2] == ("ls-tree", "-z"):
+        return re.fullmatch(identity, arguments[2]) is not None and arguments[3] == "--"
+    if not arguments or arguments[0] not in {"show", "cat-file", "ls-tree", "rev-parse"}:
+        return False
+    operands = [value for value in arguments[1:] if not value.startswith("-")]
+    return bool(operands) and all(re.match(rf"^{identity}(?=$|[:^])", value) for value in operands)
 
 
 def isolated_git_environment(source: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -51,13 +85,23 @@ def run_git(
         raise GitInfrastructureError(
             "Git executable is unavailable", expected="restore the Git executable and retry"
         )
-    return subprocess.run(  # noqa: S603  # nosec B603 -- resolved Git, explicit argv, no shell
+    reads = _READS.get() if environment is None and _immutable_query(arguments) else None
+    key = (repository.resolve(), arguments)
+    if reads is not None and key in reads:
+        previous = reads[key]
+        return subprocess.CompletedProcess(
+            previous.args, previous.returncode, previous.stdout, previous.stderr
+        )
+    result = subprocess.run(  # noqa: S603  # nosec B603 -- resolved Git, explicit argv, no shell
         (executable, "-C", str(repository), *arguments),
         check=False,
         capture_output=True,
         text=True,
         env=isolated_git_environment(environment),
     )
+    if reads is not None:
+        reads[key] = result
+    return result
 
 
 def git_output(repository: Path, *arguments: str, check: bool = True, strip: bool = True) -> str:
