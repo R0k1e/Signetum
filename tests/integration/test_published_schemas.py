@@ -44,7 +44,7 @@ def _violations(schema: str, document: object) -> list[str]:
 def test_shipped_manifests_satisfy_the_published_manifest_schema(relative: str) -> None:
     document = tomllib.loads((REPOSITORY / relative).read_text(encoding="utf-8"))
 
-    assert _violations("signetum-v5.schema.json", document) == []
+    assert _violations("signetum-v6.schema.json", document) == []
 
 
 @pytest.mark.parametrize("relative", MANIFESTS)
@@ -116,7 +116,7 @@ def test_minimal_manifest_passes_parser_and_schema(tmp_path: Path) -> None:
     path = tmp_path / "signetum.toml"
     path.write_text(MINIMAL_MANIFEST, encoding="utf-8")
     document = tomllib.loads(MINIMAL_MANIFEST)
-    assert _violations("signetum-v5.schema.json", document) == []
+    assert _violations("signetum-v6.schema.json", document) == []
     loaded = load_manifest(path)
     assert loaded.signetum.protocol == 2
     assert loaded.signetum.evidence_protocol == EVIDENCE_PROTOCOL

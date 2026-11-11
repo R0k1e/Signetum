@@ -2,7 +2,7 @@
 name: signetum
 description: Use Signetum for reliable Agent development and delivery in evolving repositories, from a single Agent across sessions to parallel coding Agents. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
-  version: "0.7.2"
+  version: "0.8.0"
 ---
 
 # Reliable Agent development and delivery
@@ -39,7 +39,10 @@ decision set through `change current`. Questions and read-only reviews load only
 relevant context; do not open a change or run delivery for them. Retrieve original
 rationale with `change history`
 only when needed. For new or changed behavior, follow [change approval](references/spec-plan-decisions.md):
-one approved change owns outcomes, scope, acceptance and execution autonomy.
+one authorized change owns outcomes, scope, acceptance and execution autonomy.
+Record approval once with actor, recorded_at and a neutral statement; never quote
+the owner verbatim. Commit it before implementation. Record later scope changes
+without re-approval; final review derives change.toml revisions from history.
 Preserve existing authorization; installation and passing checks confer none.
 
 Use `status` for blockers and the next action. Develop in registered isolated
@@ -74,7 +77,10 @@ Signetum that need it.
 
 Tell the user which tests change, why, and whether evidence is removed or relaxed.
 Use existing project checks. First failures remain failed after diagnostic retry.
-Recording a failed test as outside the change's scope does not offset that failure.
+Failure receipts retain diagnostics only, with no owed-node ledger.
+Final runs every repository-selected shard to completion without failure or
+unreached nodes. Scheduling, preparation, concurrency and test selection belong
+to repository configuration and the operating model.
 Bring a fix already in the batch into a member through
 `maintenance workspace-sync --batch <batch-worktree>`, not cherry-pick or a manual merge.
 Split a large change into stacked members: `workspace-open <branch> <parent-branch>`
@@ -83,7 +89,8 @@ After a sibling batch delivers, run `maintenance workspace-sync` in the open bat
 merge the new delivery tip; members stay admitted and conflicts use `batch-continue`.
 Admission and that sync refuse two changes claiming one decision clause ID.
 Ready, admission, continuation and final require approved source packages, intact
-journal ancestry and resolved source observations. Repair an admitted defect in
+journal ancestry. Observations never block; pending observations and deferrals
+appear in delivery review unfinished work. Repair an admitted defect in
 a member and admit its new ready tip; never amend a commit bound by a journal.
 Ready reuses passing evidence of each `inherit = true` shard that the impact
 rules show no follow-up path affects, with or without a provider; a path no rule

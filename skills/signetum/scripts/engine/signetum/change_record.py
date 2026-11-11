@@ -1,6 +1,6 @@
-"""One structured change record with a content-bound human approval.
+"""One structured change record with an owner authorization.
 
-This boundary checks record structure and the recorded approval binding. It
+This boundary checks record structure and the recorded authorization. It
 does not grant approval, validate external decision standing or publish evidence.
 """
 
@@ -86,13 +86,14 @@ class ExecutionPlan(FrozenContract):
 class RecordedApproval(FrozenContract):
     actor: Text
     recorded_at: date
-    source: Text
-    contract_digest: Digest
+    statement: str = ""
+    source: str = ""  # Legacy neutral approval statement.
+    contract_digest: str = ""  # Ignored 0.7 approval binding.
 
 
 @dataclass(frozen=True, kw_only=True)
 class ChangeRecord(FrozenContract):
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]
     id: ClauseId
     source: ReviewSource
     contract: ChangeContract
@@ -109,7 +110,7 @@ def contract_digest(contract: ChangeContract) -> str:
 
 
 def validate_change_record(record: ChangeRecord) -> None:
-    """Check exhaustive planning and prevent approval surviving changed behavior."""
+    """Check exhaustive planning and the presence of a recorded authorization."""
     requirements = {item.id for item in record.contract.requirements}
     if record.status == "complete" and record.approval is None:
         raise ValueError("a completed change requires a recorded approval")
@@ -129,9 +130,10 @@ def validate_change_record(record: ChangeRecord) -> None:
     for event in record.contract.decisions:
         if event.change_id != record.id:
             raise ValueError("decision transaction belongs to a different change")
-    if record.approval is not None:
-        if record.approval.contract_digest != contract_digest(record.contract):
-            raise ValueError("recorded approval does not bind the current contract")
+    if record.approval is not None and not (
+        record.approval.statement or (record.schema_version == 1 and record.approval.source)
+    ):
+        raise ValueError("approval requires a neutral statement")
 
 
 def parse_change_record(source: str) -> ChangeRecord:

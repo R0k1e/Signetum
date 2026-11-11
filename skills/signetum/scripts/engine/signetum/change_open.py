@@ -68,7 +68,7 @@ def open_change(repository: Path, name: str) -> dict[str, object]:
 
 def _draft(name: str, base: str) -> str:
     return f'''[change]
-schema_version = 1
+schema_version = 2
 id = "{name}"
 
 [change.source]

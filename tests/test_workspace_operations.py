@@ -72,7 +72,7 @@ def test_ready_fails_when_prepare_needs_an_ignored_file_missing_from_the_commit(
     assert "signetum-ready" not in git_output(root, "worktree", "list", "--porcelain")
 
 
-def test_ready_reports_approval_source_when_ignored_files_are_unnecessary(repository):
+def test_ready_reports_approval_statement_when_ignored_files_are_unnecessary(repository):
     root, _state = repository
     member = opened(root, "plan/example")
     commit_approval(member)
@@ -88,7 +88,7 @@ def test_ready_reports_approval_source_when_ignored_files_are_unnecessary(reposi
     assert isinstance(approvals, list)
     assert approvals[0]["actor"] == "Owner"
     assert approvals[0]["recorded_at"] == "2026-10-29"
-    assert approvals[0]["source"] == "Owner confirmed the fixture outcome."
+    assert approvals[0]["statement"] == "Owner confirmed the fixture outcome."
     assert str(approvals[0]["contract_digest"]).startswith("sha256:")
     assert (member / ".venv" / "pyvenv.cfg").is_file()
     assert "signetum-ready" not in git_output(root, "worktree", "list", "--porcelain")

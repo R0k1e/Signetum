@@ -42,7 +42,9 @@ def test_the_standalone_reader_does_not_create_approval_or_modify_records(
     assert sorted(item.name for item in tmp_path.iterdir()) == ["change.toml"]
 
 
-def test_the_reader_refuses_modified_approved_contract_bytes(tmp_path, record_source):
+def test_the_reader_accepts_scope_revisions_with_the_original_authorization(
+    tmp_path, record_source
+):
     digest = contract_digest(parse_change_record(record_source).contract)
     approval = f'''
 [change.approval]
@@ -58,9 +60,8 @@ contract_digest = "{digest}"
     assert json.loads(result.stdout)["stage"] == "approved"
     path.write_text(record_source.replace('outcome = "', 'outcome = "Different ', 1) + approval)
     result = read_record(path)
-    assert result.returncode == 2
-    assert len(result.stdout.splitlines()) == 1
-    assert "does not bind" in json.loads(result.stdout)["cause"]
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["stage"] == "approved"
 
 
 def test_an_unapproved_change_cannot_claim_completion(tmp_path, record_source):
@@ -135,7 +136,7 @@ def test_traceability_accepts_one_consolidated_record_without_legacy_files(
 
 @pytest.mark.parametrize(
     "damage",
-    ["draft", "stale", "dual", "identity", "symlink", "withdrawn"],
+    ["draft", "dual", "identity", "symlink", "withdrawn"],
 )
 def test_review_refuses_invalid_consolidated_authority_without_legacy_fallback(
     tmp_path, record_source, damage, monkeypatch
@@ -145,9 +146,7 @@ def test_review_refuses_invalid_consolidated_authority_without_legacy_fallback(
     path = tmp_path / "changes" / record.id / "change.toml"
     path.parent.mkdir(parents=True)
     source = record_source if damage == "draft" else approved_record_source(record_source)
-    if damage == "stale":
-        source = source.replace(record.contract.requirements[0].outcome, "Another behavior.")
-    elif damage == "identity":
+    if damage == "identity":
         source = source.replace(f'id = "{record.id}"', 'id = "another"', 1)
     elif damage == "withdrawn":
         source = source.replace("[change]", '[change]\nstatus = "withdrawn"', 1)

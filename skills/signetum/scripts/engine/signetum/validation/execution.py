@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, date, datetime
 from typing import Protocol
@@ -63,7 +62,7 @@ class ValidationExecutionError(ValueError):
 
     A failed gate carries the nodes its runners reported failing on the first
     attempt, those that passed only on retry, and the shards that passed, so
-    the lifecycle can remember them for the workspace's next gate. It also
+    the lifecycle can retain diagnostics for the workspace. It also
     carries every shard that did not pass, for the failure record and result.
     """
 
@@ -76,8 +75,6 @@ class ValidationExecutionError(ValueError):
         passed_shards: tuple[str, ...] = (),
         unreached_nodes: tuple[NodeIdentity, ...] = (),
         failed_shards: tuple[ShardFailure, ...] = (),
-        discharged_nodes: tuple[NodeIdentity, ...] = (),
-        discharged_by_reaching: tuple[dict[str, str], ...] = (),
     ) -> None:
         super().__init__(message)
         self.failed_nodes = failed_nodes
@@ -85,8 +82,6 @@ class ValidationExecutionError(ValueError):
         self.passed_shards = passed_shards
         self.unreached_nodes = unreached_nodes
         self.failed_shards = failed_shards
-        self.discharged_nodes = discharged_nodes
-        self.discharged_by_reaching = discharged_by_reaching
 
 
 class ValidationInfrastructureError(ValidationExecutionError):
@@ -142,7 +137,7 @@ class ValidationAdapter(Protocol):
     ) -> ShardExecution:
         """Execute one shard command and return its verdict.
 
-        ``priority_nodes`` are owed node ids the runner may schedule first; they
+        ``priority_nodes`` are optional runner ordering hints; they
         never change what the shard selects or what makes it pass.
         """
 
@@ -237,37 +232,14 @@ def _resolve_outcome(
     recovered: list[dict[str, JsonValue]],
     details: dict[str, JsonValue],
     nodes: _NodeObservations,
-    required_nodes: frozenset[str] = frozenset(),
-    reach_only: frozenset[str] = frozenset(),
-    vanished_nodes: Mapping[str, dict[str, str]] | None = None,
 ) -> ShardOutcome:
     """Execute one shard and decide whether it produced reusable evidence."""
 
     observed_at = datetime.now(UTC).isoformat() if shard.evidence == "world" else None
-    execution = adapter.run_shard(shard, priority_nodes=tuple(sorted(required_nodes)))
+    execution = adapter.run_shard(shard)
     if execution.details:
         details[shard.name] = execution.details
     nodes.observe(shard.name, execution)
-    terminal = {**dict.fromkeys(execution.passed_nodes, "passed"), **execution.non_failing}
-    failed = set(execution.failed_nodes) | {str(item["node_id"]) for item in execution.recovered}
-    reached = sorted(
-        required_nodes & reach_only & terminal.keys() - failed - set(execution.unreached_nodes)
-    )
-    nodes.reached.extend(
-        {"shard": shard.name, "node_id": node, "outcome": terminal[node]} for node in reached
-    )
-    nodes.discharged.extend((shard.name, node) for node in reached)
-    nodes.discharged.extend(
-        (shard.name, node) for node in required_nodes & set(execution.passed_nodes) - failed
-    )
-    if reached:
-        previous = details.get(shard.name)
-        details[shard.name] = {
-            **(previous if isinstance(previous, dict) else {}),
-            "discharged_by_reaching": [
-                {"node_id": node, "outcome": terminal[node]} for node in reached
-            ],
-        }
     if execution.unreached_nodes:
         raise ValidationExecutionError(
             (execution.diagnostic or f"{shard.name} reported unreached nodes")
@@ -277,53 +249,11 @@ def _resolve_outcome(
         require_original_success(
             [{**defect, "shard": shard.name} for defect in execution.recovered]
         )
-        unreported = (
-            required_nodes
-            - set(execution.passed_nodes)
-            - set(execution.failed_nodes)
-            - set(execution.non_failing)
+    if execution.failed_nodes:
+        raise ValidationExecutionError(
+            execution.diagnostic or f"{shard.name} reported failed nodes"
         )
-        candidates = vanished_nodes or {}
-        released = sorted(
-            node
-            for node in unreported
-            if node in candidates
-            and (
-                node in execution.not_collected and bool(candidates[node]["collection_commit"])
-                if execution.not_collected is not None
-                else candidates[node]["basis"] == "name_absent"
-            )
-        )
-        if released:
-            # The workspace removed these tests; a passing shard that no longer runs them
-            # accounts for them, and the receipt keeps which ones it released.
-            previous = details.get(shard.name)
-            details[shard.name] = {
-                **(previous if isinstance(previous, dict) else {}),
-                "released_vanished_nodes": [
-                    {
-                        "node_id": node,
-                        "retiring_commit": (
-                            candidates[node]["collection_commit"]
-                            if execution.not_collected is not None
-                            else candidates[node]["retiring_commit"]
-                        ),
-                        "basis": (
-                            "not_collected"
-                            if execution.not_collected is not None
-                            else "name_absent"
-                        ),
-                    }
-                    for node in released
-                ],
-            }
-        if missing := sorted(
-            required_nodes - set(execution.passed_nodes) - set(released) - set(reached)
-        ):
-            raise ValidationExecutionError(
-                f"{shard.name}: previously failed nodes did not pass in this run: "
-                + ", ".join(missing)
-            )
+    if execution.succeeded:
         recovered.extend({**defect, "shard": shard.name} for defect in execution.recovered)
         return ShardOutcome(shard.name, shard.digest, shard.evidence, "passed", observed_at)
     if shard.evidence != "world":
@@ -354,8 +284,6 @@ def _resolve_outcome(
 class _NodeObservations:
     """First-attempt node outcomes reported by every shard that ran."""
 
-    reached: list[dict[str, str]] = field(default_factory=list)
-    discharged: list[NodeIdentity] = field(default_factory=list)
     failed: list[NodeIdentity] = field(default_factory=list)
     recovered: list[NodeIdentity] = field(default_factory=list)
     unreached: list[NodeIdentity] = field(default_factory=list)
@@ -394,21 +322,12 @@ def _execute_shards(
     reusable: dict[str, ShardOutcome] | None = None,
     executed: set[str] | None = None,
     advisory_world: bool = False,
-    reach_only: Mapping[str, frozenset[str]] | None = None,
-    remembered: Mapping[str, frozenset[str]] | None = None,
-    vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> _ExecutionResult:
-    """One verdict owner for qualified execution and non-qualifying diagnostics.
-
-    ``remembered`` names, per shard, nodes that failed in an earlier gate of the
-    workspace. Such a shard runs in this execution; failure debt requires passing,
-    while ``reach_only`` debt accepts any reported non-failing terminal outcome.
-    """
+    """One verdict owner for the current run; historical failures impose no debt."""
     result = _ExecutionResult()
     outcomes, names, inherited_names = result.outcomes, result.names, result.inherited
     recovered, shard_details, advisories = result.recovered, result.details, result.advisories
     reusable = reusable or {}
-    remembered = remembered or {}
     nodes = _NodeObservations()
     passed: list[str] = []
     proven = executed if executed is not None else set()
@@ -432,22 +351,11 @@ def _execute_shards(
             failures.append(f"{name}: skipped after {', '.join(blocked)}")
             failed_shards.append(ShardFailure(name, skipped_after=tuple(blocked)))
             continue
-        required_nodes = remembered.get(name, frozenset())
-        if (
-            executed is not None
-            and shard.evidence == "tree"
-            and shard.digest in proven
-            and not required_nodes
-        ):
+        if executed is not None and shard.evidence == "tree" and shard.digest in proven:
             continue
         names.append(name)
         try:
-            if (
-                shard.inherit
-                and not required_nodes
-                and name in reusable
-                and reusable[name].command_digest == shard.digest
-            ):
+            if shard.inherit and name in reusable and reusable[name].command_digest == shard.digest:
                 outcome = reusable[name]
                 inherited_names.append(name)
             else:
@@ -459,9 +367,6 @@ def _execute_shards(
                     recovered=recovered,
                     details=shard_details,
                     nodes=nodes,
-                    required_nodes=required_nodes,
-                    reach_only=(reach_only or {}).get(name, frozenset()),
-                    vanished_nodes=(vanished or {}).get(name),
                 )
         except ValidationExecutionError as error:
             if (
@@ -494,10 +399,7 @@ def _execute_shards(
         )
         if nodes.unreached:
             # Stated last so a truncated diagnostic still shows it.
-            failures.append(
-                f"{len(nodes.unreached)} selected nodes unreached; "
-                "remembered as owed for the next gate, which schedules them first"
-            )
+            failures.append(f"{len(nodes.unreached)} selected nodes unreached")
         # Last, so a diagnostic truncated from the front still names every failure.
         failures.append(
             "failed shards: " + "; ".join(failure.summary() for failure in failed_shards)
@@ -509,8 +411,6 @@ def _execute_shards(
             passed_shards=tuple(passed),
             unreached_nodes=tuple(nodes.unreached),
             failed_shards=tuple(failed_shards),
-            discharged_nodes=tuple(dict.fromkeys(nodes.discharged)),
-            discharged_by_reaching=tuple(nodes.reached),
         )
     return result
 
@@ -522,9 +422,6 @@ def execute_gate(
     adapter: ValidationAdapter,
     *,
     inherited: InheritedEvidence | None = None,
-    reach_only: Mapping[str, frozenset[str]] | None = None,
-    remembered: Mapping[str, frozenset[str]] | None = None,
-    vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> EvidenceReceipt:
     """Execute one resolved gate and compose only its successful shard evidence.
 
@@ -555,9 +452,6 @@ def execute_gate(
         inputs,
         adapter,
         reusable=reusable,
-        remembered=remembered,
-        reach_only=reach_only,
-        vanished=vanished,
     )
     inherited_names, recovered, shard_details = result.inherited, result.recovered, result.details
     receipts = [
@@ -641,9 +535,6 @@ def execute_diagnostic_gate(
     advisory_world: bool = False,
     tools: tuple[ToolDeclaration, ...] = (),
     inputs: ValidationInputs | None = None,
-    reach_only: Mapping[str, frozenset[str]] | None = None,
-    remembered: Mapping[str, frozenset[str]] | None = None,
-    vanished: Mapping[str, Mapping[str, dict[str, str]]] | None = None,
 ) -> dict[str, object]:
     """Execute diagnostics without granting or storing readiness evidence."""
     projected = inputs or ValidationInputs(
@@ -660,9 +551,6 @@ def execute_diagnostic_gate(
         adapter,
         executed=executed,
         advisory_world=advisory_world,
-        remembered=remembered,
-        reach_only=reach_only,
-        vanished=vanished,
     )
     if identity is not None:
         require_unchanged_identity(identity, build_evidence_identity(graph, projected, adapter))

@@ -520,8 +520,13 @@ def require_no_merge(repository: Path) -> None:
     merge_head = repository_path(repository, "rev-parse", "--git-path", "MERGE_HEAD")
     if merge_head.is_file():
         raise MergeConflict(
-            "batch has an open merge",
-            expected=f"resolve and stage paths, then batch-continue --batch {repository}",
+            "workspace has an open merge; conflicted paths: "
+            + (git_output(repository, "diff", "--name-only", "--diff-filter=U") or "none"),
+            expected=(
+                f"git -C {repository} add <resolved-paths>; "
+                f"git -C {repository} commit --no-edit; "
+                f"batch-continue --batch {repository}"
+            ),
         )
 
 

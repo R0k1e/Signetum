@@ -77,19 +77,12 @@ Write first-attempt outcomes to the node report as
 `non_failing` maps exact node ids to runner-reported non-failing terminal outcomes,
 for example `{"test.py::test_linux": "skipped"}`. Do not report collection or
 deselection as a terminal outcome.
-`not_collected` lists owed node ids absent from collection whose file was collected
-in this run or no longer exists. Report collection before `-k`, marker or node
-selection filters; never report a node from an existing file excluded from
-collection. The engine releases these nodes only in a passing shard when a commit
-since the remembered failure changed the file. Its `released_vanished_nodes`
-receipt details name `node_id`, `retiring_commit` and `basis: "not_collected"`.
-Omitting the field preserves the name-absence heuristic (`basis: "name_absent"`)
-and journal-observation release. The packaged pytest runner accepts
-`--priority-nodes {signetum.priority_nodes_file}` before `--` and computes this
-report from the first collection, including xdist workers.
+Historical `not_collected` and `non_failing` fields remain readable for compatibility;
+they create no release or discharge obligation. The packaged runner no longer
+computes owed-node retirement reports.
 Write it before exiting, or progressively when the shard may reach its
 `timeout_seconds`, since the engine reads it after a time-bound stop too. A failed
-gate remembers failed and unreached entries for the workspace's next gate.
+gate records failed and unreached entries for diagnostics only.
 Unreached entries fail the shard and the result states their count.
 
 A shard that runs several non-test checks, such as linters or document checks,
@@ -101,17 +94,10 @@ shard's exit status alone decides its verdict. Without a node report, or without
 the field, the shard is listed with its exit code only. A ratchet shard lists the
 rules of its new diagnostics.
 
-The priority file always exists and holds `{"schema_version": 1, "nodes": [...]}`:
-the entries this shard owes, unchanged, empty when none. Run them first, then the
-rest of the same selection. It never narrows selection, and a failing owed entry
-must not stop the others. An entry owed only because it was unreached is satisfied
-when the node report lists that exact entry as passed or in `non_failing`, including
-a declared skip. Receipt `discharged_by_reaching` entries retain its node id and
-outcome. Failure or retry-recovered debt requires a reported pass; a later skip
-does not erase it. A runner that reported a stage path must report that same path
-with the applicable outcome. A remembered entry is also released
-by a committed change record observation naming it as evidence with its root cause,
-even inside a shard that is always selected.
+The compatibility priority file always exists and holds
+`{"schema_version": 1, "nodes": []}`. It creates no ordering, selection or later
+execution obligation. Repository configuration owns selection and scheduling;
+final must complete its entire selected gate without failures or unreached nodes.
 
 A shard that should report its own failures even when a check before it fails
 declares that check in `after` instead of `requires`:

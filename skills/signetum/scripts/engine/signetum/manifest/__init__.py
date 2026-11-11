@@ -13,7 +13,7 @@ from signetum.validation import SCHEDULE_FILE, ValidationShard
 from signetum.validation import GateDeclaration as ValidationGate
 from signetum.validation import ToolDeclaration as ValidationTool
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 class ManifestError(ValueError):
@@ -154,7 +154,7 @@ class RepositoryManifest:
     validation: ValidationCommands
 
     def __post_init__(self) -> None:
-        if self.schema_version != SCHEMA_VERSION:
+        if self.schema_version not in (5, SCHEMA_VERSION):
             raise ManifestError(f"unsupported manifest schema: {self.schema_version}")
         schedule = self.validation.schedule_file
         if schedule and schedule not in self.repository.lockfiles:
@@ -178,7 +178,7 @@ def _require_schema(data: object) -> dict[str, object]:
     version = data.get("schema_version")
     if type(version) is int and version > SCHEMA_VERSION:
         raise UnsupportedManifestError(f"unsupported manifest schema: {version}")
-    if type(version) is not int or version != SCHEMA_VERSION:
+    if type(version) is not int or version not in (5, SCHEMA_VERSION):
         raise ManifestError(f"unsupported manifest schema: {version}")
     return data
 

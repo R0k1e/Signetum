@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 
 from signetum.change_record import contract_digest, parse_change_record
@@ -27,17 +28,11 @@ from signetum.source_authority import (
     committed_blob,
 )
 from signetum.workflow_status import workflow_status
-from signetum.workspaces import current_branch, read_record, state_root
+from signetum.workspaces import current_branch, read_change_owner, read_record, state_root
 
 EXAMPLES = {
-    "record": (
-        "change record --id flaky-login --requirement REQ-001 --summary 'What was found' "
-        "--reason 'Why it matters' --evidence tests/test_login.py::test_login"
-    ),
-    "resolve": (
-        "change resolve --id fix-login --target <change>/flaky-login/observation "
-        "--reason 'What resolves it' --evidence tests/test_login.py"
-    ),
+    "record": ("change record --summary 'What was found'"),
+    "resolve": ("change resolve --target <observation-id> --reason 'What resolves it'"),
     "retract": (
         "change retract --id withdraw-fix --target <change>/flaky-login/observation "
         "--resolution <change>/fix-login/resolution --reason 'Why the answer was wrong'"
@@ -151,18 +146,27 @@ def _semantic_request(
             if source is None:
                 continue
             record = parse_change_record(source[1])
+            owner = read_change_owner(state_root(repository), record.id)
             if (
-                record.status == "active"
+                (workspace.kind != "member" or owner is None or owner.member == branch)
+                and record.status == "active"
                 and record.approval is not None
                 and record.contract.approved_base == workspace.base
             ):
                 candidates.append(record.id)
         if len(candidates) != 1:
-            raise ValueError("cannot infer one approved change; name --change explicitly")
+            raise ValueError(
+                "cannot infer one approved change; run change status, then "
+                "change record --change <change-id> --summary <finding>"
+            )
         change = candidates[0]
     record, _ = approved_authority(repository, change, commit)
     sources = read_sources(repository)
-    if not options.id or not options.reason:
+    if not options.id:
+        options.id = options.operation + "-" + uuid.uuid4().hex[:12]
+    if options.operation == "record" and not options.reason:
+        options.reason = options.summary
+    if not options.reason:
         raise ValueError(
             "semantic writes require --id <stable-id> and --reason <text>, for example: "
             + EXAMPLES.get(options.operation, EXAMPLES["record"])
@@ -178,13 +182,11 @@ def _semantic_request(
     if options.operation != "resolve" and options.disposition != "resolved":
         raise ValueError("only resolve accepts --disposition")
     if options.operation == "record":
-        if (
-            not options.summary
-            or not options.requirement
-            or any((options.target, options.resolution, options.followup, options.accept_decisions))
+        if not options.summary or any(
+            (options.target, options.resolution, options.followup, options.accept_decisions)
         ):
             raise ValueError(
-                "record requires --summary <finding> and --requirement <REQ-ID> and takes no "
+                "record requires --summary <finding> and takes no "
                 "--target, --resolution, --followup or --accept-decisions; for example: "
                 + EXAMPLES["record"]
             )
@@ -206,12 +208,6 @@ def _semantic_request(
                 "change record returned (the record's --id is accepted too), and takes no "
                 "--summary, --requirement, --resolution or --accept-decisions; for example: "
                 + EXAMPLES["resolve"]
-            )
-        if options.disposition == "resolved" and not options.evidence:
-            raise ValueError(
-                "resolved work requires --evidence <path-in-tree|validation-receipt-name>, a "
-                "pytest node id is written as its file; or pass --disposition deferred|rejected "
-                "with a --reason saying who decided and what remains owed"
             )
         body["resolutions"] = [
             {

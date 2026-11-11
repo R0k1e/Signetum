@@ -512,6 +512,15 @@ def update(skill: Path, project: Path) -> dict[str, object]:
     ):
         raise ValueError("replaced Skill identity differs from the verified release")
     return {
+        "migration_guidance": [
+            "Signetum 0.8 reads schema-5 configuration and schema-1 change records unchanged.",
+            "In a member, set signetum.toml schema_version to 6; use schema_version 2 "
+            "for new change records with approval actor, recorded_at and neutral statement.",
+            "Do not rewrite historical journals or approvals; approval digests and owed "
+            "ledgers are ignored. Pending observations remain visible in delivery review.",
+            "Scope revisions need recording only. Run ready, then the complete final "
+            "in an authorized integration batch; delivery still needs explicit authorization.",
+        ],
         "status": "updated",
         "skill": str(skill),
         "current": installed,

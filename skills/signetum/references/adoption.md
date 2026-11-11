@@ -135,8 +135,8 @@ review. A Skill inside a Git work tree, such as a copy committed to a project or
 a checkout a tool points at, is refused; update it through that repository and
 run `setup`. Update when no Agent session is working, because the swap replaces
 the running folder. `identity` reports complete Skill content and actual
-engine/dependency identity. Project configuration stays manifest format 5 and
-protocol 2, with no project-level engine implementation pin. Batches separately record their
+engine/dependency identity. New project configuration uses manifest format 6 and
+protocol 2; format 5 remains readable, with no project-level engine implementation pin. Batches separately record their
 opening engine. Omitted evidence fields mean the
 published evidence protocol and schema digest.
 
@@ -177,3 +177,18 @@ if [ -x "$shim" ]; then printf '%s\n' "$input" | "$shim" "$@" || exit $?; fi
 Preparation verifies the effective chain with a real Git probe. Check status for
 `commit_check.status`: an inactive check warns with its cause and chaining
 snippet; ready and final still judge immutable commit attribution.
+
+## Upgrade to 0.8
+
+Update the installed Skill only when no batch is open and restart sessions. The
+update result includes migration guidance. Format-5 configuration and format-1
+change records remain readable: keep historical approvals and journals intact,
+including approval digests, pending observations and old failure receipts. Old
+digests and owed ledgers are ignored; observations appear in unfinished work.
+In a member, change signetum.toml to schema_version 6; use change schema_version 2
+for new records and approval fields actor, recorded_at and a neutral statement.
+Never quote the owner verbatim. Scope revisions are recorded without re-approval.
+Repository commands continue to own environment preparation and full final test
+selection. Run ready and then final on an authorized integrated batch; delivery
+still requires explicit owner authorization. Do not edit a consumer as part of
+updating the Skill.

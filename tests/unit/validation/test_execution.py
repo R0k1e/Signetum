@@ -79,9 +79,14 @@ def _inputs() -> ValidationInputs:
 
 
 @pytest.mark.parametrize("gate", ["member", "final", "diagnostic"])
-def test_an_adapter_cannot_report_a_failed_original_as_success(gate):
+@pytest.mark.parametrize("report", ["retry", "failed", "unreached"])
+def test_an_adapter_cannot_report_a_failed_original_as_success(gate, report):
     class RetriedAdapter(Adapter):
         def run_shard(self, shard, *, priority_nodes=()):
+            if report == "failed":
+                return ShardExecution(True, failed_nodes=("test_failed",))
+            if report == "unreached":
+                return ShardExecution(True, unreached_nodes=("test_unreached",))
             return ShardExecution(
                 True,
                 recovered=(
@@ -104,7 +109,12 @@ def test_an_adapter_cannot_report_a_failed_original_as_success(gate):
             ),
         )
     )
-    with pytest.raises(ValidationExecutionError, match="cannot be cleared by retry"):
+    expected = {
+        "retry": "cannot be cleared by retry",
+        "failed": "failed nodes",
+        "unreached": "unreached nodes",
+    }[report]
+    with pytest.raises(ValidationExecutionError, match=expected):
         if gate == "diagnostic":
             execute_diagnostic_gate(graph, "member", RetriedAdapter())
         else:

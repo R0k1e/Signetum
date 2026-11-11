@@ -9,7 +9,7 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 from shutil import which
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 import signetum.lifecycle as lifecycle
@@ -438,24 +438,11 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
     def retried(self, shard, *, priority_nodes=()):
         return ShardExecution(True, recovered=(defect,))
 
-    def fixed(self, shard, *, priority_nodes=()):
-        # The remembered node must be reported passing by a fresh normal run,
-        # with the member bases the real adapter records for admission.
-        return ShardExecution(
-            True,
-            passed_nodes=(str(defect["node_id"]),),
-            details={"member_values": self.member_values()},
-        )
-
     monkeypatch.setattr(adapter, "run_shard", retried)
     with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
         lifecycle.validate(member, "member")
     monkeypatch.setattr(adapter, "run_shard", original)
-    with pytest.raises(lifecycle.ValidationExecutionError, match="did not pass in this run"):
-        lifecycle.validate(member, "member")
-    monkeypatch.setattr(adapter, "run_shard", fixed)
-    lifecycle.validate(member, "member")
-    monkeypatch.setattr(adapter, "run_shard", original)
+    assert lifecycle.validate(member, "member")["status"] == "ready"
     lifecycle.admit(batch, (member,))
     monkeypatch.setattr(adapter, "run_shard", retried)
     with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
@@ -932,10 +919,6 @@ def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_
     (member / "implemented.txt").write_text("implementation after approval")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement and retain significant events")
-    if not resolved:
-        with pytest.raises(lifecycle.AdmissionError, match="unresolved source observations"):
-            lifecycle.validate(member, "member")
-        return
     lifecycle.validate(member, "member")
     lifecycle.admit(batch, (member,))
     tip = _git(batch, "rev-parse", "HEAD")
@@ -954,19 +937,12 @@ def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_
         )
         _git(member, "add", ".")
         _git(member, "commit", "-m", "retain a discovery beyond the admitted tip")
-    if not resolved:
-        with pytest.raises(lifecycle.AdmissionError, match="unresolved source observations"):
-            lifecycle.validate(batch, "final")
-    else:
-        result = lifecycle.validate(batch, "final")
-        receipt = result["receipt"]
-        assert isinstance(receipt, str)
-        review = json.loads(Path(receipt).read_text())["delivery_review"]
-        assert review["inputs"]["source_journals"]["journals"]["changes/example/events.jsonl"]
-        assert review["source_reconciliation"]["observation_count"] == 1
-        assert (
-            review["source_reconciliation"]["changes"][0]["observations"][0]["status"] == "resolved"
-        )
+    result: Any = lifecycle.validate(batch, "final")
+    reconciliation = result["delivery_review"]["source_reconciliation"]
+    assert reconciliation["observation_count"] == 1
+    assert result["source"] == tip
+    unfinished = result["delivery_review"]["unfinished_work"]
+    assert [row["id"] for row in unfinished] == ([] if resolved else ["example/finding"])
     assert journal.read_bytes() == before
     assert _git(batch, "rev-parse", "HEAD") == tip
 
