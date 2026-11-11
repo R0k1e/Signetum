@@ -700,6 +700,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     with monkeypatch.context() as context:
         context.setattr(ops, "__file__", str(member / "active-runtime.py"))
         result = lifecycle.batch_deliver(batch, root, base, tip)
+        cleaned = ops.cleanup(root, all_delivered=True)
     delivered = git_output(root, "rev-parse", "HEAD")
     assert result["remote"] == delivered
     assert git_output(root, "show", "-s", "--format=%P", delivered).split() == [base, tip]
@@ -708,7 +709,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     assert member.exists()
     assert not batch.exists()
     assert root.exists()
-    assert result["retained_worktrees"] == [
+    assert cleaned["retained"] == [
         {"branch": "plan/example", "worktree": str(member), "reason": "active_runtime"}
     ]
     cleaned = ops.cleanup(root, worktree=member)
@@ -987,7 +988,7 @@ def test_leftovers_lists_and_removes_only_confirmed_outside_work(repository, mon
     assert json.loads(capsys.readouterr().out)["leftovers"] == []
 
 
-def test_delivery_sweeps_every_workspace_that_proves_its_outcome(repository):
+def test_separate_cleanup_sweeps_every_workspace_that_proves_its_outcome(repository):
     root, _ = repository
     base = git_output(root, "rev-parse", "HEAD")
     sibling = opened(root, "plan/sibling")
@@ -1013,14 +1014,18 @@ def test_delivery_sweeps_every_workspace_that_proves_its_outcome(repository):
 
     git_output(root, "branch", "batch/already-gone", base)
     result = lifecycle.batch_deliver(batch, root, base, tip)
+    pending_cleanup = result["cleanup"]
+    assert isinstance(pending_cleanup, dict) and pending_cleanup["status"] == "pending"
+    assert batch.exists() and member.exists() and sibling.exists()
+    cleaned = ops.cleanup(root, all_delivered=True)
 
-    assert removed_outcomes(result["removed_worktrees"], root) == {
+    assert removed_outcomes(cleaned["removed"], root) == {
         "plan/example": "delivered",
         "batch/example": "delivered",
         "plan/sibling": "contained",
         "batch/already-gone": "delivered",
     }
-    retained = result["retained_worktrees"]
+    retained = cleaned["retained"]
     assert isinstance(retained, list)
     assert {row["branch"]: row["reason"] for row in retained} == {
         "plan/pending": "not_contained",
