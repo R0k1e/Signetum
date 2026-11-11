@@ -309,6 +309,10 @@ Human
 acceptance is a separate state. Final never allocates decision numbers or rewrites authority paths; stable
 accepted filenames remain stable.
 
+A historical records-only batch with no admitted members may still complete its
+review, but has no publication provenance. Final reports publication unavailable
+and emits no publication binding; admission is required before it can publish.
+
 Publication recovery inspects exact local/remote holdings and resumes that same
 operation. Never force-push, reset or substitute a direct merge. Structured result
 statuses distinguish passed, invalid, failed, infrastructure error and conflict,

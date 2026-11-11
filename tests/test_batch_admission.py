@@ -787,6 +787,11 @@ def test_final_lists_previous_plan_edits_without_reopening_old_approval(tmp_path
     )
     _git(batch, "commit", "-am", "clarify historical execution")
     final = lifecycle.validate(batch, "final")
+    assert "publication_binding" not in final
+    tip = _git(batch, "rev-parse", "HEAD")
+    with pytest.raises(lifecycle.AdmissionError):
+        lifecycle.batch_deliver(batch, repository, base, tip)
+    assert _git(repository, "rev-parse", "HEAD") == base
     review = final["delivery_review"]
     assert isinstance(review, dict)
     assert review["approvals"] == []

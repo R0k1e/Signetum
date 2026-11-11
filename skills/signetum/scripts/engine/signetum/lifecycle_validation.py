@@ -308,18 +308,21 @@ def validate_workspace(
         }
         if evidence_base is None:
             raise AdmissionError("final has no recorded publication base")
-        members, plans = members_and_plans(repository, evidence_base, source)
-        payload["publication_binding"] = bind_publication(
-            repository,
-            source=source,
-            base=evidence_base,
-            review=payload["delivery_review"],
-            evidence=payload["evidence"],
-            local_inputs=publication_inputs,
-            members=members,
-            plans=plans,
-            authorization=delivery_authorization,
-        ).document()
+        if review_inputs["member_chain"]:
+            members, plans = members_and_plans(repository, evidence_base, source)
+            payload["publication_binding"] = bind_publication(
+                repository,
+                source=source,
+                base=evidence_base,
+                review=payload["delivery_review"],
+                evidence=payload["evidence"],
+                local_inputs=publication_inputs,
+                members=members,
+                plans=plans,
+                authorization=delivery_authorization,
+            ).document()
+        else:
+            payload["publication_unavailable"] = "batch contains no admitted member provenance"
         payload["phase_seconds"] = {
             "review_and_preconditions": validation_started - review_started,
             "validation": validated_at - validation_started,

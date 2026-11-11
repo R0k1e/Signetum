@@ -1177,19 +1177,19 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
             raise AdmissionError("final --deliver requires --target, --actor and --source")
         if not parsed.deliver and any((parsed.target, parsed.actor, parsed.source)):
             raise AdmissionError("delivery options require final --deliver")
-        result = validate(
-            repository,
-            "final",
-            delivery_authorization={"actor": parsed.actor, "source": parsed.source}
-            if parsed.deliver
-            else None,
-        )
         if parsed.deliver:
+            result = validate(
+                repository,
+                "final",
+                delivery_authorization={"actor": parsed.actor, "source": parsed.source},
+            )
             base, tip = result["base"], result["source"]
             if not isinstance(base, str) or not isinstance(tip, str):
                 raise AdmissionError("final did not produce exact publication identities")
             result = batch_deliver(repository, parsed.target.resolve(), base, tip)
             result["delivery_authorization"] = {"actor": parsed.actor, "source": parsed.source}
+        else:
+            result = validate(repository, "final")
     else:
         result = batch_deliver(
             parsed.source.resolve(),

@@ -68,6 +68,7 @@ class PublicationBinding:
     schema_version: Literal[1]
     source: str
     base: str
+    batch_branch: str
     target_branch: str
     review_digest: str
     evidence_digest: str
@@ -96,6 +97,7 @@ def bind_publication(
         schema_version=1,
         source=source,
         base=base,
+        batch_branch=branch_name(repository),
         target_branch=delivery_policy(repository).branch,
         review_digest=document_digest(review),
         evidence_digest=document_digest(evidence),
@@ -111,6 +113,10 @@ def require_publication_binding(
 ) -> PublicationBinding:
     document = payload.get("publication_binding")
     if document is None:
+        if payload.get("publication_unavailable"):
+            raise AdmissionError(
+                "batch has no admitted member provenance; admit a member and final"
+            )
         raise AdmissionError("final receipt has no versioned publication binding; rerun final")
     try:
         binding = dataclass_from_mapping(PublicationBinding, document)
@@ -119,6 +125,7 @@ def require_publication_binding(
     if (
         binding.source != source
         or binding.base != base
+        or binding.batch_branch != branch_name(repository)
         or binding.target_branch != delivery_policy(repository).branch
         or binding.review_digest != document_digest(payload.get("delivery_review"))
         or binding.evidence_digest != document_digest(payload.get("evidence"))
