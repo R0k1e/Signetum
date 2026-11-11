@@ -33,7 +33,11 @@ announcement with the same facts.
 Deliver the reviewed source explicitly. Delivery sweeps proven workspaces and
 loose `change/*` and `batch/*` branches. If the running engine protects its own
 checkout, finish that invocation and run `maintenance cleanup --all-delivered`
-from the delivery checkout; inspect retained reasons and Git deletion refusals.
+from the delivery checkout; inspect retained reasons and Git deletion refusals. If the shared
+commit-check shim names an interpreter in a removed worktree, run
+`just maintenance worktree-prepare .` from the delivery checkout, then retry
+`just maintenance cleanup --all-delivered`. This refreshes the hook through its
+normal preparation owner before the proven loose-branch sweep.
 Require successful CI for that exact
 commit and verify the public Skill path and Pages deployment. CI and release
 share one reusable validation workflow and the declared final gate, including
