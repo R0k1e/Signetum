@@ -5,10 +5,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from change_fixtures import commit_approval
+from change_fixtures import commit_approval, consolidated_approval
 from signetum import change_cli, lifecycle
+from signetum.change_record import parse_change_record
 from signetum.development_store import snapshot as development_snapshot
 from signetum.gate_records import failure_path
+from signetum.operations import AdmissionError
+from signetum.serialization import ValueDecodeError
 from signetum.workflow_status import workflow_status
 from test_batch_admission import _git, _record, _repository
 
@@ -358,6 +361,136 @@ def test_07_records_read_ready_final_and_deliver_under_08(workspaces, capsys, lo
     delivered: Any = lifecycle.batch_deliver(batch, root, final["base"], source)
     assert delivered["status"] == "delivered"
     assert _git(root, "merge-base", "--is-ancestor", source, "main") == ""
+
+
+def _open_member(tmp_path: Path, name: str) -> tuple[Path, Path, str]:
+    """A member and batch cut from one base, before any change record exists."""
+    log = tmp_path / f"{name}.log"
+    root = _repository(tmp_path / name)
+    (root / "signetum.toml").write_text(_manifest(log))
+    _git(root, "commit", "-am", "log every check")
+    base = _git(root, "rev-parse", "HEAD")
+    member, batch = tmp_path / "member", tmp_path / "batch"
+    _git(root, "worktree", "add", "-b", "impl/member", str(member), base)
+    _git(root, "worktree", "add", "-b", "batch/test", str(batch), base)
+    _record(member, "impl/member", base)
+    _record(batch, "batch/test", base, "batch")
+    return member, batch, base
+
+
+def _commit_dated_draft(member: Path, base: str) -> tuple[str, str]:
+    """Commit a preauthorization draft that uses approval.date instead of recorded_at."""
+    path = consolidated_approval(member, base)
+    source = path.read_text().replace("recorded_at = 2026-10-29", "date = 2026-10-29", 1)
+    path.write_text(source)
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "draft authorization before a valid approval")
+    return _git(member, "rev-parse", "HEAD"), source
+
+
+def _revise(member: Path, old: str, new: str, message: str) -> str:
+    path = member / "changes/example/change.toml"
+    path.write_text(path.read_text().replace(old, new, 1))
+    _git(member, "commit", "-am", message)
+    return _git(member, "rev-parse", "HEAD")
+
+
+def test_final_keeps_an_invalid_draft_and_starts_at_the_valid_approval(tmp_path):
+    """A corrected preauthorization draft stays diagnostic and does not own approval."""
+    member, batch, base = _open_member(tmp_path, "draft-then-approval")
+    invalid, draft = _commit_dated_draft(member, base)
+    with pytest.raises(ValueError) as parsed:
+        parse_change_record(draft)
+    commit_approval(member)
+    approved = _git(member, "rev-parse", "HEAD")
+    (member / "behavior.txt").write_text("implemented\n")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement behavior")
+    first = _revise(
+        member,
+        "Implement the confirmed behavior.",
+        "Clarified outcome.",
+        "record the first scope revision",
+    )
+    second = _revise(
+        member,
+        "Clarified outcome.",
+        "Clarified outcome again.",
+        "record the second scope revision",
+    )
+
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+    lifecycle.admit(batch, (member,))
+    final: Any = lifecycle.validate(batch, "final")
+
+    [approval] = final["delivery_review"]["approvals"]
+    assert approval["approval_commit"] == approved
+    assert approval["approval_commit"] != invalid
+    assert approval["invalid_drafts"] == [{"commit": invalid, "cause": str(parsed.value)}]
+    revisions = approval["contract_revisions"]
+    assert [item["commit"] for item in revisions] == [first, second]
+    assert all("requirements" in item["fields"] for item in revisions)
+    assert invalid not in {item["commit"] for item in revisions}
+
+
+def test_an_invalid_revision_after_authorization_fails_even_when_corrected(tmp_path):
+    """A later valid record does not excuse an unparsable postauthorization revision."""
+    member, batch, _base = _open_member(tmp_path, "invalid-after-approval")
+    commit_approval(member)
+    (member / "behavior.txt").write_text("implemented\n")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement behavior")
+    path = member / "changes/example/change.toml"
+    approved = path.read_text()
+    path.write_text(approved.replace("recorded_at = 2026-10-29", "date = 2026-10-29", 1))
+    _git(member, "commit", "-am", "record an invalid postauthorization revision")
+    corrected = approved.replace("Implement the confirmed behavior.", "Corrected outcome.")
+    path.write_text(corrected)
+    _git(member, "commit", "-am", "correct the record after the invalid revision")
+    parse_change_record(path.read_text())
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+    lifecycle.admit(batch, (member,))
+
+    with pytest.raises(ValueDecodeError, match="declared alternatives"):
+        lifecycle.validate(batch, "final")
+
+
+def test_an_invalid_draft_never_qualifies_implementation(tmp_path):
+    """A skipped invalid draft never authorizes implementation of an unapproved record."""
+    member, _batch, base = _open_member(tmp_path, "no-valid-authorization")
+    _commit_dated_draft(member, base)
+    with pytest.raises(AdmissionError, match="declared alternatives"):
+        lifecycle.validate(member, "member")
+
+    consolidated_approval(member, base, approved=False)
+    _git(member, "commit", "-am", "record a valid change without approval")
+    (member / "behavior.txt").write_text("implemented\n")
+    _git(member, "add", ".")
+    _git(member, "commit", "-m", "implement without a valid authorization")
+
+    current = parse_change_record((member / "changes/example/change.toml").read_text())
+    assert current.approval is None
+    with pytest.raises(AdmissionError, match="implementation-authorized"):
+        lifecycle.validate(member, "member")
+
+
+def test_current_parsing_refuses_approval_date_without_an_alias(record_source):
+    """The current record boundary does not alias or drop an unsupported approval date."""
+    dated = (
+        record_source
+        + """
+[change.approval]
+actor = "Owner"
+date = 2026-11-12
+statement = "The behavior is authorized."
+"""
+    )
+    with pytest.raises(ValueError, match="declared alternatives"):
+        parse_change_record(dated)
+    with pytest.raises(ValueError, match="declared alternatives"):
+        parse_change_record(
+            dated.replace("date = 2026-11-12", "recorded_at = 2026-11-12\ndate = 2026-11-12")
+        )
 
 
 def test_resolve_requires_only_observation_and_reason(workspaces, capsys):

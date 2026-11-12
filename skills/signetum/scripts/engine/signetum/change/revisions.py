@@ -1,4 +1,8 @@
-"""Derive contract revisions from source history after the first authorization."""
+"""Derive contract revisions from the first valid authorization onward.
+
+A change.toml that does not parse before that authorization is kept as a draft
+diagnostic and is not authority. One that does not parse afterward still fails.
+"""
 
 from pathlib import Path
 
@@ -11,13 +15,21 @@ def authorization_history(repository: Path, path: str, tip: str) -> dict[str, ob
     approval_commit = None
     previous = None
     revisions = []
+    invalid_drafts = []
     for commit in git_output(
         repository, "log", "--reverse", "--topo-order", "--format=%H", tip, "--", path
     ).splitlines():
         shown = run_git(repository, "show", f"{commit}:{path}")
         if shown.returncode:
             continue
-        record = parse_change_record(shown.stdout)
+        try:
+            record = parse_change_record(shown.stdout)
+        except ValueError as error:
+            # Only drafts before a parsed approval are diagnostic. Later records stay strict.
+            if approval_commit is not None:
+                raise
+            invalid_drafts.append({"commit": commit, "cause": str(error)})
+            continue
         if approval_commit is None:
             if record.approval is None:
                 continue
@@ -37,4 +49,8 @@ def authorization_history(repository: Path, path: str, tip: str) -> dict[str, ob
                 }
             )
         previous = record.contract
-    return {"approval_commit": approval_commit, "contract_revisions": revisions}
+    return {
+        "approval_commit": approval_commit,
+        "contract_revisions": revisions,
+        "invalid_drafts": invalid_drafts,
+    }

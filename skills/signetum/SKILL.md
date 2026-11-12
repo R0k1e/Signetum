@@ -2,7 +2,7 @@
 name: signetum
 description: Use Signetum for reliable Agent development and delivery in evolving repositories, from a single Agent across sessions to parallel coding Agents. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
-  version: "0.9.0"
+  version: "0.9.1"
 ---
 
 # Reliable Agent development and delivery
@@ -42,7 +42,11 @@ only when needed. For new or changed behavior, follow [change approval](referenc
 one authorized change owns outcomes, scope, acceptance and execution autonomy.
 Record approval once with actor, recorded_at and a neutral statement; never quote
 the owner verbatim. Commit it before implementation. Record later scope changes
-without re-approval; final review derives change.toml revisions from history.
+without re-approval; final review derives change.toml revisions from history,
+starting at the first record that parses as approved. An unparsable change.toml
+before that authorization stays a review diagnostic with its commit and parse
+cause and is not authority. An unparsable record after authorization fails review.
+`approval.date` is not a substitute for `recorded_at`.
 Preserve existing authorization; installation and passing checks confer none.
 
 Use `status` for blockers and the next action. Develop in registered isolated
