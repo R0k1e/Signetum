@@ -434,7 +434,7 @@ def test_final_keeps_an_invalid_draft_and_starts_at_the_valid_approval(tmp_path)
 
 
 def test_an_invalid_revision_after_authorization_fails_even_when_corrected(tmp_path):
-    """A later valid record does not excuse an unparseable postauthorization revision."""
+    """A later valid record does not excuse an unparsable postauthorization revision."""
     member, batch, _base = _open_member(tmp_path, "invalid-after-approval")
     commit_approval(member)
     (member / "behavior.txt").write_text("implemented\n")

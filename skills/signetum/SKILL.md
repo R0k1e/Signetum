@@ -43,9 +43,9 @@ one authorized change owns outcomes, scope, acceptance and execution autonomy.
 Record approval once with actor, recorded_at and a neutral statement; never quote
 the owner verbatim. Commit it before implementation. Record later scope changes
 without re-approval; final review derives change.toml revisions from history,
-starting at the first record that parses as approved. An unparseable change.toml
+starting at the first record that parses as approved. An unparsable change.toml
 before that authorization stays a review diagnostic with its commit and parse
-cause and is not authority. An unparseable record after authorization fails review.
+cause and is not authority. An unparsable record after authorization fails review.
 `approval.date` is not a substitute for `recorded_at`.
 Preserve existing authorization; installation and passing checks confer none.
 

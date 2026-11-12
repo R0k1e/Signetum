@@ -98,7 +98,7 @@ idempotent; refused requests append nothing. Writes serialize per worktree throu
 wait, and a second writer in the same worktree waits briefly and retries. Approval uses actor, recorded_at and a neutral statement, never a verbatim owner
 quote. Historical approval digests are ignored; source history supplies contract
 revisions for final review, starting at the first parsed approval. An earlier
-unparseable draft is a review diagnostic, not authority. An unparseable record
+unparsable draft is a review diagnostic, not authority. An unparsable record
 after approval fails review. Observations never block qualification. The
 semantic `resolve` takes the observation ID or the record's `--id` as its target
 and writes a pytest node id `path::test` as its file path. `change why <clause>`
