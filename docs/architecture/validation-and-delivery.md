@@ -232,7 +232,15 @@ resolution stays with `batch-continue`. Status names both repair paths.
 
 Schema-1 batches retain batch-owned change authority. Each implementation commit
 is attributed using the approved contract in its parent, without requiring the contract to match the later scope. Authorization is recorded
-once; final review derives contract revisions since approval from source history. The review
+once; final review derives contract revisions since approval from source history.
+That history starts at the first `change.toml` that parses as an approved record.
+An earlier `change.toml` that does not parse is not authority and does not qualify
+implementation. Final keeps each such draft on that change as `invalid_drafts`,
+with its commit and the source parse cause. `approval_commit` is that first parsed
+approval, and `contract_revisions` still lists every later parsed contract change.
+A `change.toml` that does not parse after authorization fails review, including
+when a later commit parses. Current parsing does not alias `approval.date` to
+`recorded_at` or drop the extra field. The review
 includes the authority and contract digests at the parent, including superseded
 contracts. Old excluded drafts remain unused unless approved and committed as
 legacy authority. Records-only commits are attributed to the records they touch.
