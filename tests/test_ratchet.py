@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from change_fixtures import commit_approval
+from operation_messages import operation_message
 from signetum import lifecycle
 from signetum import workspace_operations as ops
 from signetum.git import git_output
@@ -21,6 +22,20 @@ from signetum.validation.repository import run_repository_gate
 from test_workspace_operations import commit_file, opened
 
 OLD = {"file": "module.py", "rule": "old-rule", "message": "inherited problem", "line": 2}
+
+
+def _drop_sync_evidence(member: Path) -> None:
+    """Remove sync proof while keeping the horizon that makes the merge post-horizon."""
+
+    root = lifecycle._state_root(member)
+    for path in (root / "synchronization").glob("*.json"):
+        path.unlink()
+    records = root / "operations" / "records"
+    removed = list(records.glob("*.json"))
+    assert removed
+    assert (root / "operations" / "legacy-horizon.json").is_file()
+    for path in removed:
+        path.unlink()
 
 
 def document(*diagnostics):
@@ -165,7 +180,7 @@ def test_latest_supported_sync_source_replaces_the_old_ratchet_baseline(reposito
     # A delivery fix which this member has not synchronized is not its baseline.
     runtime.validate(member, "member")
     with pytest.raises(MergeConflict):
-        ops.workspace_sync(member)
+        ops.workspace_sync(member, message=operation_message())
     (member / "diagnostics.json").write_text(document(OLD))
     git_output(member, "add", "diagnostics.json")
     git_output(member, "commit", "--no-edit")
@@ -218,15 +233,14 @@ def test_admission_rechecks_the_ratchet_source_qualification(repository, runtime
     commit_file(root, "published.txt", "published source")
     git_output(root, "push", "origin", "main")
     source = git_output(root, "rev-parse", "HEAD")
-    ops.workspace_sync(member)
+    ops.workspace_sync(member, message=operation_message())
     ready = runtime.validate(member, "member")
     evidence = ready["evidence"]
     assert isinstance(evidence, dict)
     assert evidence["extensions"]["shard_details"]["test:check"]["ratchet"]["baseline"] == source
     tip = git_output(member, "rev-parse", "HEAD")
     assert admission(runtime, member, tip)
-    for path in (lifecycle._state_root(member) / "synchronization").glob("*.json"):
-        path.unlink()
+    _drop_sync_evidence(member)
     with pytest.raises(runtime.AdmissionError, match="no evidence"):
         admission(runtime, member, tip)
     runtime.validate(member, "member")
@@ -296,7 +310,7 @@ def test_member_shards_receive_bases_that_bind_their_receipt(repository):
 
     source = commit_file(root, "published.txt", "published source")
     git_output(root, "push", "origin", "main")
-    ops.workspace_sync(member)
+    ops.workspace_sync(member, message=operation_message())
     lifecycle.validate(member, "member")
     assert last()[:2] == [base, source]
     paths = last()[2]
@@ -307,8 +321,7 @@ def test_member_shards_receive_bases_that_bind_their_receipt(repository):
 
     # Without the sync record the baseline returns to the recorded base, so
     # the receipt that observed the synchronized baseline no longer admits.
-    for path in (lifecycle._state_root(member) / "synchronization").glob("*.json"):
-        path.unlink()
+    _drop_sync_evidence(member)
     with pytest.raises(AdmissionError, match="no evidence"):
         admission(lifecycle, member, tip)
     lifecycle.validate(member, "member")

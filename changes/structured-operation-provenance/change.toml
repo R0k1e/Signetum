@@ -1,0 +1,142 @@
+[change]
+schema_version = 2
+id = "structured-operation-provenance"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approved content-focused, project-conforming commit messages and durable structured operation evidence in place of automatically inserted provenance trailers, including compatibility, recovery, validation and release."
+
+[change.contract]
+version = 1
+approved_base = "75ed8fd577c6d5422b295de9b6358e12e5ca5d4c"
+
+[[change.contract.requirements]]
+id = "MSG-001"
+outcome = "Every automatically created commit entrypoint accepts a real content description through the uniform message-file interface and preserves project commit conventions, with lightweight Conventional Commits guidance when the project declares none."
+acceptance = ["Admission, member and batch synchronization, continuation, publication and other automatic commit creation consume the intended message without mechanically selecting a type or prefix from the operation stage.", "New operations never automatically insert Signetum-* trailers or internal tags into commit messages.", "Missing or invalid message inputs are handled before Git mutation, and existing project message validation remains authoritative."]
+
+[[change.contract.requirements]]
+id = "OPS-002"
+outcome = "Synchronization, admission, baseline, Ready evidence and decision mappings are owned by versioned durable structured operation records rather than modern commit-message parsing."
+acceptance = ["The source and commit-check owners verify the actual commit, parents and tree against the recorded operation and its authorization and qualified evidence.", "Ordinary or copied messages cannot invent provenance, narrow selection or move a baseline.", "Final and delivery consume consistent structured provenance and preserve all existing authorization, exact-source, validation, stacking and remote-base guarantees."]
+
+[[change.contract.requirements]]
+id = "RECOVER-003"
+outcome = "An operation writes its pending intent before effects and binds completion to actual Git identity, with crash-safe idempotent recovery and explicit conflict handling."
+acceptance = ["Real Git boundary tests cover crashes before and after commit and ref advancement and publication uncertainty, resolving the same operation without duplicate effects.", "Conflict continuation preserves the caller's real message and refuses unrelated candidate parents, trees or conflicting evidence.", "Deterministic overlap tests cover competing writers at the real shared-record scope; no sleeps establish ordering."]
+
+[[change.contract.requirements]]
+id = "COMPAT-004"
+outcome = "Retained old history remains read-only, already pending legacy operations can finish, and conflicting or unverifiable provenance fails closed without rewriting history."
+acceptance = ["Representative legacy histories and pending synchronization, admission and delivery recovery retain their guarantees.", "Modern missing or conflicting evidence cannot silently fall back to copied legacy trailers.", "No amendment, rebase, history rewrite or automatic change to a consumer's engine pin is introduced."]
+
+[[change.contract.requirements]]
+id = "PORTABLE-005"
+outcome = "A public evidence export and import boundary transfers structured operation proof to another checkout and validates its exact Git and qualification bindings."
+acceptance = ["A real clone or independent checkout can import matching exported evidence and obtain the same source, baseline, Ready and decision mappings.", "Missing Git objects, foreign or mismatched commits, parents, trees, qualification bytes and conflicting records are refused; identical re-import is idempotent.", "The export has no credential, cache or machine-path dependency, and project consumers need not parse private Skill state."]
+
+[[change.contract.requirements]]
+id = "SHIP-006"
+outcome = "CLI, Skill, architecture and project bindings describe the implemented contract, and the reviewed change is qualified, delivered and published as an unused next patch release through the official flow."
+acceptance = ["Existing behavioral evidence is retained, extended or explicitly replaced for the approved authority change without weakened guarantees, skips or lowered thresholds.", "Ready, batch gates, complete Final, exact-source hosted CI and public release and asset acceptance pass.", "The current consumer batch continues with installed 0.9.1; publishing a newer release does not change an open batch's installed engine or pin."]
+
+[change.contract.autonomy]
+allowed = ["Use Grok to extend the existing protocol owners, choose versioned record and transfer formats, and reconcile affected schemas and interfaces within these outcomes.", "Record the accepted trailer-constraint reopening before implementation; extend meaningful tests and review the complete behavior.", "Perform the normal local and hosted qualification, ordinary review push, native main delivery, unused patch tag, official Release workflow and isolated public artifact acceptance."]
+requires_confirmation = ["Unrelated product behavior, history rewriting, or replacing an engine used by an open consumer batch."]
+
+[[change.contract.decisions]]
+id = "structured-operation-provenance/operation-authority"
+change_id = "structured-operation-provenance"
+authority = "changes/structured-operation-provenance/change.toml#decisions/structured-operation-provenance/operation-authority"
+parents = ["preserve-merge-message/prevent-lost-merge-authority", "small-fixes-and-faster-tests/sync-recovery", "batch-syncs-after-a-sibling-delivers/batch-synchronization"]
+reason = "Reopen COMMIT-MERGE-001's requirement to 'require exactly its prepared Signetum trailers', SYNC-RECORD-001's 'machine-local sync record and its Signetum-Sync trailer', and SKILL-BATCH-001's message-carried synchronization base. Their retained basis is that losing authority only after a commit advances creates an avoidable immutable-history failure. Git still exposes pending merge identity; the owner explicitly replaces message-carried proof rather than waiting for that Git capability to disappear. A prewritten, durable operation intent checked against actual commit, parents and tree can preserve that basis while project-owned commit formats and real content descriptions remain independent. Structured completion, recovery and portable evidence replace the trailer channel; legacy history and pending effects stay readable, evidence conflicts refuse, and authorization, qualification and remote comparison are unchanged. Reopen if these exact-object and recovery guarantees cannot be established without restoring message authority."
+
+[[change.contract.decisions.clauses]]
+id = "structured-operation-provenance/replace-merge-message-authority"
+change_id = "structured-operation-provenance"
+action = "amend"
+expected = [{id = "COMMIT-MERGE-001", version = 1}]
+authority = "changes/structured-operation-provenance/change.toml#decisions/structured-operation-provenance/operation-authority"
+reason = "Keep the early commit boundary while moving new operation authority out of human commit messages."
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-MERGE-001"
+version = 2
+topic = "skill-first-development"
+scope = ["Commit checks", "Workspace synchronization", "Batch admission", "Publication"]
+statement = "A recorded operation persists its pending intent before Git effects. The commit check validates the actual candidate commit, parents and tree against that operation, and completion and retry retain the same identity. New operation messages contain caller-supplied real content without automatically added Signetum trailers or internal tags. Legacy already-pending operations retain their checked recovery path. Ordinary commits and unrelated merges retain their authorization and project validation rules."
+rationale = "Exact recorded object identity can preserve early provenance enforcement without making the project's commit-message format a machine evidence channel."
+
+[[change.contract.decisions.clauses]]
+id = "structured-operation-provenance/replace-sync-message-authority"
+change_id = "structured-operation-provenance"
+action = "amend"
+expected = [{id = "SYNC-RECORD-001", version = 4}]
+authority = "changes/structured-operation-provenance/change.toml#decisions/structured-operation-provenance/operation-authority"
+reason = "Recognize synchronization through verified durable operations instead of new message trailers."
+[[change.contract.decisions.clauses.updates]]
+id = "SYNC-RECORD-001"
+version = 5
+topic = "member-synchronization"
+scope = ["Member synchronization and ratchet baselines"]
+statement = "A member's synchronization and ratchet baseline come from a verified durable operation record binding its before tip, authorized source, actual merge commit, parents and tree. Manual merges or copied messages cannot become synchronization. Recovery resumes that same recorded operation without history rewriting; legacy recorded synchronizations remain read-only compatible. The latest verified source remains the ratchet baseline, otherwise the registered base, and failures name the normal workspace synchronization recovery."
+rationale = "The existing synchronization record already supplies the operation authority; binding its complete Git identity removes the need for a second message channel."
+
+[[change.contract.decisions.clauses]]
+id = "structured-operation-provenance/replace-batch-sync-message-authority"
+change_id = "structured-operation-provenance"
+action = "amend"
+expected = [{id = "SKILL-BATCH-001", version = 2}]
+authority = "changes/structured-operation-provenance/change.toml#decisions/structured-operation-provenance/operation-authority"
+reason = "Preserve monotonic batch bases and admitted qualifications through structured synchronization proof."
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-BATCH-001"
+version = 3
+topic = "skill-first-development"
+scope = ["Batch assembly"]
+statement = "Batch creation records the fresh delivery tip as its base without executing an obsolete environment. Only a verified batch synchronization operation can merge a later delivered descendant and advance that base; pending, actual commit, parents and tree are durably bound, and a conflict completes through normal continuation first. Existing admissions retain their exact source and evidence and remain bound to the base in effect when admitted. Preparation and the batch gate judge the newly introduced committed range. Legacy operation proof remains read-only compatible; new messages carry real caller content rather than internal synchronization metadata."
+rationale = "Structured exact-object evidence retains every earlier admission and permits safe base advancement without encoding state changes in commit prose."
+
+[[change.contract.decisions.clauses]]
+id = "structured-operation-provenance/add-message-intent"
+change_id = "structured-operation-provenance"
+action = "add"
+expected = [{id = "COMMIT-CONTENT-001", version = 0}]
+authority = "changes/structured-operation-provenance/change.toml#decisions/structured-operation-provenance/operation-authority"
+reason = "The caller owns commit content and the repository owns its format."
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-CONTENT-001"
+version = 1
+topic = "skill-first-development"
+scope = ["Automatic commit entrypoints", "Skill and CLI guidance"]
+statement = "Automatic commit entrypoints accept a uniform message-file carrying a real description of their content. Messages follow the project's convention; guidance uses lightweight Conventional Commits only where the project declares none. The engine does not mechanically assign feat, release or another type from the operation stage and does not automatically append internal provenance tags or Signetum trailers."
+rationale = "Project-readable content and validation should not be coupled to the lifecycle stage or to internal evidence serialization."
+
+[[change.contract.decisions.clauses]]
+id = "structured-operation-provenance/add-portable-operation-proof"
+change_id = "structured-operation-provenance"
+action = "add"
+expected = [{id = "OPERATION-PROOF-001", version = 0}]
+authority = "changes/structured-operation-provenance/change.toml#decisions/structured-operation-provenance/operation-authority"
+reason = "Durable provenance must recover locally and transfer with verifiable source evidence."
+[[change.contract.decisions.clauses.updates]]
+id = "OPERATION-PROOF-001"
+version = 1
+topic = "skill-first-development"
+scope = ["Structured operation storage", "Recovery", "Evidence export and import", "Final and delivery"]
+statement = "Versioned structured operations bind source, baseline, qualification and decision mappings to actual immutable Git commits, parents and trees. Pending intent precedes effects, recovery is idempotent, conflicting proof refuses, and export and import validate portable proof against available Git objects and qualification identities. Legacy history is not rewritten, already-pending old operations can complete, and missing modern authority cannot be manufactured from a message or silently replaced by conflicting legacy evidence."
+rationale = "Portable exact-object records preserve provenance and authorization after decoupling internal metadata from ordinary commit messages."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["MSG-001", "OPS-002", "RECOVER-003", "COMPAT-004", "PORTABLE-005"]
+action = "Record and reconcile the accepted reopening, trace every commit and provenance owner, classify retained and replaced evidence, implement and review with Grok, and run real Git message, hook, conflict, crash, concurrency, legacy and transfer tests."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["SHIP-006"]
+action = "Reconcile all current interfaces and architecture, qualify through Ready and native integration and Final, then complete exact-source hosted CI, normal main delivery and the official reviewed patch release and public acceptance without updating a pinned consumer engine."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-12
+statement = "The owner explicitly authorized the content-focused message interface, structured durable provenance and its compatibility and recovery guarantees, and requested Grok implementation followed by full qualification, delivery and release."

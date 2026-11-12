@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 import signetum.lifecycle as lifecycle
 from change_fixtures import consolidated_approval
+from operation_messages import operation_messages
 from signetum.gate_records import failure_path
 from signetum.git import git_output
 from signetum.validation.execution import ValidationExecutionError
@@ -215,7 +216,7 @@ def test_a_failed_batch_gate_is_remembered_for_the_batch_workspace(tmp_path):
     (batch / "nodes.json").write_text(json.dumps({"tests/test_batch.py::test_join": "failed"}))
     _commit(batch, "integrate a failing repair")
     with pytest.raises(ValidationExecutionError, match="repo:nodes"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
     remembered = _remembered(batch, "batch/test")
     assert remembered["gate"] == "batch"
     assert remembered["tip"] == git_output(batch, "rev-parse", "HEAD")

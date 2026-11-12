@@ -48,7 +48,7 @@ format or ty owners. Member ratchets compare structured diagnostic multisets
 against verified source, measured in a checkout of that source prepared by the
 declared prepare gate and cached once measured. A baseline that cannot be measured
 fails the shard with its cause and is never cached. Only a
-`maintenance workspace-sync` merge with its trailer and local record moves that
+`maintenance workspace-sync` merge with its structured operation record moves that
 baseline. A failed ratchet lists unrecorded merges and names `workspace-sync` and
 `workspace-sync --batch`. Member and batch gate shards may declare
 `{signetum.base}`, `{signetum.ratchet_baseline}` and
@@ -128,11 +128,11 @@ selects a staged conflict resolution from a temporary detached checkout of its m
 | --- | --- |
 | `workspace-open branch base` | Record an immutable exact base and role before preparation; retries cannot change them. A base naming another open member's branch records that parent and its tip. On a base whose manifest this engine cannot load, it opens with preparation `unavailable` and the cause, for the member that migrates it. |
 | `ready [--explain]` | Qualify approved implemented changes by preparing and checking a temporary detached checkout of the clean exact member commit. Ignored files absent from that commit are absent from the check. The editing worktree stays. The result names each carried approval. This is the development loop; `--explain` only shows the selection. |
-| `batch-open --actor owner --source approval [--name slug] --member path ...` | Capture owner authorization and fresh delivery base, then admit only named ready members. Only batch synchronization later advances that base. |
-| `batch-admit --batch path --member path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. |
-| `batch-continue --batch path` | Check resolved conflict state and its selection before completing its merge, then admit the members a conflicted admission left pending. |
-| `final [--deliver --target path --actor owner --source authorization]` | Reconcile and validate a frozen batch; emit source-bound receipt, review and versioned publication binding. Explicit delivery options publish through the same delivery owner only after success. |
-| `batch-deliver source target expected-base expected-tip` | Verify the lightweight publication binding and publish the exact candidate. `source` and `target` are existing worktree directories; the last two arguments are full commits. Confirm remote identity before moving target; report cleanup pending. |
+| `batch-open --actor owner --source approval [--name slug] --member path ... --message-file path ...` | Capture owner authorization and fresh delivery base, then admit only named ready members. One message file is required for each member, in the same order. Only batch synchronization later advances that base. |
+| `batch-admit --batch path --member path ... --message-file path ...` | Merge captured qualified tips, prepare and run the batch gate covering the admitted selection. One message file is required for each member. |
+| `batch-continue --batch path [--message-file path]` | Check resolved conflict state and its selection before completing its merge, then admit the members a conflicted admission left pending. The message was frozen when the operation started; a supplied file must match it. |
+| `final [--deliver --target path --actor owner --source authorization --message-file path]` | Reconcile and validate a frozen batch; emit source-bound receipt, review and versioned publication binding. Explicit delivery options publish through the same delivery owner only after success and require the publication message file. |
+| `batch-deliver source target expected-base expected-tip --message-file path` | Verify the lightweight publication binding and publish the exact candidate. `source` and `target` are existing worktree directories; the base and tip are full commits. Confirm remote identity before moving target; report cleanup pending. |
 
 Scope comes from actual committed paths and immutable registrations, never a
 trailer inventing ownership. A member also owns each change package whose
@@ -161,27 +161,41 @@ A delivered manifest older than the engine is migrated in a member: workspace-op
 opens on it without preparing, and status, batch opening, admission and
 synchronization read only its identity, repository and delivery tables, the batch gate loads the merged manifest, and a member that
 keeps the old manifest is refused when its own manifest is loaded.
-Real merge bodies carry member, original source and batch-base fields; titles
-remain readable and ordinary merge hooks stay enabled. Batch names derive from
-member tasks or an explicit `--name`; immutable registrations still own identity.
-Publication uses `Merge <task> into <target>` with exact base/tip trailers.
-Synthetic `commit-tree` publication does not invoke commit hooks; project-required
-message checks belong in declared validation rather than an assumed hook. Opening an empty integration
-workspace creates no provenance-only commit.
+Real merge bodies carry the caller message. Titles remain readable and ordinary
+merge hooks stay enabled. Batch names derive from member tasks or an explicit
+`--name`; immutable registrations still own identity. Publication stores the
+caller message. `commit-tree` publication and a fast-forward batch
+synchronization run the project `commit-msg` hook and fail closed when it
+rejects or rewrites the frozen bytes. Opening an empty integration workspace
+creates no provenance-only commit.
 World evidence cannot replace tree evidence. Preparation or batch-gate failure retains
 integration state for ordinary repair; merge conflict uses `batch-continue`.
-Member synchronization records authorization before merging a verified source,
-keeps the original base and distinguishes imported work from owned repairs. Its
-merge subject names the source branch once. A conflicted member sync is committed
-with `git commit --no-edit` to keep its `Signetum-Sync` trailer; if the trailer was
-lost, rerunning the same `workspace-sync` finds the merge of that source whose sync
-record it wrote, records a recognition of that exact merge and reports
-`recognized`. A merge without a sync record stays unverified.
+Member synchronization stores the operation before merging a verified source,
+keeps the original base and distinguishes imported work from owned repairs. The
+commit message is the caller file, frozen before any Git effect. A conflicted
+member sync is committed with `git commit --no-edit` so that recorded message
+stays intact. A different message fails closed. Retry binds the commit that
+already matches the pending operation and does not create another merge. A
+completed proof for the same source that is not on the branch fast-forwards only
+while HEAD is still that proof's first parent; any other tip fails closed. A merge
+without an operation record stays unverified. The first use of this store records
+an open legacy merge and its sync file. It does not adopt branch tips. Retained
+history becomes readable through an explicit `maintenance adopt-legacy --commit`
+on this checkout. That cutover may include older protocol merges and ordinary
+pre-protocol ancestry. It records the selected tips and does not grant those
+commits new provenance. Exact reviewed old-engine merge text still supplies the
+historical sync, admission, publication, and baseline facts. A copied trailer is
+not that proof. Adoption refuses a tip that contains a structured operation, and
+it cannot move an existing cutover forward. This checkout establishes its own
+cutover. Import repeats a cutover already recorded here and refuses to establish
+or expand one, including on a fresh clone or an unadopted horizon. A later merge
+without a structured record stays modern. An old lost-trailer merge is recognized only
+when that older proof exists.
 
 A stacked member's workspace record names its parent member branch, and its base
 is that parent's tip; the record is the only source of the chain. Its contribution,
 selection and ratchet run from that base, excluding paths a verified parent sync
-brought. Without `--batch`, `maintenance workspace-sync` in a stacked member takes
+brought. Without `--batch`, `maintenance workspace-sync --message-file` in a stacked member takes
 its parent while the parent branch exists and is not in the fetched delivery
 branch, otherwise the delivery branch; a parent sync requires the new parent tip to
 descend from the one held. Ready and admission refuse while the open parent branch
@@ -191,16 +205,18 @@ is exactly that held tip or the tip is in the batch base. The final review's
 `member_chain` names each member's own changes and, from its record, its parent.
 The status next action names the needed sync or the admission order.
 
-Batch synchronization is `maintenance workspace-sync` run in an open batch. It
-merges the fresh delivery tip when that tip descends from the recorded batch base,
-with `Signetum-Batch-Sync`, `Signetum-Batch-Base` and `Signetum-Previous-Batch-Base`
-trailers, then advances the recorded base to that tip. This is the only change to
-a recorded base. Admitted members stay admitted: provenance accepts each admission
-bound to the base in effect when it merged and each synchronization that advances
-it along delivered history, ending at the recorded base. The batch gate then runs
-over the commits the merge added. A conflict stays open for `batch-continue`, which
-advances the base after committing. `--batch` from a batch, rewritten delivery
-history, an open merge or a dirty batch refuse without change.
+Batch synchronization is `maintenance workspace-sync` run in an open batch,
+with `--message-file`. It merges the fresh delivery tip when that tip descends
+from the recorded batch base, stores that operation, then advances the recorded
+base to that tip. This is the only change to a recorded base. Admitted members
+stay admitted: provenance accepts each admission bound to the base in effect when
+it merged and each synchronization that advances it along delivered history,
+ending at the recorded base. Decision text stays in the approved change; the
+operation record maps the admission to the plans it carried. The batch gate then
+runs over the commits the merge added. A conflict stays open for
+`batch-continue`, which advances the base after committing the recorded message.
+`--batch` from a batch, rewritten delivery history, an open merge or a dirty
+batch refuse without change.
 
 Admission and batch synchronization compare the decision clause identities that
 change records write in their contract decisions since the relevant base. Two
@@ -269,27 +285,76 @@ check warns and does not refuse workspace opening. Git older than 2.28 cannot
 run this hook. The same immutable attribution predicate remains the ready/final
 backstop. Branch creation/deletion and other refs retain their existing rules; an
 implementation commit still requires its parent approval. Before member sync,
-batch sync or admission starts Git's merge, Signetum records the exact first
-parent, source and prepared Signetum trailer lines in worktree-local Git state.
-During the reference transaction, a candidate merge whose parents and pending
-MERGE_HEAD match that operation must carry exactly those lines, including their
-multiplicity. Subjects remain editable. Missing, changed, duplicate or extra
-Signetum lines refuse before the branch moves, naming `git commit --no-edit`
-and, for a batch, `batch-continue`. Ordinary commits and unrelated merges retain
-their existing rules. The prepared message is independent of editable MERGE_MSG.
-After a manual `--no-edit` commit, `batch-continue` accepts only the exact recorded
-merge at HEAD, validates it and completes base advancement and pending admissions;
-it also retains the staged-resolution path that commits with `--no-edit`.
+batch sync, admission or publication changes Git, Signetum stores one pending
+operation: frozen message, parents and, when already known, the tree. One branch
+has one pending operation. During the
+reference transaction, a candidate merge whose parents and pending MERGE_HEAD
+match that operation must carry exactly that message. A different message
+refuses before the branch moves, naming `git commit --no-edit` and, for a batch,
+`batch-continue`. An old merge that was already pending when this store was
+first used still requires its snapshotted trailer lines. Ordinary commits and
+unrelated merges retain their existing rules. After a manual `--no-edit` commit,
+`batch-continue` accepts only the exact recorded merge at HEAD, validates it and
+completes base advancement and pending admissions; it also commits a staged
+resolution with the frozen message. A legacy admission that still owes members
+takes one `--message-file` for each remaining member and stores those descriptions
+before either the validation commit or the merge commit. The validation commit is
+still created with `commit-tree`, but its message is the snapshotted legacy merge
+text, not a generated subject. The final merge commit keeps that same text
+through `git commit --no-edit`. `maintenance operation-export` and
+`operation-import` move completed proof and qualification bytes. Import checks
+identity, kind, parents, bases, tree, message, plans, patch, and qualification
+bytes against the Git objects and the approved source in the destination. A
+qualification digest proves the bytes are intact; the receipt still has to bind
+the declared source. That binding reads the source commit's approved member
+changes, plans, and patch. Decision journals are read from that same commit when
+the batch checkout is not the member tip. It does not replay the member
+checkout's live source review, which already ran when that tip became ready. The same bundle imports
+again as a no-op. A missing,
+foreign, inconsistent, or conflicting object refuses before any write. An
+exported legacy horizon cannot establish or expand a cutover, including on a
+fresh clone or an unadopted horizon. Import repeats a cutover this checkout
+already recorded. Matching adopted commits are one cutover even when the
+recorded branch names differ, and import does not rewrite the destination's
+cutover to those names. That horizon is also not authority for a tip the
+destination cannot see, for a tip that contains a structured operation, or for
+a pending merge the destination cannot evidence.
+Sync-file hashes travel only when this checkout already has those bytes.
+
+Decision numbering uses the same store. `maintenance record-decision-mapping`
+binds the human commit, its parent, its tree and the approved base. Old
+`Signetum-Decision-*` lines are read only for commits covered by `adopt-legacy`.
+A copied modern message cannot create a mapping or change a baseline. The
+numbering check still requires the committed rename.
 
 Batch-open captures `engine = {version, implementation, source}` in its schema-2
 workspace record. An installed Skill engine pins version and implementation;
 a self-hosted repository engine pins its location inside the batch worktree,
 because admission legitimately changes its source. Initial self-hosted admission
-enters that batch's engine. A foreign checkout engine cannot open a batch: invoke
-the installed Skill launcher instead. Admission, continuation, batch sync, final
-and delivery refuse mismatches before work, naming the pin and the remedy:
-finish with that engine or open a new batch for the same ready members.
-There is no repinning operation. Legacy records without an engine remain
+enters that batch's engine only when that engine accepts a message file. An older
+repository engine refuses before admission and names
+`maintenance adopt-repository-engine --message-file`. That operation copies the
+repository engine and the declared preparation inputs that engine needs from one
+approved Ready commit, using the same source admission and ready evidence as
+member admission. Declared lockfiles come from that commit's manifest. A lockfile
+that binds the engine, and the uv project manifest that lock binds, travel with
+the engine tree. Other application paths stay behind. The batch must already
+carry recorded authorization for that implementation commit, or an approved
+batch-owned change that attributes it. The caller message is kept. The pin stays
+`repository`. It does not change the installed Skill, a batch that pinned an
+installed engine, or weaken `--locked` preparation. A completed engine-only
+handoff remains readable. A later call with a new caller message and a new exact
+Ready source continues when the checked-out preparation bundle does not match,
+without rewriting the earlier proof. Accepting a message file is not evidence
+that the bundle matches. A crash after the handoff object exists and before the
+branch moves retries that same object. The same source, message, and effect
+retry after the branch moves returns that object. An unqualified source, or a
+source whose declared manifest and lock do not match the engine, is refused
+before any handoff object exists. A foreign checkout engine cannot open
+a batch: invoke the installed Skill launcher instead. Admission, continuation,
+batch sync, final and delivery refuse mismatches before work, naming the pin and
+the remedy: finish with that engine or open a new batch for the same ready
+members. There is no repinning operation. Legacy records without an engine remain
 unpinned and status says so; members remain unpinned. A void validation names
 each changed input and its before/after identities.
 

@@ -7,11 +7,13 @@ from shutil import which
 
 import pytest
 from change_fixtures import approve_change
+from operation_messages import operation_message
 from signetum import lifecycle
 from signetum import workspace_operations as workspace_ops
 from signetum import worktrunk as wt
 from signetum.execution_review import execution_review_inputs
 from signetum.manifest import load_manifest
+from signetum.operation_records import commit_message, load_index
 from signetum.operations import InfrastructureError, OperationFailed
 from signetum.publication_binding import bind_publication, review_local_inputs
 from signetum.workspaces import WorkspaceRecord, write_record
@@ -102,18 +104,26 @@ def test_rejected_push_keeps_target_at_base(tmp_path, monkeypatch):
     hook = remote / "hooks" / "pre-receive"
     hook.write_text("#!/bin/sh\nexit 1\n")
     hook.chmod(0o755)
+    message = "Merge test into main\n"
 
     with pytest.raises(OperationFailed):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=message)
 
     assert git(target, "rev-parse", "HEAD") == base
     assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
     hook.unlink()
-    result = lifecycle.batch_deliver(source, target, base, tip)
+    result = lifecycle.batch_deliver(source, target, base, tip, message=message)
     landed = git(target, "rev-parse", "HEAD")
     assert result["remote"] == landed
-    assert git(target, "show", "-s", "--format=%s", landed) == "Merge test into main"
-    assert f"Signetum-Batch-Tip: {tip}" in git(target, "show", "-s", "--format=%B", landed)
+    assert commit_message(target, landed) == message
+    assert "Signetum-" not in commit_message(target, landed)
+    proof = load_index(target).for_commit(landed)
+    assert proof is not None
+    assert proof["proof"] == {
+        "commit": landed,
+        "parents": [base, tip],
+        "tree": git(target, "rev-parse", f"{tip}^{{tree}}"),
+    }
     assert git(target, "show", "-s", "--format=%P", landed).split() == [base, tip]
 
 
@@ -128,25 +138,25 @@ def test_published_delivery_resumes_local_move(tmp_path, monkeypatch):
 
     monkeypatch.setattr(lifecycle, "_git", interrupt)
     with pytest.raises(lifecycle.AdmissionError, match="simulated interruption"):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     published = git(target, "ls-remote", "origin", "refs/heads/main").split()[0]
     assert published != base
     assert git(target, "rev-parse", "HEAD") == base
 
     monkeypatch.setattr(lifecycle, "_git", original)
-    result = lifecycle.batch_deliver(source, target, base, tip)
+    result = lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert result["remote"] == published
     assert git(target, "rev-parse", "HEAD") == published
 
 
 def test_delivery_defers_cleanup_and_retry_recognizes_publication(tmp_path, monkeypatch):
     source, target, _, base, tip = delivery(tmp_path, monkeypatch)
-    first = lifecycle.batch_deliver(source, target, base, tip)
+    first = lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     cleanup = first["cleanup"]
     assert isinstance(cleanup, dict) and cleanup["status"] == "pending"
     assert source.is_dir()
     published = git(target, "rev-parse", "HEAD")
-    result = lifecycle.batch_deliver(source, target, base, tip)
+    result = lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert result["remote"] == published
     assert source.is_dir()
 
@@ -156,7 +166,7 @@ def test_unrelated_remote_change_is_refused_without_local_move(tmp_path, monkeyp
     git(source, "push", "origin", f"{tip}:refs/heads/other")
     git(remote, "update-ref", "refs/heads/main", tip)
     with pytest.raises(lifecycle.AdmissionError, match="remote delivery branch"):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert git(target, "rev-parse", "HEAD") == base
 
 
@@ -165,7 +175,7 @@ def test_delivery_refuses_a_target_outside_the_validated_policy(tmp_path, monkey
     git(target, "switch", "-c", "unintended")
     git(target, "push", "origin", "unintended")
     with pytest.raises(lifecycle.AdmissionError, match="repository-declared delivery branch"):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert git(target, "rev-parse", "HEAD") == base
     assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
     assert git(target, "ls-remote", "origin", "refs/heads/unintended").split()[0] == base
@@ -183,12 +193,13 @@ def test_unconfirmed_publication_keeps_local_target_and_can_resume(tmp_path, mon
 
     monkeypatch.setattr(lifecycle, "_remote_branch_tip", unavailable_confirmation)
     with pytest.raises(lifecycle.AdmissionError, match="remote delivery confirmation"):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     published = git(target, "ls-remote", "origin", "refs/heads/main").split()[0]
     assert published != base
     assert git(target, "rev-parse", "HEAD") == base
     monkeypatch.setattr(lifecycle, "_remote_branch_tip", observe)
-    assert lifecycle.batch_deliver(source, target, base, tip)["remote"] == published
+    delivered = lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
+    assert delivered["remote"] == published
     assert git(target, "rev-parse", "HEAD") == published
 
 
@@ -207,7 +218,7 @@ def test_matching_parents_with_different_tree_cannot_resume_delivery(tmp_path, m
     )
     git(source, "push", "origin", f"{other}:refs/heads/main")
     with pytest.raises(lifecycle.AdmissionError, match="remote delivery branch"):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert git(target, "rev-parse", "HEAD") == base
     assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == other
 
@@ -226,7 +237,7 @@ def test_delivery_refuses_missing_or_altered_source_journal_bindings_before_publ
         bindings["source_journals"]["history_digest"] = "sha256:" + "0" * 64
     receipt.write_text(json.dumps(document))
     with pytest.raises(lifecycle.AdmissionError, match="publication binding changed"):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert git(target, "rev-parse", "HEAD") == base
     assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
 
@@ -257,7 +268,7 @@ def test_publication_requires_current_final_binding(tmp_path, monkeypatch, damag
         (source / "content").write_text("unreviewed")
     receipt.write_text(json.dumps(document))
     with pytest.raises(lifecycle.AdmissionError):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert git(target, "rev-parse", "HEAD") == base
     assert git(target, "ls-remote", "origin", "refs/heads/main").split()[0] == base
 
@@ -279,7 +290,7 @@ def test_negotiated_remote_advance_to_candidate_ancestor_is_refused(tmp_path, mo
     # tip is the proposed delivery's second parent. Ordinary non-forced push
     # would accept that advance; the negotiated-old guard must refuse it.
     with pytest.raises(OperationFailed):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert raced
     assert git(target, "rev-parse", "HEAD") == base
     assert git(remote, "rev-parse", "refs/heads/main") == tip
@@ -302,10 +313,10 @@ def test_publication_preserves_configured_hook_and_its_input(tmp_path, monkeypat
     original_hook = hook.read_bytes()
     if hook_exit:
         with pytest.raises(OperationFailed):
-            lifecycle.batch_deliver(source, target, base, tip)
+            lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
         assert git(target, "rev-parse", "HEAD") == base
     else:
-        result = lifecycle.batch_deliver(source, target, base, tip)
+        result = lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
         assert result["remote"] == git(target, "rev-parse", "HEAD")
         assert "refs/remotes/origin/main" in references.read_text()
     row = observed.read_text().split()
@@ -316,7 +327,7 @@ def test_publication_preserves_configured_hook_and_its_input(tmp_path, monkeypat
 
 def test_cleanup_failure_does_not_change_a_successful_publication(tmp_path, monkeypatch):
     source, target, _, base, tip = delivery(tmp_path, monkeypatch)
-    result = lifecycle.batch_deliver(source, target, base, tip)
+    result = lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     published = result["remote"]
 
     def unavailable(*args, **kwargs):
@@ -343,6 +354,6 @@ def test_receive_pack_rejects_advance_after_pre_push_negotiation(tmp_path, monke
     hook.chmod(0o755)
     git(source, "config", "core.hooksPath", str(hooks))
     with pytest.raises(OperationFailed):
-        lifecycle.batch_deliver(source, target, base, tip)
+        lifecycle.batch_deliver(source, target, base, tip, message=operation_message())
     assert git(target, "rev-parse", "HEAD") == base
     assert git(remote, "rev-parse", "refs/heads/main") == tip

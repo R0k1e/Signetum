@@ -7,9 +7,11 @@ from pathlib import Path
 
 import pytest
 from change_fixtures import approve_change, approve_legacy_change, consolidated_approval
+from operation_messages import operation_messages
 from signetum import lifecycle
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.git import git_output
+from signetum.operation_records import commit_message, load_index
 from signetum.serialization import contract_mapping
 from signetum.workspaces import WorkspaceRecord, state_root, write_record
 
@@ -128,12 +130,17 @@ def test_admission_uses_committed_package_plans_and_ignores_forged_trailer(autho
     runtime.validate(member, "member")
     git_output(root, "worktree", "add", "-b", "batch/admission", str(batch), base)
     write_record(state_root(root), WorkspaceRecord(1, "batch/admission", base, "batch"))
-    result = runtime.admit(batch, (member,))
+    result = runtime.admit(batch, (member,), messages=operation_messages(1))
     assert result["admitted"][0]["plan"] == ["changes/example/change.toml"]
     tip = git_output(batch, "rev-parse", "HEAD")
-    message = git_output(batch, "show", "-s", "--format=%B", tip)
-    assert "Signetum-Plan: changes/example/change.toml" in message
-    assert "Signetum-Plan: changes/forged/" not in message
+    message = commit_message(batch, tip)
+    assert "Signetum-" not in message
+    document = load_index(batch).for_commit(tip)
+    assert document is not None
+    plans = document["plans"]
+    assert isinstance(plans, list)
+    assert plans == ["changes/example/change.toml"]
+    assert all(isinstance(plan, str) and "forged" not in plan for plan in plans)
 
 
 @pytest.mark.parametrize("stage", ["approved", "draft", "plan-only", "wrong-base", "dual"])

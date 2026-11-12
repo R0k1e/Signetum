@@ -2,7 +2,7 @@
 name: signetum
 description: Use Signetum for reliable Agent development and delivery in evolving repositories, from a single Agent across sessions to parallel coding Agents. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
-  version: "0.9.1"
+  version: "0.9.2"
 ---
 
 # Reliable Agent development and delivery
@@ -87,11 +87,44 @@ Final runs every repository-selected shard to completion without failure or
 unreached nodes. Scheduling, preparation, concurrency and test selection belong
 to repository configuration and the operating model.
 Bring a fix already in the batch into a member through
-`maintenance workspace-sync --batch <batch-worktree>`, not cherry-pick or a manual merge.
+`maintenance workspace-sync --batch <batch-worktree> --message-file <path>`, not cherry-pick or a manual merge.
+Every automatic commit takes the caller's message file. Follow the project's commit
+convention. Where the project declares none, use one lightweight Conventional Commit
+subject and do not choose `feat`, `release` or another type from the lifecycle stage.
+Signetum does not add trailers or internal tags to that message. The operation record
+is the proof: it is written before the Git effect and completed with the commit,
+parents and tree Git stored. The same record also binds a human decision-numbering
+commit: `maintenance record-decision-mapping --commit <commit> --base <approved-base>
+--directory <decision-directory> --message-file <path>` requires the file to match
+that commit and creates no second commit. `maintenance operation-export` and
+`operation-import` move that completed proof between checkouts. Pass those public
+arguments; do not read the Skill's private operation files. The same bundle imports
+again unchanged. A missing, foreign, inconsistent or conflicting proof refuses.
+Copied trailers do not become proof. Retained history becomes readable only after
+`maintenance adopt-legacy --commit <commit>` on this checkout, including older
+protocol merges and ordinary pre-protocol ancestry. That cutover does not grant
+new provenance; exact reviewed old-engine text still supplies historical facts.
+This checkout establishes its own cutover. Import repeats a cutover already
+recorded here and refuses to establish or expand one, including on a fresh clone
+or an unadopted horizon. A later merge without a structured record stays modern.
+A repository-pinned batch whose checked-out engine rejects `--message-file`
+refuses admission until `maintenance adopt-repository-engine --message-file <path>`
+copies that repository's engine and the declared preparation inputs it needs
+from an approved Ready commit. That source is qualified with the same approval
+and ready evidence as admission. The repository pin stays. The installed Skill
+and any batch that pinned an installed engine stay unchanged. An unqualified
+source, or a source whose declared manifest and lock do not match the engine,
+is refused before a handoff object exists. A completed engine-only handoff stays
+readable. A later call with a new message and Ready source continues when the
+checked-out preparation bundle does not match, without rewriting the earlier
+proof. Accepting a message file is not evidence that the bundle matches. Retry
+after a crash before the branch moves fast-forwards the same object. The same
+source and message retry after the branch moves returns that object.
 Split a large change into stacked members: `workspace-open <branch> <parent-branch>`
 bases a member on another open member's tip, and its ready selects only its own diff.
-After a sibling batch delivers, run `maintenance workspace-sync` in the open batch to
-merge the new delivery tip; members stay admitted and conflicts use `batch-continue`.
+After a sibling batch delivers, run `maintenance workspace-sync --message-file <path>`
+in the open batch to merge the new delivery tip; members stay admitted and conflicts
+use `batch-continue`.
 Admission and that sync refuse two changes claiming one decision clause ID.
 Ready, admission, continuation and final require approved source packages, intact
 journal ancestry. Observations never block; pending observations and deferrals
@@ -123,7 +156,7 @@ remote base; it never reparses historical journals or runs checks. Old final
 receipts without that binding require a fresh final. Show the generated final
 review before delivery when authorization is still missing. With explicit prior
 delivery authorization, `final --deliver --target <worktree> --actor <owner>
---source <authorization>` validates then publishes through the same owner.
+--source <authorization> --message-file <path>` validates then publishes through the same owner.
 Cleanup is a separate maintenance operation, not a publication prerequisite. Human acceptance
 requires its own evidence. The maintained source is [Signetum](https://github.com/R0k1e/Signetum).
 
@@ -132,8 +165,15 @@ Operate consumer repositories through the installed Skill launcher, for example
 set `SIGNETUM_SKILL` and call that launcher's `scripts/signetum`; they never
 call an engine in another development checkout. Update the Skill only when no
 batch is open. A batch pins the opening engine; finish it with that engine or
-open a new batch for the same ready members. Repository self-hosting runs batch
-operations from the batch worktree with its own engine.
+open a new batch for the same ready members. Publishing a newer release leaves
+an open batch's installed engine and pin in place. Repository self-hosting runs
+batch operations from the batch worktree with its own engine. When that
+checked-out engine rejects `--message-file`, adopt the qualified repository
+engine and the declared preparation inputs it needs before admission. The source
+is an approved Ready commit in this repository. A later call with a new message
+and Ready source continues an engine-only handoff when the preparation bundle
+does not match. The caller message is kept, and the pin stays `repository`.
+An interrupted handoff retries the recorded object.
 
 A project that owns `core.hooksPath` should chain the machine-local Signetum
 shim from its `reference-transaction` hook:

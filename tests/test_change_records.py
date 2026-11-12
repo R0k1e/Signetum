@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from change_fixtures import commit_approval, consolidated_approval
+from operation_messages import operation_message, operation_messages
 from signetum import change_cli, lifecycle
 from signetum.change_record import parse_change_record
 from signetum.development_store import snapshot as development_snapshot
@@ -145,7 +146,7 @@ def _resolve(repository: Path, capsys, name: str, *evidence: str) -> None:
 def test_a_records_only_commit_keeps_readiness_and_needs_no_gate(workspaces, capsys):
     member, batch, log = workspaces
     ready = lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert _checks(log)
 
     _observe(member, capsys, "late")
@@ -165,7 +166,7 @@ def test_a_records_only_commit_keeps_readiness_and_needs_no_gate(workspaces, cap
         member, development_snapshot(member), source=_git(member, "rev-parse", "HEAD")
     )
     assert status["receipts"]
-    admitted: Any = lifecycle.admit(batch, (member,))
+    admitted: Any = lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert admitted["admitted"][0]["ready_evidence"] == Path(str(ready["receipt"])).name
     assert _checks(log) == []
 
@@ -199,7 +200,7 @@ def test_a_contract_change_inherits_shards_its_paths_do_not_affect(workspaces):
 def test_the_batch_answers_and_defers_findings_of_an_admitted_change(workspaces, capsys):
     member, batch, log = workspaces
     ready = lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     receipt = Path(str(ready["receipt"])).name
     _checks(log)
 
@@ -340,7 +341,7 @@ def test_07_records_read_ready_final_and_deliver_under_08(workspaces, capsys, lo
             )
         )
     assert lifecycle.validate(member, "member")["status"] == "ready"
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     failure_path(batch, "batch/test").write_text(
         json.dumps(
             {
@@ -358,7 +359,9 @@ def test_07_records_read_ready_final_and_deliver_under_08(workspaces, capsys, lo
     revisions = review["approvals"][0]["contract_revisions"]
     assert len(revisions) == 1 and "requirements" in revisions[0]["fields"]
     source = final["source"]
-    delivered: Any = lifecycle.batch_deliver(batch, root, final["base"], source)
+    delivered: Any = lifecycle.batch_deliver(
+        batch, root, final["base"], source, message=operation_message()
+    )
     assert delivered["status"] == "delivered"
     assert _git(root, "merge-base", "--is-ancestor", source, "main") == ""
 
@@ -420,7 +423,7 @@ def test_final_keeps_an_invalid_draft_and_starts_at_the_valid_approval(tmp_path)
     )
 
     assert lifecycle.validate(member, "member")["status"] == "ready"
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     final: Any = lifecycle.validate(batch, "final")
 
     [approval] = final["delivery_review"]["approvals"]
@@ -449,7 +452,7 @@ def test_an_invalid_revision_after_authorization_fails_even_when_corrected(tmp_p
     _git(member, "commit", "-am", "correct the record after the invalid revision")
     parse_change_record(path.read_text())
     assert lifecycle.validate(member, "member")["status"] == "ready"
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
     with pytest.raises(ValueDecodeError, match="declared alternatives"):
         lifecycle.validate(batch, "final")
