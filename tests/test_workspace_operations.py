@@ -1401,7 +1401,16 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
     source_repo = Path(__file__).resolve().parents[1]
     git = shutil.which("git")
     tar = shutil.which("tar")
-    assert git is not None and tar is not None
+    mise = shutil.which("mise")
+    assert git is not None and tar is not None and mise is not None
+    resolved_uv = subprocess.run(  # noqa: S603 -- declared tool resolved before fixture isolation
+        (mise, "which", "uv"),
+        cwd=source_repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert Path(resolved_uv).is_file()
     manifest = root / "signetum.toml"
     manifest.write_text(
         manifest.read_text().replace(
@@ -1410,7 +1419,7 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
             'lockfiles = ["uv.lock", "skills/signetum/scripts/engine/uv.lock"]\n',
         )
     )
-    preparation_command(root, ["uv", "sync", "--locked", "--all-extras", "--dev"])
+    preparation_command(root, [resolved_uv, "sync", "--locked", "--all-extras", "--dev"])
     archive = subprocess.run(  # noqa: S603 -- released root project, lock, and engine
         [
             git,

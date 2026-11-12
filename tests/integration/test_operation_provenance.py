@@ -350,10 +350,11 @@ def test_published_history_adopts_without_granting_new_provenance(repository, tm
         "--shared",
         "--no-checkout",
         "--branch",
-        "main",
+        "v0.9.1",
         str(origin),
         str(checkout),
     )
+    git_output(checkout, "branch", "published-history", published)
     adopted = records.adopt_legacy_history(checkout, [published])
     assert adopted["adopted"] is True
     assert records.legacy_commit(checkout, published)
@@ -1214,7 +1215,19 @@ def test_publication_refuses_unrelated_remotes_and_resumes_legacy_proof(reposito
 
     same = tmp_path / "same.txt"
     same.write_text(operation_message(), encoding="utf-8")
-    conflicting = git_output(source, "commit-tree", tree, "-p", base, "-p", tip, "-F", str(same))
+    conflicting = git_output(
+        source,
+        "-c",
+        "user.name=Conflicting publisher",
+        "commit-tree",
+        tree,
+        "-p",
+        base,
+        "-p",
+        tip,
+        "-F",
+        str(same),
+    )
     assert conflicting != landed
     git_output(root, "reset", "--keep", base)
     git_output(source, "push", "--force", "origin", f"{conflicting}:refs/heads/main")
