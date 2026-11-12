@@ -3,6 +3,17 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.1
+
+- An invalid change record before the first valid approval stays a diagnostic
+  and no longer blocks delivery of an otherwise authorized change. Authorization
+  history starts at that approval and does not treat the draft as authority.
+- An invalid revision after approval still fails review. A history with no valid
+  approval still cannot qualify implementation. Current records still refuse
+  `approval.date` in place of `recorded_at`.
+- Valid later scope revisions remain reviewed. Configuration schema 6, change
+  schema 2, validation evidence 3 and the public protocol are unchanged.
+
 ## 0.9.0
 
 The release is a candidate until published.
