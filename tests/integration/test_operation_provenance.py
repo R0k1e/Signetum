@@ -17,6 +17,7 @@ from operation_messages import operation_message, operation_messages, write_oper
 from signetum import lifecycle, maintenance
 from signetum import operation_records as records
 from signetum import workspace_operations as ops
+from signetum import worktrunk as wt
 from signetum.commit_check import install_commit_check
 from signetum.delivery import publish_batch
 from signetum.execution_review import execution_review_inputs
@@ -589,6 +590,175 @@ def test_export_import_round_trip_is_idempotent_and_refuses_bad_proof(
     )
     assert code == 2, payload
     assert not list((state_root(bare) / "operations" / "records").glob("*.json"))
+
+    # Same adopted commit, different local branch inventories. The cutover is the
+    # reachable commit, so the extra branch name must not make the import conflict.
+    monkeypatch.setattr(wt, "worktrunk", _worktrunk_for_repository)
+    source = _clone(root, tmp_path / "cutover-source")
+    git_output(source, "config", "user.name", "Workspace Test")
+    git_output(source, "config", "user.email", "workspace@example.invalid")
+    baseline = git_output(source, "rev-parse", "HEAD")
+    git_output(source, "branch", "a-local-retained-tip", baseline)
+    code, adopted, _ = _maintenance(
+        source, ["adopt-legacy", "--commit", baseline], monkeypatch, capsys
+    )
+    assert code == 0, adopted
+    assert adopted["tips"] == {"refs/heads/a-local-retained-tip": baseline}
+    member = ready_member(source, "ported", "ported.txt")
+    batch = open_batch(source, member)
+    tip = git_output(batch, "rev-parse", "HEAD")
+    proof = tmp_path / "cutover-operations.json"
+    code, exported, _ = _maintenance(
+        source,
+        ["operation-export", "--from", baseline, "--to", tip, "--output", str(proof)],
+        monkeypatch,
+        capsys,
+    )
+    assert code == 0, exported
+    assert exported["operations"] == 1
+    assert exported["qualifications"] == 1
+    document = json.loads(proof.read_text(encoding="utf-8"))
+    operation = document["operations"][0]
+    qualification = document["qualifications"][0]
+    assert operation["kind"] == "admission"
+    assert operation["plans"] == ["changes/ported/change.toml"]
+    assert operation["ready_evidence_sha256"] == qualification["sha256"]
+    assert document["legacy_horizon"]["tips"] == {"refs/heads/a-local-retained-tip": baseline}
+    source_qualification = (
+        state_root(source) / "operations" / "qualifications" / str(qualification["sha256"])
+    ).read_bytes()
+    git_output(source, "push", "origin", "--all")
+
+    destination = _clone(root, tmp_path / "cutover-destination")
+    code, dest_adopted, _ = _maintenance(
+        destination, ["adopt-legacy", "--commit", baseline], monkeypatch, capsys
+    )
+    assert code == 0, dest_adopted
+    assert dest_adopted["tips"] == {"refs/heads/main": baseline}
+    horizon_path = state_root(destination) / "operations" / "legacy-horizon.json"
+    horizon_bytes = horizon_path.read_bytes()
+    code, imported, _ = _maintenance(
+        destination, ["operation-import", "--input", str(proof)], monkeypatch, capsys
+    )
+    assert code == 0, imported
+    assert imported["operations"] == 1
+    assert horizon_path.read_bytes() == horizon_bytes
+    imported_record = _record_document(destination, tip)
+    assert imported_record["kind"] == "admission"
+    assert imported_record["plans"] == operation["plans"]
+    assert imported_record["ready_evidence_sha256"] == qualification["sha256"]
+    assert imported_record["mappings"] == operation["mappings"]
+    assert attested_base(destination, tip) == operation["base"]
+    stored_qualification = (
+        state_root(destination) / "operations" / "qualifications" / str(qualification["sha256"])
+    )
+    assert stored_qualification.read_bytes() == source_qualification
+    record_path = (
+        state_root(destination) / "operations" / "records" / f"{imported_record['id']}.json"
+    )
+    record_bytes = record_path.read_bytes()
+    code, again, _ = _maintenance(
+        destination, ["operation-import", "--input", str(proof)], monkeypatch, capsys
+    )
+    assert code == 0, again
+    assert horizon_path.read_bytes() == horizon_bytes
+    assert record_path.read_bytes() == record_bytes
+    assert stored_qualification.read_bytes() == source_qualification
+    assert records.legacy_commit(destination, baseline)
+    assert records.legacy_commit(destination, tip) is False
+
+    fresh = _clone(root, tmp_path / "cutover-fresh")
+    code, refused, _ = _maintenance(
+        fresh, ["operation-import", "--input", str(proof)], monkeypatch, capsys
+    )
+    assert code == 2, refused
+    assert "cannot establish" in str(refused["cause"])
+    assert not list((state_root(fresh) / "operations" / "records").glob("*.json"))
+    assert not list((state_root(fresh) / "operations" / "qualifications").glob("*"))
+    assert records.legacy_commit(fresh, baseline) is False
+
+    parent = git_output(root, "rev-parse", f"{baseline}^")
+    expanded = _clone(root, tmp_path / "cutover-expanded")
+    code, narrowed, _ = _maintenance(
+        expanded, ["adopt-legacy", "--commit", parent], monkeypatch, capsys
+    )
+    assert code == 0, narrowed
+    expanded_horizon = state_root(expanded) / "operations" / "legacy-horizon.json"
+    expanded_bytes = expanded_horizon.read_bytes()
+    code, refused, _ = _maintenance(
+        expanded, ["operation-import", "--input", str(proof)], monkeypatch, capsys
+    )
+    assert code == 2, refused
+    assert "cannot expand" in str(refused["cause"])
+    assert expanded_horizon.read_bytes() == expanded_bytes
+    assert not list((state_root(expanded) / "operations" / "records").glob("*.json"))
+    assert not list((state_root(expanded) / "operations" / "qualifications").glob("*"))
+    assert records.legacy_commit(expanded, parent)
+    assert records.legacy_commit(expanded, baseline) is False
+
+
+def _worktrunk_for_repository(repository, arguments, *, json_output=False):
+    """Worktrunk stand-in that follows the repository it was given.
+
+    The shared fixture stand-in always drives the primary root. This traversal
+    has to open a member inside an independent clone.
+    """
+
+    del json_output
+    if arguments[0] == "list":
+        items = []
+        for block in git_output(repository, "worktree", "list", "--porcelain").split("\n\n"):
+            fields = dict(line.split(" ", 1) for line in block.splitlines() if " " in line)
+            branch = fields.get("branch", "").removeprefix("refs/heads/")
+            if not branch:
+                continue
+            path = Path(fields["worktree"])
+            items.append(
+                {
+                    "branch": branch,
+                    "head": {"sha": fields["HEAD"]},
+                    "worktree": {
+                        "path": str(path),
+                        "changes": {
+                            "modified": bool(git_output(path, "status", "--porcelain")),
+                        },
+                    },
+                }
+            )
+        return {"schema": 2, "items": items}
+    destination = None
+    if arguments[0] == "--config-set":
+        destination = Path(json.loads(arguments[1].split("=", 1)[1]))
+        arguments = arguments[2:]
+    if arguments[0] == "switch":
+        branch = arguments[arguments.index("--create") + 1]
+        base = arguments[arguments.index("--base") + 1]
+        assert destination is not None
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        assert "--no-hooks" in arguments and "--no-cd" in arguments
+        git_output(repository, "worktree", "add", "-b", branch, str(destination), base)
+        return {}
+    assert arguments[0] == "remove"
+    assert {"--foreground", "--no-hooks", "--force-delete"} <= set(arguments)
+    path = Path(arguments[-2])
+    branch = branch_name(path)
+    git_output(
+        repository,
+        "worktree",
+        "remove",
+        *(("--force",) if "--force" in arguments else ()),
+        str(path),
+    )
+    git_output(repository, "branch", "-D", branch)
+    return [
+        {
+            "kind": "worktree",
+            "branch": branch,
+            "path": str(path),
+            "branch_outcome": "deleted",
+            "branch_checked_out_at": None,
+        }
+    ]
 
 
 def test_shared_operation_lock_overlap_fails_closed(repository):

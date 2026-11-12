@@ -314,9 +314,11 @@ again as a no-op. A missing,
 foreign, inconsistent, or conflicting object refuses before any write. An
 exported legacy horizon cannot establish or expand a cutover, including on a
 fresh clone or an unadopted horizon. Import repeats a cutover this checkout
-already recorded. It is also not authority for a tip the destination cannot see,
-for a tip that contains a structured operation, or for a pending merge the
-destination cannot evidence.
+already recorded. Matching adopted commits are one cutover even when the
+recorded branch names differ, and import does not rewrite the destination's
+cutover to those names. That horizon is also not authority for a tip the
+destination cannot see, for a tip that contains a structured operation, or for
+a pending merge the destination cannot evidence.
 Sync-file hashes travel only when this checkout already has those bytes.
 
 Decision numbering uses the same store. `maintenance record-decision-mapping`

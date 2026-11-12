@@ -11,8 +11,10 @@ protocol merges and ordinary pre-protocol ancestry. Adoption makes that history
 readable. It does not grant new provenance: only exact reviewed old-engine merge
 text supplies historical sync, admission, publication, and baseline facts. A
 copied trailer is not that proof. Import cannot install or expand a cutover; a
-fresh checkout adopts the same commits itself. A later merge without a
-structured record stays modern. An older engine may have prepared or admitted
+fresh checkout adopts the same commits itself. The cutover is the commits those
+tips reach, not the branch name chosen from the local inventory. An equal
+cutover imports without rewriting the destination record. A later merge without
+a structured record stays modern. An older engine may have prepared or admitted
 work before a self-hosted batch executes this source. Those commits remain
 read-only.
 """
@@ -1844,6 +1846,81 @@ def _horizon_payload(document: Mapping[str, object]) -> dict[str, object] | None
     }
 
 
+def _tip_commits(tips: Mapping[str, object]) -> tuple[str, ...]:
+    commits: list[str] = []
+    for oid in tips.values():
+        if not isinstance(oid, str):
+            raise AdmissionError("imported legacy horizon conflicts with the local horizon")
+        commits.append(oid)
+    return tuple(commits)
+
+
+def _covered_by(repository: Path, commit: str, tips: Sequence[str]) -> bool:
+    return any(commit == tip or _ancestor(repository, commit, tip) for tip in tips)
+
+
+def _same_reachable_cutover(
+    repository: Path, local: Sequence[str], incoming: Sequence[str]
+) -> bool:
+    """True when both tip sets reach exactly the same commits."""
+
+    if not local and not incoming:
+        return True
+    if not local or not incoming:
+        return False
+    return all(_covered_by(repository, commit, local) for commit in incoming) and all(
+        _covered_by(repository, commit, incoming) for commit in local
+    )
+
+
+def _cutover_expands(repository: Path, local: Sequence[str], incoming: Sequence[str]) -> bool:
+    if not incoming:
+        return False
+    if not local:
+        return True
+    return any(not _covered_by(repository, commit, local) for commit in incoming)
+
+
+def _require_compatible_cutover(
+    repository: Path,
+    existing: Mapping[str, object],
+    horizon: Mapping[str, object],
+    previous_tips: Mapping[str, object],
+    tips: Mapping[str, object],
+) -> bool:
+    """Refuse a different cutover. True means the destination bytes stay.
+
+    Adopt records one containing branch name. That label is not the authority:
+    ``_in_horizon`` follows the tip commits. Equal commits must import even when
+    the checkouts chose different branch names, and the destination record is
+    not rewritten to the foreign names.
+    """
+
+    if horizon.get("adopted") is not True or existing.get("adopted") is not True:
+        raise AdmissionError("imported legacy horizon conflicts with the local horizon")
+    local_commits = _tip_commits(previous_tips)
+    incoming_commits = _tip_commits(tips)
+    if _same_reachable_cutover(repository, local_commits, incoming_commits):
+        if existing.get("pending_merges") != horizon.get("pending_merges") or existing.get(
+            "sync_record_sha256"
+        ) != horizon.get("sync_record_sha256"):
+            raise AdmissionError("imported legacy horizon conflicts with the local horizon")
+        return True
+    if _cutover_expands(repository, local_commits, incoming_commits):
+        raise AdmissionError("imported legacy horizon cannot expand the recorded cutover")
+    if set(tips) != set(previous_tips):
+        raise AdmissionError("imported legacy horizon conflicts with the local horizon")
+    for ref, oid in tips.items():
+        previous = previous_tips.get(ref)
+        if (
+            not isinstance(previous, str)
+            or not isinstance(oid, str)
+            or (previous != oid and not _ancestor(repository, oid, previous))
+        ):
+            raise AdmissionError("imported legacy horizon cannot expand the recorded cutover")
+    return False
+
+
 def _accept_imported_horizon(
     repository: Path,
     root: Path,
@@ -1897,17 +1974,8 @@ def _accept_imported_horizon(
     if not unadopted_empty:
         if not isinstance(previous_tips, dict):
             raise AdmissionError("imported legacy horizon conflicts with the local horizon")
-        for ref, oid in tips.items():
-            previous = previous_tips.get(ref)
-            if not isinstance(previous, str):
-                raise AdmissionError("imported legacy horizon conflicts with the local horizon")
-            if previous != oid and (
-                _ancestor(repository, previous, str(oid))
-                or not _ancestor(repository, str(oid), previous)
-            ):
-                raise AdmissionError("imported legacy horizon cannot expand the recorded cutover")
-        if horizon.get("adopted") is not True or existing.get("adopted") is not True:
-            raise AdmissionError("imported legacy horizon conflicts with the local horizon")
+        if _require_compatible_cutover(repository, existing, horizon, previous_tips, tips):
+            return
     if write:
         _write_atomic(path, _canonical(dict(horizon)))
 
