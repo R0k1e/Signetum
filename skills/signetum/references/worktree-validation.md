@@ -126,10 +126,16 @@ batch still runs an engine that rejects `--message-file`, run
 `maintenance adopt-repository-engine --message-file <path>` in that batch before
 admission. Its source must be an approved Ready commit in this repository,
 qualified with that commit's approval and ready evidence. The operation copies
-only the engine tree, and the repository pin stays unchanged. The installed
-Skill and any batch that pinned an installed engine stay unchanged. An
-unqualified source is refused before a handoff object exists. If the handoff
-object exists but the branch did not move, retry fast-forwards that object.
+the repository engine and the declared preparation inputs that engine needs.
+Other application paths stay behind. The repository pin stays unchanged. The
+installed Skill and any batch that pinned an installed engine stay unchanged.
+An unqualified source, or a source whose declared manifest and lock do not match
+the engine, is refused before a handoff object exists. A completed engine-only
+handoff stays readable. A later call with a new message and Ready source
+continues when the checked-out preparation bundle does not match. Accepting a
+message file is not evidence that the bundle matches. If the handoff object
+exists but the branch did not move, retry fast-forwards that object. The same
+source and message retry after the branch moves returns that object.
 
 ## Significant records
 

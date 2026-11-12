@@ -333,17 +333,24 @@ a self-hosted repository engine pins its location inside the batch worktree,
 because admission legitimately changes its source. Initial self-hosted admission
 enters that batch's engine only when that engine accepts a message file. An older
 repository engine refuses before admission and names
-`maintenance adopt-repository-engine --message-file`. That operation copies only
-the engine tree from an approved Ready commit in this repository, using the same
-source admission and ready evidence as member admission. The batch must already
+`maintenance adopt-repository-engine --message-file`. That operation copies the
+repository engine and the declared preparation inputs that engine needs from one
+approved Ready commit, using the same source admission and ready evidence as
+member admission. Declared lockfiles come from that commit's manifest. A lockfile
+that binds the engine, and the uv project manifest that lock binds, travel with
+the engine tree. Other application paths stay behind. The batch must already
 carry recorded authorization for that implementation commit, or an approved
 batch-owned change that attributes it. The caller message is kept. The pin stays
 `repository`. It does not change the installed Skill, a batch that pinned an
-installed engine, or any file outside the engine tree. A crash after the handoff
-object exists and before the branch moves retries that same object, including
-when the checked-out engine already accepts
-message files. An unqualified or different source is refused before any handoff
-object exists. A foreign checkout engine cannot open
+installed engine, or weaken `--locked` preparation. A completed engine-only
+handoff remains readable. A later call with a new caller message and a new exact
+Ready source continues when the checked-out preparation bundle does not match,
+without rewriting the earlier proof. Accepting a message file is not evidence
+that the bundle matches. A crash after the handoff object exists and before the
+branch moves retries that same object. The same source, message, and effect
+retry after the branch moves returns that object. An unqualified source, or a
+source whose declared manifest and lock do not match the engine, is refused
+before any handoff object exists. A foreign checkout engine cannot open
 a batch: invoke the installed Skill launcher instead. Admission, continuation,
 batch sync, final and delivery refuse mismatches before work, naming the pin and
 the remedy: finish with that engine or open a new batch for the same ready

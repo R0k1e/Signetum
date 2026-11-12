@@ -45,7 +45,9 @@ provides it, the engine sets that `MISE_ENV`, and otherwise its refusal names
 the tool and the declared environments. Batch operations use the engine recorded at batch-open. Self-hosting pins the
 batch worktree location; installed Skills pin version and implementation.
 A repository-pinned batch whose checked-out engine rejects a message file copies
-the engine tree from an approved Ready commit in that repository before admission.
+the engine and the declared preparation inputs that engine needs from an approved
+Ready commit. The same operation continues an already completed engine-only
+handoff when a new Ready source supplies the matching root manifest and lock.
 The pin stays repository. Installed Skills and batches that pinned them stay unchanged.
 Foreign checkout engines cannot open consumer batches. Normal commands verify
 the installed environment and supported project contracts; they never install or
@@ -82,7 +84,9 @@ guard only refuses early; receipts and `batch-deliver` as the only operation
 that advances the delivery branch carry the guarantees, with or without it.
 
 
-Root `uv.lock` pins maintainer tools and an editable engine dependency. Internal
+Root `uv.lock` pins maintainer tools and an editable engine dependency. A
+repository engine handoff carries that root manifest and lock when the source
+declares the lock as binding the engine. Internal
 wheel/sdist builds verify the install boundary; the standard Skill folder is the
 user distribution unit. It contains source and the runtime lock, never caches,
 virtual environments, generated evidence or another bundled Skill copy. Pure

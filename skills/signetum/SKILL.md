@@ -109,12 +109,17 @@ recorded here and refuses to establish or expand one, including on a fresh clone
 or an unadopted horizon. A later merge without a structured record stays modern.
 A repository-pinned batch whose checked-out engine rejects `--message-file`
 refuses admission until `maintenance adopt-repository-engine --message-file <path>`
-copies only the engine tree from an approved Ready commit in this repository.
-That source is qualified with the same approval and ready evidence as admission.
-The repository pin stays. The installed Skill and any batch that pinned an
-installed engine stay unchanged. An unqualified source is refused before a
-handoff object exists. Retry after a crash before the branch moves fast-forwards
-the same object.
+copies that repository's engine and the declared preparation inputs it needs
+from an approved Ready commit. That source is qualified with the same approval
+and ready evidence as admission. The repository pin stays. The installed Skill
+and any batch that pinned an installed engine stay unchanged. An unqualified
+source, or a source whose declared manifest and lock do not match the engine,
+is refused before a handoff object exists. A completed engine-only handoff stays
+readable. A later call with a new message and Ready source continues when the
+checked-out preparation bundle does not match, without rewriting the earlier
+proof. Accepting a message file is not evidence that the bundle matches. Retry
+after a crash before the branch moves fast-forwards the same object. The same
+source and message retry after the branch moves returns that object.
 Split a large change into stacked members: `workspace-open <branch> <parent-branch>`
 bases a member on another open member's tip, and its ready selects only its own diff.
 After a sibling batch delivers, run `maintenance workspace-sync --message-file <path>`
@@ -164,8 +169,10 @@ open a new batch for the same ready members. Publishing a newer release leaves
 an open batch's installed engine and pin in place. Repository self-hosting runs
 batch operations from the batch worktree with its own engine. When that
 checked-out engine rejects `--message-file`, adopt the qualified repository
-engine in the batch before admission. The source is an approved Ready commit in
-this repository, the caller message is kept, and the pin stays `repository`.
+engine and the declared preparation inputs it needs before admission. The source
+is an approved Ready commit in this repository. A later call with a new message
+and Ready source continues an engine-only handoff when the preparation bundle
+does not match. The caller message is kept, and the pin stays `repository`.
 An interrupted handoff retries the recorded object.
 
 A project that owns `core.hooksPath` should chain the machine-local Signetum

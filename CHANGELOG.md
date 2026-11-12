@@ -20,8 +20,11 @@ their original release history. Git and accepted change records retain reasoning
   pending can still finish.
 - A repository-pinned batch whose engine rejects `--message-file` adopts the
   qualified repository engine with `maintenance adopt-repository-engine` before
-  admission. The pin stays on that batch. Installed consumers, including an open
-  batch's installed engine and pin, stay as they are.
+  admission. The handoff also carries the declared root manifest and lock that
+  locked preparation needs. An earlier engine-only handoff stays as recorded; a
+  later call with a new message and Ready source continues it. The pin stays on
+  that batch. Installed consumers, including an open batch's installed engine
+  and pin, stay as they are.
 
 ## 0.9.1
 

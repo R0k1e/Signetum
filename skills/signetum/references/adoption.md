@@ -166,8 +166,10 @@ open a new batch for the same ready members. Publishing a newer release leaves
 an open batch's installed engine and pin in place. Repository self-hosting runs
 batch operations from the batch worktree with its own engine. When that
 checked-out engine rejects `--message-file`, adopt the qualified repository
-engine in the batch before admission. The source is an approved Ready commit in
-this repository, the caller message is kept, and the pin stays `repository`.
+engine and the declared preparation inputs it needs before admission. The source
+is an approved Ready commit in this repository. A later call with a new message
+and Ready source continues an engine-only handoff when the preparation bundle
+does not match. The caller message is kept, and the pin stays `repository`.
 An interrupted handoff retries the recorded object.
 
 A project that owns `core.hooksPath` should chain the machine-local Signetum

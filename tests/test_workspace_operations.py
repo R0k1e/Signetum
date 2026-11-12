@@ -2,9 +2,11 @@
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -18,8 +20,10 @@ from signetum.commit_check import CHAIN, commit_check_status, install_commit_che
 from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
 from signetum.operation_records import (
+    OperationIntent,
     adopt_repository_engine,
     commit_message,
+    commit_operation,
     engine_accepts_message_file,
     load_index,
 )
@@ -1398,13 +1402,32 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
     git = shutil.which("git")
     tar = shutil.which("tar")
     assert git is not None and tar is not None
-    archive = subprocess.run(  # noqa: S603 -- git archive of this repository's released engine
-        [git, "-C", str(source_repo), "archive", "v0.9.1", "skills/signetum/scripts/engine"],
+    manifest = root / "signetum.toml"
+    manifest.write_text(
+        manifest.read_text().replace(
+            'decisions = "docs/decisions"\n',
+            'decisions = "docs/decisions"\n'
+            'lockfiles = ["uv.lock", "skills/signetum/scripts/engine/uv.lock"]\n',
+        )
+    )
+    preparation_command(root, ["uv", "sync", "--locked", "--all-extras", "--dev"])
+    archive = subprocess.run(  # noqa: S603 -- released root project, lock, and engine
+        [
+            git,
+            "-C",
+            str(source_repo),
+            "archive",
+            "v0.9.1",
+            "pyproject.toml",
+            "uv.lock",
+            "skills/signetum/scripts/engine",
+        ],
         check=True,
         capture_output=True,
     )
     subprocess.run([tar, "-x", "-C", str(root)], input=archive.stdout, check=True)  # noqa: S603
-    git_output(root, "add", "skills")
+    (root / ".gitignore").write_text(".venv/\n__pycache__/\n*.egg-info/\n")
+    git_output(root, "add", ".")
     git_output(root, "commit", "-m", "retain the released repository engine")
     git_output(root, "push", "origin", "main")
     old = git_output(root, "rev-parse", "HEAD")
@@ -1418,7 +1441,9 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
         destination,
         ignore=shutil.ignore_patterns(".venv", "__pycache__", "dist", "*.egg-info"),
     )
-    (engine_member / ".gitignore").write_text("__pycache__/\n.venv/\n")
+    for name in ("pyproject.toml", "uv.lock"):
+        shutil.copy2(source_repo / name, engine_member / name)
+    (engine_member / ".gitignore").write_text(".venv/\n__pycache__/\n*.egg-info/\n")
     git_output(engine_member, "add", "-A", ".")
     git_output(engine_member, "commit", "-m", "record the current repository engine")
     engine_commit = git_output(engine_member, "rev-parse", "HEAD")
@@ -1546,29 +1571,6 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
         ),
         encoding="utf-8",
     )
-    crashed = invoke(
-        destination,
-        "adopt-repository-engine",
-        "--message-file",
-        str(message),
-        script=crash_script,
-    )
-    assert crashed.returncode != 0, crashed.stdout + crashed.stderr
-    assert "simulated crash before the ref move" in crashed.stdout + crashed.stderr
-    assert git_output(batch, "rev-parse", "HEAD") == old
-    recorded = handoff_records()
-    assert len(recorded) == 1
-    assert recorded[0]["status"] == "completed"
-    assert recorded[0]["before"] == old
-    assert recorded[0]["source"] == engine_commit
-    assert recorded[0]["message"] == caller
-    proof = recorded[0]["proof"]
-    assert isinstance(proof, dict)
-    created = proof["commit"]
-    assert isinstance(created, str)
-    assert git_output(batch, "cat-file", "-t", created) == "commit"
-    assert created in unreachable_commits()
-
     resume_script = tmp_path / "resume_handoff.py"
     resume_script.write_text(
         "\n".join(
@@ -1584,6 +1586,67 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
         ),
         encoding="utf-8",
     )
+
+    def index_tree(*steps: tuple[str, ...]) -> str:
+        directory = state_root(batch) / "operations"
+        directory.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(prefix=".index-", dir=directory)
+        os.close(descriptor)
+        index = Path(temporary)
+        index.unlink()
+        completed = None
+        try:
+            for arguments in steps:
+                completed = run_git(batch, *arguments, index_file=index)
+                assert completed.returncode == 0, completed.stderr
+        finally:
+            index.unlink(missing_ok=True)
+        assert completed is not None
+        return completed.stdout.strip()
+
+    # The previous handoff recorded an engine-only commit. Seed that completed
+    # proof through the operation owner, then let public adoption advance it.
+    engine_only = index_tree(
+        ("read-tree", old),
+        ("rm", "-r", "--cached", "--ignore-unmatch", "--", "skills/signetum/scripts/engine"),
+        (
+            "read-tree",
+            "--prefix=skills/signetum/scripts/engine/",
+            f"{engine_commit}:skills/signetum/scripts/engine",
+        ),
+        ("write-tree",),
+    )
+    created = commit_operation(
+        batch,
+        OperationIntent(
+            kind="engine-handoff",
+            branch=branch_name(batch),
+            before=old,
+            source=engine_commit,
+            base=old,
+            message=caller,
+            attested_base=old,
+            parents=(old,),
+            tree=engine_only,
+        ),
+    )
+    assert git_output(batch, "rev-parse", "HEAD") == old
+    assert created in unreachable_commits()
+    recorded = handoff_records()
+    assert len(recorded) == 1
+    assert recorded[0]["status"] == "completed"
+    assert recorded[0]["before"] == old
+    assert recorded[0]["source"] == engine_commit
+    assert recorded[0]["message"] == caller
+    proof = recorded[0]["proof"]
+    assert isinstance(proof, dict)
+    assert proof["commit"] == created
+    historical_id = recorded[0]["id"]
+    assert isinstance(historical_id, str)
+    historical_path = state_root(batch) / "operations" / "records" / f"{historical_id}.json"
+    historical_bytes = historical_path.read_bytes()
+    historical_object = git_output(batch, "cat-file", "commit", created, strip=False)
+
     resumed = invoke(
         destination,
         "adopt-repository-engine",
@@ -1604,6 +1667,12 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
     changed = git_output(batch, "diff", "--name-only", f"{old}..{created}").splitlines()
     assert changed
     assert all(path.startswith("skills/signetum/scripts/engine/") for path in changed)
+    assert "uv.lock" not in changed
+    released_lock = git_output(batch, "show", f"{created}:uv.lock", strip=False)
+    assert 'name = "signetum"\nversion = "0.9.1"\n' in released_lock
+    assert 'version = "0.9.2"' in git_output(
+        batch, "show", f"{created}:skills/signetum/scripts/engine/pyproject.toml"
+    )
     repeated = invoke(
         destination,
         "adopt-repository-engine",
@@ -1614,9 +1683,126 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
     assert repeated.returncode == 0, repeated.stdout + repeated.stderr
     assert json.loads(repeated.stdout.splitlines()[-1])["commit"] == created
     assert git_output(batch, "rev-parse", "HEAD") == created
+    assert historical_path.read_bytes() == historical_bytes
+    assert git_output(batch, "show", f"{created}:uv.lock", strip=False) == released_lock
+    with pytest.raises(InfrastructureError, match="needs to be updated"):
+        ops.worktree_prepare(batch)
+    assert git_output(batch, "rev-parse", "HEAD") == created
+    assert git_output(batch, "status", "--porcelain") == ""
+
+    (engine_member / "notes.txt").write_text("unrelated application content\n", encoding="utf-8")
+    git_output(engine_member, "add", "notes.txt")
+    git_output(engine_member, "commit", "-m", "record unrelated application content")
+    coherent = git_output(engine_member, "rev-parse", "HEAD")
+    assert lifecycle.validate(engine_member, "member")["status"] == "ready"
+    listed = git_output(batch, "ls-tree", old, "--", "uv.lock")
+    mode, kind, remainder = listed.split(" ", 2)
+    blob, lock_path = remainder.split("\t", 1)
+    assert kind == "blob" and lock_path == "uv.lock"
+    wrong_tree = index_tree(
+        ("read-tree", engine_commit),
+        ("update-index", "--add", "--cacheinfo", f"{mode},{blob},uv.lock"),
+        ("write-tree",),
+    )
+    wrong_message = tmp_path / "wrong-bundle.txt"
+    wrong_message.write_text("Record an incoherent preparation bundle.\n", encoding="utf-8")
+    wrong_commit = run_git(
+        batch, "commit-tree", wrong_tree, "-p", engine_commit, "-F", str(wrong_message)
+    )
+    assert wrong_commit.returncode == 0, wrong_commit.stderr
+    wrong = wrong_commit.stdout.strip()
+    git_output(batch, "update-ref", "refs/heads/plan/wrong-bundle", wrong)
+    repair_caller = "Adopt the declared preparation lock with the repository engine.\n"
+    repair_file = tmp_path / "repair.txt"
+    repair_file.write_text(repair_caller, encoding="utf-8")
+    incoherent = invoke(
+        destination,
+        "adopt-repository-engine",
+        "--message-file",
+        str(repair_file),
+        "--source",
+        wrong,
+    )
+    incoherent_output = incoherent.stdout + incoherent.stderr
+    assert incoherent.returncode != 0, incoherent_output
+    assert "not an approved ready member" in incoherent_output
+    assert git_output(batch, "rev-parse", "HEAD") == created
+    assert len(handoff_records()) == 1
+    assert historical_path.read_bytes() == historical_bytes
+    assert git_output(batch, "cat-file", "commit", created, strip=False) == historical_object
+
+    crashed = invoke(
+        destination,
+        "adopt-repository-engine",
+        "--message-file",
+        str(repair_file),
+        "--source",
+        coherent,
+        script=crash_script,
+    )
+    assert crashed.returncode != 0, crashed.stdout + crashed.stderr
+    assert "simulated crash before the ref move" in crashed.stdout + crashed.stderr
+    assert git_output(batch, "rev-parse", "HEAD") == created
+    repair_records = handoff_records()
+    assert len(repair_records) == 2
+    repair_record = next(item for item in repair_records if item["source"] == coherent)
+    assert repair_record["status"] == "completed"
+    assert repair_record["before"] == created
+    assert repair_record["message"] == repair_caller
+    repair_proof = repair_record["proof"]
+    assert isinstance(repair_proof, dict)
+    repaired = repair_proof["commit"]
+    assert isinstance(repaired, str)
+    assert repaired in unreachable_commits()
+    assert historical_path.read_bytes() == historical_bytes
+    assert git_output(batch, "cat-file", "commit", created, strip=False) == historical_object
+
+    repaired_run = invoke(
+        destination,
+        "adopt-repository-engine",
+        "--message-file",
+        str(repair_file),
+        "--source",
+        coherent,
+        script=resume_script,
+    )
+    assert repaired_run.returncode == 0, repaired_run.stdout + repaired_run.stderr
+    assert json.loads(repaired_run.stdout.splitlines()[-1])["commit"] == repaired
+    assert git_output(batch, "rev-parse", "HEAD") == repaired
+    assert git_output(batch, "rev-list", "--count", f"{old}..HEAD") == "2"
+    assert git_output(batch, "rev-parse", f"{repaired}^") == created
+    assert commit_message(batch, repaired) == repair_caller
+    assert "Signetum-" not in commit_message(batch, repaired)
+    assert read_record(state_root(batch), branch_name(batch)).engine == pin
+    repair_diff = git_output(batch, "diff", "--name-only", f"{created}..{repaired}").splitlines()
+    assert repair_diff == ["uv.lock"]
+    assert "notes.txt" not in git_output(batch, "ls-tree", "-r", "--name-only", repaired)
+    assert 'name = "signetum"\nversion = "0.9.2"\n' in git_output(
+        batch, "show", f"{repaired}:uv.lock", strip=False
+    )
+    assert historical_path.read_bytes() == historical_bytes
+    assert git_output(batch, "cat-file", "commit", created, strip=False) == historical_object
+    repair_object = git_output(batch, "cat-file", "commit", repaired, strip=False)
+    repeated_repair = invoke(
+        destination,
+        "adopt-repository-engine",
+        "--message-file",
+        str(repair_file),
+        "--source",
+        coherent,
+        script=resume_script,
+    )
+    assert repeated_repair.returncode == 0, repeated_repair.stdout + repeated_repair.stderr
+    assert json.loads(repeated_repair.stdout.splitlines()[-1])["commit"] == repaired
+    assert git_output(batch, "rev-parse", "HEAD") == repaired
+    assert git_output(batch, "cat-file", "commit", repaired, strip=False) == repair_object
+    prepared = ops.worktree_prepare(batch)
+    assert prepared["status"] == "prepared"
+    assert prepared["executed"] == ["test:prepare"]
+    assert git_output(batch, "rev-parse", "HEAD") == repaired
+    assert git_output(batch, "status", "--porcelain") == ""
 
     checked_out = batch / "skills/signetum/scripts/engine"
-    assert git_output(batch, "status", "--porcelain") == ""
     assert engine_accepts_message_file(checked_out) is True
     admission = tmp_path / "admission.txt"
     admission.write_text(operation_messages(1)[0], encoding="utf-8")
