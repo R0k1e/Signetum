@@ -78,26 +78,38 @@ def isolated_git_environment(source: Mapping[str, str] | None = None) -> dict[st
 
 
 def run_git(
-    repository: Path, *arguments: str, environment: Mapping[str, str] | None = None
+    repository: Path,
+    *arguments: str,
+    environment: Mapping[str, str] | None = None,
+    index_file: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     executable = which("git")
     if executable is None:
         raise GitInfrastructureError(
             "Git executable is unavailable", expected="restore the Git executable and retry"
         )
-    reads = _READS.get() if environment is None and _immutable_query(arguments) else None
+    reads = (
+        _READS.get()
+        if environment is None and index_file is None and _immutable_query(arguments)
+        else None
+    )
     key = (repository.resolve(), arguments)
     if reads is not None and key in reads:
         previous = reads[key]
         return subprocess.CompletedProcess(
             previous.args, previous.returncode, previous.stdout, previous.stderr
         )
+    # An inherited index must not redirect the repository. An explicit index is
+    # a private tree the caller is building and is applied after that isolation.
+    env = isolated_git_environment(environment)
+    if index_file is not None:
+        env["GIT_INDEX_FILE"] = str(index_file)
     result = subprocess.run(  # noqa: S603  # nosec B603 -- resolved Git, explicit argv, no shell
         (executable, "-C", str(repository), *arguments),
         check=False,
         capture_output=True,
         text=True,
-        env=isolated_git_environment(environment),
+        env=env,
     )
     if reads is not None:
         reads[key] = result
