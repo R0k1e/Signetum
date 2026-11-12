@@ -1,0 +1,35 @@
+[change]
+schema_version = 2
+id = "authorization-history-start"
+
+[change.source]
+kind = "human_direction"
+summary = "Repair historical authorization review so a corrected preauthorization draft cannot block otherwise authorized delivery."
+
+[change.contract]
+version = 1
+approved_base = "d2400c3a381714688fa5635e85dcdd85348f77ac"
+
+[[change.contract.requirements]]
+id = "REQ-001"
+outcome = "Authorization history starts at the first verifiably valid authorization and retains diagnostics for invalid earlier drafts without granting them authority."
+acceptance = ["A real Git history containing an invalid preauthorization draft, valid standalone approval and later implementation reviews successfully.", "Earlier invalid drafts remain visible as diagnostics and never become the approval commit."]
+
+[[change.contract.requirements]]
+id = "REQ-002"
+outcome = "Strict authorization and revision validation remain enforced after authorization and for current records."
+acceptance = ["An invalid postauthorization record fails review.", "A history with no valid authorization cannot qualify implementation.", "Valid later contract revisions remain complete in review.", "Current parsing still refuses the unsupported approval.date shape without an alias."]
+
+[change.contract.autonomy]
+allowed = ["Use Grok to repair the existing historical revision owner and extend real Git history tests.", "Review the implementation, run focused validation and qualify the isolated member locally."]
+requires_confirmation = ["Publishing, installing or changing an engine pinned by another repository."]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["REQ-001", "REQ-002"]
+action = "Reproduce the historical parsing defect, extend retained public traversal evidence with distinct real Git histories, implement the narrow historical boundary and reconcile current guidance before Ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-12
+statement = "The owner authorized necessary local repairs to complete the pending delivery; the coordinating agent delegated this isolated authorization-history correction and local qualification."
