@@ -3,7 +3,7 @@
 import hashlib
 import json
 import re
-import subprocess
+import subprocess  # nosec B404 -- resolved Git with explicit arguments, never a shell
 from collections.abc import Mapping
 from pathlib import Path
 from shutil import which

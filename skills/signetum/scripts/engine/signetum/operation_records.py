@@ -24,7 +24,7 @@ import hashlib
 import json
 import os
 import re
-import subprocess
+import subprocess  # nosec B404 -- explicit argument vectors, never a shell
 import sys
 import tempfile
 import threading
