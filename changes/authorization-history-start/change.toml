@@ -7,7 +7,7 @@ kind = "human_direction"
 summary = "Repair historical authorization review so a corrected preauthorization draft cannot block otherwise authorized delivery."
 
 [change.contract]
-version = 1
+version = 2
 approved_base = "d2400c3a381714688fa5635e85dcdd85348f77ac"
 
 [[change.contract.requirements]]
@@ -20,14 +20,24 @@ id = "REQ-002"
 outcome = "Strict authorization and revision validation remain enforced after authorization and for current records."
 acceptance = ["An invalid postauthorization record fails review.", "A history with no valid authorization cannot qualify implementation.", "Valid later contract revisions remain complete in review.", "Current parsing still refuses the unsupported approval.date shape without an alias."]
 
+[[change.contract.requirements]]
+id = "REQ-003"
+outcome = "Publish the compatible authorization-history fix as the unused Signetum 0.9.1 patch release through normal exact-source delivery and release workflows."
+acceptance = ["Package and Skill versions and lockfiles agree on 0.9.1 and the changelog describes only this fix.", "Native batch Final and required hosted CI pass before the reviewed delivered commit is tagged.", "Published release assets match their checksums and source identities, and isolated installation and adoption acceptance pass."]
+
 [change.contract.autonomy]
-allowed = ["Use Grok to repair the existing historical revision owner and extend real Git history tests.", "Review the implementation, run focused validation and qualify the isolated member locally."]
-requires_confirmation = ["Publishing, installing or changing an engine pinned by another repository."]
+allowed = ["Use Grok to repair the existing historical revision owner and extend real Git history tests.", "Review the implementation, run focused validation and qualify the isolated member locally.", "Integrate and deliver this change, run hosted CI, publish the authorized patch tag and GitHub Release through the declared workflows, and verify public artifacts in isolation."]
+requires_confirmation = ["Changing an existing consumer installation or an engine pinned by another repository."]
 
 [[change.execution.steps]]
 id = "STEP-001"
 requirements = ["REQ-001", "REQ-002"]
 action = "Reproduce the historical parsing defect, extend retained public traversal evidence with distinct real Git histories, implement the narrow historical boundary and reconcile current guidance before Ready."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["REQ-003"]
+action = "Prepare patch identities and concise release notes with Grok, qualify the exact member and batch, obtain hosted CI evidence, deliver and tag the reviewed source, and verify public release assets and isolated consumer acceptance."
 
 [change.approval]
 actor = "Repository owner"
