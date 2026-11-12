@@ -16,7 +16,9 @@ tips reach, not the branch name chosen from the local inventory. An equal
 cutover imports without rewriting the destination record. A later merge without
 a structured record stays modern. An older engine may have prepared or admitted
 work before a self-hosted batch executes this source. Those commits remain
-read-only.
+read-only. An engine handoff may also carry the declared preparation inputs
+that engine needs. An earlier engine-only handoff stays readable and is not
+rewritten; a later caller message and Ready source continue it in this store.
 """
 
 from __future__ import annotations
@@ -26,10 +28,13 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess  # nosec B404 -- explicit argument vectors, never a shell
 import sys
+import tarfile
 import tempfile
 import threading
+import tomllib
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -65,6 +70,8 @@ KINDS = frozenset(
     }
 )
 SYNC_KINDS = frozenset({"delivery", "batch", "parent"})
+_ENGINE_TREE = "skills/signetum/scripts/engine"
+_LOCK_SOURCE_KEYS = frozenset({"editable", "path", "directory"})
 MERGE_KINDS = frozenset({"member-sync", "batch-sync", "admission", "publication"})
 _TRAILER = re.compile(r"^Signetum-", re.IGNORECASE)
 _OID = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
@@ -872,12 +879,25 @@ def validate_operation(
             changed = git_output(
                 repository, "diff", "--name-only", before, handoff, strip=False
             ).splitlines()
-            engine_prefix = "skills/signetum/scripts/engine/"
             outside_engine = [
-                path for path in changed if path and not path.startswith(engine_prefix)
+                path for path in changed if path and not path.startswith(f"{_ENGINE_TREE}/")
             ]
+            # An engine-only effect stays valid without consulting later bindings.
+            # Only paths this commit changes must be declared preparation inputs.
             if outside_engine:
-                raise AdmissionError("engine handoff changes more than the repository engine")
+                allowed = set(_preparation_bindings(repository, source))
+                if any(path not in allowed for path in outside_engine):
+                    raise AdmissionError(
+                        "engine handoff changes more than the repository engine "
+                        "and its declared preparation inputs"
+                    )
+                for path in outside_engine:
+                    if _path_blob(repository, source, path) != _path_blob(
+                        repository, handoff, path
+                    ):
+                        raise AdmissionError(
+                            "engine handoff does not preserve the source preparation input"
+                        )
     expected = intent_from_document({**document, "status": status, "proof": proof}).identity()
     if expected != identity:
         raise AdmissionError("operation identity does not match its fields")
@@ -924,10 +944,9 @@ def _bind_admission_qualification(
 
 
 def _require_same_engine_tree(repository: Path, source: str, commit: str) -> None:
-    prefix = "skills/signetum/scripts/engine"
     try:
-        source_tree = git_output(repository, "rev-parse", f"{source}:{prefix}")
-        commit_tree = git_output(repository, "rev-parse", f"{commit}:{prefix}")
+        source_tree = git_output(repository, "rev-parse", f"{source}:{_ENGINE_TREE}")
+        commit_tree = git_output(repository, "rev-parse", f"{commit}:{_ENGINE_TREE}")
     except GitError as error:
         raise AdmissionError("engine handoff source has no repository engine") from error
     if source_tree != commit_tree:
@@ -2519,10 +2538,227 @@ def _running_engine_repository() -> Path:
         ) from error
 
 
-def _replaced_engine_tree(repository: Path, before: str, source: str) -> str:
-    prefix = "skills/signetum/scripts/engine"
+def _path_blob(repository: Path, commit: str, path: str) -> str | None:
+    completed = run_git(repository, "rev-parse", "--verify", "-q", f"{commit}:{path}")
+    if completed.returncode != 0:
+        return None
+    return completed.stdout.strip()
+
+
+def _inside_engine(path: str) -> bool:
+    return path == _ENGINE_TREE or path.startswith(f"{_ENGINE_TREE}/")
+
+
+def _repo_relative(base: Path, value: str) -> str | None:
+    if Path(value).is_absolute():
+        return None
+    parts: list[str] = []
+    for part in (*base.parts, *Path(value).parts):
+        if part in {"", "."}:
+            continue
+        if part == "..":
+            if not parts:
+                return None
+            parts.pop()
+            continue
+        parts.append(part)
+    return "/".join(parts)
+
+
+def _lock_binds_engine(lock_path: str, text: str) -> bool:
     try:
-        source_tree = git_output(repository, "rev-parse", f"{source}:{prefix}")
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        raise AdmissionError(
+            f"engine handoff source lockfile is unreadable: {lock_path}"
+        ) from error
+    found = False
+
+    def walk(node: object, key: str | None = None) -> None:
+        nonlocal found
+        if isinstance(node, dict):
+            for child_key, child in node.items():
+                walk(child, child_key if isinstance(child_key, str) else None)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child, key)
+        elif isinstance(node, str) and key in _LOCK_SOURCE_KEYS:
+            relative = _repo_relative(Path(lock_path).parent, node)
+            if relative is not None and _inside_engine(relative):
+                found = True
+
+    try:
+        walk(data)
+    except RecursionError as error:
+        raise AdmissionError(
+            f"engine handoff source lockfile is unreadable: {lock_path}"
+        ) from error
+    return found
+
+
+def _source_text(repository: Path, source: str, path: str) -> str | None:
+    completed = run_git(repository, "show", f"{source}:{path}")
+    if completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
+def _preparation_bindings(repository: Path, source: str) -> tuple[str, ...]:
+    """Lockfiles that bind the engine, plus the uv manifest each such lock binds.
+
+    Declared lockfiles come from the source manifest. The engine tree already
+    carries lockfiles inside itself. A missing manifest means there is nothing
+    further to carry. Historical engine-only proofs do not call this.
+    """
+
+    manifest_text = _source_text(repository, source, "signetum.toml")
+    if manifest_text is None:
+        return ()
+    # manifest imports the validation graph. Load it only while discovering inputs.
+    from signetum.manifest import ManifestError, parse_manifest  # noqa: PLC0415
+
+    try:
+        manifest = parse_manifest(manifest_text)
+    except ManifestError as error:
+        raise AdmissionError(f"engine handoff source manifest is unreadable: {error}") from error
+    bindings: list[str] = []
+    for lock in manifest.repository.lockfiles:
+        if _inside_engine(lock):
+            continue
+        lock_text = _source_text(repository, source, lock)
+        if lock_text is None:
+            raise AdmissionError(f"engine handoff source is missing a declared lockfile: {lock}")
+        if not _lock_binds_engine(lock, lock_text):
+            continue
+        bindings.append(lock)
+        if Path(lock).name != "uv.lock":
+            raise AdmissionError(
+                "engine handoff cannot check the declared preparation bundle: " + lock,
+                expected="bind the repository engine with a uv.lock this operation can check",
+            )
+        project = (Path(lock).parent / "pyproject.toml").as_posix()
+        if _inside_engine(project):
+            continue
+        if _source_text(repository, source, project) is None:
+            raise AdmissionError(
+                f"engine handoff source is missing the project manifest for {lock}"
+            )
+        bindings.append(project)
+    return tuple(sorted(set(bindings)))
+
+
+def _safe_archive_target(root: Path, name: str) -> Path:
+    if not name or name.startswith(("/", "\\")) or "\\" in name:
+        raise AdmissionError("engine handoff source archive escapes its directory")
+    candidate = Path(name)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        raise AdmissionError("engine handoff source archive escapes its directory")
+    target = (root / candidate).resolve()
+    if not target.is_relative_to(root.resolve()):
+        raise AdmissionError("engine handoff source archive escapes its directory")
+    return target
+
+
+def _extract_git_archive(archive: Path, destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(archive) as bundle:
+        for member in bundle.getmembers():
+            target = _safe_archive_target(destination, member.name)
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isfile():
+                raise AdmissionError("engine handoff source archive contains an unexpected member")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            extracted = bundle.extractfile(member)
+            if extracted is None:
+                raise AdmissionError("engine handoff source archive is unreadable")
+            with extracted:
+                target.write_bytes(extracted.read())
+
+
+def _require_coherent_preparation(repository: Path, source: str, bindings: Sequence[str]) -> None:
+    """Refuse a source whose declared uv project and lock do not match, before effects."""
+
+    locks = [path for path in bindings if Path(path).name == "uv.lock"]
+    if not locks:
+        return
+    uv = shutil.which("uv")
+    if uv is None:
+        raise AdmissionError(
+            "engine handoff cannot check the declared preparation bundle",
+            expected="install uv and retry adopt-repository-engine",
+        )
+    directory = state_root(repository) / "operations"
+    directory.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".bundle-", dir=directory) as temporary:
+        root = Path(temporary)
+        archive = root / "source.tar"
+        tree = root / "tree"
+        completed = run_git(
+            repository,
+            "archive",
+            "--output",
+            str(archive),
+            source,
+            "--",
+            _ENGINE_TREE,
+            *bindings,
+        )
+        if completed.returncode != 0:
+            raise AdmissionError(completed.stderr.strip() or "engine handoff source archive failed")
+        _extract_git_archive(archive, tree)
+        for lock in locks:
+            project = tree / Path(lock).parent
+            if not (project / "pyproject.toml").is_file() or not (project / "uv.lock").is_file():
+                raise AdmissionError(
+                    f"engine handoff source is missing the project manifest for {lock}"
+                )
+            checked = subprocess.run(  # noqa: S603  # nosec B603 -- resolved uv, lock check only
+                (uv, "lock", "--check", "--offline"),
+                cwd=project,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if checked.returncode != 0:
+                diagnostic = (checked.stderr or checked.stdout).strip()
+                detail = f": {diagnostic}" if diagnostic else ""
+                raise AdmissionError(
+                    "engine handoff source preparation bundle does not match its lock" + detail,
+                    expected=(
+                        "ready a commit whose declared manifest and lock match the repository "
+                        "engine, then retry adopt-repository-engine"
+                    ),
+                )
+
+
+def _preparation_bundle_matches(repository: Path, source: str, bindings: Sequence[str]) -> bool:
+    if _path_blob(repository, "HEAD", _ENGINE_TREE) != _path_blob(repository, source, _ENGINE_TREE):
+        return False
+    return all(
+        _path_blob(repository, "HEAD", path) == _path_blob(repository, source, path)
+        for path in bindings
+    )
+
+
+def _binding_cacheinfo(repository: Path, source: str, path: str) -> tuple[str, str]:
+    completed = run_git(repository, "ls-tree", source, "--", path)
+    line = completed.stdout.strip()
+    meta, separator, name = line.partition("\t")
+    parts = meta.split()
+    if completed.returncode != 0 or not separator or name != path or len(parts) != 3:
+        raise AdmissionError(f"engine handoff source preparation input is unreadable: {path}")
+    if parts[1] != "blob":
+        raise AdmissionError(f"engine handoff source preparation input is unreadable: {path}")
+    return parts[0], parts[2]
+
+
+def _replaced_engine_tree(
+    repository: Path, before: str, source: str, bindings: Sequence[str] = ()
+) -> str:
+    try:
+        source_tree = git_output(repository, "rev-parse", f"{source}:{_ENGINE_TREE}")
     except GitError as error:
         raise AdmissionError("engine handoff source has no repository engine") from error
     directory = state_root(repository) / "operations"
@@ -2535,12 +2771,24 @@ def _replaced_engine_tree(repository: Path, before: str, source: str) -> str:
     try:
         for arguments in (
             ("read-tree", before),
-            ("rm", "-r", "--cached", "--ignore-unmatch", "--", prefix),
-            ("read-tree", f"--prefix={prefix}/", source_tree),
+            ("rm", "-r", "--cached", "--ignore-unmatch", "--", _ENGINE_TREE),
+            ("read-tree", f"--prefix={_ENGINE_TREE}/", source_tree),
         ):
             completed = run_git(repository, *arguments, index_file=index)
             if completed.returncode != 0:
                 raise AdmissionError(completed.stderr.strip() or "engine handoff tree failed")
+        for path in bindings:
+            mode, blob = _binding_cacheinfo(repository, source, path)
+            updated = run_git(
+                repository,
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"{mode},{blob},{path}",
+                index_file=index,
+            )
+            if updated.returncode != 0:
+                raise AdmissionError(updated.stderr.strip() or "engine handoff tree failed")
         written = run_git(repository, "write-tree", index_file=index)
         if written.returncode != 0:
             raise AdmissionError(written.stderr.strip() or "engine handoff tree failed")
@@ -2645,12 +2893,17 @@ def _member_at_source(repository: Path, source: str) -> tuple[Path, WorkspaceRec
 def adopt_repository_engine(
     batch: Path, message: str, source_commit: str | None = None
 ) -> dict[str, object]:
-    """Copy this repository engine onto a batch that still runs an older engine.
+    """Copy this repository engine and the preparation inputs it needs.
 
-    The source must be an approved Ready member tip. The caller message is stored
+    The source must be an approved Ready member tip. Declared lockfiles that bind
+    the engine, and the uv project manifest those locks bind, travel with the
+    engine tree. Other application paths stay behind. The caller message is stored
     on the handoff commit. The batch pin stays ``repository``. A completed handoff
-    whose branch has not moved is fast-forwarded again, even when the checked-out
-    engine already accepts message files. The public installed engine is not changed.
+    for the same source and message is reused, including when the checked-out
+    engine already accepts message files, and is not rewritten. A later message
+    and Ready source continue when the checked-out preparation bundle does not
+    match. Accepting a message file is not that match. The installed engine is
+    not changed.
     """
 
     frozen = freeze_message(message)
@@ -2701,9 +2954,7 @@ def adopt_repository_engine(
     if recorded is not None:
         created = _advance_recorded_handoff(batch, recorded)
         return _handoff_result(batch, record, created, source)
-    engine = batch / "skills/signetum/scripts/engine"
-    if engine_accepts_message_file(engine):
-        raise AdmissionError("batch engine already accepts message files")
+    bindings = _preparation_bindings(batch, source)
     # lifecycle imports this module. Handoff checks stay with admission evidence
     # so scope and lifecycle are not imported while this module is loading.
     from signetum.lifecycle import (  # noqa: PLC0415
@@ -2716,7 +2967,13 @@ def adopt_repository_engine(
     _require_handoff_authorization(batch, record, before)
     if run_git(batch, "status", "--porcelain").stdout.strip():
         raise AdmissionError("repository engine adoption requires a clean batch")
-    tree = _replaced_engine_tree(batch, before, source)
+    # Message-file support does not prove the preparation bundle matches.
+    if _preparation_bundle_matches(batch, source, bindings) and engine_accepts_message_file(
+        batch / _ENGINE_TREE
+    ):
+        raise AdmissionError("batch engine already accepts message files")
+    _require_coherent_preparation(batch, source, bindings)
+    tree = _replaced_engine_tree(batch, before, source, bindings)
     intent = OperationIntent(
         kind="engine-handoff",
         branch=branch,

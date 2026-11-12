@@ -73,12 +73,16 @@ def _parser() -> argparse.ArgumentParser:
     handoff = commands.add_parser(
         "adopt-repository-engine",
         description=(
-            "Copy this repository's engine onto a batch whose engine cannot accept a "
-            "message file. The batch pin stays repository."
+            "Copy this repository engine and the declared preparation inputs it needs "
+            "onto a repository-pinned batch. A completed handoff for the same source "
+            "and message is reused. The batch pin stays repository."
         ),
     )
     handoff.add_argument("--message-file", type=Path, required=True)
-    handoff.add_argument("--source", help="Commit whose repository engine tree is adopted.")
+    handoff.add_argument(
+        "--source",
+        help="Ready commit whose repository engine and declared preparation inputs are adopted.",
+    )
     prepare = commands.add_parser("worktree-prepare")
     prepare.add_argument("worktree", type=Path)
     clean = commands.add_parser("cleanup")
