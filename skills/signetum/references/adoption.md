@@ -162,8 +162,13 @@ Operate consumer repositories through the installed Skill launcher, for example
 set `SIGNETUM_SKILL` and call that launcher's `scripts/signetum`; they never
 call an engine in another development checkout. Update the Skill only when no
 batch is open. A batch pins the opening engine; finish it with that engine or
-open a new batch for the same ready members. Repository self-hosting runs batch
-operations from the batch worktree with its own engine.
+open a new batch for the same ready members. Publishing a newer release leaves
+an open batch's installed engine and pin in place. Repository self-hosting runs
+batch operations from the batch worktree with its own engine. When that
+checked-out engine rejects `--message-file`, adopt the qualified repository
+engine in the batch before admission. The source is an approved Ready commit in
+this repository, the caller message is kept, and the pin stays `repository`.
+An interrupted handoff retries the recorded object.
 
 A project that owns `core.hooksPath` should chain the machine-local Signetum
 shim from its `reference-transaction` hook:

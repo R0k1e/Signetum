@@ -16,17 +16,18 @@ from signetum import worktrunk as wt
 from signetum.commit_check import install_commit_check
 from signetum.git import git_output, repository_path, run_git
 from signetum.manifest import UnsupportedManifestError, load_manifest, parse_manifest
-from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
+from signetum.operation_records import (
+    MergeOutcome,
+    OperationIntent,
+    freeze_message,
+    merge_operation,
+)
+from signetum.operations import AdmissionError, InfrastructureError, MergeConflict
 from signetum.policy import delivery_policy
 from signetum.preparation import PreparationResult, prepare_workspace
 from signetum.provenance import attested_base, members_and_plans
 from signetum.stacking import branch_tip, is_ancestor, stacked_parent
-from signetum.synchronization import (
-    authorize_source,
-    incorporated_parent_tip,
-    prepare_merge,
-    recognize_sync,
-)
+from signetum.synchronization import incorporated_parent_tip, recognize_sync
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import (
     BatchAuthorization,
@@ -238,59 +239,71 @@ def fresh_delivery(repository: Path) -> tuple[str, str]:
 
 
 CONFLICT_RECOVERY = (
-    "resolve the paths, commit with git commit --no-edit to keep the Signetum-Sync "
-    "trailer, then prepare and validate; if the trailer was lost, rerun this "
-    "workspace-sync to recognize the recorded merge"
+    "resolve the paths and commit the recorded message with git commit --no-edit; "
+    "the commit check refuses a different message"
 )
 
 
 def _sync_source(
-    repository: Path, base: str, source: str, label: str, kind: str
+    repository: Path,
+    base: str,
+    source: str,
+    kind: str,
+    message: str,
+    *,
+    contained_status: str,
 ) -> dict[str, object]:
-    head = git_output(repository, "rev-parse", "HEAD")
-    if is_ancestor(repository, source, head) and (
-        merge := recognize_sync(repository, base, source)
-    ):
-        return {"status": "recognized", "source": source, "merge": merge, "tip": head}
-    authorize_source(repository, base, source, kind)
-    return _merge_source(repository, source, label)
-
-
-def _merge_source(repository: Path, source: str, label: str) -> dict[str, object]:
+    branch = branch_name(repository)
     before = git_output(repository, "rev-parse", "HEAD")
-    message = (
-        f"Merge {label} into {branch_name(repository)}\n\n"
-        f"Signetum-Sync: {source}\nSignetum-Sync-Source: {label}"
-    )
-    prepare_merge(repository, source, message)
-    completed = run_git(
+    outcome = merge_operation(
         repository,
-        "merge",
-        "--no-ff",
-        source,
-        "-m",
-        message,
+        OperationIntent(
+            kind="member-sync",
+            branch=branch,
+            before=before,
+            source=source,
+            base=base,
+            message=message,
+            attested_base=base,
+            parents=(before, source),
+            sync_kind=kind,
+        ),
+        recovery=CONFLICT_RECOVERY,
     )
-    if completed.returncode:
-        diagnostic = completed.stderr.strip() or completed.stdout.strip()
-        if git_output(repository, "diff", "--name-only", "--diff-filter=U"):
-            raise MergeConflict(diagnostic, expected=CONFLICT_RECOVERY)
-        raise OperationFailed(
-            diagnostic,
-            expected=(
-                "inspect the commit hook or pending merge; "
-                "complete its commit, then prepare and validate"
-            ),
-        )
+    return _sync_outcome(repository, base, source, before, outcome, contained_status)
+
+
+def _sync_outcome(
+    repository: Path,
+    base: str,
+    source: str,
+    before: str,
+    outcome: MergeOutcome,
+    contained_status: str,
+) -> dict[str, object]:
+    if outcome.status == "contained" or (
+        contained_status == "unchanged" and outcome.status == "completed"
+    ):
+        if merge := recognize_sync(repository, base, source):
+            return {"status": "recognized", "source": source, "merge": merge, "tip": outcome.commit}
+        return {
+            "status": contained_status,
+            "source": source,
+            "before": before,
+            "tip": outcome.commit,
+        }
     return {
         "status": "synchronized",
         "source": source,
         "before": before,
-        "tip": git_output(repository, "rev-parse", "HEAD"),
+        "tip": outcome.commit,
     }
 
 
-def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, object]:
+def workspace_sync(
+    repository: Path, batch: Path | None = None, *, message: str
+) -> dict[str, object]:
+    message = freeze_message(message)
     if run_git(repository, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0:
         raise MergeConflict(
             "member has an open merge",
@@ -304,12 +317,14 @@ def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, obj
     if record.kind != "member" or record.branch == policy.branch:
         raise AdmissionError("workspace-sync requires an implementation member")
     if batch is None:
-        branch, source = fresh_delivery(repository)
+        _branch, source = fresh_delivery(repository)
         # A stacked member's upstream is its parent until the parent is delivered.
         parent = branch_tip(repository, record.parent) if record.parent else None
         if parent is not None and not is_ancestor(repository, parent, source):
-            return _sync_parent(repository, record, parent)
-        return _sync_source(repository, record.base, source, f"origin/{branch}", "delivery")
+            return _sync_parent(repository, record, parent, message)
+        return _sync_source(
+            repository, record.base, source, "delivery", message, contained_status="synchronized"
+        )
     if state_root(repository) != state_root(batch):
         raise AdmissionError("batch synchronization requires the same repository")
     with exclusive_batch(batch):
@@ -320,24 +335,26 @@ def workspace_sync(repository: Path, batch: Path | None = None) -> dict[str, obj
         if batch_record.kind != "batch" or attested_base(batch, source) != batch_record.base:
             raise AdmissionError("synchronization source has no verified batch provenance")
         members_and_plans(batch, batch_record.base, source)
-        return _sync_source(repository, record.base, source, batch_record.branch, "batch")
+        return _sync_source(
+            repository, record.base, source, "batch", message, contained_status="synchronized"
+        )
 
 
-def _sync_parent(repository: Path, record: WorkspaceRecord, source: str) -> dict[str, object]:
+def _sync_parent(
+    repository: Path, record: WorkspaceRecord, source: str, message: str
+) -> dict[str, object]:
     """Merge the parent member's current tip; never rebase or rewrite the member."""
 
     tip = git_output(repository, "rev-parse", "HEAD")
-    if is_ancestor(repository, source, tip):
-        if merge := recognize_sync(repository, record.base, source):
-            return {"status": "recognized", "source": source, "merge": merge, "tip": tip}
-        return {"status": "unchanged", "source": source, "tip": tip}
     held = incorporated_parent_tip(repository, record.base, tip)
-    if not is_ancestor(repository, held, source):
+    if not is_ancestor(repository, source, tip) and not is_ancestor(repository, held, source):
         raise AdmissionError(
             f"parent {record.parent} tip {source} does not descend from the parent tip {held} "
             "this member holds; a member never takes rewritten history"
         )
-    return _sync_source(repository, record.base, source, f"parent/{record.parent}", "parent")
+    return _sync_source(
+        repository, record.base, source, "parent", message, contained_status="unchanged"
+    )
 
 
 def _has_git_operation(repository: Path) -> bool:

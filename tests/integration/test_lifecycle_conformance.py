@@ -10,6 +10,7 @@ from types import ModuleType
 
 import pytest
 from change_fixtures import commit_approval
+from operation_messages import operation_messages
 from signetum import lifecycle
 from signetum.git import git_output, repository_path
 from signetum.resources.schemas import evidence_schema_digest
@@ -252,7 +253,7 @@ def test_local_validation_state_has_one_git_common_root(
 def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     root, _ = repository
     runtime = lifecycle
-    monkeypatch.setattr(runtime, "admit", lambda batch, members: {})
+    monkeypatch.setattr(runtime, "admit", lambda batch, members, *, messages: {})
     base = git_output(root, "rev-parse", "HEAD")
     declared = (root,)
     opened = runtime.batch_open(
@@ -261,6 +262,7 @@ def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
         name="coordinated-work",
         actor="Owner",
         source="Owner authorized the fixture batch",
+        messages=operation_messages(len(declared)),
     )
     batch = Path(str(opened["worktree"]))
     branch = branch_name(batch)
@@ -272,6 +274,7 @@ def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
             name="../unsafe",
             actor="Owner",
             source="Owner authorized the fixture batch",
+            messages=operation_messages(len(declared)),
         )
     record = read_record(state_root(root), branch)
     assert record.kind == "batch"
@@ -289,5 +292,12 @@ def test_template_batch_is_created_with_its_final_role(repository, monkeypatch):
     assert path.read_bytes() == before
     for actor, source in (("", "approval"), ("Owner", " "), ("Other owner", "Other approval")):
         with pytest.raises(runtime.AdmissionError):
-            runtime.batch_open(root, declared, name="coordinated-work", actor=actor, source=source)
+            runtime.batch_open(
+                root,
+                declared,
+                name="coordinated-work",
+                actor=actor,
+                source=source,
+                messages=operation_messages(len(declared)),
+            )
         assert path.read_bytes() == before

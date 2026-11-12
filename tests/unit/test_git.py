@@ -16,6 +16,24 @@ def test_git_uses_the_requested_repository_despite_inherited_context(tmp_path, m
     assert Path(observed).resolve() == repository.resolve()
 
 
+def test_explicit_index_file_leaves_the_worktree_index_unchanged(tmp_path):
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    assert git.run_git(repository, "init", "-b", "main").returncode == 0
+    git.run_git(repository, "config", "user.name", "Index Test")
+    git.run_git(repository, "config", "user.email", "index@example.invalid")
+    (repository / "kept.txt").write_text("kept\n")
+    assert git.run_git(repository, "add", "kept.txt").returncode == 0
+    assert git.run_git(repository, "commit", "-m", "base").returncode == 0
+    index = tmp_path / "private-index"
+    assert git.run_git(repository, "read-tree", "HEAD", index_file=index).returncode == 0
+    (repository / "kept.txt").write_text("edited\n")
+    written = git.run_git(repository, "write-tree", index_file=index)
+    assert written.returncode == 0
+    assert written.stdout.strip() == git.git_output(repository, "rev-parse", "HEAD^{tree}")
+    assert git.git_output(repository, "status", "--porcelain", strip=False) == " M kept.txt\n"
+
+
 def test_git_retains_transport_configuration_without_interactive_prompts(tmp_path, monkeypatch):
     environment = {}
 

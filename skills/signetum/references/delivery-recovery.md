@@ -20,14 +20,13 @@ evidence, test changes and their effect on coverage, and unfinished work before
 explicitly authorized delivery. Source journals and
 admitted receipts remain bound to that exact review.
 
-When another batch delivers first, run `maintenance workspace-sync` in the open
-batch. It merges the new delivery tip, advances the recorded batch base, keeps
-every admitted member and runs the batch gate over the merged commits; then run
-final again. A conflict retains the prepared message: resolve and stage paths, run
-`git commit --no-edit`, then `batch-continue`. The commit check refuses replacement
-messages unless they carry exactly the Signetum trailers prepared for the recorded
-merge. `batch-continue` also accepts a staged, uncommitted resolution and commits
-it with `--no-edit`. Do not discard and reopen the batch. If admission or synchronization refuses a decision clause ID
+When another batch delivers first, run `maintenance workspace-sync --message-file <path>`
+in the open batch. It merges the new delivery tip, advances the recorded batch base,
+keeps every admitted member and runs the batch gate over the merged commits; then run
+final again. A conflict keeps the frozen message: resolve and stage paths, run
+`git commit --no-edit`, then `batch-continue`. The commit check refuses a different
+message. `batch-continue` also accepts a staged, uncommitted resolution and commits
+the frozen message. Do not discard and reopen the batch. If admission or synchronization refuses a decision clause ID
 claimed by two changes, give one change a distinct ID, commit, run ready, retry.
 When the engine no longer loads a delivered `signetum.toml`, migrate it in one
 member and run ready there; `workspace-open` opens that member with preparation
@@ -38,9 +37,13 @@ reports the cause. A member that keeps the old manifest is refused.
 
 When `batch-open` or `batch-admit` stops at a conflict, the members named after it
 stay pending; the result and `status` list them, and `batch-continue` admits them
-after the resolution. Preserve the prepared Signetum trailers with
-`git commit --no-edit`, then run `batch-continue`; it also accepts the staged
-resolution and commits it with `--no-edit` itself.
+after the resolution. Keep the frozen message with `git commit --no-edit`, then run
+`batch-continue`. It can also commit the staged resolution itself. Messages for the
+pending members were frozen with the interrupted admission. An admission that was
+already pending under the previous engine has no frozen messages for the members
+it had not started: pass one `--message-file` per remaining member. Those files
+are stored before the merge is completed, and the merge keeps its snapshotted
+legacy message.
 
 Failure receipts are diagnostics only. Historical owed ledgers are ignored;
 there is no node retirement or discharge ceremony. First failure remains failure
@@ -63,20 +66,25 @@ re-approval never invalidates an earlier authorized fix. Then run final again.
 There is no special recovery verdict that turns a failed validation green.
 
 Publish only through explicit
-`batch-deliver <source-worktree> <target-worktree> <expected-base> <expected-batch-tip>`.
+`batch-deliver <source-worktree> <target-worktree> <expected-base> <expected-batch-tip> --message-file <path>`.
 `source` and `target` are existing worktree directories. A branch name is not a
 path. `expected-base` and `expected-batch-tip` are full commits. A changed or
 missing versioned publication binding requires fresh final. Final checks all
 semantic review inputs once and fingerprints mutable local evidence and authority
 before and after validation. Delivery verifies the exact commit and those
 fingerprints without reconstructing the review or executing checks. Publication
-recovery confirms the exact remote identity before moving the local target;
-never substitute force-push, history rewriting or ad-hoc cleanup. If delivery
+recovery confirms the exact remote identity before moving the local target.
+A modern publication resumes only when the pending or completed operation already
+matches the caller message, parents and tree. An old publication resumes only
+when that commit is explicit legacy evidence. An unrelated commit with the same
+tree does not become a new operation. Never substitute force-push, history
+rewriting or ad-hoc cleanup. If delivery
 retains an `active_runtime` checkout, finish the operation, switch to the delivery
 checkout and use its declared cleanup utility to remove that now-unused checkout.
 
 When the owner already authorized publication, run `final --deliver --target
-<delivery-worktree> --actor <owner> --source <authorization>`. It records that
+<delivery-worktree> --actor <owner> --source <authorization> --message-file <path>`.
+It records that
 authority, completes the same full final, and calls the same publication owner
 only after success. Missing authorization is refused before validation starts.
 Separate final and delivery remain available when the review is needed first.
@@ -126,9 +134,10 @@ reachable from the delivery branch and refuse deletion if the tip has changed.
 Preserve unmerged work. Local workspace cleanup does not prune remote branches.
 
 Batch names default to the member task names. For a combined outcome use
-`batch-open --actor <owner> --source <approval> --name <task-slug> --member <path> ...`. Reusing a name does not
-authorize a different base or workspace role. Publication uses a readable
-`Merge <task> into <target>` subject with exact source/base trailers. Ordinary
-Git merges keep project hooks enabled; synthetic `commit-tree` publication does
-not invoke commit hooks. Bind any required project commit-message verification
-to the declared final checks rather than assume a hook validated publication.
+`batch-open --actor <owner> --source <approval> --name <task-slug> --member <path> --message-file <path> ...`.
+One message file is required for each member, in the same order. Reusing a name does not
+authorize a different base or workspace role. Publication uses the caller message.
+Ordinary Git merges keep project hooks enabled. `commit-tree` publication runs
+the project `commit-msg` hook and fails closed if that hook rejects or changes
+the frozen message. Follow the project's commit convention; do not invent a
+release subject from the delivery stage.

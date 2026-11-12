@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from change_fixtures import append_historical_event as append_event
 from change_fixtures import approve_change, approve_legacy_change
+from operation_messages import operation_message, operation_messages
 from signetum import lifecycle
 from signetum.deviations import (
     DeviationClass,
@@ -83,7 +84,7 @@ def test_pending_discovery_in_an_admitted_historical_package_refuses_final(tmp_p
     member, batch = member_and_batch(tmp_path, historical=True)
     append_event(member, discovery(member, "old"))
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     with pytest.raises(lifecycle.AdmissionError, match="unresolved deviations: old/finding"):
         lifecycle.validate(batch, "final")
 
@@ -94,7 +95,7 @@ def test_admitted_historical_discovery_is_reviewed_without_reopening_approval(tm
     append_event(member, event)
     resolve(member, event)
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     review = lifecycle.validate(batch, "final")["delivery_review"]
     assert isinstance(review, dict)
     assert [item["change_id"] for item in review["approvals"]] == ["current"]
@@ -112,7 +113,7 @@ def test_final_preserves_original_decision_targets_and_ledger(tmp_path):
     resolve(member, event, target="docs/decisions/ADP-proposal-new.md")
     original = ledger_path(member, "example").read_bytes()
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     final = lifecycle.validate(batch, "final")
     review = final["delivery_review"]
     assert isinstance(review, dict)
@@ -129,7 +130,7 @@ def test_new_discovery_during_checks_cannot_publish_a_stale_final_review(tmp_pat
     append_event(member, event)
     resolve(member, event)
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     original = lifecycle.execute_gate
 
     def changed(*args, **kwargs):
@@ -151,7 +152,7 @@ def test_unrelated_pending_member_does_not_enter_batch_review(tmp_path):
     event = replace(discovery(other, "unrelated"), **{"member": "impl/unrelated"})
     append_event(other, event)
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     review = lifecycle.validate(batch, "final")["delivery_review"]
     assert isinstance(review, dict)
     assert review["inputs"]["members"] == ["impl/member"]
@@ -162,7 +163,7 @@ def test_unrelated_pending_member_does_not_enter_batch_review(tmp_path):
 def test_member_receipt_changed_during_checks_refuses_review(tmp_path, monkeypatch):
     member, batch = member_and_batch(tmp_path)
     lifecycle.validate(member, "member")
-    admitted = lifecycle.admit(batch, (member,))["admitted"]
+    admitted = lifecycle.admit(batch, (member,), messages=operation_messages(1))["admitted"]
     assert isinstance(admitted, list)
     receipt = lifecycle._receipt_root(member) / admitted[0]["ready_evidence"]
     original = lifecycle.execute_gate
@@ -181,7 +182,7 @@ def test_member_receipt_changed_during_checks_refuses_review(tmp_path, monkeypat
 def test_new_discovery_after_final_refuses_remote_publication(tmp_path):
     member, batch = member_and_batch(tmp_path)
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     final = lifecycle.validate(batch, "final")
     assert isinstance(final["base"], str)
     assert isinstance(final["source"], str)
@@ -189,7 +190,9 @@ def test_new_discovery_after_final_refuses_remote_publication(tmp_path):
     remote_before = _git(target, "ls-remote", "origin", "refs/heads/main")
     append_event(member, discovery(member))
     with pytest.raises(lifecycle.AdmissionError, match="review inputs changed"):
-        lifecycle.batch_deliver(batch, target, final["base"], final["source"])
+        lifecycle.batch_deliver(
+            batch, target, final["base"], final["source"], message=operation_message()
+        )
     assert _git(target, "rev-parse", "HEAD") == final["base"]
     assert _git(target, "ls-remote", "origin", "refs/heads/main") == remote_before
 
@@ -197,7 +200,7 @@ def test_new_discovery_after_final_refuses_remote_publication(tmp_path):
 def test_later_unadmitted_work_is_excluded_until_its_exact_tip_is_admitted(tmp_path):
     member, batch = member_and_batch(tmp_path)
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     (member / "future.txt").write_text("not admitted yet")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "later implementation")
@@ -207,6 +210,6 @@ def test_later_unadmitted_work_is_excluded_until_its_exact_tip_is_admitted(tmp_p
     assert isinstance(review, dict)
     assert review["reconciliation"]["deviation_count"] == 0
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     with pytest.raises(lifecycle.AdmissionError, match="unresolved deviations: example/finding"):
         lifecycle.validate(batch, "final")

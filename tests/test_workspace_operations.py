@@ -3,23 +3,32 @@
 import argparse
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 from change_fixtures import approve_change, commit_approval
+from operation_messages import operation_message, operation_messages
 from signetum import lifecycle, maintenance, runtime_identity
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
 from signetum.commit_check import CHAIN, commit_check_status, install_commit_check
 from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
+from signetum.operation_records import (
+    adopt_repository_engine,
+    commit_message,
+    engine_accepts_message_file,
+    load_index,
+)
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.runtime_identity import engine_source as actual_engine_source
 from signetum.synchronization import member_contribution_paths
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import (
+    BatchAuthorization,
     BatchEngine,
     branch_name,
     exclude_workspaces,
@@ -98,7 +107,7 @@ def test_batch_deliver_rejects_a_missing_path_before_git(repository, tmp_path):
     root, _state = repository
     missing = tmp_path / "main"
     with pytest.raises(AdmissionError, match="branch name is not a path") as failure:
-        lifecycle.batch_deliver(missing, root, "a" * 40, "b" * 40)
+        lifecycle.batch_deliver(missing, root, "a" * 40, "b" * 40, message=operation_message())
     assert "cannot change to" not in str(failure.value)
 
 
@@ -107,7 +116,7 @@ def test_batch_deliver_lets_git_refuse_an_existing_non_repository(repository, tm
     empty = tmp_path / "main"
     empty.mkdir()
     with pytest.raises(AdmissionError, match="not a git repository") as failure:
-        lifecycle.batch_deliver(empty, root, "a" * 40, "b" * 40)
+        lifecycle.batch_deliver(empty, root, "a" * 40, "b" * 40, message=operation_message())
     assert "branch name is not a path" not in str(failure.value)
 
 
@@ -248,7 +257,7 @@ def test_sync_refuses_a_source_without_same_repository_batch_authority(
         expected = "verified batch provenance"
     before = git_output(member, "rev-parse", "HEAD")
     with pytest.raises(AdmissionError, match=expected):
-        ops.workspace_sync(member, source)
+        ops.workspace_sync(member, source, message=operation_message())
     assert git_output(member, "rev-parse", "HEAD") == before
 
 
@@ -396,7 +405,7 @@ def test_delivery_sync_preserves_member_base_and_does_not_prepare(repository):
     source = commit_file(root, "sibling.txt")
     git_output(root, "push", "origin", "main")
     attempts = (state / "attempts").read_text()
-    result = ops.workspace_sync(member)
+    result = ops.workspace_sync(member, message=operation_message())
     assert result["source"] == source
     assert read_record(state_root(member), "plan/example").base == base
     assert (member / "sibling.txt").read_text() == "work"
@@ -412,12 +421,12 @@ def test_unadmitted_member_can_sync_verified_batch(repository):
     commit_file(sibling, "sibling.txt")
     lifecycle.validate(sibling, "member")
     batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
-    lifecycle.admit(batch, (sibling,))
+    lifecycle.admit(batch, (sibling,), messages=operation_messages(1))
     member = opened(root, "plan/dependent")
-    result = ops.workspace_sync(member, batch)
+    result = ops.workspace_sync(member, batch, message=operation_message())
     assert result["source"] == git_output(batch, "rev-parse", "HEAD")
     assert git_output(member, "show", "-s", "--format=%s", "HEAD") == (
-        "Merge batch/test into plan/dependent"
+        "Record the reviewed source change."
     )
     assert (member / "sibling.txt").is_file()
     assert read_record(state_root(member), "plan/dependent").base == base
@@ -430,7 +439,7 @@ def test_sync_conflict_keeps_git_state_and_names_member_recovery(repository):
     commit_file(root, "seed.txt", "delivery\n")
     git_output(root, "push", "origin", "main")
     with pytest.raises(MergeConflict) as refusal:
-        ops.workspace_sync(member)
+        ops.workspace_sync(member, message=operation_message())
     assert "git commit --no-edit" in refusal.value.expected
     assert run_git(member, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
 
@@ -444,7 +453,7 @@ def conflicted_sync(repository, branch):
     commit_file(root, "delivered.txt")
     git_output(root, "push", "origin", "main")
     with pytest.raises(MergeConflict):
-        ops.workspace_sync(member)
+        ops.workspace_sync(member, message=operation_message())
     (member / "seed.txt").write_text("resolved\n")
     git_output(member, "add", "seed.txt")
     return member, base
@@ -454,15 +463,15 @@ def test_sync_hook_refuses_lost_or_changed_authority(repository):
     member, base = conflicted_sync(repository, "plan/checked-sync")
     assert install_commit_check(member)["status"] == "active"
     before = git_output(member, "rev-parse", "HEAD")
+    frozen = operation_message()
     merge_message = ops.repository_path(member, "rev-parse", "--git-path", "MERGE_MSG")
-    prepared = merge_message.read_text()
-    trailer = next(line for line in prepared.splitlines() if line.startswith("Signetum-Sync:"))
+    assert merge_message.read_bytes() == frozen.encode()
     messages = {
-        "own": "resolve the conflicts",
-        "missing": prepared.replace(trailer, ""),
-        "altered": prepared.replace(trailer, "Signetum-Sync: wrong"),
-        "duplicate": prepared + "\n" + trailer,
-        "extra": prepared + "\nSignetum-Unexpected: value",
+        "own": "resolve the conflicts\n",
+        "deleted": frozen.replace("reviewed ", ""),
+        "altered": frozen.replace("reviewed", "changed"),
+        "duplicate": frozen + frozen,
+        "extra": frozen + "Signetum-Unexpected: value\n",
     }
     # Reuse the same pending real merge for the message matrix.
     for message in messages.values():
@@ -472,9 +481,10 @@ def test_sync_hook_refuses_lost_or_changed_authority(repository):
         assert git_output(member, "rev-parse", "HEAD") == before
         assert run_git(member, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
     git_output(member, "commit", "--no-edit")
-    assert set(
-        member_contribution_paths(member, base, git_output(member, "rev-parse", "HEAD"))
-    ) == {"seed.txt"}
+    committed = git_output(member, "rev-parse", "HEAD")
+    assert commit_message(member, committed) == frozen
+    assert "Signetum-" not in commit_message(member, committed)
+    assert set(member_contribution_paths(member, base, committed)) == {"seed.txt"}
 
     # A stale prepared merge record must not affect subsequent ordinary commits.
     commit_approval(member)
@@ -489,17 +499,16 @@ def test_conflicted_sync_committed_without_editing_is_verified(repository):
     assert set(owned) == {"seed.txt"}
 
 
-def test_rerunning_sync_recognizes_a_recorded_merge_that_lost_its_trailer(repository):
-    member, base = conflicted_sync(repository, "plan/lost-trailer")
+def test_rerunning_sync_refuses_a_commit_that_replaced_the_recorded_message(repository):
+    member, base = conflicted_sync(repository, "plan/replaced-message")
     git_output(member, "commit", "-m", "resolve the sync conflict")
     tip = git_output(member, "rev-parse", "HEAD")
+    merges = git_output(member, "rev-list", "--count", "--merges", f"{base}..{tip}")
     assert "delivered.txt" in member_contribution_paths(member, base, tip)
-    result = ops.workspace_sync(member)
-    assert result["status"] == "recognized"
-    assert result["merge"] == tip
+    with pytest.raises(AdmissionError, match="pending operation does not match the branch tip"):
+        ops.workspace_sync(member, message=operation_message())
     assert git_output(member, "rev-parse", "HEAD") == tip
-    assert set(member_contribution_paths(member, base, tip)) == {"seed.txt"}
-    assert ops.workspace_sync(member)["status"] != "recognized"
+    assert git_output(member, "rev-list", "--count", "--merges", f"{base}..{tip}") == merges
 
 
 def test_rerunning_sync_does_not_recognize_a_manual_merge(repository):
@@ -512,7 +521,7 @@ def test_rerunning_sync_does_not_recognize_a_manual_merge(repository):
     git_output(member, "fetch", "origin", "main")
     assert install_commit_check(member)["status"] == "active"
     git_output(member, "merge", "--no-ff", "FETCH_HEAD", "-m", "manual merge")
-    assert ops.workspace_sync(member)["status"] != "recognized"
+    assert ops.workspace_sync(member, message=operation_message())["status"] != "recognized"
     tip = git_output(member, "rev-parse", "HEAD")
     assert "delivered.txt" in member_contribution_paths(member, base, tip)
 
@@ -584,13 +593,13 @@ def test_sync_does_not_claim_siblings_package_or_charge_its_unchanged_paths(repo
     commit_file(sibling, "sibling.txt")
     lifecycle.validate(sibling, "member")
     batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
-    lifecycle.admit(batch, (sibling,))
+    lifecycle.admit(batch, (sibling,), messages=operation_messages(1))
     member = opened(root, "plan/dependent")
     approve_change(member, "dependent")
     git_output(member, "add", ".")
     git_output(member, "commit", "-m", "approve dependent")
     commit_file(member, "own.txt")
-    ops.workspace_sync(member, batch)
+    ops.workspace_sync(member, batch, message=operation_message())
     result = lifecycle.validate(member, "member")
     assert result["status"] == "ready"
     changed = lifecycle.explain_ready(member)["files"]
@@ -623,9 +632,9 @@ def test_batch_continuation_validates_staged_repair_before_committing(repository
     lifecycle.validate(left, "member")
     lifecycle.validate(right, "member")
     batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
-    lifecycle.admit(batch, (left,))
+    lifecycle.admit(batch, (left,), messages=operation_messages(1))
     with pytest.raises(MergeConflict):
-        lifecycle.admit(batch, (right,))
+        lifecycle.admit(batch, (right,), messages=operation_messages(1))
     before = git_output(batch, "rev-parse", "HEAD")
     (batch / "seed.txt").write_text("bad")
     git_output(batch, "add", "seed.txt")
@@ -651,14 +660,14 @@ def test_failed_admission_preparation_keeps_merge_for_supported_retry(repository
     batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
     (state / "fail").touch()
     with pytest.raises(InfrastructureError) as refusal:
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert "batch-admit" in refusal.value.expected
     assert "--batch" in refusal.value.expected
     assert str(batch) in refusal.value.expected
     merged = git_output(batch, "rev-parse", "HEAD")
     assert (batch / "own.txt").is_file()
     (state / "fail").unlink()
-    retried = lifecycle.admit(batch, (member,))
+    retried = lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert git_output(batch, "rev-parse", "HEAD") == merged
     assert retried["admitted"] == []
     unchanged = retried["unchanged"]
@@ -677,7 +686,11 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     commit_file(member, "own.txt")
     lifecycle.validate(member, "member")
     opened_batch = lifecycle.batch_open(
-        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+        root,
+        (member,),
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+        messages=operation_messages(1),
     )
     batch = Path(str(opened_batch["worktree"]))
     assert git_output(batch, "symbolic-ref", "--short", "HEAD") == "batch/example"
@@ -689,7 +702,11 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
         "hook": str(root / ".git/hooks/reference-transaction"),
     }
     retried = lifecycle.batch_open(
-        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+        root,
+        (member,),
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+        messages=operation_messages(1),
     )
     assert retried["worktree"] == str(batch)
     assert read_record(state_root(batch), "batch/example").authorization == authorization
@@ -699,7 +716,7 @@ def test_validated_delivery_keeps_active_runtime_until_cleanup_from_another_chec
     assert isinstance(tip, str)
     with monkeypatch.context() as context:
         context.setattr(ops, "__file__", str(member / "active-runtime.py"))
-        result = lifecycle.batch_deliver(batch, root, base, tip)
+        result = lifecycle.batch_deliver(batch, root, base, tip, message=operation_message())
         cleaned = ops.cleanup(root, all_delivered=True)
     delivered = git_output(root, "rev-parse", "HEAD")
     assert result["remote"] == delivered
@@ -757,7 +774,11 @@ def test_batch_open_prepares_admitted_source_when_delivery_has_no_prepare_gate(r
     preparation = pending["preparation"]
     assert isinstance(preparation, dict) and preparation["status"] == "pending_admission"
     opened_batch = lifecycle.batch_open(
-        member, (member,), actor="Owner", source="Owner authorized the fixture batch"
+        member,
+        (member,),
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+        messages=operation_messages(1),
     )
     assert (
         read_record(
@@ -1004,7 +1025,11 @@ def test_separate_cleanup_sweeps_every_workspace_that_proves_its_outcome(reposit
     batch = Path(
         str(
             lifecycle.batch_open(
-                root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+                root,
+                (member,),
+                actor="Owner",
+                source="Owner authorized the fixture batch",
+                messages=operation_messages(1),
             )["worktree"]
         )
     )
@@ -1013,7 +1038,7 @@ def test_separate_cleanup_sweeps_every_workspace_that_proves_its_outcome(reposit
     assert isinstance(tip, str)
 
     git_output(root, "branch", "batch/already-gone", base)
-    result = lifecycle.batch_deliver(batch, root, base, tip)
+    result = lifecycle.batch_deliver(batch, root, base, tip, message=operation_message())
     pending_cleanup = result["cleanup"]
     assert isinstance(pending_cleanup, dict) and pending_cleanup["status"] == "pending"
     assert batch.exists() and member.exists() and sibling.exists()
@@ -1106,7 +1131,11 @@ def test_batch_open_authorizes_combination_fix_without_a_change_draft(repository
     commit_file(member, "own.txt")
     lifecycle.validate(member, "member")
     opened_batch = lifecycle.batch_open(
-        root, (member,), actor="Owner", source="Owner authorized integration"
+        root,
+        (member,),
+        actor="Owner",
+        source="Owner authorized integration",
+        messages=operation_messages(1),
     )
     batch = Path(str(opened_batch["worktree"]))
     record = read_record(state_root(batch), git_output(batch, "branch", "--show-current"))
@@ -1245,11 +1274,11 @@ def test_pinned_batch_refuses_changed_engine_before_any_batch_work(repository, m
     before = git_output(batch, "rev-parse", "HEAD")
     attempts = (state / "attempts").read_text() if (state / "attempts").exists() else None
     for action in (
-        lambda: lifecycle.admit(batch, ()),
+        lambda: lifecycle.admit(batch, (), messages=operation_messages(0)),
         lambda: lifecycle.continue_batch(batch),
-        lambda: lifecycle.sync_batch(batch),
+        lambda: lifecycle.sync_batch(batch, message=operation_message()),
         lambda: lifecycle.validate(batch, "final"),
-        lambda: lifecycle.batch_deliver(batch, root, base, before),
+        lambda: lifecycle.batch_deliver(batch, root, base, before, message=operation_message()),
     ):
         with pytest.raises(AdmissionError) as refused:
             action()
@@ -1270,7 +1299,14 @@ def test_foreign_checkout_cannot_open_batch(repository, monkeypatch):
     monkeypatch.setattr(runtime_identity, "engine_source", lambda repository: "checkout")
     before = git_output(root, "worktree", "list", "--porcelain")
     with pytest.raises(AdmissionError) as refused:
-        lifecycle.batch_open(root, (root,), name="foreign", actor="Owner", source="Approved")
+        lifecycle.batch_open(
+            root,
+            (root,),
+            name="foreign",
+            actor="Owner",
+            source="Approved",
+            messages=operation_messages(1),
+        )
     assert "installed Skill" in refused.value.expected
     assert git_output(root, "worktree", "list", "--porcelain") == before
 
@@ -1337,7 +1373,13 @@ def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypat
     # The handoff must use the production environment isolation and result contract.
     monkeypatch.setattr(wt, "run_tool", actual_run_tool)
 
-    result = lifecycle.batch_open(root, (member,), actor="Owner", source="Approved self-hosting")
+    result = lifecycle.batch_open(
+        root,
+        (member,),
+        actor="Owner",
+        source="Approved self-hosting",
+        messages=operation_messages(1),
+    )
 
     batch = Path(str(result["batch"]))
     pin = read_record(state_root(batch), branch_name(batch)).engine
@@ -1346,7 +1388,322 @@ def test_self_hosted_batch_open_enters_its_prepared_engine(repository, monkeypat
     assert result["admitted"]
     # The opening checkout cannot act for the batch after the handoff.
     with pytest.raises(AdmissionError):
-        lifecycle.admit(batch, ())
+        lifecycle.admit(batch, (), messages=operation_messages(0))
+
+
+def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monkeypatch, tmp_path):
+    root, _ = repository
+    monkeypatch.setenv("MISE_TRUSTED_CONFIG_PATHS", str(tmp_path))
+    source_repo = Path(__file__).resolve().parents[1]
+    git = shutil.which("git")
+    tar = shutil.which("tar")
+    assert git is not None and tar is not None
+    archive = subprocess.run(  # noqa: S603 -- git archive of this repository's released engine
+        [git, "-C", str(source_repo), "archive", "v0.9.1", "skills/signetum/scripts/engine"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run([tar, "-x", "-C", str(root)], input=archive.stdout, check=True)  # noqa: S603
+    git_output(root, "add", "skills")
+    git_output(root, "commit", "-m", "retain the released repository engine")
+    git_output(root, "push", "origin", "main")
+    old = git_output(root, "rev-parse", "HEAD")
+    engine_member = opened(root, "plan/engine-source")
+    commit_approval(engine_member, "engine-source")
+    approval = git_output(engine_member, "rev-parse", "HEAD")
+    destination = engine_member / "skills/signetum/scripts/engine"
+    shutil.rmtree(destination)
+    shutil.copytree(
+        source_repo / "skills/signetum/scripts/engine",
+        destination,
+        ignore=shutil.ignore_patterns(".venv", "__pycache__", "dist", "*.egg-info"),
+    )
+    (engine_member / ".gitignore").write_text("__pycache__/\n.venv/\n")
+    git_output(engine_member, "add", "-A", ".")
+    git_output(engine_member, "commit", "-m", "record the current repository engine")
+    engine_commit = git_output(engine_member, "rev-parse", "HEAD")
+    member = opened(root, "plan/handoff")
+    commit_approval(member, "handoff")
+    commit_file(member, "handoff.txt")
+    assert lifecycle.validate(member, "member")["status"] == "ready"
+    batch = Path(
+        str(
+            ops.open_workspace(
+                root,
+                "batch/handoff",
+                old,
+                kind="batch",
+                members=("plan/handoff",),
+                authorization=BatchAuthorization(
+                    "Owner",
+                    "Owner authorized the repository engine handoff",
+                    "2026-11-09T00:00:00+00:00",
+                    ("plan/handoff",),
+                ),
+                engine=BatchEngine("0.9.1", "sha256:" + "ab" * 32, "repository"),
+            )["worktree"]
+        )
+    )
+    assert engine_accepts_message_file(batch / "skills/signetum/scripts/engine") is False
+    assert engine_accepts_message_file(destination) is True
+    with pytest.raises(AdmissionError, match="another checkout"):
+        adopt_repository_engine(batch, "Adopt the repository engine.\n")
+    assert git_output(batch, "rev-parse", "HEAD") == old
+    with pytest.raises(
+        AdmissionError, match="batch engine cannot accept a message file"
+    ) as refusal:
+        lifecycle._open_admission(batch, (member,), operation_messages(1))
+    assert "adopt-repository-engine" in refusal.value.expected
+    assert git_output(batch, "rev-parse", "HEAD") == old
+    program = (
+        "import sys; sys.path.insert(0, sys.argv.pop(1)); "
+        "from signetum.maintenance import main; raise SystemExit(main())"
+    )
+    lifecycle_program = (
+        "import sys; sys.path.insert(0, sys.argv.pop(1)); "
+        "from signetum.lifecycle import main; raise SystemExit(main())"
+    )
+    caller = "Adopt the repository engine for message files.\n"
+    message = tmp_path / "handoff.txt"
+    message.write_text(caller, encoding="utf-8")
+
+    def handoff_records() -> list[dict[str, object]]:
+        return [
+            document
+            for document in load_index(batch).by_id.values()
+            if document.get("kind") == "engine-handoff"
+        ]
+
+    def unreachable_commits() -> set[str]:
+        completed = subprocess.run(  # noqa: S603 -- git fsck of the fixture repository
+            [git, "-C", str(batch), "fsck", "--unreachable", "--no-reflogs"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        found = set()
+        report = f"{completed.stdout}\n{completed.stderr}"
+        for line in report.splitlines():
+            parts = line.split()
+            if len(parts) == 3 and parts[0] in {"unreachable", "dangling"} and parts[1] == "commit":
+                found.add(parts[2])
+        return found
+
+    def invoke(
+        engine: Path, *args: str, script: Path | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        command = [
+            sys.executable,
+            "-I",
+            "-B",
+            "-c" if script is None else str(script),
+            *(() if script else (program,)),
+            str(engine),
+            *args,
+        ]
+        return subprocess.run(  # noqa: S603 -- versioned engine checkout, fixture batch only
+            command, cwd=batch, capture_output=True, text=True
+        )
+
+    before_objects = unreachable_commits()
+    unqualified = invoke(destination, "adopt-repository-engine", "--message-file", str(message))
+    assert unqualified.returncode != 0
+    assert "no evidence proving its selected validation" in unqualified.stdout + unqualified.stderr
+    for source in (old, approval):
+        refused = invoke(
+            destination,
+            "adopt-repository-engine",
+            "--message-file",
+            str(message),
+            "--source",
+            source,
+        )
+        assert refused.returncode != 0
+        assert "does not match the source commit" in refused.stdout + refused.stderr
+    assert git_output(batch, "rev-parse", "HEAD") == old
+    assert handoff_records() == []
+    assert unreachable_commits() == before_objects
+
+    assert lifecycle.validate(engine_member, "member")["status"] == "ready"
+    crash_script = tmp_path / "crash_before_ref.py"
+    crash_script.write_text(
+        "\n".join(
+            (
+                "import sys",
+                "sys.path.insert(0, sys.argv.pop(1))",
+                "import signetum.operation_records as records",
+                "from signetum.operations import AdmissionError",
+                "from signetum.maintenance import main",
+                "original = records.run_git",
+                "def crash(repository, *args, **kwargs):",
+                "    if tuple(args[:2]) == ('merge', '--ff-only'):",
+                "        raise AdmissionError('simulated crash before the ref move')",
+                "    return original(repository, *args, **kwargs)",
+                "records.run_git = crash",
+                "raise SystemExit(main())",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    crashed = invoke(
+        destination,
+        "adopt-repository-engine",
+        "--message-file",
+        str(message),
+        script=crash_script,
+    )
+    assert crashed.returncode != 0, crashed.stdout + crashed.stderr
+    assert "simulated crash before the ref move" in crashed.stdout + crashed.stderr
+    assert git_output(batch, "rev-parse", "HEAD") == old
+    recorded = handoff_records()
+    assert len(recorded) == 1
+    assert recorded[0]["status"] == "completed"
+    assert recorded[0]["before"] == old
+    assert recorded[0]["source"] == engine_commit
+    assert recorded[0]["message"] == caller
+    proof = recorded[0]["proof"]
+    assert isinstance(proof, dict)
+    created = proof["commit"]
+    assert isinstance(created, str)
+    assert git_output(batch, "cat-file", "-t", created) == "commit"
+    assert created in unreachable_commits()
+
+    resume_script = tmp_path / "resume_handoff.py"
+    resume_script.write_text(
+        "\n".join(
+            (
+                "import sys",
+                "sys.path.insert(0, sys.argv.pop(1))",
+                "import signetum.operation_records as records",
+                "from signetum.maintenance import main",
+                "records.engine_accepts_message_file = lambda _engine: True",
+                "raise SystemExit(main())",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    resumed = invoke(
+        destination,
+        "adopt-repository-engine",
+        "--message-file",
+        str(message),
+        script=resume_script,
+    )
+    assert resumed.returncode == 0, resumed.stdout + resumed.stderr
+    adopted_result = json.loads(resumed.stdout.splitlines()[-1])
+    assert adopted_result["outcome"] == "adopted"
+    assert adopted_result["commit"] == created
+    assert git_output(batch, "rev-parse", "HEAD") == created
+    assert git_output(batch, "rev-list", "--count", f"{old}..HEAD") == "1"
+    assert commit_message(batch, created) == caller
+    assert "Signetum-" not in commit_message(batch, created)
+    pin = read_record(state_root(batch), branch_name(batch)).engine
+    assert pin == BatchEngine("0.9.1", "sha256:" + "ab" * 32, "repository")
+    changed = git_output(batch, "diff", "--name-only", f"{old}..{created}").splitlines()
+    assert changed
+    assert all(path.startswith("skills/signetum/scripts/engine/") for path in changed)
+    repeated = invoke(
+        destination,
+        "adopt-repository-engine",
+        "--message-file",
+        str(message),
+        script=resume_script,
+    )
+    assert repeated.returncode == 0, repeated.stdout + repeated.stderr
+    assert json.loads(repeated.stdout.splitlines()[-1])["commit"] == created
+    assert git_output(batch, "rev-parse", "HEAD") == created
+
+    checked_out = batch / "skills/signetum/scripts/engine"
+    assert git_output(batch, "status", "--porcelain") == ""
+    assert engine_accepts_message_file(checked_out) is True
+    admission = tmp_path / "admission.txt"
+    admission.write_text(operation_messages(1)[0], encoding="utf-8")
+    admitted = subprocess.run(  # noqa: S603 -- the batch's replaced engine, fixture member only
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            "-c",
+            lifecycle_program,
+            str(checked_out),
+            "batch-admit",
+            "--batch",
+            str(batch),
+            "--member",
+            str(member),
+            "--message-file",
+            str(admission),
+        ],
+        cwd=batch,
+        capture_output=True,
+        text=True,
+    )
+    assert admitted.returncode == 0, (
+        admitted.stdout
+        + admitted.stderr
+        + "\n"
+        + git_output(batch, "status", "--porcelain", strip=False)
+    )
+    assert (batch / "handoff.txt").is_file()
+    tip = git_output(batch, "rev-parse", "HEAD")
+    assert commit_message(batch, tip) == operation_messages(1)[0]
+    assert "Signetum-" not in commit_message(batch, tip)
+    admission_record = load_index(batch).for_commit(tip)
+    assert admission_record is not None and admission_record["kind"] == "admission"
+    final = subprocess.run(  # noqa: S603 -- repository engine checked out on the fixture batch
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            "-c",
+            lifecycle_program,
+            str(checked_out),
+            "final",
+        ],
+        cwd=batch,
+        capture_output=True,
+        text=True,
+    )
+    assert final.returncode == 0, final.stdout + final.stderr
+    final_result = json.loads(final.stdout.splitlines()[-1])
+    assert final_result["outcome"] == "final"
+    assert final_result["base"] == old
+    assert final_result["source"] == tip
+    delivery_message = "Publish the handed-off repository batch.\n"
+    delivery_file = tmp_path / "delivery.txt"
+    delivery_file.write_text(delivery_message, encoding="utf-8")
+    delivered = subprocess.run(  # noqa: S603 -- repository engine checked out on the fixture batch
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            "-c",
+            lifecycle_program,
+            str(checked_out),
+            "batch-deliver",
+            str(batch),
+            str(root),
+            old,
+            tip,
+            "--message-file",
+            str(delivery_file),
+        ],
+        cwd=batch,
+        capture_output=True,
+        text=True,
+    )
+    assert delivered.returncode == 0, delivered.stdout + delivered.stderr
+    publication = json.loads(delivered.stdout.splitlines()[-1])
+    landed = git_output(root, "rev-parse", "HEAD")
+    assert publication["outcome"] == "delivered"
+    assert publication["delivery_commit"] == landed
+    assert git_output(root, "show", "-s", "--format=%P", landed).split() == [old, tip]
+    assert commit_message(root, landed) == delivery_message
+    assert "Signetum-" not in commit_message(root, landed)
+    assert commit_message(batch, created) == caller
+    assert read_record(state_root(batch), branch_name(batch)).engine == pin
 
 
 @pytest.mark.parametrize("selector", ["all", "branch"])

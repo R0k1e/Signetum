@@ -10,7 +10,7 @@ import shutil
 import subprocess  # nosec B404 -- fixed tuple commands, never a shell
 import sys
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -21,7 +21,13 @@ from time import perf_counter
 from signetum import worktrunk as wt
 from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
-from signetum.change.scope import delivered_plans, records_only, records_only_ancestors
+from signetum.change.scope import (
+    ChangeError,
+    delivered_plans,
+    records_only,
+    records_only_ancestors,
+    require_batch_implementation,
+)
 from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
 from signetum.decision_proposals import proposal_paths
 from signetum.delivery import publish_batch
@@ -39,6 +45,30 @@ from signetum.git import GitError, GitInfrastructureError, git_output, repositor
 from signetum.lifecycle_validation import validate_workspace
 from signetum.manifest import RepositoryManifest, load_bindings, load_manifest
 from signetum.operation_cli import OperationParser, run_operation
+from signetum.operation_records import (
+    OperationIntent,
+    _member_at_source,
+    batch_sync_record,
+    commit_message,
+    commit_operation,
+    continuation_messages,
+    create_commit,
+    engine_accepts_message_file,
+    evidence_sha256,
+    freeze_message,
+    intent_from_document,
+    legacy_commit,
+    legacy_continuation_messages,
+    legacy_pending_trailers,
+    load_index,
+    merge_operation,
+    read_message_file,
+    read_message_files,
+    remember_continuation,
+    store_legacy_continuation,
+    write_message_copy,
+)
+from signetum.operation_records import complete_operation as _complete_operation
 from signetum.operations import (
     AdmissionError,
     InfrastructureError,
@@ -52,11 +82,10 @@ from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
 from signetum.publication_binding import require_publication_binding
 from signetum.repository_selection import select_repository
-from signetum.source_admission import require_source_admission
+from signetum.source_admission import require_source_admission, stable_patch_id
 from signetum.stacking import require_parent_admitted
 from signetum.synchronization import (
     member_contribution_paths,
-    prepare_merge,
     prepared_merge,
     preserves_merge_message,
 )
@@ -86,6 +115,7 @@ from signetum.workspace_operations import (
 from signetum.workspaces import (
     BatchAuthorization,
     WorkspaceError,
+    WorkspaceRecord,
     advance_batch_base,
     read_record,
 )
@@ -310,6 +340,23 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
         raise missing
 
 
+def _qualify_engine_source(batch: Path, source: str) -> None:
+    """Use member approval and ready evidence. This is not a second authority."""
+
+    workspace, record = _member_at_source(batch, source)
+    manifest = load_manifest(workspace / "signetum.toml")
+    # Ready evidence before qualification so a missing receipt writes no owner claim.
+    _admission_evidence(workspace, source, manifest)
+    qualify_member(workspace, manifest, record.base, source, operation="engine handoff")
+
+
+def _require_handoff_authorization(batch: Path, record: WorkspaceRecord, before: str) -> None:
+    try:
+        require_batch_implementation(batch, load_manifest(batch / "signetum.toml"), record, before)
+    except ChangeError as error:
+        raise AdmissionError(str(error), expected=error.expected) from error
+
+
 def _evidence_at(member: Path, base: str, commit: str, manifest: RepositoryManifest) -> str:
     declared_manifest = manifest
     resolved = select_repository(
@@ -350,28 +397,7 @@ def _evidence_at(member: Path, base: str, commit: str, manifest: RepositoryManif
 
 
 def _stable_patch_id(repository: Path, base: str, source: str) -> str:
-    git = _git_executable()
-    diff = subprocess.run(  # nosec B603
-        (git, "-C", str(repository), "diff", "--binary", f"{base}..{source}"),
-        check=False,
-        capture_output=True,
-    )
-    if diff.returncode != 0:
-        raise AdmissionError(diff.stderr.decode(errors="replace").strip() or "git diff failed")
-    identified = subprocess.run(  # nosec B603
-        (git, "patch-id", "--stable"),
-        input=diff.stdout,
-        check=False,
-        capture_output=True,
-    )
-    if identified.returncode != 0:
-        raise AdmissionError(
-            identified.stderr.decode(errors="replace").strip() or "stable patch-id failed"
-        )
-    output = identified.stdout.decode().split()
-    if not output:
-        raise AdmissionError("member has no stable patch identity")
-    return output[0]
+    return stable_patch_id(repository, base, source)
 
 
 def _proposal_paths(repository: Path) -> tuple[str, ...]:
@@ -387,20 +413,40 @@ def _proposal_paths(repository: Path) -> tuple[str, ...]:
 def _require_numbering_base(repository: Path, base: str | None, tip: str) -> None:
     if base is None:
         return
-    messages = _git(repository, "log", "--first-parent", "--format=%B%x00", f"{base}..{tip}")
-    numbering_bases = re.findall(r"^Signetum-Decision-Base:\s*(\S+)$", messages, re.MULTILINE)
-    if numbering_bases and set(numbering_bases) != {base}:
-        raise AdmissionError("decision numbering is bound to a different delivery base")
+    index = load_index(repository)
+    commits = _git(
+        repository, "log", "--first-parent", "--format=%H", f"{base}..{tip}"
+    ).splitlines()
+    for commit in commits:
+        document = index.for_commit(commit)
+        if document is not None and document.get("kind") == "decision-mapping":
+            if document.get("attested_base") != base:
+                raise AdmissionError("decision numbering is bound to a different delivery base")
+            continue
+        if not legacy_commit(repository, commit):
+            continue
+        numbering_bases = re.findall(
+            r"^Signetum-Decision-Base:\s*(\S+)$", commit_message(repository, commit), re.MULTILINE
+        )
+        if numbering_bases and set(numbering_bases) != {base}:
+            raise AdmissionError("decision numbering is bound to a different delivery base")
 
 
-def admit(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
+def admit(
+    batch: Path, members: tuple[Path, ...], *, messages: tuple[str, ...] | list[str]
+) -> dict[str, object]:
     """Admit named members into one batch, exclusively."""
 
+    frozen = tuple(freeze_message(message) for message in messages)
+    if len(frozen) != len(members):
+        raise AdmissionError("admission requires one message for each member")
     with _exclusive_batch(batch):
-        return _admit_held(batch, members)
+        return _admit_held(batch, members, frozen)
 
 
-def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
+def _admit_held(
+    batch: Path, members: tuple[Path, ...], messages: tuple[str, ...]
+) -> dict[str, object]:
     require_batch_engine(batch)
     _require_no_merge(batch)
     _require_clean(batch)
@@ -428,7 +474,9 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         )
         plans = delivered_plans(member, member_manifest, carried, member_tip)
         record = {"branch": member_branch, "original": member_tip, "worktree": str(member)}
-        if _is_ancestor(batch, member_tip, batch_tip):
+        if _is_ancestor(batch, member_tip, batch_tip) and not _pending_source(
+            batch, batch_branch, member_tip
+        ):
             unchanged.append(record)
             continue
         require_parent_admitted(
@@ -455,56 +503,35 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
         )
         ready_evidence = _admission_evidence(member, member_tip, member_manifest)
         patch_id = _stable_patch_id(member, batch_base, member_tip)
-        message = "\n".join(
-            (
-                f"Merge {member_branch} into integration batch",
-                "",
-                f"Signetum-Base: {batch_base}",
-                f"Signetum-Original: {member_tip}",
-                f"Signetum-Member: {member_branch}",
-                f"Signetum-Batch-Base: {batch_base}",
-                f"Signetum-Patch-ID: {patch_id}",
-                f"Signetum-Ready-Evidence: {ready_evidence}",
-                *(f"Signetum-Plan: {plan}" for plan in plans),
-            )
+        message = messages[position]
+        evidence_digest = evidence_sha256(batch, _receipt_root(member), ready_evidence)
+        intent = OperationIntent(
+            kind="admission",
+            branch=batch_branch,
+            before=batch_tip,
+            source=member_tip,
+            base=batch_base,
+            message=message,
+            attested_base=batch_base,
+            parents=(batch_tip, member_tip),
+            member=member_branch,
+            plans=tuple(plans),
+            ready_evidence=ready_evidence,
+            ready_evidence_sha256=evidence_digest,
+            patch_id=patch_id,
         )
-        prepare_merge(batch, member_tip, message)
-        git = _git_executable()
-        completed = subprocess.run(  # nosec B603
-            (
-                git,
-                "-C",
-                str(batch),
-                "merge",
-                "--no-ff",
-                member_tip,
-                "-m",
-                message,
-            ),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if completed.returncode != 0:
-            diagnostic = completed.stderr.strip() or completed.stdout.strip()
-            if _git(batch, "diff", "--name-only", "--diff-filter=U"):
-                pending = tuple(item.resolve() for item in members[position + 1 :])
-                record_pending_admissions(batch, batch_branch, pending)
-                remaining = (
-                    "; it then admits the pending members "
-                    + ", ".join(shlex.quote(str(item)) for item in pending)
-                    if pending
-                    else ""
-                )
-                raise MergeConflict(
-                    diagnostic or "batch has an open merge",
-                    expected=(
-                        f"resolve and stage paths, commit with git commit --no-edit, "
-                        f"then batch-continue --batch {batch}{remaining}"
-                    ),
-                )
-            raise OperationFailed(diagnostic or "batch merge failed")
-        admission_commit = _git(batch, "rev-parse", "HEAD")
+        recovery = _admission_recovery(batch, members[position + 1 :])
+        try:
+            outcome = merge_operation(batch, intent, recovery=recovery)
+        except MergeConflict:
+            remember_continuation(batch, intent, messages[position + 1 :])
+            pending = tuple(item.resolve() for item in members[position + 1 :])
+            record_pending_admissions(batch, batch_branch, pending)
+            raise
+        if outcome.status in {"contained", "completed"}:
+            unchanged.append(record)
+            continue
+        admission_commit = outcome.commit
         admitted.append(
             {
                 **record,
@@ -546,18 +573,65 @@ def _admit_held(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
     }
 
 
-def continue_batch(batch: Path) -> dict[str, object]:
+def _pending_source(repository: Path, branch: str, source: str) -> bool:
+    return any(
+        document.get("status") == "pending"
+        and document.get("branch") == branch
+        and document.get("source") == source
+        for document in load_index(repository).by_id.values()
+    )
+
+
+def _admission_recovery(batch: Path, pending: tuple[Path, ...]) -> str:
+    remaining = (
+        "; it then admits the pending members "
+        + ", ".join(shlex.quote(str(item)) for item in pending)
+        if pending
+        else ""
+    )
+    return (
+        "resolve and stage paths, commit the recorded message with git commit --no-edit, "
+        f"then batch-continue --batch {batch}{remaining}"
+    )
+
+
+def _pending_merge_record(batch: Path, before: str, source: str) -> dict[str, object] | None:
+    matches = [
+        document
+        for document in load_index(batch).by_id.values()
+        if document.get("status") == "pending"
+        and document.get("branch") == _branch(batch)
+        and document.get("before") == before
+        and document.get("source") == source
+    ]
+    if not matches:
+        return None
+    if len(matches) != 1:
+        raise AdmissionError("conflicting pending operations claim one merge")
+    return matches[0]
+
+
+def continue_batch(
+    batch: Path,
+    *,
+    message: str | None = None,
+    messages: tuple[str, ...] | list[str] = (),
+) -> dict[str, object]:
     """Complete one batch's pending merge, exclusively."""
 
+    frozen = freeze_message(message) if message is not None else None
+    supplied = tuple(freeze_message(item) for item in messages)
     with _exclusive_batch(batch):
-        return _continue_batch_held(batch)
+        return _continue_batch_held(batch, frozen, supplied)
 
 
-def _continue_batch_held(batch: Path) -> dict[str, object]:
+def _continue_batch_held(
+    batch: Path, message: str | None, messages: tuple[str, ...] = ()
+) -> dict[str, object]:
     require_batch_engine(batch)
     merge_head = repository_path(batch, "rev-parse", "--git-path", "MERGE_HEAD")
     if not merge_head.is_file():
-        return _continue_committed_batch_merge(batch)
+        return _continue_committed_batch_merge(batch, message, messages)
     unmerged = _git(batch, "diff", "--name-only", "--diff-filter=U")
     if unmerged:
         raise AdmissionError(
@@ -571,12 +645,33 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
     before = _git(batch, "rev-parse", "HEAD")
     staged_tree = _git(batch, "write-tree")
     other = _git(batch, "rev-parse", "MERGE_HEAD")
+    pending = _pending_merge_record(batch, before, other)
     against_first = set(_git(batch, "diff", "--name-only", before, staged_tree).splitlines())
     against_second = set(_git(batch, "diff", "--name-only", other, staged_tree).splitlines())
     repaired = tuple(sorted(against_first & against_second))
-    resolution = _git(
-        batch, "commit-tree", staged_tree, "-p", before, "-p", other, "-m", "batch resolution"
-    )
+    if pending is not None:
+        frozen = pending.get("message")
+        if not isinstance(frozen, str):
+            raise AdmissionError("pending operation message is invalid")
+        _require_modern_continuation(message, messages, frozen, pending)
+        resolution = create_commit(
+            batch,
+            tree=staged_tree,
+            parents=(before, other),
+            message=frozen,
+            identity=other,
+        )
+    else:
+        _require_legacy_continue_message(batch, before, other, message)
+        _store_legacy_member_messages(batch, before, other, messages)
+        merge_message = _snapshotted_merge_message(batch, before, other)
+        resolution = create_commit(
+            batch,
+            tree=staged_tree,
+            parents=(before, other),
+            message=merge_message,
+            identity=other,
+        )
     with _selection_checkout(batch, resolution, prepare=False) as selector:
         require_source_admission(
             selector, load_manifest(selector / "signetum.toml"), _recorded_base(batch), resolution
@@ -595,34 +690,161 @@ def _continue_batch_held(batch: Path) -> dict[str, object]:
         raise ValidationExecutionError("validation changed staged merge identity")
     if run_git(batch, "diff", "--quiet").returncode:
         raise ValidationExecutionError("validation changed merge working files")
-    git = _git_executable()
-    completed = subprocess.run(  # nosec B603
-        (git, "-C", str(batch), "commit", "--no-edit"),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode != 0:
-        raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
-    committed = _git(batch, "rev-parse", "HEAD")
+    if pending is not None:
+        _commit_frozen_message(batch, str(pending["message"]))
+        committed = _git(batch, "rev-parse", "HEAD")
+        _complete_operation(batch, intent_from_document(pending), committed)
+    else:
+        completed = subprocess.run(  # nosec B603
+            (_git_executable(), "-C", str(batch), "commit", "--no-edit"),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
+        committed = _git(batch, "rev-parse", "HEAD")
     return _finish_batch_merge(batch, committed, other, preparation, static, repaired)
 
 
-def _continue_committed_batch_merge(batch: Path) -> dict[str, object]:
-    """Continue only the exact prepared merge the operator committed with --no-edit."""
+def _require_modern_continuation(
+    message: str | None,
+    messages: tuple[str, ...],
+    frozen: str,
+    pending: Mapping[str, object],
+) -> None:
+    if message is not None and message != frozen:
+        raise AdmissionError(
+            "recorded operation conflicts with this request",
+            expected="retry the same operation and message, or leave the recorded proof",
+        )
+    supplied = ((message,) if message is not None else ()) + messages
+    if not supplied:
+        return
+    if supplied[0] != frozen:
+        raise AdmissionError(
+            "recorded operation conflicts with this request",
+            expected="retry the same operation and message, or leave the recorded proof",
+        )
+    stored = pending.get("continuation_messages")
+    if not stored:
+        stored_messages: tuple[str, ...] = ()
+    elif isinstance(stored, list) and all(isinstance(item, str) for item in stored):
+        stored_messages = tuple(item for item in stored if isinstance(item, str))
+    else:
+        raise AdmissionError("stored continuation messages are invalid")
+    if supplied[1:] and tuple(supplied[1:]) != stored_messages:
+        raise AdmissionError(
+            "recorded operation conflicts with this request",
+            expected="retry the same continuation messages",
+        )
+
+
+def _store_legacy_member_messages(
+    batch: Path, before: str, source: str, messages: tuple[str, ...]
+) -> None:
+    """Persist caller text for members the snapshotted admission still owes."""
+
+    owed = pending_admissions(batch, _branch(batch))
+    if not owed:
+        if messages:
+            raise AdmissionError("batch continuation has no remaining members")
+        return
+    if len(messages) != len(owed):
+        raise AdmissionError(
+            "batch continuation is missing frozen messages for the remaining members",
+            expected=(
+                f"retry batch-continue --batch {batch} with one --message-file "
+                "for each remaining member"
+            ),
+        )
+    store_legacy_continuation(batch, before, source, messages)
+
+
+def _snapshotted_merge_message(batch: Path, before: str, source: str) -> str:
+    """The legacy merge text already frozen in this worktree, not a generated subject."""
+
+    trailers = legacy_pending_trailers(batch, before, source) or prepared_merge(
+        batch, before, source
+    )
+    if trailers is None:
+        raise AdmissionError("batch has no recorded merge to continue")
+    path = repository_path(batch, "rev-parse", "--git-path", "MERGE_MSG")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise AdmissionError("merge message is unreadable") from error
+    frozen = freeze_message(text)
+    actual = tuple(
+        sorted(line for line in frozen.splitlines() if line.lower().startswith("signetum-"))
+    )
+    if actual != tuple(sorted(trailers)):
+        raise AdmissionError(
+            "merge message does not preserve the prepared Signetum trailers",
+            expected="commit with git commit --no-edit to preserve the prepared merge message",
+        )
+    return frozen
+
+
+def _commit_frozen_message(repository: Path, message: str) -> None:
+    path = write_message_copy(repository, message)
+    try:
+        completed = run_git(repository, "commit", "--cleanup=verbatim", "-F", str(path))
+    finally:
+        path.unlink(missing_ok=True)
+    if completed.returncode != 0:
+        raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
+
+
+def _require_legacy_continue_message(
+    batch: Path, before: str, source: str, message: str | None
+) -> None:
+    trailers = legacy_pending_trailers(batch, before, source) or prepared_merge(
+        batch, before, source
+    )
+    if trailers is None:
+        raise AdmissionError("batch has no recorded merge to continue")
+    if message is None:
+        return
+    actual = tuple(
+        sorted(line for line in message.splitlines() if line.lower().startswith("signetum-"))
+    )
+    if actual != tuple(sorted(trailers)):
+        raise AdmissionError(
+            "merge message does not preserve the prepared Signetum trailers",
+            expected="commit with git commit --no-edit to preserve the prepared merge message",
+        )
+
+
+def _continue_committed_batch_merge(
+    batch: Path, message: str | None, messages: tuple[str, ...] = ()
+) -> dict[str, object]:
+    """Continue a merge the operator already committed with the recorded message."""
     _require_clean(batch)
     committed = _git(batch, "rev-parse", "HEAD")
     parents = _git(batch, "show", "-s", "--format=%P", committed).split()
     if len(parents) != 2:
         raise AdmissionError("batch has no merge to continue")
     before, other = parents
-    prepared = prepared_merge(batch, before, other)
-    if (
-        prepared is None
-        or not preserves_merge_message(batch, committed, prepared)
-        or verified_batch_tip(batch, _branch(batch), _recorded_base(batch)) == committed
-    ):
+    if verified_batch_tip(batch, _branch(batch), _recorded_base(batch)) == committed:
         raise AdmissionError("batch has no recorded merge to continue")
+    pending = _pending_merge_record(batch, before, other)
+    if pending is not None:
+        frozen = pending.get("message")
+        if not isinstance(frozen, str):
+            raise AdmissionError("pending operation message is invalid")
+        _require_modern_continuation(message, messages, frozen, pending)
+        if commit_message(batch, committed) != frozen:
+            raise AdmissionError("batch has no recorded merge to continue")
+        _complete_operation(batch, intent_from_document(pending), committed)
+    else:
+        prepared = prepared_merge(batch, before, other) or legacy_pending_trailers(
+            batch, before, other
+        )
+        if prepared is None or not preserves_merge_message(batch, committed, prepared):
+            raise AdmissionError("batch has no recorded merge to continue")
+        _require_legacy_continue_message(batch, before, other, message)
+        _store_legacy_member_messages(batch, before, other, messages)
     against_first = set(_git(batch, "diff", "--name-only", before, committed).splitlines())
     against_second = set(_git(batch, "diff", "--name-only", other, committed).splitlines())
     preparation = worktree_prepare(batch)
@@ -651,14 +873,27 @@ def _finish_batch_merge(
     if batch_base is None:
         raise AdmissionError("continued admission has no approved batch base")
     record_verified_batch(batch, _branch(batch), committed)
-    body = _git(batch, "show", "-s", "--format=%B", committed)
-    if re.findall(r"^Signetum-Batch-Sync:\s*(\S+)$", body, re.MULTILINE) == [other]:
+    recorded = load_index(batch).for_commit(committed)
+    if recorded is not None and batch_sync_record(recorded) is not None:
         _advance_base(batch, batch_base, other, committed)
+    else:
+        body = commit_message(batch, committed)
+        if re.findall(r"^Signetum-Batch-Sync:\s*(\S+)$", body, re.MULTILINE) == [other]:
+            _advance_base(batch, batch_base, other, committed)
     resumed: dict[str, object] | None = None
     if pending := pending_admissions(batch, _branch(batch)):
-        # The admission this merge interrupted continues with the members after it.
+        stored = continuation_messages(batch, committed)
+        if stored is None:
+            parents = _git(batch, "show", "-s", "--format=%P", committed).split()
+            if len(parents) == 2:
+                stored = legacy_continuation_messages(batch, parents[0], parents[1])
+        if stored is None or len(stored) != len(pending):
+            raise AdmissionError(
+                "batch continuation is missing frozen messages for the remaining members",
+                expected=f"retry batch-continue --batch {batch} after the recorded admission",
+            )
         try:
-            resumed = _admit_held(batch, pending)
+            resumed = _admit_held(batch, pending, stored)
         except OperationError as error:
             raise type(error)(
                 f"batch-continue committed {committed}; admitting pending members stopped: {error}",
@@ -690,19 +925,20 @@ def _advance_base(batch: Path, previous: str, delivered: str, tip: str) -> None:
         raise AdmissionError(str(error)) from error
 
 
-def sync_batch(batch: Path, source: Path | None = None) -> dict[str, object]:
+def sync_batch(batch: Path, source: Path | None = None, *, message: str) -> dict[str, object]:
     """Merge the fresh delivery tip into one open batch, exclusively."""
 
+    frozen = freeze_message(message)
     if source is not None:
         raise AdmissionError(
             "a batch synchronizes only from the delivery branch",
             expected=f"run maintenance workspace-sync without --batch in {batch}",
         )
     with _exclusive_batch(batch):
-        return _sync_batch_held(batch)
+        return _sync_batch_held(batch, frozen)
 
 
-def _sync_batch_held(batch: Path) -> dict[str, object]:
+def _sync_batch_held(batch: Path, message: str) -> dict[str, object]:
     require_batch_engine(batch)
     _require_no_merge(batch)
     _require_clean(batch)
@@ -744,42 +980,44 @@ def _sync_batch_held(batch: Path) -> dict[str, object]:
             incoming_workspace=owning_workspace(batch, f"batch {branch}"),
             existing_workspace=owning_workspace(batch, f"{delivery_branch} at {delivered}"),
         )
-        message = "\n".join(
-            (
-                f"Merge {delivery_branch} into {branch}",
-                "",
-                f"Signetum-Batch-Sync: {delivered}",
-                f"Signetum-Batch-Base: {delivered}",
-                f"Signetum-Previous-Batch-Base: {base}",
-            )
+        intent = OperationIntent(
+            kind="batch-sync",
+            branch=branch,
+            before=tip,
+            source=delivered,
+            base=base,
+            message=message,
+            attested_base=delivered,
+            parents=(tip, delivered),
+            previous_base=base,
+            tree=(
+                _git(batch, "rev-parse", f"{tip}^{{tree}}")
+                if _is_ancestor(batch, delivered, tip)
+                else None
+            ),
         )
-        prepare_merge(batch, delivered, message)
-        if _is_ancestor(batch, delivered, tip):
-            # A member already synchronized this tip; record the base move as a merge.
-            merged = _git(
-                batch, "commit-tree", f"{tip}^{{tree}}", "-p", tip, "-p", delivered, "-m", message
-            )
-            command: tuple[str, ...] = ("merge", "--ff-only", merged)
-        else:
-            command = ("merge", "--no-ff", delivered, "-m", message)
-        completed = subprocess.run(  # nosec B603
-            (_git_executable(), "-C", str(batch), *command),
-            check=False,
-            capture_output=True,
-            text=True,
+        recovery = (
+            "resolve and stage paths, commit the recorded message with git commit --no-edit, "
+            f"then batch-continue --batch {batch}"
         )
-        if completed.returncode != 0:
-            diagnostic = completed.stderr.strip() or completed.stdout.strip()
-            if _git(batch, "diff", "--name-only", "--diff-filter=U"):
-                raise MergeConflict(
-                    diagnostic or "batch synchronization has an open merge",
-                    expected=(
-                        f"resolve and stage paths, commit with git commit --no-edit, "
-                        f"then batch-continue --batch {batch}"
-                    ),
+        if intent.tree is not None:
+            merged = commit_operation(batch, intent)
+            if _git(batch, "rev-parse", "HEAD") != merged:
+                completed = subprocess.run(  # nosec B603
+                    (_git_executable(), "-C", str(batch), "merge", "--ff-only", merged),
+                    check=False,
+                    capture_output=True,
+                    text=True,
                 )
-            raise OperationFailed(diagnostic or "batch synchronization merge failed")
+                if completed.returncode != 0:
+                    detail = completed.stderr.strip() or completed.stdout.strip()
+                    raise OperationFailed(detail or "batch synchronization merge failed")
+        else:
+            outcome = merge_operation(batch, intent, recovery=recovery)
+            merged = outcome.commit
         tip = _git(batch, "rev-parse", "HEAD")
+        if tip != merged:
+            raise AdmissionError("batch synchronization commit is not the branch tip")
         _advance_base(batch, base, delivered, tip)
     try:
         preparation = worktree_prepare(batch)
@@ -898,12 +1136,22 @@ def _run_batch_gate(
     return {**static, "admission_base": before}
 
 
-def _open_admission(batch: Path, members: tuple[Path, ...]) -> dict[str, object]:
+def _open_admission(
+    batch: Path, members: tuple[Path, ...], messages: tuple[str, ...]
+) -> dict[str, object]:
     """Enter the new batch's repository engine before initial admission."""
-    worktree_prepare(batch)
     engine = batch / "skills/signetum/scripts/engine"
     if not (engine / "signetum/lifecycle.py").is_file():
         raise AdmissionError("repository engine is absent from the batch")
+    if not engine_accepts_message_file(engine):
+        raise AdmissionError(
+            "batch engine cannot accept a message file",
+            expected=(
+                "run maintenance adopt-repository-engine --message-file <path> in the batch, "
+                "then retry batch-open"
+            ),
+        )
+    worktree_prepare(batch)
     program = (
         "import sys; sys.path.insert(0,sys.argv.pop(1)); "
         "from signetum.lifecycle import main; raise SystemExit(main())"
@@ -924,7 +1172,13 @@ def _open_admission(batch: Path, members: tuple[Path, ...]) -> dict[str, object]
     ]
     for member in members:
         command.extend(("--member", str(member)))
-    completed = wt.run_tool(batch, tuple(command), required=False, timeout_seconds=1800)
+    with tempfile.TemporaryDirectory(prefix="signetum-messages-") as directory:
+        message_dir = Path(directory)
+        for index, message in enumerate(messages):
+            path = message_dir / f"message-{index}.txt"
+            path.write_bytes(message.encode())
+            command.extend(("--message-file", str(path)))
+        completed = wt.run_tool(batch, tuple(command), required=False, timeout_seconds=1800)
     try:
         result = json.loads(completed.stdout.splitlines()[-1])
         if not isinstance(result, dict):
@@ -953,10 +1207,19 @@ def _open_admission(batch: Path, members: tuple[Path, ...]) -> dict[str, object]
 
 
 def batch_open(
-    repository: Path, members: tuple[Path, ...], name: str | None = None, *, actor: str, source: str
+    repository: Path,
+    members: tuple[Path, ...],
+    name: str | None = None,
+    *,
+    actor: str,
+    source: str,
+    messages: tuple[str, ...] | list[str],
 ) -> dict[str, object]:
+    frozen = tuple(freeze_message(message) for message in messages)
     if not members:
         raise AdmissionError("batch-open requires explicitly named members")
+    if len(frozen) != len(members):
+        raise AdmissionError("batch-open requires one message for each member")
     if not actor.strip() or not source.strip():
         raise AdmissionError("batch-open requires non-empty actor and source")
     engine = opening_engine(repository)
@@ -986,9 +1249,9 @@ def batch_open(
     batch = Path(str(opened["worktree"]))
     pin = read_record(_state_root(batch), branch).engine
     result = (
-        _open_admission(batch, members)
+        _open_admission(batch, members, frozen)
         if pin is not None and pin.source == "repository"
-        else admit(batch, members)
+        else admit(batch, members, messages=frozen)
     )
     return {
         **result,
@@ -1006,16 +1269,17 @@ def _require_worktree_directory(path: Path, role: str) -> None:
 
 
 def batch_deliver(
-    source: Path, target: Path, expected_base: str, expected_tip: str
+    source: Path, target: Path, expected_base: str, expected_tip: str, *, message: str
 ) -> dict[str, object]:
+    frozen = freeze_message(message)
     _require_worktree_directory(source, "source")
     _require_worktree_directory(target, "target")
     with _exclusive_batch(source):
-        return _deliver_held(source, target, expected_base, expected_tip)
+        return _deliver_held(source, target, expected_base, expected_tip, frozen)
 
 
 def _deliver_held(
-    source: Path, target: Path, expected_base: str, expected_tip: str
+    source: Path, target: Path, expected_base: str, expected_tip: str, message: str
 ) -> dict[str, object]:
     started = perf_counter()
     require_batch_engine(source)
@@ -1059,6 +1323,7 @@ def _deliver_held(
         git=_git,
         remote_tip=_remote_branch_tip,
         is_ancestor=_is_ancestor,
+        message=message,
     )
     return {
         "schema_version": 1,
@@ -1122,16 +1387,44 @@ def _parser() -> argparse.ArgumentParser:
     opening.add_argument("--actor", required=True, help="Owner who authorized this batch.")
     opening.add_argument("--source", required=True, help="Source of the owner authorization.")
     opening.add_argument("--member", type=Path, action="append", required=True)
+    opening.add_argument(
+        "--message-file",
+        type=Path,
+        action="append",
+        required=True,
+        help="Commit message file, one per --member, in the same order.",
+    )
     admission = commands.add_parser("batch-admit")
     admission.add_argument("--batch", type=Path, required=True)
     admission.add_argument("--member", type=Path, action="append", required=True)
+    admission.add_argument(
+        "--message-file",
+        type=Path,
+        action="append",
+        required=True,
+        help="Commit message file, one per --member, in the same order.",
+    )
     continuation = commands.add_parser("batch-continue")
     continuation.add_argument("--batch", type=Path, required=True)
+    continuation.add_argument(
+        "--message-file",
+        type=Path,
+        action="append",
+        help=(
+            "Message file. For a structured operation it must match the frozen merge message. "
+            "For a legacy admission, pass one file for each remaining member."
+        ),
+    )
     final = commands.add_parser("final")
     final.add_argument("--deliver", action="store_true", help="Publish after successful final.")
     final.add_argument("--target", type=Path, help="Existing delivery worktree directory.")
     final.add_argument("--actor", help="Owner who explicitly authorized delivery.")
     final.add_argument("--source", help="Source of the explicit delivery authorization.")
+    final.add_argument(
+        "--message-file",
+        type=Path,
+        help="Commit message file for the publication commit. Required with --deliver.",
+    )
     delivery = commands.add_parser(
         "batch-deliver",
         help="Publish a reviewed batch. Source and target are existing worktree directories.",
@@ -1148,6 +1441,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     delivery.add_argument("expected_base", help="Full commit of the expected batch base.")
     delivery.add_argument("expected_batch_tip", help="Full commit of the reviewed batch tip.")
+    delivery.add_argument(
+        "--message-file",
+        type=Path,
+        required=True,
+        help="Commit message file for the publication commit.",
+    )
     return parser
 
 
@@ -1160,24 +1459,41 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
         result = explain_ready(repository) if parsed.explain else validate(repository, "member")
     elif parsed.command == "batch-open":
         result = batch_open(
-            repository, tuple(parsed.member), parsed.name, actor=parsed.actor, source=parsed.source
+            repository,
+            tuple(parsed.member),
+            parsed.name,
+            actor=parsed.actor,
+            source=parsed.source,
+            messages=read_message_files(parsed.message_file),
         )
     elif parsed.command == "batch-admit":
-        result = admit(parsed.batch.resolve(), tuple(parsed.member))
+        result = admit(
+            parsed.batch.resolve(),
+            tuple(parsed.member),
+            messages=read_message_files(parsed.message_file),
+        )
     elif parsed.command == "batch-continue":
-        result = continue_batch(parsed.batch.resolve())
+        result = continue_batch(
+            parsed.batch.resolve(),
+            messages=read_message_files(parsed.message_file) if parsed.message_file else (),
+        )
     elif parsed.command == "final":
         if parsed.deliver and (
             parsed.target is None
+            or parsed.message_file is None
             or not parsed.actor
             or not parsed.actor.strip()
             or not parsed.source
             or not parsed.source.strip()
         ):
-            raise AdmissionError("final --deliver requires --target, --actor and --source")
-        if not parsed.deliver and any((parsed.target, parsed.actor, parsed.source)):
+            raise AdmissionError(
+                "final --deliver requires --target, --actor, --source and --message-file"
+            )
+        delivery_options = (parsed.target, parsed.actor, parsed.source, parsed.message_file)
+        if not parsed.deliver and any(delivery_options):
             raise AdmissionError("delivery options require final --deliver")
         if parsed.deliver:
+            publication_message = read_message_file(parsed.message_file)
             result = validate(
                 repository,
                 "final",
@@ -1186,7 +1502,9 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
             base, tip = result["base"], result["source"]
             if not isinstance(base, str) or not isinstance(tip, str):
                 raise AdmissionError("final did not produce exact publication identities")
-            result = batch_deliver(repository, parsed.target.resolve(), base, tip)
+            result = batch_deliver(
+                repository, parsed.target.resolve(), base, tip, message=publication_message
+            )
             result["delivery_authorization"] = {"actor": parsed.actor, "source": parsed.source}
         else:
             result = validate(repository, "final")
@@ -1196,6 +1514,7 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
             parsed.target.resolve(),
             parsed.expected_base,
             parsed.expected_batch_tip,
+            message=read_message_file(parsed.message_file),
         )
     return result
 

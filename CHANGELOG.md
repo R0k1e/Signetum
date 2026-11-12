@@ -3,6 +3,26 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.2
+
+- Automatic commits take a caller-supplied `--message-file`. The project's commit
+  convention remains authoritative. Where the project declares none, guidance
+  stays one lightweight Conventional Commit subject and does not assign a type
+  from the lifecycle stage.
+- Structured records bind synchronization, admission, publication, baselines and
+  decision mappings to the actual commit, parents and tree. That exact-object
+  evidence replaces generated Signetum trailers in new operation messages. A
+  copied message does not become proof.
+- Explicit `maintenance adopt-legacy` keeps retained old history readable on
+  this checkout, without rewriting it or granting those commits new provenance.
+  `operation-export` and `operation-import` transfer evidence that matches the
+  destination's Git objects and qualifications. An operation that was already
+  pending can still finish.
+- A repository-pinned batch whose engine rejects `--message-file` adopts the
+  qualified repository engine with `maintenance adopt-repository-engine` before
+  admission. The pin stays on that batch. Installed consumers, including an open
+  batch's installed engine and pin, stay as they are.
+
 ## 0.9.1
 
 - An invalid change record before the first valid approval stays a diagnostic

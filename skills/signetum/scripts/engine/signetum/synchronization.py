@@ -11,6 +11,18 @@ from functools import cache
 from pathlib import Path
 
 from signetum.git import git_output, repository_path
+from signetum.operation_records import (
+    SYNC_KINDS,
+    bind_commit_if_pending,
+    commit_message,
+    legacy_commit,
+    legacy_pending_commit,
+    legacy_proof_message,
+    load_index,
+    require_bound_commit,
+    snapshotted_sync_record,
+)
+from signetum.operations import AdmissionError
 from signetum.workspaces import state_root
 
 
@@ -44,12 +56,35 @@ def _write(destination: Path, record: Mapping[str, object]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-SYNC_KINDS = ("delivery", "batch", "parent")
+def _modern_sync(
+    index_documents: dict[str, dict[str, object]], merge: str
+) -> tuple[str, str] | None:
+    document = index_documents.get(merge)
+    if document is None or document.get("kind") != "member-sync":
+        return None
+    source = document.get("source")
+    kind = document.get("sync_kind")
+    if not isinstance(source, str) or kind not in SYNC_KINDS:
+        raise AdmissionError("synchronization record does not name its source")
+    return source, str(kind)
+
+
+def _legacy_sync_visible(repository: Path, merge: str, record: Path) -> bool:
+    """Old proof applies only to exact horizon text or a snapshotted pending merge."""
+
+    if not record.is_file():
+        return False
+    if legacy_pending_commit(repository, merge) and snapshotted_sync_record(repository, record):
+        return True
+    return legacy_commit(repository, merge) and legacy_proof_message(
+        commit_message(repository, merge)
+    )
 
 
 def _verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, str, str], ...]:
     """Recorded workspace-sync merges, newest first, with the kind of source each merged."""
 
+    index = load_index(repository)
     sources: list[tuple[str, str, str]] = []
     for merge in git_output(
         repository, "rev-list", "--first-parent", "--merges", f"{base}..{tip}"
@@ -58,6 +93,22 @@ def _verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, s
         if len(parents) != 2:
             continue
         before, source = parents
+        modern = _modern_sync(index.by_commit, merge)
+        if modern is None:
+            bound = bind_commit_if_pending(repository, merge)
+            if bound is not None:
+                modern = _modern_sync({merge: bound}, merge)
+                index.by_commit[merge] = bound
+        if modern is not None:
+            require_bound_commit(repository, index.by_commit[merge])
+            bound, kind = modern
+            if bound != source:
+                raise AdmissionError("synchronization record does not match the merge parent")
+            sources.append((merge, source, kind))
+            continue
+        record = _path(repository, base, before, source)
+        if not _legacy_sync_visible(repository, merge, record):
+            continue
         if not _trailer(repository, merge, source) and not _recognized(
             repository, merge, base, source
         ):
@@ -95,10 +146,11 @@ def _recognized(repository: Path, merge: str, base: str, source: str) -> bool:
 
 
 def recognize_sync(repository: Path, base: str, source: str) -> str | None:
-    """Bind the recorded sync merge of ``source`` whose trailer was lost.
+    """Bind an old sync merge of ``source`` whose trailer was lost.
 
-    Only a first-parent merge of exactly ``source`` with the sync record
-    workspace-sync wrote is recognized; a manual merge stays unverified.
+    Only a legacy first-parent merge with the sync record workspace-sync wrote
+    is recognized. A manual merge, or a new operation with a different message,
+    stays unverified.
     """
 
     for merge in git_output(
@@ -107,12 +159,15 @@ def recognize_sync(repository: Path, base: str, source: str) -> str | None:
         parents = git_output(repository, "show", "-s", "--format=%P", merge).split()
         if len(parents) != 2 or parents[1] != source:
             continue
+        record = _path(repository, base, parents[0], source)
+        if not _legacy_sync_visible(repository, merge, record):
+            continue
         if _trailer(repository, merge, source) or _recognized(repository, merge, base, source):
             return None
         if _sync_kind(repository, base, parents[0], source) is None:
             return None
-        record = {"schema_version": 1, "merge": merge, "base": base, "source": source}
-        _write(_recognition_path(repository, merge), record)
+        recognized = {"schema_version": 1, "merge": merge, "base": base, "source": source}
+        _write(_recognition_path(repository, merge), recognized)
         return merge
     return None
 

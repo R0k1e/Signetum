@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from change_fixtures import commit_approval
+from operation_messages import operation_message, operation_messages, write_operation_message
 from signetum import lifecycle, maintenance
 from signetum import workspace_operations as ops
 from signetum.development_store import snapshot
@@ -53,7 +54,8 @@ def contribution(receipt):
 def sync_parent(member, monkeypatch, capsys):
     monkeypatch.chdir(member)
     capsys.readouterr()
-    code = maintenance.main(["workspace-sync"])
+    message = write_operation_message()
+    code = maintenance.main(["workspace-sync", "--message-file", str(message)])
     return code, json.loads(capsys.readouterr().out)
 
 
@@ -120,11 +122,12 @@ def test_admission_requires_the_parent_first_at_the_held_tip(repository):
             name="chain",
             actor="Owner",
             source="Owner authorized the fixture batch",
+            messages=operation_messages(2),
         )
     assert tip(batch) == base
     assert refusal.value.expected.index(str(parent)) < refusal.value.expected.index(str(child))
 
-    result: Any = lifecycle.admit(batch, (parent, child))
+    result: Any = lifecycle.admit(batch, (parent, child), messages=operation_messages(2))
 
     assert [item["branch"] for item in result["admitted"]] == [PARENT, CHILD]
     assert result["admission_base"] == base
@@ -143,6 +146,7 @@ def test_final_review_names_the_chain_and_delivery_removes_it(repository):
                 name="chain",
                 actor="Owner",
                 source="Owner authorized the fixture batch",
+                messages=operation_messages(2),
             )["worktree"]
         )
     )
@@ -156,7 +160,11 @@ def test_final_review_names_the_chain_and_delivery_removes_it(repository):
     ]
     assert review[1]["parent_tip"] == parent_tip
     delivered: Any = lifecycle.batch_deliver(
-        batch, root, lifecycle._recorded_base(batch), str(final["source"])
+        batch,
+        root,
+        lifecycle._recorded_base(batch),
+        str(final["source"]),
+        message=operation_message(),
     )
     assert delivered["cleanup"]["status"] == "pending"
     cleaned = ops.cleanup(root, all_delivered=True)

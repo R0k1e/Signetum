@@ -11,6 +11,7 @@ from signetum.development_store import review_inputs as source_review_inputs
 from signetum.deviations import ReviewSnapshot, review_snapshot
 from signetum.git import git_output, run_git
 from signetum.manifest import RepositoryManifest
+from signetum.operation_records import load_index
 from signetum.operations import AdmissionError
 from signetum.provenance import members_and_plans
 from signetum.workspaces import WorkspaceError, branch_name, read_record, state_root
@@ -39,11 +40,17 @@ def execution_review_inputs(
         if not name or Path(name).name != name:
             raise AdmissionError("admitted member evidence has an invalid receipt path")
         try:
-            fingerprints[name] = hashlib.sha256((receipt_root / name).read_bytes()).hexdigest()
+            fingerprint = hashlib.sha256((receipt_root / name).read_bytes()).hexdigest()
         except OSError as error:
             raise AdmissionError(
                 f"admitted member evidence is unavailable: {name}: {error}"
             ) from error
+        recorded = load_index(repository).for_commit(member["admission_commit"])
+        if recorded is not None:
+            digest = recorded.get("ready_evidence_sha256")
+            if isinstance(digest, str) and digest and digest != fingerprint:
+                raise AdmissionError("ready evidence bytes do not match the admission record")
+        fingerprints[name] = fingerprint
     tips = {
         member["branch"]: [
             item["original"] for item in members if item["branch"] == member["branch"]

@@ -8,6 +8,7 @@ from shutil import which
 
 import pytest
 from change_fixtures import consolidated_approval
+from operation_messages import operation_messages
 from signetum import lifecycle
 from signetum.adoption import AdoptionRequest, apply, plan_digest, preview
 from signetum.git import git_output
@@ -208,7 +209,11 @@ def test_native_existing_runner_failure_fresh_success_admission_and_final(
     assert isinstance(evidence, dict)
     assert set(evidence["identity"]["profiles"]) == {"shared-core@1", binding.identity}
     admitted = runtime.batch_open(
-        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+        root,
+        (member,),
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+        messages=operation_messages(1),
     )
     batch = Path(str(admitted["batch"]))
     final = runtime.validate(batch, "final")

@@ -7,12 +7,12 @@ a member holds is that base or the source of its latest parent synchronization.
 
 from __future__ import annotations
 
-import re
 import shlex
 from pathlib import Path
 
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError
+from signetum.provenance import latest_admission_original
 from signetum.synchronization import incorporated_parent_tip
 from signetum.workspaces import (
     WorkspaceError,
@@ -92,15 +92,7 @@ def require_current_parent(
 def _latest_admission(batch: Path, base: str, tip: str, member: str) -> str | None:
     """A member's latest admitted original in the batch's own history."""
 
-    latest = None
-    for merge in git_output(
-        batch, "rev-list", "--reverse", "--first-parent", "--merges", f"{base}..{tip}"
-    ).splitlines():
-        body = git_output(batch, "show", "-s", "--format=%B", merge)
-        if re.findall(r"^Signetum-Member:\s*(\S+)$", body, re.MULTILINE) == [member]:
-            original = re.findall(r"^Signetum-Original:\s*(\S+)$", body, re.MULTILINE)
-            latest = original[0] if len(original) == 1 else None
-    return latest
+    return latest_admission_original(batch, base, tip, member)
 
 
 def require_parent_admitted(batch: Path, member: Path, record: WorkspaceRecord, tip: str) -> None:

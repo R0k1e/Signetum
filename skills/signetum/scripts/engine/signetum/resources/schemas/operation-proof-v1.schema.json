@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://signetum.dev/schemas/operation-proof-v1.schema.json",
+  "title": "Signetum operation proof",
+  "description": "Portable completed operation proof for another checkout of the same Git objects.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "operations", "qualifications"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "operations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/operation"}
+    },
+    "qualifications": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/qualification"}
+    },
+    "legacy_horizon": {"$ref": "#/$defs/horizon"}
+  },
+  "$defs": {
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "id",
+        "kind",
+        "message",
+        "branch",
+        "before",
+        "source",
+        "base",
+        "attested_base",
+        "parents",
+        "plans",
+        "mappings",
+        "proof"
+      ],
+      "properties": {
+        "schema_version": {"const": 1},
+        "id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "kind": {
+          "enum": [
+            "member-sync",
+            "batch-sync",
+            "admission",
+            "publication",
+            "decision-mapping",
+            "engine-handoff"
+          ]
+        },
+        "message": {"type": "string", "minLength": 1},
+        "branch": {"type": "string", "minLength": 1},
+        "before": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1},
+        "base": {"type": "string", "minLength": 1},
+        "attested_base": {"type": "string", "minLength": 1},
+        "parents": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "sync_kind": {"enum": ["delivery", "batch", "parent", null]},
+        "previous_base": {"type": ["string", "null"]},
+        "member": {"type": ["string", "null"]},
+        "plans": {"type": "array", "items": {"type": "string"}},
+        "ready_evidence": {"type": "string"},
+        "ready_evidence_sha256": {"type": "string"},
+        "patch_id": {"type": "string"},
+        "tree": {"type": ["string", "null"]},
+        "mappings": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [{"type": "string"}, {"type": "string"}],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "proof": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["commit", "parents", "tree"],
+          "properties": {
+            "commit": {"type": "string", "minLength": 1},
+            "parents": {"type": "array", "items": {"type": "string"}},
+            "tree": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "content"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "content": {"type": "string"}
+      }
+    },
+    "horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "adopted", "tips", "pending_merges", "sync_record_sha256"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "adopted": {"type": "boolean"},
+        "tips": {"type": "object", "additionalProperties": {"type": "string"}},
+        "pending_merges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["before", "source", "trailers"],
+            "properties": {
+              "before": {"type": "string"},
+              "source": {"type": "string"},
+              "trailers": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+              "continuation_messages": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "sync_record_sha256": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

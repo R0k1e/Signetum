@@ -8,12 +8,14 @@ from typing import Any
 
 import pytest
 from change_fixtures import commit_approval
+from operation_messages import operation_message, operation_messages, write_operation_message
 from signetum import change_cli, lifecycle, maintenance
 from signetum import manifest as manifest_format
 from signetum import workspace_operations as ops
 from signetum.change_record import contract_digest, parse_change_record
 from signetum.commit_check import install_commit_check
 from signetum.git import git_output, run_git
+from signetum.operation_records import commit_message, load_index
 from signetum.operations import AdmissionError, MergeConflict
 from signetum.provenance import members_and_plans
 
@@ -128,7 +130,11 @@ def open_batch(root, member):
     return Path(
         str(
             lifecycle.batch_open(
-                root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+                root,
+                (member,),
+                actor="Owner",
+                source="Owner authorized the fixture batch",
+                messages=operation_messages(1),
             )["worktree"]
         )
     )
@@ -138,13 +144,14 @@ def deliver(root, batch):
     base = lifecycle._recorded_base(batch)
     tip = lifecycle.validate(batch, "final")["source"]
     assert isinstance(tip, str)
-    return lifecycle.batch_deliver(batch, root, base, tip)
+    return lifecycle.batch_deliver(batch, root, base, tip, message=operation_message())
 
 
 def synchronize(batch, monkeypatch, capsys, *arguments):
     monkeypatch.chdir(batch)
     capsys.readouterr()
-    code = maintenance.main(["workspace-sync", *arguments])
+    message = write_operation_message()
+    code = maintenance.main(["workspace-sync", "--message-file", str(message), *arguments])
     result = json.loads(capsys.readouterr().out)
     return code, result
 
@@ -165,7 +172,7 @@ def test_open_batch_takes_a_sibling_delivery_and_delivers(repository, monkeypatc
     stale = lifecycle.validate(batch_b, "final")["source"]
     assert isinstance(stale, str)
     with pytest.raises(AdmissionError, match="remote delivery branch differs") as refusal:
-        lifecycle.batch_deliver(batch_b, root, original, stale)
+        lifecycle.batch_deliver(batch_b, root, original, stale, message=operation_message())
     assert "workspace-sync" in refusal.value.expected
 
     code, result = synchronize(batch_b, monkeypatch, capsys)
@@ -186,8 +193,8 @@ def test_open_batch_takes_a_sibling_delivery_and_delivers(repository, monkeypatc
     final = lifecycle.validate(batch_b, "final")
     assert final["base"] == delivered
     with pytest.raises(AdmissionError, match="recorded batch base differs"):
-        lifecycle.batch_deliver(batch_b, root, original, tip)
-    result = lifecycle.batch_deliver(batch_b, root, delivered, tip)
+        lifecycle.batch_deliver(batch_b, root, original, tip, message=operation_message())
+    result = lifecycle.batch_deliver(batch_b, root, delivered, tip, message=operation_message())
     assert result["members"] == admitted
     assert git_output(root, "show", "-s", "--format=%P", "HEAD").split() == [delivered, tip]
     assert {(root / "first.txt").read_text(), (root / "second.txt").read_text()} == {
@@ -231,9 +238,13 @@ def test_conflicting_sibling_delivery_completes_through_batch_continue(
     continued = lifecycle.continue_batch(batch_b)
     tip = git_output(batch_b, "rev-parse", "HEAD")
     assert continued["batch_commit"] == tip
+    assert commit_message(batch_b, tip) == operation_message()
+    assert "Signetum-" not in commit_message(batch_b, tip)
+    recorded = load_index(batch_b).for_commit(tip)
+    assert recorded is not None and recorded["kind"] == "batch-sync"
     assert lifecycle._recorded_base(batch_b) == delivered
     assert lifecycle.validate(batch_b, "final")["source"] == tip
-    lifecycle.batch_deliver(batch_b, root, delivered, tip)
+    lifecycle.batch_deliver(batch_b, root, delivered, tip, message=operation_message())
     assert (root / "shared.txt").read_text() == "first and second"
 
 
@@ -264,7 +275,7 @@ def test_admission_refuses_a_clause_identity_another_change_claims(repository):
     batch = open_batch(root, first)
     before = git_output(batch, "rev-parse", "HEAD")
     with pytest.raises(AdmissionError) as refusal:
-        lifecycle.admit(batch, (second,))
+        lifecycle.admit(batch, (second,), messages=operation_messages(1))
     message = str(refusal.value)
     assert "TOOL-OBJECT-005" in message
     assert "workspace change/first" in message and "workspace change/second" in message
@@ -272,7 +283,7 @@ def test_admission_refuses_a_clause_identity_another_change_claims(repository):
     assert run_git(batch, "rev-parse", "--verify", "MERGE_HEAD").returncode != 0
     commit_file(first, "more.txt")
     lifecycle.validate(first, "member")
-    assert lifecycle.admit(batch, (first,))["admitted"]
+    assert lifecycle.admit(batch, (first,), messages=operation_messages(1))["admitted"]
 
 
 def test_sync_refuses_a_clause_identity_the_delivered_sibling_claims(
@@ -300,9 +311,9 @@ def test_batch_records_a_delivery_tip_a_member_already_merged(repository, monkey
     batch_b = open_batch(root, second)
     deliver(root, batch_a)
     delivered = git_output(root, "rev-parse", "HEAD")
-    ops.workspace_sync(second)
+    ops.workspace_sync(second, message=operation_message())
     lifecycle.validate(second, "member")
-    lifecycle.admit(batch_b, (second,))
+    lifecycle.admit(batch_b, (second,), messages=operation_messages(1))
     before = git_output(batch_b, "rev-parse", "HEAD")
 
     code, result = synchronize(batch_b, monkeypatch, capsys)
@@ -314,7 +325,7 @@ def test_batch_records_a_delivery_tip_a_member_already_merged(repository, monkey
         batch_b, "rev-parse", f"{before}^{{tree}}"
     )
     assert lifecycle.validate(batch_b, "final")["base"] == delivered
-    lifecycle.batch_deliver(batch_b, root, delivered, tip)
+    lifecycle.batch_deliver(batch_b, root, delivered, tip, message=operation_message())
 
 
 def older_engine(directory):
@@ -366,7 +377,7 @@ def test_sibling_ready_under_an_older_engine_is_admitted_after_an_engine_change(
     batch = open_batch(root, engine_changing_member(root))
     receipts = ready_receipts(sibling)
 
-    result: Any = lifecycle.admit(batch, (sibling,))
+    result: Any = lifecycle.admit(batch, (sibling,), messages=operation_messages(1))
 
     [admitted] = result["admitted"]
     assert admitted["ready_evidence"] in receipts
@@ -397,7 +408,7 @@ def test_carried_evidence_is_refused_when_the_siblings_own_inputs_changed(
     tool.write_text("v2")
 
     with pytest.raises(AdmissionError, match="no evidence"):
-        lifecycle.admit(batch, (sibling,))
+        lifecycle.admit(batch, (sibling,), messages=operation_messages(1))
     assert git_output(batch, "rev-parse", "HEAD") == before
 
 
@@ -415,7 +426,18 @@ def test_operations_name_the_supported_path_for_a_newer_batch_manifest(
     monkeypatch.chdir(sibling)
     capsys.readouterr()
 
-    code = lifecycle.main(["batch-admit", "--batch", str(batch), "--member", str(sibling)])
+    message = write_operation_message()
+    code = lifecycle.main(
+        [
+            "batch-admit",
+            "--batch",
+            str(batch),
+            "--member",
+            str(sibling),
+            "--message-file",
+            str(message),
+        ]
+    )
 
     result = json.loads(capsys.readouterr().out)
     assert code == 2, result
@@ -432,12 +454,12 @@ def test_a_member_that_synchronized_a_delivered_record_is_admitted_beside_its_am
     deliver(root, batch_a)
     commit_approval(synchronized, "synchronized")
     commit_file(synchronized, "synchronized.txt")
-    ops.workspace_sync(synchronized)
+    ops.workspace_sync(synchronized, message=operation_message())
     lifecycle.validate(synchronized, "member")
     amending = ready_member(root, "amending", "amending.txt", clause="RULE-001", amends="first")
     batch = open_batch(root, amending)
 
-    result: Any = lifecycle.admit(batch, (synchronized,))
+    result: Any = lifecycle.admit(batch, (synchronized,), messages=operation_messages(1))
 
     assert [item["branch"] for item in result["admitted"]] == ["change/synchronized"]
     assert (batch / "synchronized.txt").exists()
@@ -488,7 +510,12 @@ def test_a_member_migrating_an_older_delivered_manifest_is_admitted(
 
     with pytest.raises(manifest_format.UnsupportedManifestError, match="legacy"):
         lifecycle.batch_open(
-            root, (stale,), name="wave", actor="Owner", source="Owner authorized the fixture batch"
+            root,
+            (stale,),
+            name="wave",
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+            messages=operation_messages(1),
         )
     batch = ops.workspace_destination(root, "batch/wave")
     opened_tip = git_output(batch, "rev-parse", "HEAD")
@@ -499,12 +526,12 @@ def test_a_member_migrating_an_older_delivered_manifest_is_admitted(
     assert "legacy" in status["manifest"]["cause"]
     assert "migrates" in status["next"]
 
-    result: Any = lifecycle.admit(batch, (migrating,))
+    result: Any = lifecycle.admit(batch, (migrating,), messages=operation_messages(1))
 
     assert [item["branch"] for item in result["admitted"]] == ["change/migrating"]
     assert result["static"]["executed"] == ["test:migrated"]
     with pytest.raises(manifest_format.UnsupportedManifestError, match="legacy"):
-        lifecycle.admit(batch, (stale,))
+        lifecycle.admit(batch, (stale,), messages=operation_messages(1))
     assert git_output(batch, "rev-parse", "HEAD^1") == opened_tip
     assert not (batch / "stale.txt").exists()
     capsys.readouterr()
@@ -517,14 +544,14 @@ def test_a_member_synchronized_from_its_batch_keeps_its_own_change(repository):
     member = ready_member(root, "owned", "owned.txt")
     other = ready_member(root, "other", "other.txt")
     batch = open_batch(root, member)
-    lifecycle.admit(batch, (other,))
-    ops.workspace_sync(member, batch)
+    lifecycle.admit(batch, (other,), messages=operation_messages(1))
+    ops.workspace_sync(member, batch, message=operation_message())
     commit_file(member, "owned-more.txt")
 
     ready: Any = lifecycle.validate(member, "member")
 
     assert [item["change_id"] for item in ready["approvals"]] == ["owned"]
-    result: Any = lifecycle.admit(batch, (member,))
+    result: Any = lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert [item["branch"] for item in result["admitted"]] == ["change/owned"]
     assert (batch / "owned-more.txt").exists()
 
@@ -542,6 +569,7 @@ def test_members_after_a_conflict_are_admitted_by_batch_continue(repository, cap
             name="wave",
             actor="Owner",
             source="Owner authorized the fixture batch",
+            messages=operation_messages(3),
         )
     assert "batch-continue" in conflict.value.expected
     assert str(third) in conflict.value.expected
@@ -571,6 +599,42 @@ def test_members_after_a_conflict_are_admitted_by_batch_continue(repository, cap
     capsys.readouterr()
     assert change_cli.main(["status", "--repository", str(batch)]) == 0
     assert "pending_admissions" not in json.loads(capsys.readouterr().out)
+
+
+def test_interrupted_admission_retries_before_the_resolution_commit(repository, monkeypatch):
+    root, _ = repository
+    first = ready_member(root, "first-crash", "shared.txt", "first")
+    second = ready_member(root, "second-crash", "shared.txt", "second")
+    third = ready_member(root, "third-crash", "third.txt")
+    with pytest.raises(MergeConflict):
+        lifecycle.batch_open(
+            root,
+            (first, second, third),
+            name="crash",
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+            messages=operation_messages(3),
+        )
+    batch = ops.workspace_destination(root, "batch/crash")
+    (batch / "shared.txt").write_text("both")
+    git_output(batch, "add", "shared.txt")
+    before = git_output(batch, "rev-parse", "HEAD")
+    original = lifecycle.create_commit
+
+    def explode(*_args, **_kwargs):
+        raise AdmissionError("simulated crash before the resolution commit")
+
+    monkeypatch.setattr(lifecycle, "create_commit", explode)
+    with pytest.raises(AdmissionError, match="simulated crash before the resolution commit"):
+        lifecycle.continue_batch(batch)
+    assert git_output(batch, "rev-parse", "HEAD") == before
+    assert run_git(batch, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
+    monkeypatch.setattr(lifecycle, "create_commit", original)
+    result: Any = lifecycle.continue_batch(batch)
+    resumed = result["resumed_admission"]
+    assert [item["branch"] for item in resumed["admitted"]] == ["change/third-crash"]
+    assert (batch / "third.txt").is_file()
+    assert git_output(batch, "rev-parse", "HEAD") != before
 
 
 def test_why_gathers_one_clause_with_its_approval_and_commits(repository, capsys):
