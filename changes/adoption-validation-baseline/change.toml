@@ -1,0 +1,45 @@
+[change]
+schema_version = 2
+id = "adoption-validation-baseline"
+
+[change.source]
+kind = "human_direction"
+summary = "A downstream consumer adopted with one catch-all impact rule, no inheritable test shard and a single-process pytest shard, so documentation-only commits reran the full eight-minute suite. The installed Skill never taught path-partitioned impact rules, shard inheritance or worker budgets during adoption and told agents to keep them out of adoption; the linked binding contract omitted them and still named manifest schema 5."
+
+[change.contract]
+version = 1
+approved_base = "75ed8fd577c6d5422b295de9b6358e12e5ca5d4c" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "REQ-001"
+outcome = "Adoption guidance makes the validation baseline part of every reviewed signetum.toml: impact rules partitioned by affected paths, including a documentation rule naming only cheap checks; inherit = true on expensive tree test shards; declared worker budgets passed to the runner; and the consequences of unexplained paths, requires prerequisites and the first ready of a workspace."
+acceptance = ["The Skill adoption procedure and the repository binding contract both state the baseline and include one minimal example.", "The example parses under manifest schema 6 and its documentation-only path leaves the inheritable test shard unaffected under the engine's impact resolution.", "No new engine behavior, test or permanent report is introduced."]
+
+[[change.contract.requirements]]
+id = "REQ-002"
+outcome = "Only project selection providers, weighted scheduling and CI partitions remain opt-in; Skill instructions no longer exclude baseline impact rules, inheritance or worker budgets from adoption, consistent with FLOW-OPTIONAL-001 and INHERIT-SHARD-001."
+acceptance = ["SKILL.md, worktree validation and validation optimization references agree on that boundary.", "Final complete validation and existing decision clauses are unchanged."]
+
+[[change.contract.requirements]]
+id = "REQ-003"
+outcome = "Workflow guidance tells agents to land every non-record deliverable before final, keep acceptance conclusions in the change journal, settle dependency and lockfile updates once, and treats a non-record commit after final as requiring a new ready and final."
+acceptance = ["Work and validation guidance states these ordering rules without adding a new lifecycle operation or report."]
+
+[[change.contract.requirements]]
+id = "REQ-004"
+outcome = "The repository binding contract names the current manifest schema version."
+acceptance = ["docs/guides/existing-runners.md no longer names schema 5 as current."]
+
+[change.contract.autonomy]
+allowed = ["Edit the installed Skill entry and references and the repository binding guide.", "Validate the example against the engine in scratch space and qualify the member with ready."]
+requires_confirmation = ["Changing engine behavior, decision clauses, integration or delivery."]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["REQ-001", "REQ-002", "REQ-003", "REQ-004"]
+action = "Update adoption, work and validation, validation optimization and SKILL.md guidance plus the binding guide; check the example with the engine's manifest loader and impact resolution; reconcile affected current pages and run ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-15
+statement = "The owner authorized repairing Skill guidance so adopters configure path-partitioned impact rules, test inheritance and worker budgets, plus pre-final ordering guidance; integration and delivery are not authorized."
