@@ -27,8 +27,8 @@ acceptance = ["Work and validation guidance states these ordering rules without 
 
 [[change.contract.requirements]]
 id = "REQ-004"
-outcome = "The repository binding contract names the current manifest schema version."
-acceptance = ["docs/guides/existing-runners.md no longer names schema 5 as current."]
+outcome = "The repository binding and customization guides name the current manifest schema version."
+acceptance = ["docs/guides/existing-runners.md and docs/guides/repository-bindings.md no longer name schema 5 as current."]
 
 [change.contract.autonomy]
 allowed = ["Edit the installed Skill entry and references and the repository binding guide.", "Validate the example against the engine in scratch space and qualify the member with ready."]

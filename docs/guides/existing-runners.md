@@ -12,7 +12,7 @@ accepts:
 - `manifest`: complete reviewed `signetum.toml` text.
 - `retirements`: optional exact `{path, digest}` entries for known managed files.
 
-Use manifest schema 5 and supported protocol 2. Declare `[delivery] branch`,
+Use manifest schema 6 and supported protocol 2. Declare `[delivery] branch`,
 record roots, actual preparation/member/batch/final commands, tool identities,
 locks and additional validation inputs. No engine implementation hash belongs
 in a project binding.
@@ -20,6 +20,15 @@ Architecture is optional. Outside-world checks remain final-only. The normal
 payload is only `signetum.toml`; application metadata, Agent entry files, Justfile
 and environments remain untouched. Explicit retirement refuses drift or unknown
 files. It offers no old execution fallback.
+
+The manifest also carries the validation baseline: `[[impact.rules]]`
+partitioned by the paths that affect each check, with documentation naming only
+cheap checks; `inherit = true` on slow tree test shards; and `workers` with
+`worker_memory_mb` on parallel-capable test shards whose runner receives
+`{signetum.validation_workers}`. A path no rule matches reruns every shard, and
+batch gates and final never inherit. The installed Skill's adoption reference
+holds the example; [repository customization](repository-bindings.md) gives the
+full shard and placeholder contract.
 
 Preview records the exact base, before/after bytes and runtime identity.
 `signetum adopt apply --repository . --plan <plan.json> --expected-plan <digest>`
