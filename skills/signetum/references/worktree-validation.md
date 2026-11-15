@@ -171,11 +171,11 @@ ready evidence. Any later commit outside change records needs a new ready and fi
 Preserve unrelated files and processes. Stop at a clean ready unless integration
 or delivery is authorized. Validation never appends its own success to source.
 
-Impact rules, `inherit = true` and worker budgets are the adoption
-[validation baseline](adoption.md#validation-baseline). When a ready reruns a
-slow shard after an unrelated change, check them with `ready --explain`. For
-explicitly requested project selection, weighted pytest scheduling or CI splitting,
-read [optional validation optimization](validation-optimization.md). Keep those
+When a ready reruns a slow shard after an unrelated change, `ready --explain`
+shows why; the optional [validation speed](adoption.md#validation-speed) settings
+describe impact rules, `inherit = true` and worker budgets. For explicitly
+requested project selection, weighted pytest scheduling or CI splitting, read
+[optional validation optimization](validation-optimization.md). Keep these
 opt-in; do not expand every repository adoption to include them.
 
 ## Coordinating parallel members

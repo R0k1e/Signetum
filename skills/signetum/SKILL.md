@@ -100,8 +100,8 @@ a member and admit its new ready tip; never amend a commit bound by a journal.
 Ready reuses passing evidence of each `inherit = true` shard that the impact
 rules show no follow-up path affects, with or without a provider; a path no rule
 explains reruns them all. Admission and current static or world checks remain required.
-Adoption declares these path-partitioned rules, inheritable slow test shards and
-worker budgets as its [validation baseline](references/adoption.md#validation-baseline).
+Path-partitioned rules, inheritable slow test shards and worker budgets are
+optional [validation speed](references/adoption.md#validation-speed) settings.
 Commit non-record deliverables before final; a later non-record commit needs a
 new ready and final.
 A commit that changes only change records keeps the earlier ready evidence: ready
@@ -118,7 +118,7 @@ current architecture and instructions in the same change. History preserves the
 reason; it does not replace current instructions. Historical approvals stay intact.
 For concurrent/background/lazy paths read [stability](references/stability.md).
 Read [optional validation optimization](references/validation-optimization.md)
-only for requested selection provider, weighted scheduling or CI partition work.
+only for requested selection, scheduling or CI partition work.
 
 Report the furthest evidenced state: ready, integrated or delivered. Final performs
 complete semantic review and emits a versioned publication binding. Delivery only

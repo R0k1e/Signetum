@@ -1,8 +1,8 @@
 # Optional validation optimization
 
-Use only when requested or justified by a measured bottleneck. Path-partitioned
-impact rules, `inherit = true` and worker budgets are not optional; they are the
-adoption [validation baseline](adoption.md#validation-baseline). Keep the existing
+Use only when requested or justified by a measured bottleneck. Simpler
+path-partitioned impact rules, `inherit = true` and worker budgets are described
+under [validation speed](adoption.md#validation-speed). Keep the existing
 runner, allocator, retry and receipt owners. Preparing the environment/build is
 an explicit outer step. No option enables delivery or replaces full final checks.
 

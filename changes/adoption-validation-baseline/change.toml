@@ -12,13 +12,13 @@ approved_base = "75ed8fd577c6d5422b295de9b6358e12e5ca5d4c" # pragma: allowlist s
 
 [[change.contract.requirements]]
 id = "REQ-001"
-outcome = "Adoption guidance makes the validation baseline part of every reviewed signetum.toml: impact rules partitioned by affected paths, including a documentation rule naming only cheap checks; inherit = true on expensive tree test shards; declared worker budgets passed to the runner; and the consequences of unexplained paths, requires prerequisites and the first ready of a workspace."
+outcome = "Adoption guidance informs agents of the optional validation speed settings: impact rules partitioned by affected paths, including a documentation rule naming only the checks that read it; inherit = true on expensive tree test shards; declared worker budgets passed to the runner; and the consequences of unexplained paths, requires prerequisites and the first ready of a workspace."
 acceptance = ["The Skill adoption procedure and the repository binding contract both state the baseline and include one minimal example.", "The example parses under manifest schema 6 and its documentation-only path leaves the inheritable test shard unaffected under the engine's impact resolution.", "No new engine behavior, test or permanent report is introduced."]
 
 [[change.contract.requirements]]
 id = "REQ-002"
-outcome = "Only project selection providers, weighted scheduling and CI partitions remain opt-in; Skill instructions no longer exclude baseline impact rules, inheritance or worker budgets from adoption, consistent with FLOW-OPTIONAL-001 and INHERIT-SHARD-001."
-acceptance = ["SKILL.md, worktree validation and validation optimization references agree on that boundary.", "Final complete validation and existing decision clauses are unchanged."]
+outcome = "Impact rules, inheritance and worker budgets remain optional; the Skill entry, work and validation and validation optimization references point agents to the validation speed settings while selection providers, weighted scheduling and CI partitions stay opt-in, consistent with FLOW-OPTIONAL-001 and INHERIT-SHARD-001."
+acceptance = ["SKILL.md, worktree validation and validation optimization references agree that these settings are optional and link to them.", "Final complete validation and existing decision clauses are unchanged."]
 
 [[change.contract.requirements]]
 id = "REQ-003"

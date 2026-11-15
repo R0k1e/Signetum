@@ -21,9 +21,9 @@ payload is only `signetum.toml`; application metadata, Agent entry files, Justfi
 and environments remain untouched. Explicit retirement refuses drift or unknown
 files. It offers no old execution fallback.
 
-The manifest also carries the validation baseline: `[[impact.rules]]`
+The manifest may optionally speed up validation with `[[impact.rules]]`
 partitioned by the paths that affect each check, with documentation naming only
-cheap checks; `inherit = true` on slow tree test shards; and `workers` with
+the checks that read it; `inherit = true` on slow tree test shards; and `workers` with
 `worker_memory_mb` on parallel-capable test shards whose runner receives
 `{signetum.validation_workers}`. A path no rule matches reruns every shard, and
 batch gates and final never inherit. The installed Skill's adoption reference
