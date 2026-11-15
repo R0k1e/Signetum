@@ -162,11 +162,20 @@ completion without failure or unreached nodes. The compatibility
 configuration and the operating model own scheduling, preparation, concurrency
 and test selection; these are not protocol invariants.
 
+Order work so each check runs once. Settle dependency and lockfile updates
+once, since they change validation inputs and rerun every shard. Commit every
+non-record deliverable, including acceptance documentation, before final; keep
+acceptance conclusions in the change journal, where records-only commits keep
+ready evidence. Any later commit outside change records needs a new ready and final.
+
 Preserve unrelated files and processes. Stop at a clean ready unless integration
 or delivery is authorized. Validation never appends its own success to source.
 
-For explicitly requested project selection, weighted pytest scheduling or CI splitting,
-read [optional validation optimization](validation-optimization.md). Keep these
+When a ready reruns a slow shard after an unrelated change, `ready --explain`
+shows why; the optional [validation speed](adoption.md#validation-speed) settings
+describe impact rules, `inherit = true` and worker budgets. For explicitly
+requested project selection, weighted pytest scheduling or CI splitting, read
+[optional validation optimization](validation-optimization.md). Keep these
 opt-in; do not expand every repository adoption to include them.
 
 ## Coordinating parallel members
