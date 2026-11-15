@@ -99,7 +99,9 @@ Both use the same adoption flow:
    The delivery branch is the one branch `batch-deliver` advances. Workspace and
    batch operations read it from `[delivery] branch`, and `ready` and `final`
    check against the bases taken from it, so every operation agrees on one base.
-   Changing it is one edit to that binding.
+   Changing it is one edit to that binding. The optional
+   [validation speed](#validation-speed) settings below belong in the same request
+   when the project uses them.
 3. `adopt preview --repository . --request <request.json> --output <plan.json>`
    captures the source and exact before/after bytes. Show the user that preview.
 4. Apply the approved plan with `adopt apply --repository . --plan <plan.json>
@@ -113,6 +115,58 @@ Both use the same adoption flow:
    with tracked source unchanged, and a failure names the shard, its command and
    the adapter's `expected` from its last JSON output line. An environment failure
    is not permission to weaken application checks.
+
+### Validation speed
+
+These settings are optional; the engine is correct without them. Know they
+exist and offer them where the project's checks are slow. A single rule matching
+every path, or a slow test shard without `inherit = true`, makes a documentation
+fix rerun the whole suite.
+
+- Partition `[[impact.rules]]` by the paths that affect each check. Give
+  documentation and other prose a rule naming only cheap checks. Every path no
+  rule matches reruns every shard; a path inside the change directory affects none.
+  Map a path to every check that reads it: if tests read documentation, the
+  documentation rule names those tests too.
+- Declare `inherit = true` on each slow tree test shard. Ready then reuses its
+  passing evidence from the previous ready in the same workspace when no path
+  changed since affects it. A shard is affected when a matching rule names it
+  or a gate containing it, or when an affected shard `requires` it; `after`
+  only orders. The first ready of a workspace, and any change to
+  `signetum.toml`, lockfiles or tool identities, runs it fresh. Batch gates
+  and final never inherit.
+- Declare `workers` and `worker_memory_mb` on a parallel-capable test shard and
+  pass `{signetum.validation_workers}` as a whole argument to its runner, such as
+  pytest-xdist's `-n`; the value can be 0. Confirm the tests share no mutable
+  state first. On a shared machine the operator sets
+  `SIGNETUM_VALIDATION_WORKER_LIMIT` rather than lowering the declaration.
+
+```toml
+[[impact.rules]]
+name = "app.source"
+paths = ["src/**", "tests/**", "pyproject.toml", "uv.lock"]
+shards = ["app:lint", "app:tests"]
+
+[[impact.rules]]
+name = "app.docs"
+paths = ["docs/**", "*.md"]
+shards = ["app:lint"]
+
+[[validation.shards]]
+name = "app:tests"
+inherit = true
+workers = 32
+worker_memory_mb = 2048
+command = ["uv", "run", "--no-sync", "pytest", "-n", "{signetum.validation_workers}"]
+requires = ["app:sync"]
+after = ["app:lint"]
+```
+
+Here a commit changing only `docs/` reruns `app:lint` and its `app:sync`
+prerequisite and reuses `app:tests`. When used, show the rules in the preview so
+the user can see which paths skip which checks. `ready --explain` shows the
+selection for the current tip. Selection providers, weighted scheduling and CI
+partitions are described in [validation optimization](validation-optimization.md).
 
 Normal adoption writes only `signetum.toml`; it changes no host settings. No required AGENTS/CLAUDE pointer,
 architecture scaffolding, wrapper or copied engine is added. Legacy generated
