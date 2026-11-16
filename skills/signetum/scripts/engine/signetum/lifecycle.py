@@ -454,10 +454,13 @@ def _admit_held(
     record = read_record(_state_root(batch), batch_branch)
     if record.kind != "batch":
         raise AdmissionError(f"refusing batch admission outside a batch workspace: {batch_branch}")
-    attested = _attested_base(batch, _git(batch, "rev-parse", "HEAD"))
-    if attested is not None and attested != record.base:
+    head = _git(batch, "rev-parse", "HEAD")
+    synchronized = load_index(batch).for_commit(head)
+    merged = batch_sync_record(synchronized) if synchronized is not None else None
+    if merged is not None and merged[1] != record.base:
         raise AdmissionError(
-            f"batch history attests base {attested}, not the recorded base {record.base}",
+            f"batch synchronization {head} merged {merged[1]}, "
+            f"but the recorded base is still {record.base}",
             expected=f"batch-continue --batch {batch}",
         )
     admitted: list[dict[str, object]] = []

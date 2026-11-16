@@ -17,7 +17,7 @@ from signetum.commit_check import install_commit_check
 from signetum.git import git_output, run_git
 from signetum.operation_records import commit_message, load_index
 from signetum.operations import AdmissionError, MergeConflict
-from signetum.provenance import members_and_plans
+from signetum.provenance import attested_base, members_and_plans
 
 
 def opened(repository, branch):
@@ -248,7 +248,10 @@ def test_conflicting_sibling_delivery_completes_through_batch_continue(
     assert (root / "shared.txt").read_text() == "first and second"
 
 
-def test_a_failed_gate_after_a_committed_sync_conflict_is_retried(repository, monkeypatch, capsys):
+@pytest.mark.parametrize("bound", [False, True])
+def test_a_failed_gate_after_a_committed_sync_conflict_is_retried(
+    repository, monkeypatch, capsys, bound
+):
     root, _ = repository
     original = git_output(root, "rev-parse", "HEAD")
     batch_a, batch_b = parallel_batches(
@@ -274,9 +277,18 @@ def test_a_failed_gate_after_a_committed_sync_conflict_is_retried(repository, mo
     monkeypatch.setattr(lifecycle, "_run_batch_gate", gate)
 
     assert lifecycle._recorded_base(batch_b) == original
-    with pytest.raises(AdmissionError, match=f"attests base {delivered}") as refusal:
+    if bound:
+        # Any history reader binds the committed synchronization as completed.
+        assert attested_base(batch_b, tip) == delivered
+    refused = (
+        f"merged {delivered}, but the recorded base is still {original}"
+        if bound
+        else "already pending"
+    )
+    with pytest.raises(AdmissionError, match=refused) as refusal:
         lifecycle.admit(batch_b, (late,), messages=operation_messages(1))
-    assert "batch-continue" in refusal.value.expected
+    if bound:
+        assert "batch-continue" in refusal.value.expected
     continued = lifecycle.continue_batch(batch_b)
     assert continued["batch_commit"] == tip
     assert lifecycle._recorded_base(batch_b) == delivered
