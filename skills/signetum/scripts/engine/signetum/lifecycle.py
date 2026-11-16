@@ -767,7 +767,9 @@ def _store_legacy_member_messages(
                 "for each remaining member"
             ),
         )
-    store_legacy_continuation(batch, before, source, messages)
+    store_legacy_continuation(
+        batch, before, source, messages, prepared_merge(batch, before, source)
+    )
 
 
 def _snapshotted_merge_message(batch: Path, before: str, source: str) -> str:
