@@ -8,6 +8,7 @@ from typing import Literal
 
 from signetum.execution_review import ExecutionReviewInputs
 from signetum.git import git_output, run_git
+from signetum.operation_records import operation_input_names
 from signetum.operations import AdmissionError
 from signetum.policy import delivery_policy
 from signetum.serialization import dataclass_from_mapping
@@ -43,7 +44,12 @@ def _remote_digest(repository: Path) -> str:
 
 
 def review_local_inputs(
-    repository: Path, inputs: ExecutionReviewInputs, receipt_root: Path
+    repository: Path,
+    inputs: ExecutionReviewInputs,
+    receipt_root: Path,
+    *,
+    base: str | None = None,
+    tip: str | None = None,
 ) -> dict[str, str]:
     """Bind admitted evidence and workspace authority without reading source history."""
     root = state_root(repository)
@@ -54,8 +60,12 @@ def review_local_inputs(
             raise AdmissionError("review member identity is invalid")
         paths.append(record_path(root, branch))
     paths.extend(receipt_root / name for name in inputs["member_evidence"])
+    named = {path.relative_to(root).as_posix(): _file_digest(path) for path in paths}
+    if base is not None and tip is not None:
+        for name in operation_input_names(repository, base, tip):
+            named[name] = _file_digest(root / name)
     return {
-        **{path.relative_to(root).as_posix(): _file_digest(path) for path in paths},
+        **named,
         "legacy-discoveries": _legacy_digest(root, inputs["members"], inputs["changes"]),
         "publication-remote": _remote_digest(repository),
     }
@@ -157,7 +167,7 @@ def require_publication_binding(
             relative.is_absolute()
             or ".." in relative.parts
             or not relative.parts
-            or relative.parts[0] not in {"validation", "workspaces"}
+            or relative.parts[0] not in {"validation", "workspaces", "operations"}
         ):
             raise AdmissionError("invalid publication input path; rerun final")
         if _file_digest(root / name) != expected:

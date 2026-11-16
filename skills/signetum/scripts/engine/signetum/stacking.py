@@ -8,12 +8,12 @@ and the parent's latest admission in each batch synchronization source.
 
 from __future__ import annotations
 
-import re
 import shlex
 from pathlib import Path
 
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError
+from signetum.provenance import attested_base, latest_admission_original
 from signetum.synchronization import incorporated_syncs
 from signetum.workspaces import (
     WorkspaceError,
@@ -77,7 +77,12 @@ def held_parent_tip(repository: Path, record: WorkspaceRecord, tip: str) -> str:
         if kind == "parent":
             candidate: str | None = source
         elif kind == "batch" and record.parent is not None:
-            candidate = _latest_admission(repository, record.base, source, record.parent)
+            batch_base = attested_base(repository, source)
+            candidate = (
+                None
+                if batch_base is None
+                else _latest_admission(repository, batch_base, source, record.parent)
+            )
         else:
             candidate = None
         if candidate is not None and candidate != held and is_ancestor(repository, held, candidate):
@@ -113,15 +118,7 @@ def require_current_parent(
 def _latest_admission(batch: Path, base: str, tip: str, member: str) -> str | None:
     """A member's latest admitted original in the batch's own history."""
 
-    latest = None
-    for merge in git_output(
-        batch, "rev-list", "--reverse", "--first-parent", "--merges", f"{base}..{tip}"
-    ).splitlines():
-        body = git_output(batch, "show", "-s", "--format=%B", merge)
-        if re.findall(r"^Signetum-Member:\s*(\S+)$", body, re.MULTILINE) == [member]:
-            original = re.findall(r"^Signetum-Original:\s*(\S+)$", body, re.MULTILINE)
-            latest = original[0] if len(original) == 1 else None
-    return latest
+    return latest_admission_original(batch, base, tip, member)
 
 
 def require_parent_admitted(batch: Path, member: Path, record: WorkspaceRecord, tip: str) -> None:

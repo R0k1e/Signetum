@@ -16,7 +16,7 @@ Updates are explicit; no second Skill copy exists in the repository.
 | `commands`, `cli`, `change_cli`, `operation_cli`, `workflow_status` | Dispatch, structured results and derived views. |
 | `change_record`, `development_log`, `development_store`, `decision_clauses`, `decision_history` | Approved outcomes, significant atomic journal mutations and the derived decision set. |
 | `change/*`, `traceability/*`, `source_authority`, `execution_review` | Scope, immutable source proofs, accounting and review qualification. |
-| `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `delivery`, `synchronization`, `gate_records` | Isolated work, named integration, machine-local gate diagnostics and exact remote-first delivery. |
+| `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `operation_records`, `delivery`, `synchronization`, `gate_records` | Isolated work, named integration, structured operation proof, machine-local gate diagnostics and exact remote-first delivery. |
 | `validation/*`, `preparation`, `worktrunk`, `git` | One supervised execution/verdict owner, preparation, tool identities and Git effects. |
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
 | `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
@@ -44,6 +44,11 @@ project declares (`mise.<env>.toml` and Mise's other environment file forms)
 provides it, the engine sets that `MISE_ENV`, and otherwise its refusal names
 the tool and the declared environments. Batch operations use the engine recorded at batch-open. Self-hosting pins the
 batch worktree location; installed Skills pin version and implementation.
+A repository-pinned batch whose checked-out engine rejects a message file copies
+the engine and the declared preparation inputs that engine needs from an approved
+Ready commit. The same operation continues an already completed engine-only
+handoff when a new Ready source supplies the matching root manifest and lock.
+The pin stays repository. Installed Skills and batches that pinned them stay unchanged.
 Foreign checkout engines cannot open consumer batches. Normal commands verify
 the installed environment and supported project contracts; they never install or
 repair tooling. The application environment is not the engine environment. The launcher forwards arguments unchanged; `commands` owns the sole public
@@ -79,7 +84,9 @@ guard only refuses early; receipts and `batch-deliver` as the only operation
 that advances the delivery branch carry the guarantees, with or without it.
 
 
-Root `uv.lock` pins maintainer tools and an editable engine dependency. Internal
+Root `uv.lock` pins maintainer tools and an editable engine dependency. A
+repository engine handoff carries that root manifest and lock when the source
+declares the lock as binding the engine. Internal
 wheel/sdist builds verify the install boundary; the standard Skill folder is the
 user distribution unit. It contains source and the runtime lock, never caches,
 virtual environments, generated evidence or another bundled Skill copy. Pure

@@ -1,0 +1,43 @@
+[change]
+schema_version = 2
+id = "commit-check-worktree-engine"
+
+[change.source]
+kind = "human_direction"
+summary = "While Signetum develops itself, each worktree runs its own repository engine, and the shared commit-check shim names the absolute interpreter of whichever worktree prepared last. After cleanup or abandonment removed that worktree, every branch reference update in the repository failed with a missing interpreter, including the branch deletion of the same cleanup, until maintenance worktree-prepare ran in the delivery checkout. The maintainer release guide carried that workaround. Skill engines are unaffected because their shim calls the installed launcher. The owner asked for the fix to ship with the 0.9.2 release."
+
+[change.contract]
+version = 1
+approved_base = "9ccd5d9d006f2483a9aa0556dccd436da25be7ec" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "SHIM-ENGINE-001"
+outcome = "When the installing engine lives inside a worktree, the commit-check shim runs the engine at the same relative path in the worktree that updates the reference, falls back to the installing interpreter, and refuses with a message naming maintenance worktree-prepare when neither exists. Skill launcher shims are unchanged."
+acceptance = [
+    "After the worktree whose engine installed the shim loses its environment, creating and deleting a branch from another prepared worktree succeeds and runs that worktree's engine.",
+    "With no engine in either place, the reference update is refused and names maintenance worktree-prepare.",
+    "Existing commit-check installation, chaining and approval enforcement scenarios keep passing.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-002"
+outcome = "The validation and delivery architecture describes the worktree-relative repository engine, and the maintainer release guide no longer prescribes the manual shim refresh."
+acceptance = ["Current instructions agree with the shim behavior; historical authorities remain unchanged."]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the commit-check owner and its real-Git workspace operation tests.",
+    "Reconcile the architecture and maintainer release guide.",
+    "Run ready and admit this member after its parent into the release batch for 0.9.2.",
+]
+requires_confirmation = ["Changing Skill launcher shims, the hook chaining contract or consumer repositories."]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["SHIM-ENGINE-001", "DOC-002"]
+action = "Resolve the repository engine per worktree in the shim with the installing interpreter as fallback, add the removed-owner scenario, reconcile documentation and run ready."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-16
+statement = "The owner authorized fixing the commit-check shim so a removed worktree interpreter no longer blocks branch updates, and including it in the 0.9.2 release."

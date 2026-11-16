@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from change_fixtures import consolidated_approval
 from jsonschema import Draft202012Validator
+from operation_messages import operation_messages
 from signetum.git import git_output
 from signetum.resources import schemas
 from signetum.validation import process_observation
@@ -255,7 +256,11 @@ def test_a_batch_gate_that_skips_selected_tests_admits_without_running_them(
     assert runtime.validate(member, "member")["status"] == "ready"
     capfd.readouterr()
     assert runtime.batch_open(
-        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+        root,
+        (member,),
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+        messages=operation_messages(1),
     )["admitted"]
     assert _shard_runs(capfd.readouterr().err, "test:check") == 0
     assert git_output(root, "rev-parse", "main") == base
@@ -271,7 +276,11 @@ def test_a_documentation_only_admission_passes_a_static_batch_gate(repository, s
     )
     assert runtime.validate(member, "member")["status"] == "ready"
     opened = runtime.batch_open(
-        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+        root,
+        (member,),
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+        messages=operation_messages(1),
     )
     assert opened["status"] == "opened"
     assert opened["static"]["executed"] == []
@@ -289,7 +298,11 @@ def test_real_member_diagnostics_ready_admission_and_full_final_share_selection(
     assert ready["evidence"]["selection"] == changed["selection"]
     batch = Path(
         runtime.batch_open(
-            root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+            root,
+            (member,),
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+            messages=operation_messages(1),
         )["batch"]
     )
     final = runtime.validate(batch, "final")
@@ -306,7 +319,11 @@ def test_final_cannot_inherit_a_members_narrow_target_list(repository, selection
     assert runtime.validate(member, "member")["status"] == "ready"
     batch = Path(
         runtime.batch_open(
-            root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+            root,
+            (member,),
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+            messages=operation_messages(1),
         )["batch"]
     )
     with pytest.raises(runtime.ValidationExecutionError):
@@ -442,7 +459,11 @@ def test_admission_recomputes_selection_proof_even_when_the_commands_are_unchang
     assert not git_output(member, "status", "--porcelain")
     with pytest.raises(runtime.AdmissionError, match="no evidence"):
         runtime.batch_open(
-            root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+            root,
+            (member,),
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+            messages=operation_messages(1),
         )
     assert git_output(root, "rev-parse", "main") == base
 
@@ -468,11 +489,15 @@ def test_open_merge_runs_its_selected_batch_checks_and_final_retains_complete_ch
     second = _conflicting_second_member(runtime, root, base)
     batch = Path(
         runtime.batch_open(
-            root, (first,), actor="Owner", source="Owner authorized the fixture batch"
+            root,
+            (first,),
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+            messages=operation_messages(1),
         )["batch"]
     )
     with pytest.raises(runtime.MergeConflict):
-        runtime.admit(batch, (second,))
+        runtime.admit(batch, (second,), messages=operation_messages(1))
     (batch / "source.py").write_text("def doubled(value): return sum((value, value))\n")
     git_output(batch, "add", "source.py")
     continued = runtime.continue_batch(batch)
@@ -492,10 +517,16 @@ def test_conflict_continuation_with_a_light_batch_gate_defers_selected_tests_to_
     runtime, root, first, base = _selected_member(repository, selection_runtime, batch_tests=False)
     assert runtime.validate(first, "member")["status"] == "ready"
     second = _conflicting_second_member(runtime, root, base)
-    runtime.batch_open(root, (first,), actor="Owner", source="Owner authorized the fixture batch")
+    runtime.batch_open(
+        root,
+        (first,),
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+        messages=operation_messages(1),
+    )
     batch = _batch_worktree(root)
     with pytest.raises(runtime.MergeConflict):
-        runtime.admit(batch, (second,))
+        runtime.admit(batch, (second,), messages=operation_messages(1))
     (batch / "source.py").write_text("def doubled(value): return sum((value, value))\n")
     git_output(batch, "add", "source.py")
     before = git_output(batch, "rev-parse", "HEAD")
@@ -525,7 +556,11 @@ def test_whole_shard_provider_needs_no_file_refinement_binding_for_changed_tests
     full = (sys.executable, "-m", "unittest", "discover", "-s", "tests")
     assert ready["evidence"]["execution"]["shards"][0]["command_digest"] == command_digest(full)
     assert runtime.batch_open(
-        root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+        root,
+        (member,),
+        actor="Owner",
+        source="Owner authorized the fixture batch",
+        messages=operation_messages(1),
     )["admitted"]
     assert git_output(root, "rev-parse", "main") == base
 
@@ -555,7 +590,11 @@ def test_without_provider_executes_full_member_checks_despite_no_check_impact_ru
     assert "inherited_test_evidence_from" not in second["evidence"]["extensions"]
     batch = Path(
         runtime.batch_open(
-            root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+            root,
+            (member,),
+            actor="Owner",
+            source="Owner authorized the fixture batch",
+            messages=operation_messages(1),
         )["batch"]
     )
     assert runtime.validate(batch, "final")["status"] == "final"

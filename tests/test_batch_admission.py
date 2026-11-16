@@ -15,6 +15,7 @@ import pytest
 import signetum.lifecycle as lifecycle
 from change_fixtures import approve_change as _approve_change
 from change_fixtures import approved_record_source, commit_approval, consolidated_approval
+from operation_messages import operation_message, operation_messages
 from pydantic import JsonValue
 from signetum.commit_check import install_commit_check
 from signetum.development_store import snapshot as development_snapshot
@@ -233,7 +234,7 @@ def test_delivery_provenance_uses_actual_package_plans_and_named_member(tmp_path
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement\n\nDelivers: invented/plan.md")
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     members, plans = lifecycle._delivery_provenance(batch, base, _git(batch, "rev-parse", "HEAD"))
     assert plans == ["changes/example/change.toml"]
     assert members[0]["branch"] == "impl/member"
@@ -291,7 +292,7 @@ def test_admission_and_final_preserve_accepted_decision_identities(
         commands=(MEMBER_COMMAND,),
     )
 
-    result = lifecycle.admit(batch, (member,))
+    result = lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
     assert result["status"] == "admitted"
     assert (batch / "docs/decisions/ADP-zebra.md").is_file()
@@ -322,7 +323,7 @@ def test_admission_and_final_preserve_accepted_decision_identities(
     repeated_final = lifecycle.validate(batch, "final")
     assert repeated_final["source"] == final["source"]
 
-    repeated = lifecycle.admit(batch, (member,))
+    repeated = lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert repeated["admitted"] == []
     unchanged_members = repeated["unchanged"]
     assert isinstance(unchanged_members, list)
@@ -339,7 +340,7 @@ def test_admission_and_final_preserve_accepted_decision_identities(
         tree=_git(member, "rev-parse", "HEAD^{tree}"),
         commands=(MEMBER_COMMAND,),
     )
-    incremental = lifecycle.admit(batch, (member,))
+    incremental = lifecycle.admit(batch, (member,), messages=operation_messages(1))
     incremental_members = incremental["admitted"]
     assert isinstance(incremental_members, list)
     assert incremental_members[0]["original"] == advanced_tip
@@ -354,7 +355,7 @@ def test_delivery_refuses_numbering_bound_to_another_base(tmp_path: Path) -> Non
     _record(batch, "batch/test", base, "batch")
 
     with pytest.raises(lifecycle.AdmissionError, match="recorded batch base differs"):
-        lifecycle.batch_deliver(batch, repository, "b" * 40, base)
+        lifecycle.batch_deliver(batch, repository, "b" * 40, base, message=operation_message())
 
 
 @pytest.mark.parametrize("modified", [False, True])
@@ -419,7 +420,7 @@ def test_a_completed_final_gate_satisfies_member_admission(tmp_path: Path) -> No
         commands=(MEMBER_COMMAND, ("extra",)),
     )
 
-    result = lifecycle.admit(batch, (member,))
+    result = lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
     admitted = result["admitted"]
     assert isinstance(admitted, list)
@@ -443,7 +444,7 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
         lifecycle.validate(member, "member")
     monkeypatch.setattr(adapter, "run_shard", original)
     assert lifecycle.validate(member, "member")["status"] == "ready"
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     monkeypatch.setattr(adapter, "run_shard", retried)
     with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
         lifecycle.validate(batch, "final")
@@ -453,7 +454,7 @@ def test_retried_failures_cannot_publish_member_or_final_success(tmp_path, monke
 def test_final_refuses_invalid_provenance_named_member_evidence(tmp_path, damage):
     member, batch, _ = _member_and_batch(tmp_path, approved=True)
     ready = lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     receipt = ready["receipt"]
     assert isinstance(receipt, str)
     path = Path(receipt)
@@ -490,7 +491,7 @@ def test_final_evidence_cannot_bypass_original_failure_policy(tmp_path: Path) ->
         path.with_name(f"member-prior-{index}.json").write_text(json.dumps(prior))
     before = _git(batch, "rev-parse", "HEAD")
     with pytest.raises(lifecycle.ValidationExecutionError, match="cannot be cleared by retry"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert _git(batch, "rev-parse", "HEAD") == before
 
 
@@ -512,7 +513,7 @@ def test_reworded_member_requires_fresh_exact_tip_evidence(tmp_path: Path) -> No
     assert _git(member, "rev-parse", "HEAD^{tree}") == tree
 
     with pytest.raises(lifecycle.AdmissionError, match="no evidence proving its selected"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
 
 def test_evidence_proving_the_wrong_commands_is_not_admission(tmp_path: Path) -> None:
@@ -526,13 +527,13 @@ def test_evidence_proving_the_wrong_commands_is_not_admission(tmp_path: Path) ->
     )
 
     with pytest.raises(lifecycle.AdmissionError, match="no evidence proving its selected"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
 
 def test_requires_final_does_not_replace_member_evidence(tmp_path: Path) -> None:
     member, batch, _ = _member_and_batch(tmp_path, path="docs/note.md", approved=True)
     with pytest.raises(lifecycle.AdmissionError, match="no evidence proving its selected"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
 
 @pytest.mark.parametrize(
@@ -561,7 +562,7 @@ def test_admission_refuses_different_validation_inputs(tmp_path: Path, field: st
     identity[field] = replacements[field]
     path.write_text(json.dumps(payload))
     with pytest.raises(lifecycle.AdmissionError, match="no evidence proving its selected"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
 
 def test_a_failing_gate_is_refused_as_one_json_result(
@@ -597,7 +598,7 @@ def test_member_evidence_cannot_replace_a_removed_change_record(tmp_path: Path) 
     )
 
     with pytest.raises(lifecycle.AdmissionError, match="approved change package"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
 
 def test_an_incomplete_change_is_refused_even_without_a_trailer(tmp_path: Path) -> None:
@@ -616,7 +617,7 @@ def test_an_incomplete_change_is_refused_even_without_a_trailer(tmp_path: Path) 
     _git(member, "commit", "-m", "record a change package without naming it")
 
     with pytest.raises(lifecycle.AdmissionError, match="approved change package"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
 
 def test_both_gates_run_the_declared_traceability_authority() -> None:
@@ -683,7 +684,7 @@ def test_admission_does_not_accept_a_proposed_decision(tmp_path):
         tree=_git(member, "rev-parse", "HEAD^{tree}"),
         commands=(MEMBER_COMMAND,),
     )
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     with pytest.raises(lifecycle.AdmissionError, match="proposal decisions"):
         lifecycle.validate(batch, "final")
     assert (batch / "docs/decisions/ADP-unapproved.md").read_text() == decision.read_text()
@@ -698,7 +699,7 @@ def test_actual_change_paths_supply_review_and_plans_without_a_trailer(tmp_path)
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement without a trailer")
     lifecycle.validate(member, "member")
-    result = lifecycle.admit(batch, (member,))
+    result = lifecycle.admit(batch, (member,), messages=operation_messages(1))
     admitted = result["admitted"]
     assert isinstance(admitted, list)
     assert admitted[0]["plan"] == ["changes/example/change.toml"]
@@ -790,7 +791,7 @@ def test_final_lists_previous_plan_edits_without_reopening_old_approval(tmp_path
     assert "publication_binding" not in final
     tip = _git(batch, "rev-parse", "HEAD")
     with pytest.raises(lifecycle.AdmissionError):
-        lifecycle.batch_deliver(batch, repository, base, tip)
+        lifecycle.batch_deliver(batch, repository, base, tip, message=operation_message())
     assert _git(repository, "rev-parse", "HEAD") == base
     review = final["delivery_review"]
     assert isinstance(review, dict)
@@ -829,7 +830,7 @@ def test_change_scope_uses_the_declared_package_root(tmp_path):
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement")
     lifecycle.validate(member, "member")
-    admitted = lifecycle.admit(batch, (member,))["admitted"]
+    admitted = lifecycle.admit(batch, (member,), messages=operation_messages(1))["admitted"]
     assert isinstance(admitted, list)
     assert admitted[0]["plan"] == ["work/example/change.toml"]
     result = lifecycle.validate(batch, "final")["delivery_review"]
@@ -865,7 +866,7 @@ def test_ready_and_admission_refuse_an_implementation_without_a_change_package(t
     )
     before = _git(batch, "rev-parse", "HEAD")
     with pytest.raises(lifecycle.AdmissionError, match="approved change package"):
-        lifecycle.admit(batch, (member,))
+        lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert _git(batch, "rev-parse", "HEAD") == before
 
 
@@ -925,7 +926,7 @@ def test_final_reconciles_source_journals_without_appending_its_own_success(tmp_
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement and retain significant events")
     lifecycle.validate(member, "member")
-    lifecycle.admit(batch, (member,))
+    lifecycle.admit(batch, (member,), messages=operation_messages(1))
     tip = _git(batch, "rev-parse", "HEAD")
     journal = batch / "changes/example/events.jsonl"
     before = journal.read_bytes()
@@ -985,7 +986,9 @@ def test_one_admission_of_several_members_hands_its_whole_range_to_batch_shards(
         lifecycle.validate(member, "member")
         members.append(member)
 
-    result = lifecycle.admit(batch, tuple(members))
+    result = lifecycle.admit(
+        batch, tuple(members), messages=operation_messages(len(tuple(members)))
+    )
 
     admitted = result["admitted"]
     assert isinstance(admitted, list)
@@ -1013,7 +1016,7 @@ def test_admission_runs_only_the_declared_batch_gate(tmp_path, batch_shards):
         _git(worktree, "commit", "-am", "declare a light batch gate")
     lifecycle.validate(member, "member")
 
-    result = lifecycle.admit(batch, (member,))
+    result = lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
     static = result["static"]
     assert isinstance(static, dict)
@@ -1070,7 +1073,7 @@ def _combined_batch(tmp_path, *, commit_check=False):
         _git(member, "commit", "-m", f"implement {name}")
         assert lifecycle.validate(member, "member")["status"] == "ready"
         members.append(member)
-    lifecycle.admit(batch, tuple(members))
+    lifecycle.admit(batch, tuple(members), messages=operation_messages(len(tuple(members))))
     return batch
 
 
