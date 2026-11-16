@@ -1,0 +1,75 @@
+[change]
+schema_version = 2
+id = "batch-sync-parent-tip"
+
+[change.source]
+kind = "human_direction"
+summary = "A downstream stacked member synchronized a batch with maintenance workspace-sync --batch while that batch already held a newer admission of its parent. A later plain workspace-sync found the parent tip already contained and reported unchanged, so ready passed through ancestry, but batch-admit kept refusing: the held parent tip counted only syncs of kind parent and fell back to the member's base, while the batch had admitted the parent at the newer tip. The owner asked for the fix to be planned, implemented and delivered."
+
+[change.contract]
+version = 1
+approved_base = "c96861435f1b96b8b23cad7087ead9323a26ea88" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "HELD-PARENT-001"
+outcome = "The parent tip a stacked member holds is the newest, by ancestry, of its recorded base, the source of each verified parent synchronization and, for each verified batch synchronization, the parent's latest admitted tip in that batch source. ready, parent synchronization, admission and their refusals use that one value."
+acceptance = [
+    "After workspace-sync --batch brings in a batch that admitted the parent at a newer tip, a plain workspace-sync reports unchanged, ready passes and batch-admit admits the child without another parent change.",
+    "When the parent is readmitted at a still newer tip after that batch sync, batch-admit still refuses the child and names the tip it holds.",
+    "Existing stacked-member synchronization, readiness and admission scenarios keep passing unchanged.",
+]
+
+[[change.contract.requirements]]
+id = "DOC-001"
+outcome = "The validation and delivery architecture, the Skill delivery reference and the changelog describe that a batch synchronization also advances the held parent tip."
+acceptance = ["Current instructions agree with the observed CLI behavior; historical authorities remain unchanged."]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the stacking and synchronization owners and their real-Git stacked member tests.",
+    "Amend STACK-MEMBER-001 through this change's decision and reconcile current documentation.",
+    "Run focused tests and ready, open a batch for this member, run final and deliver it to main.",
+]
+requires_confirmation = [
+    "Admitting this change into batch/release-0-9-2, tagging, publishing a release or editing consumer repositories or the installed Skill.",
+]
+
+[[change.contract.decisions]]
+id = "batch-sync-parent-tip/held-parent-tip"
+change_id = "batch-sync-parent-tip"
+parents = ["stacked-members/simplify"]
+authority = "changes/batch-sync-parent-tip/change.toml#decisions/batch-sync-parent-tip/held-parent-tip"
+reason = "workspace-sync --batch is the documented way to bring batch work into a member, and a batch that admitted the parent carries an exact admitted parent tip. Counting only parent syncs left that tip unrecorded, so ready, which judges ancestry, and admission, which judges the recorded tip, disagreed with no recovery except advancing the parent again. Reading the admitted tip from the verified batch source keeps admission exact without a new record, trailer or option. Recording an extra parent sync on unchanged was rejected because it would add machine-local state for a fact Git history already proves."
+
+[[change.contract.decisions.clauses]]
+id = "batch-sync-parent-tip/batch-sync-holds-parent"
+change_id = "batch-sync-parent-tip"
+action = "amend"
+expected = [{ id = "STACK-MEMBER-001", version = 2 }]
+reason = "Define the last incorporated parent tip so a batch synchronization advances it."
+authority = "changes/batch-sync-parent-tip/change.toml#decisions/batch-sync-parent-tip/held-parent-tip"
+
+[[change.contract.decisions.clauses.updates]]
+id = "STACK-MEMBER-001"
+version = 3
+topic = "stacked-members"
+scope = [
+    "Member opening, synchronization, readiness and status",
+]
+statement = "workspace-open given the branch of another registered member workspace as base records that branch as the member's parent and its exact tip as the immutable base; that record is the only source of the chain. The member's contribution and selection run from that base, excluding paths later merged from the parent by maintenance workspace-sync, whose default source for a stacked member is its parent while the parent branch exists and is not in the fetched delivery branch; it records a sync of kind parent and requires the new parent tip to descend from the last incorporated one. The last incorporated parent tip is the newest, by ancestry, of the base, each verified parent sync source and the parent's latest admitted tip in each verified batch sync source. ready and admission refuse while the open parent branch has moved past the last incorporated parent tip. The status next action names that synchronization or the admission order."
+rationale = "The member's own diff is the honest unit of selection: the parent's diff is qualified by the parent's own ready, and checks still run on the complete tree. Reusing the verified synchronization record and the existing workspace-sync form keeps one ownership rule, one ratchet baseline and no new option; a member's natural upstream is its parent until the parent is delivered, then the delivery branch. A verified batch sync carries the parent's exact admitted tip, so it advances the held tip without another record."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["HELD-PARENT-001"]
+action = "Compute the held parent tip in the stacking owner from verified parent and batch synchronizations, use it in parent sync, ready and admission, and extend the stacked member scenarios with the batch-sync path and its negative case."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["DOC-001"]
+action = "Reconcile the architecture, delivery reference and changelog, then run ready, final and the authorized delivery."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-16
+statement = "The owner authorized planning, implementing and delivering to main the fix that makes a verified batch synchronization advance a stacked member's held parent tip; admission into the release batch and publishing a release are not authorized."
