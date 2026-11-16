@@ -454,6 +454,12 @@ def _admit_held(
     record = read_record(_state_root(batch), batch_branch)
     if record.kind != "batch":
         raise AdmissionError(f"refusing batch admission outside a batch workspace: {batch_branch}")
+    attested = _attested_base(batch, _git(batch, "rev-parse", "HEAD"))
+    if attested is not None and attested != record.base:
+        raise AdmissionError(
+            f"batch history attests base {attested}, not the recorded base {record.base}",
+            expected=f"batch-continue --batch {batch}",
+        )
     admitted: list[dict[str, object]] = []
     unchanged: list[dict[str, str]] = []
     for position, raw_member in enumerate(members):
@@ -829,6 +835,8 @@ def _continue_committed_batch_merge(
     if verified_batch_tip(batch, _branch(batch), _recorded_base(batch)) == committed:
         raise AdmissionError("batch has no recorded merge to continue")
     pending = _pending_merge_record(batch, before, other)
+    recorded = None if pending is not None else load_index(batch).for_commit(committed)
+    synced = batch_sync_record(recorded) if recorded is not None else None
     if pending is not None:
         frozen = pending.get("message")
         if not isinstance(frozen, str):
@@ -836,7 +844,10 @@ def _continue_committed_batch_merge(
         _require_modern_continuation(message, messages, frozen, pending)
         if commit_message(batch, committed) != frozen:
             raise AdmissionError("batch has no recorded merge to continue")
-        _complete_operation(batch, intent_from_document(pending), committed)
+    elif synced is not None and synced == (_recorded_base(batch), other):
+        # A reader already bound this synchronization, but its gate never passed
+        # and the batch base was not advanced; the gate and the advance remain.
+        pass
     else:
         prepared = prepared_merge(batch, before, other) or legacy_pending_trailers(
             batch, before, other
@@ -856,6 +867,9 @@ def _continue_committed_batch_merge(
         selector=batch,
         recorded_tip=False,
     )
+    # Completing only after the gate keeps a failed gate retryable by batch-continue.
+    if pending is not None:
+        _complete_operation(batch, intent_from_document(pending), committed)
     return _finish_batch_merge(
         batch, committed, other, preparation, static, tuple(sorted(against_first & against_second))
     )

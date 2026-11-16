@@ -248,6 +248,41 @@ def test_conflicting_sibling_delivery_completes_through_batch_continue(
     assert (root / "shared.txt").read_text() == "first and second"
 
 
+def test_a_failed_gate_after_a_committed_sync_conflict_is_retried(repository, monkeypatch, capsys):
+    root, _ = repository
+    original = git_output(root, "rev-parse", "HEAD")
+    batch_a, batch_b = parallel_batches(
+        root, first=("shared.txt", "first"), second=("shared.txt", "second")
+    )
+    deliver(root, batch_a)
+    delivered = git_output(root, "rev-parse", "HEAD")
+    late = ready_member(root, "late", "late.txt")
+    code, _ = synchronize(batch_b, monkeypatch, capsys)
+    assert code != 0
+    (batch_b / "shared.txt").write_text("first and second")
+    git_output(batch_b, "add", "shared.txt")
+    git_output(batch_b, "commit", "--no-edit")
+    tip = git_output(batch_b, "rev-parse", "HEAD")
+    gate = lifecycle._run_batch_gate
+
+    def failing_gate(*_args, **_kwargs):
+        raise AdmissionError("simulated batch gate failure")
+
+    monkeypatch.setattr(lifecycle, "_run_batch_gate", failing_gate)
+    with pytest.raises(AdmissionError, match="simulated batch gate failure"):
+        lifecycle.continue_batch(batch_b)
+    monkeypatch.setattr(lifecycle, "_run_batch_gate", gate)
+
+    assert lifecycle._recorded_base(batch_b) == original
+    with pytest.raises(AdmissionError, match=f"attests base {delivered}") as refusal:
+        lifecycle.admit(batch_b, (late,), messages=operation_messages(1))
+    assert "batch-continue" in refusal.value.expected
+    continued = lifecycle.continue_batch(batch_b)
+    assert continued["batch_commit"] == tip
+    assert lifecycle._recorded_base(batch_b) == delivered
+    assert lifecycle.validate(batch_b, "final")["source"] == tip
+
+
 def test_batch_refuses_a_delivery_that_does_not_descend_from_its_base(
     repository, monkeypatch, capsys
 ):

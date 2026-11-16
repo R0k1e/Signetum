@@ -26,7 +26,9 @@ keeps every admitted member and runs the batch gate over the merged commits; the
 final again. A conflict keeps the frozen message: resolve and stage paths, run
 `git commit --no-edit`, then `batch-continue`. The commit check refuses a different
 message. `batch-continue` also accepts a staged, uncommitted resolution and commits
-the frozen message. Do not discard and reopen the batch. If admission or synchronization refuses a decision clause ID
+the frozen message. If its batch gate fails, rerun `batch-continue`; the base
+advances only after the gate passes, and admission refuses until then. Do not
+discard and reopen the batch. If admission or synchronization refuses a decision clause ID
 claimed by two changes, give one change a distinct ID, commit, run ready, retry.
 When the engine no longer loads a delivered `signetum.toml`, migrate it in one
 member and run ready there; `workspace-open` opens that member with preparation
