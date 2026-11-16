@@ -1251,6 +1251,36 @@ def test_foreign_hook_chain_is_probed_and_enforces_approval(repository, monkeypa
     assert not git_output(member, "for-each-ref", "refs/signetum/probe/")
 
 
+def test_check_runs_the_engine_of_the_worktree_updating_the_branch(
+    repository, monkeypatch, tmp_path
+):
+    root, _ = repository
+    calls = tmp_path / "engine-calls"
+
+    def fake_engine(worktree):
+        engine = worktree / ".venv" / "bin" / "python3"
+        engine.parent.mkdir(parents=True)
+        engine.write_text(f'#!/bin/sh\ncat >/dev/null\necho "$0" >> {calls}\n')
+        engine.chmod(0o755)
+        return engine
+
+    member = opened(root, "plan/engine-owner")
+    owner = fake_engine(member)
+    main_engine = fake_engine(root)
+    monkeypatch.setattr(sys, "executable", str(owner))
+    assert install_commit_check(member)["status"] == "active"
+    shutil.rmtree(member / ".venv")
+
+    git_output(root, "branch", "plan/after-owner-removal")
+    git_output(root, "branch", "-D", "plan/after-owner-removal")
+
+    assert calls.read_text().splitlines() == [str(main_engine)] * 2
+    shutil.rmtree(root / ".venv")
+    refused = run_git(root, "branch", "plan/without-engine")
+    assert refused.returncode != 0
+    assert "maintenance worktree-prepare" in refused.stderr
+
+
 def test_pinned_batch_refuses_changed_engine_before_any_batch_work(repository, monkeypatch):
 
     root, state = repository
