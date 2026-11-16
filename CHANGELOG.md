@@ -25,6 +25,9 @@ their original release history. Git and accepted change records retain reasoning
   later call with a new message and Ready source continues it. The pin stays on
   that batch. Installed consumers, including an open batch's installed engine
   and pin, stay as they are.
+- A `batch-continue` whose batch gate fails stays retryable: the batch base
+  advances only after the gate passes, and admission refuses a batch whose tip
+  is a synchronization the base has not reached.
 
 ## 0.9.1
 
