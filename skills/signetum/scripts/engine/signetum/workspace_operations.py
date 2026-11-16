@@ -20,10 +20,9 @@ from signetum.operations import AdmissionError, InfrastructureError, MergeConfli
 from signetum.policy import delivery_policy
 from signetum.preparation import PreparationResult, prepare_workspace
 from signetum.provenance import attested_base, members_and_plans
-from signetum.stacking import branch_tip, is_ancestor, stacked_parent
+from signetum.stacking import branch_tip, held_parent_tip, is_ancestor, stacked_parent
 from signetum.synchronization import (
     authorize_source,
-    incorporated_parent_tip,
     prepare_merge,
     recognize_sync,
 )
@@ -331,7 +330,7 @@ def _sync_parent(repository: Path, record: WorkspaceRecord, source: str) -> dict
         if merge := recognize_sync(repository, record.base, source):
             return {"status": "recognized", "source": source, "merge": merge, "tip": tip}
         return {"status": "unchanged", "source": source, "tip": tip}
-    held = incorporated_parent_tip(repository, record.base, tip)
+    held = held_parent_tip(repository, record, tip)
     if not is_ancestor(repository, held, source):
         raise AdmissionError(
             f"parent {record.parent} tip {source} does not descend from the parent tip {held} "
