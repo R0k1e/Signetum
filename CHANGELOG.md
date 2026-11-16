@@ -3,6 +3,13 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## Unreleased
+
+- A stacked member that takes its parent's newer admission through
+  `maintenance workspace-sync --batch` now holds that admitted parent tip. A
+  later plain `workspace-sync` still reports `unchanged`, and `batch-admit`
+  accepts the child instead of comparing against its original base.
+
 ## 0.9.1
 
 - An invalid change record before the first valid approval stays a diagnostic

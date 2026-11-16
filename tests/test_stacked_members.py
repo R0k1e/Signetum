@@ -130,6 +130,46 @@ def test_admission_requires_the_parent_first_at_the_held_tip(repository):
     assert result["admission_base"] == base
 
 
+def test_batch_sync_advances_the_held_parent_tip(repository, monkeypatch, capsys):
+    root, _ = repository
+    parent, child, _ = chain(root)
+    lifecycle.validate(child, "member")
+    batch = Path(
+        str(
+            lifecycle.batch_open(
+                root,
+                (parent,),
+                name="chain",
+                actor="Owner",
+                source="Owner authorized the fixture batch",
+            )["worktree"]
+        )
+    )
+    commit_file(parent, "parent-fix.txt")
+    lifecycle.validate(parent, "member")
+    lifecycle.admit(batch, (parent,))
+    monkeypatch.chdir(child)
+    assert maintenance.main(["workspace-sync", "--batch", str(batch)]) == 0
+
+    code, synced = sync_parent(child, monkeypatch, capsys)
+
+    assert code == 0 and synced["outcome"] == "unchanged"
+    lifecycle.validate(child, "member")
+    first: Any = lifecycle.admit(batch, (child,))
+    assert [item["branch"] for item in first["admitted"]] == [CHILD]
+    admitted_tip = tip(parent)
+    commit_file(parent, "parent-later.txt")
+    lifecycle.validate(parent, "member")
+    lifecycle.admit(batch, (parent,))
+    with pytest.raises(AdmissionError, match=f"parent tip {admitted_tip} it holds"):
+        lifecycle.admit(batch, (child,))
+    code, synced = sync_parent(child, monkeypatch, capsys)
+    assert code == 0 and synced["outcome"] == "synchronized"
+    lifecycle.validate(child, "member")
+    result: Any = lifecycle.admit(batch, (child,))
+    assert [item["branch"] for item in result["admitted"]] == [CHILD]
+
+
 def test_final_review_names_the_chain_and_delivery_removes_it(repository):
     root, _ = repository
     parent, child, _ = chain(root)
