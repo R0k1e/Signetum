@@ -22,6 +22,13 @@ from signetum.change.scope import (
 from signetum.decision_proposals import proposal_paths
 from signetum.git import GitError, git_output, isolated_git_environment, repository_path, run_git
 from signetum.manifest import ManifestError, parse_manifest
+from signetum.operation_records import (
+    commit_message,
+    legacy_pending_trailers,
+    pending_message,
+    pending_tree,
+)
+from signetum.operations import AdmissionError
 from signetum.runtime_identity import engine_source
 from signetum.synchronization import prepared_merge, preserves_merge_message
 from signetum.workspaces import WorkspaceError, read_record, state_root
@@ -34,13 +41,27 @@ shim="$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction"
 if [ -x "$shim" ]; then printf '%s\\n' "$input" | "$shim" "$@" || exit $?; fi"""
 
 
-def hook_script(engine: str, *, launcher: bool = False) -> str:
-    """A stable entry touches the probe before filtering branch transactions."""
-    command = (
-        shlex.quote(engine) + " maintenance commit-check"
-        if launcher
-        else shlex.quote(engine) + " -I -B -m signetum.maintenance commit-check"
-    )
+def hook_script(engine: str, *, launcher: bool = False, local: str | None = None) -> str:
+    """A stable entry touches the probe before filtering branch transactions.
+
+    ``local`` is the engine path relative to a worktree root. Git runs the hook
+    from the root of the worktree that updates the reference, so each worktree
+    uses its own engine and removing another worktree cannot strand the hook.
+    """
+    if launcher:
+        resolve = f"engine={shlex.quote(engine)}"
+        command = '"$engine" maintenance commit-check'
+    else:
+        candidates = ([f'"$PWD"/{shlex.quote(local)}'] if local else []) + [shlex.quote(engine)]
+        resolve = "engine=\nfor candidate in " + " ".join(candidates) + "; do\n"
+        resolve += '    if [ -x "$candidate" ]; then engine=$candidate; break; fi\ndone\n'
+        resolve += 'if [ -z "$engine" ]; then\n'
+        resolve += (
+            "    echo 'Signetum commit check engine is missing; "
+            "run maintenance worktree-prepare in this worktree' >&2\n"
+        )
+        resolve += "    exit 1\nfi"
+        command = '"$engine" -I -B -m signetum.maintenance commit-check'
     return f"""#!/bin/sh
 {MARK}
 [ "$1" = prepared ] || exit 0
@@ -49,8 +70,18 @@ if [ -n "${{SIGNETUM_COMMIT_CHECK_PROBE:-}}" ]; then
 fi
 input=$(cat)
 case "$input" in *" refs/heads/"*) ;; *) exit 0 ;; esac
+{resolve}
 printf '%s\\n' "$input" | {command}
 """
+
+
+def _worktree_engine(worktree: Path, engine: str) -> str | None:
+    """The engine path relative to the worktree that runs it, when it lives there."""
+    root = Path(git_output(worktree, "rev-parse", "--show-toplevel")).absolute()
+    try:
+        return Path(engine).absolute().relative_to(root).as_posix()
+    except ValueError:
+        return None
 
 
 def _inside_worktree(directory: Path) -> bool:
@@ -132,7 +163,8 @@ def install_commit_check(worktree: Path) -> dict[str, object]:
     engine = (
         str(Path(os.environ["SIGNETUM_SKILL"]) / "scripts/signetum") if launcher else sys.executable
     )
-    _write_hook(shim, hook_script(engine, launcher=launcher))
+    local = None if launcher else _worktree_engine(worktree, engine)
+    _write_hook(shim, hook_script(engine, launcher=launcher, local=local))
     target = repository_path(worktree, "rev-parse", "--git-path", "hooks") / HOOK_NAME
     managed = target.exists() and MARK in target.read_text(encoding="utf-8", errors="replace")
     if not _inside_worktree(target.parent) and (not target.exists() or managed):
@@ -151,15 +183,54 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
     if len(parents) == 2 and parents[0] == old:
         merge_head = run_git(repository, "rev-parse", "--verify", "MERGE_HEAD")
         if merge_head.returncode == 0 and merge_head.stdout.strip() == parents[1]:
-            prepared = prepared_merge(repository, old, parents[1])
-            if prepared is not None and not preserves_merge_message(repository, new, prepared):
-                return ChangeError(
-                    "merge message does not preserve the prepared Signetum trailers",
-                    expected=(
-                        "commit with git commit --no-edit to preserve the prepared merge message"
-                        + ("; then run batch-continue" if record.kind == "batch" else "")
-                    ),
-                )
+            follow = "; then run batch-continue" if record.kind == "batch" else ""
+            try:
+                frozen = pending_message(repository, branch, old, parents[1])
+            except AdmissionError as error:
+                return ChangeError(str(error), expected="retry the recorded operation" + follow)
+            if frozen is not None:
+                if commit_message(repository, new) != frozen:
+                    return ChangeError(
+                        "merge message does not match the recorded operation",
+                        expected=(
+                            "commit with git commit --no-edit to keep the recorded message" + follow
+                        ),
+                    )
+                expected_tree = pending_tree(repository, branch, old, parents[1])
+                if (
+                    expected_tree is not None
+                    and git_output(repository, "rev-parse", f"{new}^{{tree}}") != expected_tree
+                ):
+                    return ChangeError(
+                        "merge tree does not match the recorded operation",
+                        expected=(
+                            "commit with git commit --no-edit to keep the recorded message" + follow
+                        ),
+                    )
+            else:
+                trailers = legacy_pending_trailers(repository, old, parents[1])
+                if trailers is not None:
+                    prepared = trailers
+                    if not preserves_merge_message(repository, new, prepared):
+                        return ChangeError(
+                            "merge message does not preserve the prepared Signetum trailers",
+                            expected=(
+                                "commit with git commit --no-edit to preserve the prepared "
+                                "merge message" + follow
+                            ),
+                        )
+                else:
+                    prepared_file = prepared_merge(repository, old, parents[1])
+                    if prepared_file is not None and not preserves_merge_message(
+                        repository, new, prepared_file
+                    ):
+                        return ChangeError(
+                            "merge message does not preserve the prepared Signetum trailers",
+                            expected=(
+                                "commit with git commit --no-edit to preserve the prepared "
+                                "merge message" + follow
+                            ),
+                        )
     if parents != [old]:
         # Unrelated merges, branch moves and rewrites keep their provenance checks.
         return None

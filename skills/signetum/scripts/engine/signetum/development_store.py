@@ -103,22 +103,16 @@ def _validate_payload(
         require_accepted_decision(repository, commit, decision.authority, decision_root)
 
 
-def _read_journal(
+def _journal_entries(
     repository: Path,
     relative: str,
     head: str,
+    data: bytes,
     authorities: dict[tuple[str, str], tuple[ChangeRecord, ApprovalProof]],
-) -> tuple[bytes, tuple[DevelopmentEntry, ...]]:
-    path = source_path(repository, relative)
-    committed = committed_blob(repository, head, relative)
-    if not path.is_file():
-        raise ValueError(f"development journal is missing: {relative}")
-    data = path.read_bytes()
-    if committed is not None and not data.startswith(committed[1].encode()):
-        raise ValueError("committed development history cannot be rewritten")
+) -> tuple[DevelopmentEntry, ...]:
     prefix = b""
     entries = []
-    change_id = path.parent.name
+    change_id = PurePosixPath(relative).parent.name
     for number, line in enumerate(data.splitlines(keepends=True), 1):
         if not line.endswith(b"\n") or not line.strip():
             raise ValueError("development journal contains an incomplete record")
@@ -140,18 +134,42 @@ def _read_journal(
         _validate_payload(repository, entry.transaction, record, entry.approval.commit)
         entries.append(entry)
         prefix += line
-    return data, tuple(entries)
+    return tuple(entries)
+
+
+def _read_journal(
+    repository: Path,
+    relative: str,
+    head: str,
+    authorities: dict[tuple[str, str], tuple[ChangeRecord, ApprovalProof]],
+) -> tuple[bytes, tuple[DevelopmentEntry, ...]]:
+    path = source_path(repository, relative)
+    committed = committed_blob(repository, head, relative)
+    if not path.is_file():
+        raise ValueError(f"development journal is missing: {relative}")
+    data = path.read_bytes()
+    if committed is not None and not data.startswith(committed[1].encode()):
+        raise ValueError("committed development history cannot be rewritten")
+    return data, _journal_entries(repository, relative, head, data, authorities)
+
+
+def _tree_journals(repository: Path, head: str) -> tuple[str, ...]:
+    root, _ = authority_roots(repository, commit=head)
+    committed = git_output(repository, "ls-tree", "-r", "--name-only", "-z", head, "--", root)
+    return tuple(
+        sorted(
+            name
+            for name in committed.split("\0")
+            if name.endswith("/events.jsonl")
+            and PurePosixPath(name).parent.parent.as_posix() == root
+        )
+    )
 
 
 def _journals(repository: Path, head: str) -> tuple[str, ...]:
     root, _ = authority_roots(repository, commit=head)
     source_path(repository, root)
-    committed = git_output(repository, "ls-tree", "-r", "--name-only", "-z", head, "--", root)
-    names = {
-        name
-        for name in committed.split("\0")
-        if name.endswith("/events.jsonl") and PurePosixPath(name).parent.parent.as_posix() == root
-    }
+    names = set(_tree_journals(repository, head))
     names.update(
         path.relative_to(repository).as_posix()
         for path in (repository / root).glob("*/events.jsonl")
@@ -180,6 +198,22 @@ def read_sources(repository: Path) -> _SourceHistory:
     if git_output(repository, "rev-parse", "HEAD") != head:
         raise ValueError("source commit changed while reading development history")
     return _SourceHistory(head, _digest(_json(inputs)), tuple(entries), authorities)
+
+
+def read_committed_sources(repository: Path, commit: str) -> _SourceHistory:
+    """Read the journals stored in ``commit``, not the checkout's working tree."""
+
+    entries = []
+    inputs = []
+    authorities: dict[tuple[str, str], tuple[ChangeRecord, ApprovalProof]] = {}
+    for relative in _tree_journals(repository, commit):
+        blob = committed_blob(repository, commit, relative)
+        if blob is None:
+            raise ValueError(f"development journal is missing: {relative}")
+        data = blob[1].encode()
+        entries.extend(_journal_entries(repository, relative, commit, data, authorities))
+        inputs.append((relative, _digest(data)))
+    return _SourceHistory(commit, _digest(_json(inputs)), tuple(entries), authorities)
 
 
 def judge_sources(repository: Path, sources: _SourceHistory) -> DevelopmentSnapshot:
@@ -234,42 +268,73 @@ def _review_sources(
             identities.append((relative, _digest(blob[1].encode())))
         if _digest(_json(identities)) != sources.history_digest:
             raise ValueError("source journals changed during review")
-        result = judge_sources(repository, sources)
-        recorded = {
-            decision.id: decision
-            for entry in result.entries
-            for decision in entry.transaction.decisions
-        }
-        root, _ = authority_roots(repository, commit=commit)
-        selected = []
-        for change_id in sorted(set(change_ids)):
-            blob = committed_blob(repository, commit, f"{root}/{change_id}/change.toml")
-            if blob is None:
-                continue
-            record = parse_change_record(blob[1])
-            if record.id != change_id:
-                raise ValueError("source review change identity is inconsistent")
-            for decision in record.contract.decisions:
-                if recorded.get(decision.id) != decision:
-                    raise ValueError(
-                        f"approved decision is absent from source history: {decision.id}"
-                    )
-            selected.append(change_id)
-        decisions = sorted(
-            decision.id
-            for entry in result.entries
-            if entry.transaction.change_id in selected
-            for decision in entry.transaction.decisions
-        )
-        return {
-            "commit": commit,
-            "history_digest": sources.history_digest,
-            "journals": journals,
-            "changes": selected,
-            "decision_transactions": decisions,
-        }, result
+        return _project_review(repository, change_ids, commit, sources, journals)
     except (OSError, ValueError) as error:
         raise DevelopmentReviewError(str(error)) from error
+
+
+def _review_committed_sources(
+    repository: Path, change_ids: tuple[str, ...], commit: str
+) -> tuple[SourceReviewInputs, DevelopmentSnapshot]:
+    """Judge journals at ``commit`` when this checkout is a different tip.
+
+    Live ready still uses the checkout review. Admission and import bind the
+    source commit from the batch, whose working tree is not that member tip.
+    """
+
+    try:
+        sources = read_committed_sources(repository, commit)
+        journals = {
+            relative: blob[0]
+            for relative in _tree_journals(repository, commit)
+            if (blob := committed_blob(repository, commit, relative)) is not None
+        }
+        if set(journals) != set(_tree_journals(repository, commit)):
+            raise ValueError("source review requires committed development journals")
+        return _project_review(repository, change_ids, commit, sources, journals)
+    except (OSError, ValueError) as error:
+        raise DevelopmentReviewError(str(error)) from error
+
+
+def _project_review(
+    repository: Path,
+    change_ids: tuple[str, ...],
+    commit: str,
+    sources: _SourceHistory,
+    journals: dict[str, str],
+) -> tuple[SourceReviewInputs, DevelopmentSnapshot]:
+    result = judge_sources(repository, sources)
+    recorded = {
+        decision.id: decision
+        for entry in result.entries
+        for decision in entry.transaction.decisions
+    }
+    root, _ = authority_roots(repository, commit=commit)
+    selected = []
+    for change_id in sorted(set(change_ids)):
+        blob = committed_blob(repository, commit, f"{root}/{change_id}/change.toml")
+        if blob is None:
+            continue
+        record = parse_change_record(blob[1])
+        if record.id != change_id:
+            raise ValueError("source review change identity is inconsistent")
+        for decision in record.contract.decisions:
+            if recorded.get(decision.id) != decision:
+                raise ValueError(f"approved decision is absent from source history: {decision.id}")
+        selected.append(change_id)
+    decisions = sorted(
+        decision.id
+        for entry in result.entries
+        if entry.transaction.change_id in selected
+        for decision in entry.transaction.decisions
+    )
+    return {
+        "commit": commit,
+        "history_digest": sources.history_digest,
+        "journals": journals,
+        "changes": selected,
+        "decision_transactions": decisions,
+    }, result
 
 
 def review_inputs(
@@ -285,9 +350,13 @@ def decision_application_commits(
     """Identify own commits introducing exact current approved decision applications.
 
     Ordinary observations and re-appended old history are not implementation.
-    The existing source reviewer remains the approval and journal verifier.
+    The checkout reviewer still judges the member tip. Another checkout, such as
+    the batch admitting that tip, reads the same committed journal instead.
     """
-    inputs, result = _review_sources(repository, change_ids, commit)
+    if git_output(repository, "rev-parse", "HEAD") == commit:
+        inputs, result = _review_sources(repository, change_ids, commit)
+    else:
+        inputs, result = _review_committed_sources(repository, change_ids, commit)
     root, _ = authority_roots(repository, commit=commit)
     candidates: dict[str, set[str]] = {}
     for change_id in inputs["changes"]:

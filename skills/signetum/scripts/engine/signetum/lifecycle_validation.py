@@ -178,7 +178,11 @@ def validate_workspace(
                 for change_id in change_ids
             ]
             publication_inputs = review_local_inputs(
-                repository, review_inputs, receipt_root(repository)
+                repository,
+                review_inputs,
+                receipt_root(repository),
+                base=evidence_base,
+                tip=source,
             )
         except (DeviationError, DevelopmentReviewError) as error:
             raise AdmissionError(f"execution reconciliation failed: {error}") from error
@@ -271,7 +275,13 @@ def validate_workspace(
             raise AdmissionError("final has no recorded batch base")
         if (
             git_output(repository, "rev-parse", "HEAD") != source
-            or review_local_inputs(repository, review_inputs, receipt_root(repository))
+            or review_local_inputs(
+                repository,
+                review_inputs,
+                receipt_root(repository),
+                base=evidence_base,
+                tip=source,
+            )
             != publication_inputs
         ):
             raise AdmissionError("delivery review inputs changed during validation; rerun final")

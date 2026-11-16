@@ -83,10 +83,12 @@ def run_command(
     lease_read, lease_write = os.pipe()
     session = None
     try:
+        # Bytecode beside this file would dirty a repository engine checkout.
         invocation = [
             sys.executable,
             "-I",
             "-S",
+            "-B",
             str(Path(__file__).resolve()),
             str(lease_read),
             "--",

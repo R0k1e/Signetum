@@ -587,13 +587,40 @@ def commit_attribution(
     if not approved:
         raise ChangeError(
             f"batch commit {commit} is not attributed to an approved batch-owned change",
-            expected=(
-                "Fix a member-owned defect in its member and admit the new ready tip. "
-                "For this legacy batch, commit the batch-owned approval first, then the fix. "
-                "New batches record combination-repair authorization at batch-open."
-            ),
+            expected=_BATCH_IMPLEMENTATION_REMEDY,
         )
     return Attribution(commit, "change", sorted(approved), approved)
+
+
+_BATCH_IMPLEMENTATION_REMEDY = (
+    "Fix a member-owned defect in its member and admit the new ready tip. "
+    "For this legacy batch, commit the batch-owned approval first, then the fix. "
+    "New batches record combination-repair authorization at batch-open."
+)
+
+
+def require_batch_implementation(
+    repository: Path, manifest: RepositoryManifest, record: WorkspaceRecord, parent: str
+) -> None:
+    """Refuse an implementation commit whose parent has no batch attribution.
+
+    Recorded batch authorization covers the commit. Otherwise an approved
+    batch-owned change already present at ``parent`` does. This is the same
+    rule ``commit_attribution`` applies after the commit exists.
+    """
+
+    if record.authorization is not None:
+        return
+    for change_id in written_packages(repository, manifest, record.base, parent):
+        try:
+            read_package(repository, manifest, change_id, parent).require_approval()
+        except ChangeError:
+            continue
+        return
+    raise ChangeError(
+        "batch commit is not attributed to an approved batch-owned change",
+        expected=_BATCH_IMPLEMENTATION_REMEDY,
+    )
 
 
 def batch_owned_commits(

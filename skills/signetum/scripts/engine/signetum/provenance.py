@@ -6,26 +6,42 @@ from pathlib import Path
 from signetum.change.scope import delivered_plans, delivery_scope
 from signetum.git import git_output, run_git
 from signetum.manifest import load_manifest
+from signetum.operation_records import (
+    attested_base_from,
+    batch_sync_record,
+    bind_commit_if_pending,
+    legacy_commit,
+    legacy_pending_commit,
+    legacy_proof_message,
+    load_index,
+    member_from_record,
+    require_bound_commit,
+    require_qualification,
+)
 from signetum.operations import AdmissionError
 
 
 def attested_base(repository: Path, tip: str) -> str | None:
     """Read the base a batch's provenance commit attests to.
 
-    This is the durable attestation, not the authority: operations read the
-    workspace record. Delivery compares the two so a record which disagrees
-    with committed history cannot land.
+    Structured operations are the authority for new history. A legacy commit
+    remains readable. Delivery still compares the result with the workspace
+    record so a disagreement cannot land.
     """
 
-    history = git_output(repository, "log", "--first-parent", "--format=%B%x00", tip)
-    marker = re.search(r"^Signetum-Batch-Base:\s*(\S+)$", history, re.MULTILINE)
-    return marker.group(1) if marker else None
+    return attested_base_from(repository, tip)
+
+
+def _legacy_fields(body: str) -> dict[str, str]:
+    return {
+        key: value for key, value in re.findall(r"^Signetum-([^:]+):\s*(.+)$", body, re.MULTILINE)
+    }
 
 
 def _synchronized_base(
     repository: Path, fields: dict[str, str], merged: str, in_effect: str | None
 ) -> str:
-    """Advance the base in effect through one batch synchronization merge."""
+    """Advance the base in effect through one legacy batch synchronization merge."""
 
     previous = fields.get("Previous-Batch-Base")
     if (
@@ -39,6 +55,21 @@ def _synchronized_base(
     if run_git(repository, "merge-base", "--is-ancestor", previous, merged).returncode:
         raise AdmissionError("batch synchronization does not descend from the previous base")
     return merged
+
+
+def _legacy_visible(repository: Path, commit: str) -> bool:
+    return legacy_commit(repository, commit) or legacy_pending_commit(repository, commit)
+
+
+def latest_admission_original(repository: Path, base: str, tip: str, member: str) -> str | None:
+    """The latest admitted original of ``member`` in this batch history."""
+
+    try:
+        members, _ = members_and_plans(repository, base, tip)
+    except AdmissionError:
+        return None
+    originals = [item["original"] for item in members if item["branch"] == member]
+    return originals[-1] if originals else None
 
 
 def members_and_plans(
@@ -57,6 +88,7 @@ def members_and_plans(
             ).splitlines(),
         )
     )
+    index = load_index(repository)
     members: list[dict[str, str]] = []
     # Admissions bind the base in effect when they merged; a synchronization
     # merge advances it to the delivery tip it merged. The chain ends at the
@@ -68,11 +100,48 @@ def members_and_plans(
         if len(parents) != 2:
             raise AdmissionError("batch contains a merge without exactly one admitted member")
         original = parents[1]
+        document = index.for_commit(merge_commit)
+        if document is None:
+            document = bind_commit_if_pending(repository, merge_commit)
+        if document is not None:
+            require_bound_commit(repository, document)
+            synced = batch_sync_record(document)
+            if synced is not None:
+                previous, merged = synced
+                if merged != original or (in_effect is not None and previous != in_effect):
+                    raise AdmissionError("batch contains an unrecognized synchronization merge")
+                if run_git(repository, "merge-base", "--is-ancestor", previous, merged).returncode:
+                    raise AdmissionError(
+                        "batch synchronization does not descend from the previous base"
+                    )
+                in_effect = merged
+                synchronized = True
+                continue
+            if document.get("kind") != "admission":
+                raise AdmissionError("batch contains an unrecognized merge authority")
+            if document.get("source") != original or document.get("attested_base") != (
+                in_effect if in_effect is not None else document.get("attested_base")
+            ):
+                raise AdmissionError("admission provenance original does not match merge parent")
+            if in_effect is None:
+                attested = document.get("attested_base")
+                if not isinstance(attested, str):
+                    raise AdmissionError("admission record has no base")
+                in_effect = attested
+            if document.get("attested_base") != in_effect:
+                raise AdmissionError("batch contains an unrecognized merge authority")
+            digest = document.get("ready_evidence_sha256")
+            if isinstance(digest, str) and digest:
+                require_qualification(repository, digest)
+            summary = git_output(repository, "show", "-s", "--format=%s", original)
+            members.append(member_from_record(document, merge_commit, summary))
+            continue
+        if not _legacy_visible(repository, merge_commit):
+            raise AdmissionError("batch contains an unrecorded merge")
         body = git_output(repository, "show", "-s", "--format=%B", merge_commit)
-        fields = {
-            key: value
-            for key, value in re.findall(r"^Signetum-([^:]+):\s*(.+)$", body, re.MULTILINE)
-        }
+        if not legacy_proof_message(body):
+            raise AdmissionError("batch contains an unrecognized merge authority")
+        fields = _legacy_fields(body)
         if "Batch-Sync" in fields:
             in_effect = _synchronized_base(repository, fields, original, in_effect)
             synchronized = True
