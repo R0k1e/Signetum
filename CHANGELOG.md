@@ -28,6 +28,9 @@ their original release history. Git and accepted change records retain reasoning
 - A `batch-continue` whose batch gate fails stays retryable: the batch base
   advances only after the gate passes, and admission refuses a batch whose tip
   is a synchronization the base has not reached.
+- When Signetum develops itself, the commit check runs the engine of the
+  worktree updating a branch, so removing another worktree no longer blocks
+  branch updates. Skill installations are unchanged.
 
 ## 0.9.1
 
