@@ -1440,6 +1440,39 @@ def test_legacy_admission_continuation_accepts_messages_for_remaining_members(
     assert "Signetum-" not in modern["message"]
 
 
+def test_legacy_merge_opened_after_the_horizon_continues_after_a_manual_commit(repository):
+    root, _ = repository
+    first = ready_member(root, "late-first", "first.txt")
+    second = ready_member(root, "late-second", "second.txt")
+    base = git_output(root, "rev-parse", "HEAD")
+    batch = Path(str(ops.open_workspace(root, "batch/late-wave", base, kind="batch")["worktree"]))
+    horizon_path = state_root(batch) / "operations" / "legacy-horizon.json"
+    assert records.legacy_pending_trailers(batch, base, base) is None
+    assert json.loads(horizon_path.read_text(encoding="utf-8"))["pending_merges"] == []
+    message, member_tip = _legacy_admission_message(batch, first)
+    git_output(batch, "merge", "--no-ff", "--no-commit", member_tip)
+    repository_path(batch, "rev-parse", "--git-path", "MERGE_MSG").write_text(
+        message, encoding="utf-8"
+    )
+    prepare_merge(batch, member_tip, message)
+    record_pending_admissions(batch, branch_name(batch), (second,))
+    git_output(batch, "commit", "--no-edit")
+    committed = git_output(batch, "rev-parse", "HEAD")
+    remaining = operation_messages(1)
+
+    result = lifecycle.continue_batch(batch, messages=remaining)
+
+    assert result["admission_commit"] == committed
+    stored = json.loads(horizon_path.read_text(encoding="utf-8"))["pending_merges"]
+    assert [item["continuation_messages"] for item in stored] == [list(remaining)]
+    resumed = result["resumed_admission"]
+    assert isinstance(resumed, dict)
+    admitted = resumed["admitted"]
+    assert isinstance(admitted, list)
+    assert [item["branch"] for item in admitted if isinstance(item, dict)] == ["change/late-second"]
+    assert (batch / "first.txt").is_file() and (batch / "second.txt").is_file()
+
+
 def run_merge_head(repository):
     completed = git_output(repository, "rev-parse", "--verify", "MERGE_HEAD", check=False)
     return bool(completed)

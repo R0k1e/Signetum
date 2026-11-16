@@ -176,13 +176,10 @@ def verified_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, st
     return tuple((merge, source) for merge, source, _ in _verified_syncs(repository, base, tip))
 
 
-def incorporated_parent_tip(repository: Path, base: str, tip: str) -> str:
-    """The parent tip a stacked member holds: its latest parent sync, otherwise its base."""
+def incorporated_syncs(repository: Path, base: str, tip: str) -> tuple[tuple[str, str], ...]:
+    """Verified sync sources with the kind of each, newest first."""
 
-    return next(
-        (source for _, source, kind in _verified_syncs(repository, base, tip) if kind == "parent"),
-        base,
-    )
+    return tuple((source, kind) for _, source, kind in _verified_syncs(repository, base, tip))
 
 
 def verified_sync_sources(repository: Path, base: str, tip: str) -> tuple[str, ...]:

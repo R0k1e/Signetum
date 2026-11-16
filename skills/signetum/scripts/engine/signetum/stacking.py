@@ -2,7 +2,8 @@
 
 The member's workspace record is the only source of the chain: it names the
 parent branch, and its base is the parent tip it was opened on. The parent tip
-a member holds is that base or the source of its latest parent synchronization.
+a member holds is the newest of that base, each parent synchronization source
+and the parent's latest admission in each batch synchronization source.
 """
 
 from __future__ import annotations
@@ -12,8 +13,8 @@ from pathlib import Path
 
 from signetum.git import git_output, run_git
 from signetum.operations import AdmissionError
-from signetum.provenance import latest_admission_original
-from signetum.synchronization import incorporated_parent_tip
+from signetum.provenance import attested_base, latest_admission_original
+from signetum.synchronization import incorporated_syncs
 from signetum.workspaces import (
     WorkspaceError,
     WorkspaceRecord,
@@ -64,6 +65,31 @@ def admission_order(repository: Path, branch: str) -> list[str]:
     return list(reversed(chain))
 
 
+def held_parent_tip(repository: Path, record: WorkspaceRecord, tip: str) -> str:
+    """The newest parent tip the member incorporated, by ancestry from its base.
+
+    A parent synchronization brings its source; a batch synchronization brings
+    the parent's latest admitted tip in that batch, which admission compares.
+    """
+
+    held = record.base
+    for source, kind in reversed(incorporated_syncs(repository, record.base, tip)):
+        if kind == "parent":
+            candidate: str | None = source
+        elif kind == "batch" and record.parent is not None:
+            batch_base = attested_base(repository, source)
+            candidate = (
+                None
+                if batch_base is None
+                else _latest_admission(repository, batch_base, source, record.parent)
+            )
+        else:
+            candidate = None
+        if candidate is not None and candidate != held and is_ancestor(repository, held, candidate):
+            held = candidate
+    return held
+
+
 def parent_moved(repository: Path, record: WorkspaceRecord, tip: str) -> str | None:
     """The open parent's tip when it has moved past what this member holds."""
 
@@ -81,7 +107,7 @@ def require_current_parent(
     current = parent_moved(repository, record, tip)
     if current is None:
         return
-    held = incorporated_parent_tip(repository, record.base, tip)
+    held = held_parent_tip(repository, record, tip)
     raise AdmissionError(
         f"{operation} refuses stacked member {record.branch}: its parent {record.parent} "
         f"advanced to {current} beyond the parent tip {held} it holds",
@@ -104,7 +130,7 @@ def require_parent_admitted(batch: Path, member: Path, record: WorkspaceRecord, 
 
     if record.parent is None:
         return
-    held = incorporated_parent_tip(member, record.base, tip)
+    held = held_parent_tip(member, record, tip)
     batch_base = read_record(state_root(batch), branch_name(batch)).base
     if is_ancestor(batch, held, batch_base):
         return

@@ -9,6 +9,8 @@ Named ready members enter a batch through admission. Admit a stacked member afte
 its parent, in the same `batch-admit` with the parent named first or in a later
 one. Admission refuses a child whose parent's latest admission in the batch is not
 the exact parent tip the child holds; synchronize the child or readmit the parent.
+A `workspace-sync --batch` from a batch that admitted the parent also gives the
+child that admitted parent tip.
 The final review lists each member with its own changes and its parent. Admission and
 `batch-continue` run only the declared batch gate over the commits added since
 its last pass; it may run no integration checks. Final stays complete, so a

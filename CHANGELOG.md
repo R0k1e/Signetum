@@ -28,6 +28,10 @@ their original release history. Git and accepted change records retain reasoning
 - A `batch-continue` whose batch gate fails stays retryable: the batch base
   advances only after the gate passes, and admission refuses a batch whose tip
   is a synchronization the base has not reached.
+- A stacked member that takes its parent's newer admission through
+  `maintenance workspace-sync --batch` now holds that admitted parent tip. A
+  later plain `workspace-sync` still reports `unchanged`, and `batch-admit`
+  accepts the child instead of comparing against its original base.
 - When Signetum develops itself, the commit check runs the engine of the
   worktree updating a branch, so removing another worktree no longer blocks
   branch updates. Skill installations are unchanged.

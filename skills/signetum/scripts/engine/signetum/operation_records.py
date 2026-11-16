@@ -1072,9 +1072,17 @@ def adopt_legacy_history(repository: Path, commits: Sequence[str]) -> dict[str, 
 
 
 def store_legacy_continuation(
-    repository: Path, before: str, source: str, messages: Sequence[str]
+    repository: Path,
+    before: str,
+    source: str,
+    messages: Sequence[str],
+    prepared: Sequence[str] | None = None,
 ) -> None:
-    """Persist caller text for the members an old pending admission still owes."""
+    """Persist caller text for the members an old pending admission still owes.
+
+    An older engine may open the merge after this checkout recorded its horizon;
+    its prepared trailers then evidence the pending merge instead.
+    """
 
     frozen = [freeze_message(message) for message in messages]
     with _lock(repository) as root:
@@ -1099,7 +1107,16 @@ def store_legacy_continuation(
             else:
                 updated.append(dict(item))
         if not found:
-            raise AdmissionError("batch has no recorded merge to continue")
+            if not prepared or not all(_known_trailer(line) for line in prepared):
+                raise AdmissionError("batch has no recorded merge to continue")
+            updated.append(
+                {
+                    "before": before,
+                    "source": source,
+                    "trailers": list(prepared),
+                    "continuation_messages": frozen,
+                }
+            )
         horizon = {**horizon, "pending_merges": updated}
         _write_atomic(root / "operations" / "legacy-horizon.json", _canonical(horizon))
 

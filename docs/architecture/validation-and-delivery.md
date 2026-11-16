@@ -198,8 +198,11 @@ selection and ratchet run from that base, excluding paths a verified parent sync
 brought. Without `--batch`, `maintenance workspace-sync --message-file` in a stacked member takes
 its parent while the parent branch exists and is not in the fetched delivery
 branch, otherwise the delivery branch; a parent sync requires the new parent tip to
-descend from the one held. Ready and admission refuse while the open parent branch
-has moved past the held parent tip. Admission refuses a stacked member unless its
+descend from the one held. The held parent tip is the newest, by ancestry, of the
+base, each verified parent sync source and the parent's latest admitted tip in each
+verified `workspace-sync --batch` source, so a batch that already admitted the
+parent advances it without another parent sync. Ready and admission refuse while
+the open parent branch has moved past the held parent tip. Admission refuses a stacked member unless its
 parent's latest admission in the batch, earlier in the same invocation or before,
 is exactly that held tip or the tip is in the batch base. The final review's
 `member_chain` names each member's own changes and, from its record, its parent.

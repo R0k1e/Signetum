@@ -26,8 +26,8 @@ from signetum.operations import AdmissionError, InfrastructureError, MergeConfli
 from signetum.policy import delivery_policy
 from signetum.preparation import PreparationResult, prepare_workspace
 from signetum.provenance import attested_base, members_and_plans
-from signetum.stacking import branch_tip, is_ancestor, stacked_parent
-from signetum.synchronization import incorporated_parent_tip, recognize_sync
+from signetum.stacking import branch_tip, held_parent_tip, is_ancestor, stacked_parent
+from signetum.synchronization import recognize_sync
 from signetum.validation.repository import configured_validation
 from signetum.workspaces import (
     BatchAuthorization,
@@ -346,7 +346,7 @@ def _sync_parent(
     """Merge the parent member's current tip; never rebase or rewrite the member."""
 
     tip = git_output(repository, "rev-parse", "HEAD")
-    held = incorporated_parent_tip(repository, record.base, tip)
+    held = held_parent_tip(repository, record, tip)
     if not is_ancestor(repository, source, tip) and not is_ancestor(repository, held, source):
         raise AdmissionError(
             f"parent {record.parent} tip {source} does not descend from the parent tip {held} "
