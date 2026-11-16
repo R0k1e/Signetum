@@ -7,6 +7,7 @@ import pytest
 from change_fixtures import append_historical_event as append_event
 from change_fixtures import approve_legacy_change as approve_change
 from change_fixtures import commit_approval
+from operation_messages import operation_messages
 from signetum import lifecycle, workspace_operations
 from signetum.deviations import DeviationClass, Discovered
 from signetum.git import git_output
@@ -52,7 +53,7 @@ def assembled(repository, *, historical=False, rewrite=False, pending=False):
     batch = Path(
         str(workspace_operations.open_workspace(root, "batch/test", base, kind="batch")["worktree"])
     )
-    admitted = lifecycle.admit(batch, (member,))["admitted"]
+    admitted = lifecycle.admit(batch, (member,), messages=operation_messages(1))["admitted"]
     return member, batch, admitted
 
 

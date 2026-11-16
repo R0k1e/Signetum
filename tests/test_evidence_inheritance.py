@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from change_fixtures import commit_approval
+from operation_messages import operation_messages
 from pydantic import JsonValue
 from signetum import development_store as store
 from signetum import lifecycle
@@ -282,7 +283,11 @@ def test_final_executes_test_shards_even_with_ancestor_member_evidence(repositor
     batch = Path(
         str(
             lifecycle.batch_open(
-                root, (member,), actor="Owner", source="Owner authorized the fixture batch"
+                root,
+                (member,),
+                actor="Owner",
+                source="Owner authorized the fixture batch",
+                messages=operation_messages(1),
             )["worktree"]
         )
     )

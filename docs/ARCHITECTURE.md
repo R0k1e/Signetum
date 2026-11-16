@@ -31,7 +31,7 @@ are conditional cross-change authorities; accepted historical sources are retain
 The 0.8 protocol enforces six invariants: owner authorization before the first
 implementation commit; evidence bound to exact content; delivery of a fully
 validated integrated batch tree; explicit owner delivery authorization; isolated
-workspaces with explicit merge resolution and checked trailers; and exclusive
+workspaces with explicit merge resolution and structured operation proof; and exclusive
 change ownership of decision clauses. Stacking and safe cleanup remain enforced.
 Scope revisions and observations are recorded for review, never re-approved or
 used as gate blockers. Failure receipts are diagnostics, not an owed-node ledger.

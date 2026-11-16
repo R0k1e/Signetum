@@ -16,13 +16,13 @@ batch-open *args:
 batch-admit batch *args:
     just _lifecycle batch-admit --batch "$@"
 
-batch-continue batch:
+batch-continue batch *args:
     just _lifecycle batch-continue --batch "$@"
 
 final *args:
     just _lifecycle final "$@"
 
-batch-deliver source target expected-base expected-batch-tip:
+batch-deliver source target expected-base expected-batch-tip *args:
     just _lifecycle batch-deliver "$@"
 
 # Local support utility; not a lifecycle operation.

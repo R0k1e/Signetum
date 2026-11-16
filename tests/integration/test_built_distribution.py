@@ -414,15 +414,36 @@ contract_digest="{digest}"
         '  *) echo "project commit policy refused" >&2; exit 1;;\nesac\n'
     )
     hook.chmod(0o755)
+    open_message = tmp_path / "open-message.txt"
+    open_message.write_text("Merge the reviewed member.\n", encoding="utf-8")
+    deliver_message = tmp_path / "deliver-message.txt"
+    deliver_message.write_text("Merge the qualified batch.\n", encoding="utf-8")
     batch = Path(
-        run("batch-open", "--actor", "Owner", "--source", "Fixture approval", "--member", member)[
-            "batch"
-        ]
+        run(
+            "batch-open",
+            "--actor",
+            "Owner",
+            "--source",
+            "Fixture approval",
+            "--member",
+            member,
+            "--message-file",
+            open_message,
+        )["batch"]
     )
     assert git_output(batch, "rev-list", "--count", "--first-parent", f"{base}..HEAD") == "1"
     result = run("final", cwd=batch)
     assert result["status"] == "passed"
-    delivered = run("batch-deliver", batch, project, base, result["source"], cwd=batch)
+    delivered = run(
+        "batch-deliver",
+        batch,
+        project,
+        base,
+        result["source"],
+        "--message-file",
+        deliver_message,
+        cwd=batch,
+    )
     assert delivered["status"] == "passed"
     assert git_output(project, "status", "--porcelain") == ""
     assert not (project / ".agents").exists()
