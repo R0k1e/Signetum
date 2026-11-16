@@ -41,13 +41,27 @@ shim="$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction"
 if [ -x "$shim" ]; then printf '%s\\n' "$input" | "$shim" "$@" || exit $?; fi"""
 
 
-def hook_script(engine: str, *, launcher: bool = False) -> str:
-    """A stable entry touches the probe before filtering branch transactions."""
-    command = (
-        shlex.quote(engine) + " maintenance commit-check"
-        if launcher
-        else shlex.quote(engine) + " -I -B -m signetum.maintenance commit-check"
-    )
+def hook_script(engine: str, *, launcher: bool = False, local: str | None = None) -> str:
+    """A stable entry touches the probe before filtering branch transactions.
+
+    ``local`` is the engine path relative to a worktree root. Git runs the hook
+    from the root of the worktree that updates the reference, so each worktree
+    uses its own engine and removing another worktree cannot strand the hook.
+    """
+    if launcher:
+        resolve = f"engine={shlex.quote(engine)}"
+        command = '"$engine" maintenance commit-check'
+    else:
+        candidates = ([f'"$PWD"/{shlex.quote(local)}'] if local else []) + [shlex.quote(engine)]
+        resolve = "engine=\nfor candidate in " + " ".join(candidates) + "; do\n"
+        resolve += '    if [ -x "$candidate" ]; then engine=$candidate; break; fi\ndone\n'
+        resolve += 'if [ -z "$engine" ]; then\n'
+        resolve += (
+            "    echo 'Signetum commit check engine is missing; "
+            "run maintenance worktree-prepare in this worktree' >&2\n"
+        )
+        resolve += "    exit 1\nfi"
+        command = '"$engine" -I -B -m signetum.maintenance commit-check'
     return f"""#!/bin/sh
 {MARK}
 [ "$1" = prepared ] || exit 0
@@ -56,8 +70,18 @@ if [ -n "${{SIGNETUM_COMMIT_CHECK_PROBE:-}}" ]; then
 fi
 input=$(cat)
 case "$input" in *" refs/heads/"*) ;; *) exit 0 ;; esac
+{resolve}
 printf '%s\\n' "$input" | {command}
 """
+
+
+def _worktree_engine(worktree: Path, engine: str) -> str | None:
+    """The engine path relative to the worktree that runs it, when it lives there."""
+    root = Path(git_output(worktree, "rev-parse", "--show-toplevel")).absolute()
+    try:
+        return Path(engine).absolute().relative_to(root).as_posix()
+    except ValueError:
+        return None
 
 
 def _inside_worktree(directory: Path) -> bool:
@@ -139,7 +163,8 @@ def install_commit_check(worktree: Path) -> dict[str, object]:
     engine = (
         str(Path(os.environ["SIGNETUM_SKILL"]) / "scripts/signetum") if launcher else sys.executable
     )
-    _write_hook(shim, hook_script(engine, launcher=launcher))
+    local = None if launcher else _worktree_engine(worktree, engine)
+    _write_hook(shim, hook_script(engine, launcher=launcher, local=local))
     target = repository_path(worktree, "rev-parse", "--git-path", "hooks") / HOOK_NAME
     managed = target.exists() and MARK in target.read_text(encoding="utf-8", errors="replace")
     if not _inside_worktree(target.parent) and (not target.exists() or managed):
