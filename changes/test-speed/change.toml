@@ -1,0 +1,65 @@
+[change]
+schema_version = 2
+id = "test-speed"
+
+[change.source]
+kind = "human_direction"
+summary = "The v0.9.2 release workflow stopped before publication: on the constrained macOS runner the coverage shard passed every test it reached but exceeded its unchanged 3600-second bound, while the 0.9.1 macOS job had finished in about 31 minutes. Profiling showed one real-Git scenario spending most of its time in about sixty thousand Git subprocesses, because every operation index load revalidated every stored record, including the full source admission binding of each admission. Opening the next workspace also showed that a worktree creation runs the commit-check shim from the new, unprepared worktree. The owner asked for a systematic test speedup and the release that follows it."
+
+[change.contract]
+version = 1
+approved_base = "2e5d9641b0b72241eb554a912974aa0d24e5f579" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "PERF-001"
+outcome = "Repeated operation index loads within one process reuse the validation of an unchanged stored record set instead of re-running Git checks for every record; a changed record, horizon or qualification store is validated again, and a refused record is never remembered as valid."
+acceptance = [
+    "Forged, conflicting, missing and tampered record scenarios keep failing closed.",
+    "A real-Git scenario with several admissions runs markedly fewer Git subprocesses than before, measured on the same scenario.",
+]
+
+[[change.contract.requirements]]
+id = "PERF-002"
+outcome = "The complete engine suite with coverage fits the existing release bounds on the constrained hosted macOS runner without raising timeouts, lowering coverage, or deselecting tests."
+acceptance = ["The release workflow for the next version passes every validation target before publication."]
+
+[[change.contract.requirements]]
+id = "SHIM-ENGINE-002"
+outcome = "When the worktree that runs a reference update has no prepared engine, as during creation of a new worktree, the commit-check shim also tries the repository engine of the main worktree before the installing interpreter."
+acceptance = ["A new worktree opens after the worktree whose engine installed the shim was removed."]
+
+[[change.contract.requirements]]
+id = "REL-003"
+outcome = "Release 0.9.3 carries the unpublished 0.9.2 candidate notes together with these changes; the unpublished v0.9.2 tag stays untouched."
+acceptance = ["Package and Skill versions agree on 0.9.3 and the changelog has one 0.9.3 section."]
+
+[change.contract.autonomy]
+allowed = [
+    "Optimize engine hot paths and real-Git test fixtures while keeping every assertion.",
+    "Extend the commit-check shim candidates and its workspace operation tests.",
+    "Prepare, deliver and tag release 0.9.3 after final passes.",
+]
+requires_confirmation = [
+    "Raising validation timeouts or worker bounds, lowering coverage thresholds, or deselecting tests.",
+    "Persisting validation results across processes.",
+]
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["PERF-001", "PERF-002"]
+action = "Memoize operation index validation per unchanged record set, measure Git subprocess counts and suite time, and address remaining hot paths."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["SHIM-ENGINE-002"]
+action = "Add the main worktree engine candidate to the shim with a worktree creation scenario."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["REL-003"]
+action = "Bump versions to 0.9.3, fold the candidate notes, run ready and deliver the release."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-17
+statement = "The owner directed a systematic test speedup after the 0.9.2 release workflow exceeded the macOS coverage bound, and its release as the next version."
