@@ -52,6 +52,15 @@ def _immutable_query(arguments: tuple[str, ...]) -> bool:
         return len(arguments) == 3 and re.fullmatch(identity, arguments[2]) is not None
     if len(arguments) >= 4 and arguments[:2] == ("ls-tree", "-z"):
         return re.fullmatch(identity, arguments[2]) is not None and arguments[3] == "--"
+    if arguments and arguments[0] == "diff":
+        flags = [value for value in arguments[1:] if value.startswith("-")]
+        operands = [value for value in arguments[1:] if not value.startswith("-")]
+        return (
+            set(flags) <= {"--name-only", "-z", "--no-renames", "--quiet"}
+            and "--no-renames" in flags
+            and len(operands) == 2
+            and all(re.fullmatch(identity, value) for value in operands)
+        )
     if not arguments or arguments[0] not in {"show", "cat-file", "ls-tree", "rev-parse"}:
         return False
     operands = [value for value in arguments[1:] if not value.startswith("-")]
@@ -111,7 +120,11 @@ def run_git(
         text=True,
         env=env,
     )
-    if reads is not None:
+    # Only a settled answer is reused: an object a query could not find may be
+    # written later in the same operation.
+    if reads is not None and (
+        result.returncode == 0 or (result.returncode == 1 and arguments[0] == "merge-base")
+    ):
         reads[key] = result
     return result
 

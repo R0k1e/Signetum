@@ -14,7 +14,7 @@ from typing import Literal
 
 from signetum import worktrunk as wt
 from signetum.commit_check import install_commit_check
-from signetum.git import git_output, repository_path, run_git
+from signetum.git import git_output, immutable_git_reads, repository_path, run_git
 from signetum.manifest import UnsupportedManifestError, load_manifest, parse_manifest
 from signetum.operation_records import (
     MergeOutcome,
@@ -60,6 +60,7 @@ def worktree_prepare(repository: Path, *, allow_merge: bool = False) -> Preparat
     return result
 
 
+@immutable_git_reads()
 def open_workspace(
     repository: Path,
     branch: str,
@@ -300,6 +301,7 @@ def _sync_outcome(
     }
 
 
+@immutable_git_reads()
 def workspace_sync(
     repository: Path, batch: Path | None = None, *, message: str
 ) -> dict[str, object]:
@@ -600,6 +602,7 @@ def _settle_loose_branches(
         removed.append({"branch": name, "tip": tip, **proof, "retirement": str(retired)})
 
 
+@immutable_git_reads()
 def cleanup(
     repository: Path,
     *,
