@@ -61,7 +61,7 @@ def hook_script(engine: str, *, launcher: bool = False, local: str | None = None
                 'common=$(dirname "$(dirname "$(dirname "$0")")")\n'
                 'case "$common" in\n'
                 '    .git | */.git) main=$(dirname "$common") ;;\n'
-                '    *) main=$PWD ;;\n'
+                "    *) main=$PWD ;;\n"
                 "esac\n"
             )
             relative = shlex.quote(local)
