@@ -3,7 +3,7 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## 0.9.4
+## 0.9.2
 
 - Automatic commits take a caller-supplied `--message-file`. The project's commit
   convention remains authoritative. Where the project declares none, guidance
