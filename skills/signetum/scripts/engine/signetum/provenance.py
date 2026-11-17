@@ -11,7 +11,6 @@ from signetum.operation_records import (
     batch_sync_record,
     bind_commit_if_pending,
     legacy_commit,
-    legacy_pending_commit,
     legacy_proof_message,
     load_index,
     member_from_record,
@@ -58,7 +57,7 @@ def _synchronized_base(
 
 
 def _legacy_visible(repository: Path, commit: str) -> bool:
-    return legacy_commit(repository, commit) or legacy_pending_commit(repository, commit)
+    return legacy_commit(repository, commit)
 
 
 def latest_admission_original(repository: Path, base: str, tip: str, member: str) -> str | None:

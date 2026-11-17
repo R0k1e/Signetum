@@ -1,24 +1,16 @@
-"""Versioned durable operations: one authority for sync, admission, and publication.
+"""Versioned local operations: one authority for sync, admission, and publication.
 
 Pending intent is stored before Git effects. Completion binds the actual commit,
-its parents, and its tree. Legacy history and already-pending old proofs stay
-readable. A copied trailer never fills in a missing modern record.
+its parents, and its tree, and the record is validated completely when it is
+written. Reads parse the stored records; a record is checked against Git where
+it is used. The records stay local to this repository: anyone able to forge them
+could already rewrite its refs, so they guard against interrupted writes and
+against a manual merge or copied message posing as an operation.
 
-The first use of this store records an open legacy merge that is already in
-progress. It does not treat branch tips as trusted history. Explicit adoption
-on this checkout is the only cutover for retained old history, including older
-protocol merges and ordinary pre-protocol ancestry. Adoption makes that history
-readable. It does not grant new provenance: only exact reviewed old-engine merge
-text supplies historical sync, admission, publication, and baseline facts. A
-copied trailer is not that proof. Import cannot install or expand a cutover; a
-fresh checkout adopts the same commits itself. The cutover is the commits those
-tips reach, not the branch name chosen from the local inventory. An equal
-cutover imports without rewriting the destination record. A later merge without
-a structured record stays modern. An older engine may have prepared or admitted
-work before a self-hosted batch executes this source. Those commits remain
-read-only. An engine handoff may also carry the declared preparation inputs
-that engine needs. An earlier engine-only handoff stays readable and is not
-rewritten; a later caller message and Ready source continue it in this store.
+Retained history from before the first structured operation stays readable
+through the old engine's exact merge text. Once an operation is an ancestor, a
+later commit cannot fall back to message proof. Work an older engine left
+pending finishes with that engine.
 """
 
 from __future__ import annotations
@@ -28,27 +20,18 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess  # nosec B404 -- explicit argument vectors, never a shell
-import sys
-import tarfile
 import tempfile
 import threading
-import tomllib
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
 from signetum.git import GitError, git_output, repository_path, run_git
 from signetum.operations import AdmissionError, MergeConflict, OperationFailed
 from signetum.workspaces import (
-    WorkspaceError,
-    WorkspaceRecord,
-    branch_checkouts,
     branch_name,
-    read_record,
     state_root,
 )
 
@@ -56,9 +39,6 @@ SCHEMA_VERSION = 1
 # Qualification reads the operation index while completion already holds _lock.
 # A second flock in the same process never returns, so the holding thread re-enters.
 _lock_depth = threading.local()
-# Binding one admission reads verified syncs from this index. The index must not
-# validate that admission again, or the same check never returns.
-_binding_ids: ContextVar[frozenset[str]] = ContextVar("signetum_binding_ids", default=frozenset())
 KINDS = frozenset(
     {
         "member-sync",
@@ -70,13 +50,10 @@ KINDS = frozenset(
     }
 )
 SYNC_KINDS = frozenset({"delivery", "batch", "parent"})
-_ENGINE_TREE = "skills/signetum/scripts/engine"
-_LOCK_SOURCE_KEYS = frozenset({"editable", "path", "directory"})
 MERGE_KINDS = frozenset({"member-sync", "batch-sync", "admission", "publication"})
 _TRAILER = re.compile(r"^Signetum-", re.IGNORECASE)
 _OID = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_REF = re.compile(r"^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*$")
 _KNOWN_TRAILERS = frozenset(
     {
         "Signetum-Sync",
@@ -121,7 +98,6 @@ _LOCAL_FIELDS = frozenset(
         "continuation_messages",
     }
 )
-_EXPORT_FIELDS = _LOCAL_FIELDS - {"status", "continuation_messages"}
 
 
 @dataclass(frozen=True)
@@ -187,34 +163,6 @@ def _require_object(repository: Path, oid: str, kind: str, name: str) -> None:
     actual = _object_kind(repository, oid)
     if actual != kind:
         raise AdmissionError(f"operation {name} is not a {kind}")
-
-
-def _reachable(repository: Path, commit: str) -> bool:
-    """True when a local branch can already see ``commit``."""
-
-    for oid in _branch_tips(repository).values():
-        if oid == commit or _ancestor(repository, commit, oid):
-            return True
-    head = run_git(repository, "rev-parse", "--verify", "HEAD")
-    if head.returncode == 0:
-        current = head.stdout.strip()
-        if current == commit or _ancestor(repository, commit, current):
-            return True
-    return False
-
-
-def _branch_tips(repository: Path) -> dict[str, str]:
-    output = git_output(
-        repository, "for-each-ref", "--format=%(refname) %(objectname)", "refs/heads", strip=False
-    )
-    tips = {}
-    for line in output.splitlines():
-        if not line.strip():
-            continue
-        ref, _, oid = line.partition(" ")
-        if ref and oid:
-            tips[ref] = oid
-    return tips
 
 
 def _legacy_merge_message(message: str) -> bool:
@@ -408,200 +356,26 @@ def _record_path(root: Path, identity: str) -> Path:
     return _records_root(root) / f"{identity}.json"
 
 
-def _known_trailer(line: str) -> bool:
-    if _TRAILER.match(line) is None or ":" not in line:
-        return False
-    key, value = line.split(":", 1)
-    return key in _KNOWN_TRAILERS and bool(value.strip()) and "\n" not in value
-
-
-def _open_pending_merges(repository: Path) -> list[dict[str, object]]:
-    """Snapshot only a merge this worktree already has open, with its real trailers."""
-
-    found: list[dict[str, object]] = []
-    seen: set[tuple[str, str, tuple[str, ...]]] = set()
-    for _, checkout, _ in branch_checkouts(repository):
-        path = repository_path(checkout, "rev-parse", "--git-path", "signetum-pending-merge.json")
-        document = _read_json(path)
-        if document is None:
-            continue
-        trailers = document.get("trailers")
-        before = document.get("before")
-        source = document.get("source")
-        if (
-            not isinstance(before, str)
-            or _OID.fullmatch(before) is None
-            or not isinstance(source, str)
-            or _OID.fullmatch(source) is None
-            or not isinstance(trailers, list)
-            or not trailers
-            or not all(isinstance(item, str) and _known_trailer(item) for item in trailers)
-        ):
-            continue
-        head = run_git(checkout, "rev-parse", "--verify", "HEAD")
-        merge_head = run_git(checkout, "rev-parse", "--verify", "MERGE_HEAD")
-        if head.returncode != 0 or merge_head.returncode != 0:
-            continue
-        if head.stdout.strip() != before or merge_head.stdout.strip() != source:
-            continue
-        message_path = repository_path(checkout, "rev-parse", "--git-path", "MERGE_MSG")
-        try:
-            message = message_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            continue
-        actual = tuple(sorted(_trailer_lines(message)))
-        if actual != tuple(sorted(trailers)):
-            continue
-        key = (before, source, tuple(trailers))
-        if key in seen:
-            continue
-        seen.add(key)
-        trailer_lines: list[object] = []
-        for item in trailers:
-            if isinstance(item, str):
-                trailer_lines.append(item)
-        entry: dict[str, object] = {}
-        entry["before"] = before
-        entry["source"] = source
-        entry["trailers"] = trailer_lines
-        found.append(entry)
-    return found
-
-
-def _sync_digests(root: Path) -> list[str]:
-    directory = root / "synchronization"
-    if not directory.is_dir():
-        return []
-    digests = []
-    for path in sorted(directory.glob("*.json")):
-        try:
-            digests.append(_digest(path.read_bytes()))
-        except OSError:
-            continue
-    return digests
-
-
-def _ensure_horizon(repository: Path, root: Path) -> dict[str, object]:
-    """Record open legacy merges once. Branch tips are not inferred as trust."""
-
-    path = root / "operations" / "legacy-horizon.json"
-    document = _read_json(path)
-    if document is not None and document.get("schema_version") == SCHEMA_VERSION:
-        if "adopted" not in document:
-            document = {**document, "adopted": False}
-        return document
-    if path.exists():
-        raise AdmissionError(
-            "legacy operation horizon is unreadable",
-            expected="restore the recorded horizon or retry from a repository that has one",
-        )
-    horizon = {
-        "schema_version": SCHEMA_VERSION,
-        "adopted": False,
-        "tips": {},
-        "pending_merges": _open_pending_merges(repository),
-        "sync_record_sha256": _sync_digests(root),
-    }
-    _write_atomic(path, _canonical(horizon))
-    return horizon
-
-
 def _ancestor(repository: Path, ancestor: str, descendant: str) -> bool:
     completed = run_git(repository, "merge-base", "--is-ancestor", ancestor, descendant)
     if completed.returncode not in (0, 1):
-        raise AdmissionError(completed.stderr.strip() or "cannot compare legacy history")
+        raise AdmissionError(completed.stderr.strip() or "cannot compare history")
     return completed.returncode == 0
 
 
-def _proof_commits(root: Path) -> list[str]:
-    records = root / "operations" / "records"
-    if not records.is_dir():
-        return []
-    found = []
-    for path in records.glob("*.json"):
-        document = _read_json(path)
-        if not isinstance(document, dict) or document.get("status") != "completed":
-            continue
-        proof = document.get("proof")
-        if isinstance(proof, dict) and isinstance(proof.get("commit"), str):
-            found.append(str(proof["commit"]))
-    return found
-
-
-def _in_horizon(
-    repository: Path, horizon: Mapping[str, object], commit: str, modern: Sequence[str] = ()
-) -> bool:
-    if horizon.get("adopted") is not True:
-        return False
-    tips = horizon.get("tips")
-    if not isinstance(tips, dict) or not tips:
-        return False
-    if any(item == commit or _ancestor(repository, item, commit) for item in modern):
-        return False
-    return any(
-        isinstance(oid, str) and (oid == commit or _ancestor(repository, commit, oid))
-        for oid in tips.values()
-    )
-
-
 def legacy_commit(repository: Path, commit: str) -> bool:
-    """True when an explicit adoption still covers ``commit`` and no later operation does."""
+    """True when ``commit`` predates every structured operation on its history.
 
-    with _lock(repository) as root:
-        horizon = _ensure_horizon(repository, root)
-        modern = _proof_commits(root)
-    return _in_horizon(repository, horizon, commit, modern)
+    Old-engine text is readable only there: once a structured operation is an
+    ancestor, a later commit cannot fall back to message proof.
+    """
 
-
-def legacy_pending_trailers(repository: Path, before: str, source: str) -> tuple[str, ...] | None:
-    """Trailers of an old merge that was already pending when this engine started."""
-
-    with _lock(repository) as root:
-        horizon = _ensure_horizon(repository, root)
-    pending = horizon.get("pending_merges")
-    if not isinstance(pending, list):
-        return None
-    for item in pending:
-        if (
-            isinstance(item, dict)
-            and item.get("before") == before
-            and item.get("source") == source
-            and isinstance(item.get("trailers"), list)
-        ):
-            trailers = item["trailers"]
-            if trailers and all(isinstance(line, str) for line in trailers):
-                return tuple(trailers)
-    return None
-
-
-def snapshotted_sync_record(repository: Path, path: Path) -> bool:
-    """True when this legacy sync file existed before the horizon."""
-
-    try:
-        digest = _digest(path.read_bytes())
-    except OSError:
+    index = load_index(repository)
+    if commit in index.by_commit:
         return False
-    with _lock(repository) as root:
-        horizon = _ensure_horizon(repository, root)
-    recorded = horizon.get("sync_record_sha256")
-    return isinstance(recorded, list) and digest in recorded
-
-
-def legacy_pending_commit(repository: Path, commit: str) -> bool:
-    """A commit that finishes one snapshotted old pending merge, and nothing else."""
-
-    try:
-        parents = git_output(repository, "rev-list", "--parents", "-n", "1", commit).split()[1:]
-        message = commit_message(repository, commit)
-    except (GitError, AdmissionError):
-        return False
-    if len(parents) != 2:
-        return False
-    trailers = legacy_pending_trailers(repository, parents[0], parents[1])
-    if trailers is None:
-        return False
-    actual = tuple(sorted(line for line in message.splitlines() if _TRAILER.match(line.lstrip())))
-    return actual == tuple(sorted(trailers))
+    return not any(
+        proof == commit or _ancestor(repository, proof, commit) for proof in index.by_commit
+    )
 
 
 def _numbering_mappings(
@@ -641,23 +415,6 @@ def _numbering_mappings(
     return tuple(found)
 
 
-def _json_list(value: object, diagnostic: str) -> list[object]:
-    if not isinstance(value, list):
-        raise AdmissionError(diagnostic)
-    return list(value)
-
-
-def _string_keyed_dict(value: object, diagnostic: str) -> dict[str, object]:
-    if not isinstance(value, dict):
-        raise AdmissionError(diagnostic)
-    copied: dict[str, object] = {}
-    for key, item in value.items():
-        if not isinstance(key, str):
-            raise AdmissionError(diagnostic)
-        copied[key] = item
-    return copied
-
-
 def _mapping_pairs(value: object) -> tuple[tuple[str, str], ...]:
     if not isinstance(value, list):
         raise AdmissionError("operation mappings are invalid")
@@ -673,473 +430,145 @@ def _mapping_pairs(value: object) -> tuple[tuple[str, str], ...]:
     return tuple(pairs)
 
 
-def validate_operation(
-    repository: Path,
-    document: Mapping[str, object],
-    *,
-    portable: bool = False,
-    qualifications: Mapping[str, bytes] | None = None,
-) -> dict[str, object]:
-    """One contract for a local record or a portable proof.
+def _text(document: Mapping[str, object], name: str, *, optional: bool = False) -> str | None:
+    value = document.get(name)
+    if value is None and optional:
+        return None
+    if not isinstance(value, str):
+        raise AdmissionError(f"operation record is malformed: {name}")
+    return value
 
-    A recomputed id is not enough. Kind, parents, bases, tree, qualification
-    and mappings have to agree with each other and with the Git objects.
-    """
+
+def parse_operation(document: object) -> dict[str, object]:
+    """The shape of one stored record. Git identity is judged where it is used."""
 
     if not isinstance(document, Mapping):
-        raise AdmissionError("operation record is invalid")
-    allowed = _EXPORT_FIELDS if portable else _LOCAL_FIELDS
-    unknown = set(document) - allowed
+        raise AdmissionError("operation record is malformed")
+    unknown = set(document) - _LOCAL_FIELDS
     if unknown:
         raise AdmissionError(f"operation record has unknown fields: {', '.join(sorted(unknown))}")
-    schema = document.get("schema_version")
-    if schema != SCHEMA_VERSION or type(schema) is not int:
-        raise AdmissionError("operation record schema is unsupported")
-    kind = document.get("kind")
-    if kind not in KINDS:
-        raise AdmissionError(f"operation kind is invalid: {kind}")
-    identity = document.get("id")
-    if not isinstance(identity, str) or _SHA256.fullmatch(identity) is None:
-        raise AdmissionError("operation identity is invalid")
-    message = document.get("message")
-    if not isinstance(message, str) or message != freeze_message(message):
-        raise AdmissionError("operation message is invalid")
-    if _trailer_lines(message):
-        raise AdmissionError("operation message cannot carry Signetum trailers")
-    branch = document.get("branch")
-    if not isinstance(branch, str) or not branch.strip() or branch != branch.strip():
-        raise AdmissionError("operation branch is invalid")
-    if ".." in branch or branch.startswith(("/", "~")):
-        raise AdmissionError("operation branch is invalid")
-    before = _oid(document.get("before"), "before")
-    source = _oid(document.get("source"), "source")
-    base = _oid(document.get("base"), "base")
-    attested = _oid(document.get("attested_base"), "attested base")
-    parents = document.get("parents")
     if (
-        not isinstance(parents, list)
-        or not parents
-        or not all(isinstance(item, str) and _OID.fullmatch(item) for item in parents)
+        document.get("schema_version") != SCHEMA_VERSION
+        or type(document["schema_version"]) is not int
     ):
-        raise AdmissionError("operation parents are invalid")
-    if parents[0] != before:
-        raise AdmissionError("operation parents do not start at its before commit")
-    plans = document.get("plans", [])
-    if not isinstance(plans, list) or not all(isinstance(item, str) for item in plans):
-        raise AdmissionError("operation plans are invalid")
-    sync_kind = document.get("sync_kind")
-    previous = document.get("previous_base")
-    member = document.get("member")
-    tree = document.get("tree")
-    evidence = document.get("ready_evidence", "")
-    digest = document.get("ready_evidence_sha256", "")
-    patch = document.get("patch_id", "")
-    if sync_kind is not None and (not isinstance(sync_kind, str) or sync_kind not in SYNC_KINDS):
-        raise AdmissionError("operation sync kind is invalid")
-    if previous is not None and (not isinstance(previous, str) or _OID.fullmatch(previous) is None):
-        raise AdmissionError("operation previous base is invalid")
-    if member is not None and (not isinstance(member, str) or not member.strip()):
-        raise AdmissionError("operation member is invalid")
-    if tree is not None and (not isinstance(tree, str) or _OID.fullmatch(tree) is None):
-        raise AdmissionError("operation tree is invalid")
-    if not isinstance(evidence, str) or not isinstance(patch, str):
-        raise AdmissionError("operation evidence is invalid")
-    if digest in ("", None):
-        digest = ""
-    if not isinstance(digest, str) or (digest and _SHA256.fullmatch(digest) is None):
-        raise AdmissionError("operation qualification identity is invalid")
-    if evidence and not digest:
-        raise AdmissionError("operation qualification bytes are missing")
-    if "mappings" not in document:
-        raise AdmissionError("operation mappings are invalid")
-    mappings = _mapping_pairs(document["mappings"])
-    continuation = document.get("continuation_messages")
-    if continuation is not None:
-        if not isinstance(continuation, list) or not all(
-            isinstance(item, str) and item == freeze_message(item) for item in continuation
-        ):
-            raise AdmissionError("stored continuation messages are invalid")
-    status = "completed" if portable else document.get("status")
+        raise AdmissionError("operation record schema is unsupported")
+    if document.get("kind") not in KINDS:
+        raise AdmissionError(f"operation kind is invalid: {document.get('kind')}")
+    status = document.get("status")
     if status not in {"pending", "completed"}:
         raise AdmissionError("operation status is invalid")
+    for name in ("before", "source", "base", "attested_base"):
+        _oid(document.get(name), name)
+    for name in ("previous_base", "tree"):
+        if document.get(name) is not None:
+            _oid(document.get(name), name)
+    message = _text(document, "message")
+    if message != freeze_message(str(message)) or _trailer_lines(str(message)):
+        raise AdmissionError("operation message is invalid")
+    _text(document, "branch")
+    _text(document, "member", optional=True)
+    parents = document.get("parents")
+    if not isinstance(parents, list) or not parents or parents[0] != document["before"]:
+        raise AdmissionError("operation parents are invalid")
+    for item in parents:
+        _oid(item, "parent")
+    plans = document.get("plans", [])
+    if not isinstance(plans, list) or not all(isinstance(item, str) for item in plans):
+        raise AdmissionError("operation record is malformed: plans")
+    sync_kind = document.get("sync_kind")
+    if sync_kind is not None and sync_kind not in SYNC_KINDS:
+        raise AdmissionError("operation sync kind is invalid")
+    if "mappings" not in document:
+        raise AdmissionError("operation record is malformed: mappings")
+    _mapping_pairs(document["mappings"])
+    for name in ("ready_evidence", "ready_evidence_sha256", "patch_id"):
+        if not isinstance(document.get(name, ""), str):
+            raise AdmissionError(f"operation record is malformed: {name}")
+    digest = document.get("ready_evidence_sha256") or ""
+    if digest and _SHA256.fullmatch(str(digest)) is None:
+        raise AdmissionError("operation qualification identity is invalid")
+    continuation = document.get("continuation_messages")
+    if continuation is not None and (
+        not isinstance(continuation, list)
+        or not all(isinstance(item, str) for item in continuation)
+    ):
+        raise AdmissionError("stored continuation messages are invalid")
     proof = document.get("proof")
     if status == "pending":
         if proof is not None:
             raise AdmissionError("pending operation cannot carry proof")
-    else:
-        if not isinstance(proof, dict) or set(proof) != {"commit", "parents", "tree"}:
-            raise AdmissionError("operation proof shape is invalid")
-        proof_commit = _oid(proof.get("commit"), "proof commit")
-        proof_parents = proof.get("parents")
-        proof_tree = _oid(proof.get("tree"), "proof tree")
-        if proof_parents != parents:
-            raise AdmissionError("operation parents do not match its proof")
-        if isinstance(tree, str) and tree != proof_tree:
-            raise AdmissionError("operation tree does not match its proof")
-        _require_object(repository, proof_commit, "commit", "proof commit")
-        actual = git_proof(repository, proof_commit)
-        if (
-            actual["parents"] != parents
-            or actual["tree"] != proof_tree
-            or actual["message"] != message
-        ):
-            raise AdmissionError("operation proof does not match the Git object")
-    for oid, name in (
-        (before, "before"),
-        (source, "source"),
-        (base, "base"),
-        (attested, "attested base"),
+    elif (
+        not isinstance(proof, dict)
+        or set(proof) != {"commit", "parents", "tree"}
+        or proof.get("parents") != parents
     ):
-        _require_object(repository, oid, "commit", name)
-    if isinstance(tree, str):
-        _require_object(repository, tree, "tree", "tree")
+        raise AdmissionError("operation proof shape is invalid")
+    else:
+        _oid(proof.get("commit"), "proof commit")
+        _oid(proof.get("tree"), "proof tree")
+    expected = intent_from_document(document).identity()
+    if expected != document.get("id"):
+        raise AdmissionError("operation identity does not match its fields")
+    return dict(document)
+
+
+def _require_kind(repository: Path, document: Mapping[str, object]) -> None:
+    """The relations a new record must hold when it is written."""
+
+    kind = document["kind"]
+    before, source, base = str(document["before"]), str(document["source"]), str(document["base"])
+    attested = document["attested_base"]
+    parents = document["parents"]
+    member, previous = document.get("member"), document.get("previous_base")
+    sync_kind, mappings = document.get("sync_kind"), document.get("mappings")
+    tree = document.get("tree")
     if kind in MERGE_KINDS:
         if parents != [before, source] or source == before:
             raise AdmissionError("operation source is not its second parent")
         if not _ancestor(repository, base, before) or not _ancestor(repository, base, source):
             raise AdmissionError("operation base is not an ancestor of the merge")
-    if kind == "member-sync":
-        if sync_kind is None or previous is not None or member is not None or mappings:
-            raise AdmissionError("member synchronization record is invalid")
-        if attested != base:
-            raise AdmissionError("member synchronization attests a different base")
-    elif kind == "batch-sync":
-        if (
-            sync_kind is not None
-            or member is not None
-            or mappings
-            or previous != base
-            or attested != source
-        ):
-            raise AdmissionError("batch synchronization record is invalid")
-        if not _ancestor(repository, base, source):
-            raise AdmissionError("batch synchronization does not descend from the previous base")
-    elif kind == "admission":
-        if (
-            sync_kind is not None
-            or previous is not None
-            or not isinstance(member, str)
-            or mappings
-            or attested != base
-            or not evidence
-            or not digest
-            or not patch
-        ):
-            raise AdmissionError("admission record is invalid")
-    elif kind == "publication":
-        if (
-            sync_kind is not None
-            or previous is not None
-            or member is not None
-            or mappings
-            or attested != base
-            or base != before
-            or not isinstance(tree, str)
-        ):
-            raise AdmissionError("publication record is invalid")
-        source_tree = git_output(repository, "rev-parse", f"{source}^{{tree}}")
-        if tree != source_tree:
-            raise AdmissionError("publication tree is not the published source tree")
-    elif kind == "decision-mapping":
-        if (
-            sync_kind is not None
-            or previous is not None
-            or member is not None
-            or parents != [before]
-            or source == before
-            or attested != base
-            or not isinstance(tree, str)
-            or not mappings
-        ):
-            raise AdmissionError("decision mapping record is invalid")
+    else:
+        if parents != [before] or source == before or not isinstance(tree, str):
+            raise AdmissionError(f"{kind} record is invalid")
         if not _ancestor(repository, base, before):
-            raise AdmissionError("decision mapping is not bound to the approved base")
-        recorded = _numbering_mappings(repository, before, source, str(Path(mappings[0][0]).parent))
-        if recorded != mappings:
+            raise AdmissionError(f"{kind} is not bound to its base")
+    valid = {
+        "member-sync": sync_kind is not None and attested == base,
+        "batch-sync": sync_kind is None and previous == base and attested == source,
+        "admission": sync_kind is None
+        and isinstance(member, str)
+        and attested == base
+        and bool(document.get("ready_evidence_sha256"))
+        and bool(document.get("patch_id")),
+        "publication": sync_kind is None and attested == base == before and isinstance(tree, str),
+        "decision-mapping": sync_kind is None and attested == base and bool(mappings),
+        "engine-handoff": sync_kind is None and attested == base,
+    }[str(kind)]
+    if not valid or (kind != "admission" and member is not None):
+        raise AdmissionError(f"{kind} record is invalid")
+    if kind not in {"member-sync", "batch-sync"} and previous is not None:
+        raise AdmissionError(f"{kind} record is invalid")
+    if kind not in {"member-sync", "decision-mapping"} and mappings:
+        raise AdmissionError(f"{kind} record is invalid")
+    if kind == "publication" and tree != git_output(repository, "rev-parse", f"{source}^{{tree}}"):
+        raise AdmissionError("publication tree is not the published source tree")
+    if kind == "decision-mapping":
+        directory = str(Path(_mapping_pairs(mappings)[0][0]).parent)
+        if _numbering_mappings(repository, before, source, directory) != _mapping_pairs(mappings):
             raise AdmissionError("decision mapping does not match the committed rename")
-        if status == "completed" and isinstance(proof, dict) and proof.get("commit") != source:
-            raise AdmissionError("decision mapping is not bound to its commit")
-    elif kind == "engine-handoff":
-        if (
-            sync_kind is not None
-            or previous is not None
-            or member is not None
-            or mappings
-            or parents != [before]
-            or source == before
-            or attested != base
-            or not isinstance(tree, str)
-        ):
-            raise AdmissionError("engine handoff record is invalid")
-        if not _ancestor(repository, base, before):
-            raise AdmissionError("engine handoff base is not an ancestor of the batch")
-        if status == "completed" and isinstance(proof, dict):
-            handoff = str(proof.get("commit"))
-            _require_same_engine_tree(repository, source, handoff)
-            changed = git_output(
-                repository, "diff", "--name-only", before, handoff, strip=False
-            ).splitlines()
-            outside_engine = [
-                path for path in changed if path and not path.startswith(f"{_ENGINE_TREE}/")
-            ]
-            # An engine-only effect stays valid without consulting later bindings.
-            # Only paths this commit changes must be declared preparation inputs.
-            if outside_engine:
-                allowed = set(_preparation_bindings(repository, source))
-                if any(path not in allowed for path in outside_engine):
-                    raise AdmissionError(
-                        "engine handoff changes more than the repository engine "
-                        "and its declared preparation inputs"
-                    )
-                for path in outside_engine:
-                    if _path_blob(repository, source, path) != _path_blob(
-                        repository, handoff, path
-                    ):
-                        raise AdmissionError(
-                            "engine handoff does not preserve the source preparation input"
-                        )
-    expected = intent_from_document({**document, "status": status, "proof": proof}).identity()
-    if expected != identity:
-        raise AdmissionError("operation identity does not match its fields")
+
+
+def validate_operation(repository: Path, document: Mapping[str, object]) -> dict[str, object]:
+    """A record about to be written: its shape, relations and Git objects."""
+
+    parsed = parse_operation(document)
+    _require_kind(repository, parsed)
+    if parsed["status"] == "completed":
+        require_bound_commit(repository, parsed)
+    digest = str(parsed.get("ready_evidence_sha256") or "")
     if digest:
-        supplied = None if qualifications is None else qualifications.get(digest)
-        if supplied is None:
-            stored = qualification_bytes(repository, digest)
-            if stored is not None:
-                supplied = stored
-        if supplied is not None and _digest(supplied) != digest:
-            raise AdmissionError("operation qualification bytes are missing")
-        if kind == "admission" and supplied is not None:
-            _bind_admission_qualification(repository, document, supplied)
-        elif status == "completed" and supplied is None:
-            require_qualification(repository, digest)
-    return dict(document)
-
-
-def _bind_admission_qualification(
-    repository: Path, document: Mapping[str, object], content: bytes
-) -> None:
-    """Guard one admission while the source owner binds its qualification.
-
-    Digest equality only proves the bytes are intact. Source admission binds
-    the receipt, plans, and patch for a local record and an import. Reading
-    those rules consults the operation index and returns the stored records.
-    Validating this admission again would never return.
-    """
-
-    identity = document.get("id")
-    active = _binding_ids.get()
-    if isinstance(identity, str) and identity in active:
-        return
-    bound = active | {identity} if isinstance(identity, str) else active
-    token = _binding_ids.set(bound)
-    try:
-        # scope reaches this module through decision_identity. The source owner
-        # already imports that chain; load it only while this check runs.
-        from signetum.source_admission import bind_admission_qualification  # noqa: PLC0415
-
-        bind_admission_qualification(repository, document, content)
-    finally:
-        _binding_ids.reset(token)
-
-
-def _require_same_engine_tree(repository: Path, source: str, commit: str) -> None:
-    try:
-        source_tree = git_output(repository, "rev-parse", f"{source}:{_ENGINE_TREE}")
-        commit_tree = git_output(repository, "rev-parse", f"{commit}:{_ENGINE_TREE}")
-    except GitError as error:
-        raise AdmissionError("engine handoff source has no repository engine") from error
-    if source_tree != commit_tree:
-        raise AdmissionError("engine handoff does not preserve the source engine")
-
-
-def _horizon_merges_are_legacy(repository: Path, tip: str, modern: Sequence[str]) -> None:
-    """Retained history may be older than the reviewed merge text.
-
-    Exact proof still grants operation facts. The cutover itself only refuses a
-    structured operation, which would make modern missing evidence look legacy.
-    """
-
-    if any(item == tip or _ancestor(repository, item, tip) for item in modern):
-        raise AdmissionError("legacy adoption cannot include a structured operation")
-
-
-def _validate_horizon_git(
-    repository: Path, horizon: Mapping[str, object], *, modern: Sequence[str]
-) -> None:
-    tips = horizon.get("tips")
-    pending = horizon.get("pending_merges")
-    digests = horizon.get("sync_record_sha256")
-    if (
-        horizon.get("schema_version") != SCHEMA_VERSION
-        or type(horizon.get("schema_version")) is not int
-        or not isinstance(tips, dict)
-        or not isinstance(pending, list)
-        or not isinstance(digests, list)
-        or horizon.get("adopted") not in {True, False}
-    ):
-        raise AdmissionError("legacy operation horizon is invalid")
-    if any(not isinstance(item, str) or _SHA256.fullmatch(item) is None for item in digests):
-        raise AdmissionError("legacy operation horizon is invalid")
-    for ref, oid in tips.items():
-        if not isinstance(ref, str) or _REF.fullmatch(ref) is None:
-            raise AdmissionError("legacy horizon tip ref is invalid")
-        commit = _oid(oid, "horizon tip")
-        _require_object(repository, commit, "commit", "horizon tip")
-        if not _reachable(repository, commit):
-            raise AdmissionError("legacy horizon tip is not in this repository")
-        if horizon.get("adopted") is True:
-            _horizon_merges_are_legacy(repository, commit, modern)
-    for item in pending:
-        if not isinstance(item, dict) or set(item) - {"continuation_messages"} != {
-            "before",
-            "source",
-            "trailers",
-        }:
-            raise AdmissionError("legacy horizon pending merge is invalid")
-        before = _oid(item.get("before"), "pending before")
-        source = _oid(item.get("source"), "pending source")
-        trailers = item.get("trailers")
-        if (
-            not isinstance(trailers, list)
-            or not trailers
-            or not all(isinstance(line, str) and _known_trailer(line) for line in trailers)
-        ):
-            raise AdmissionError("legacy horizon pending merge is invalid")
-        _require_object(repository, before, "commit", "pending before")
-        _require_object(repository, source, "commit", "pending source")
-        continuation = item.get("continuation_messages")
-        if continuation is not None and (
-            not isinstance(continuation, list)
-            or not all(isinstance(line, str) and line.endswith("\n") for line in continuation)
-        ):
-            raise AdmissionError("legacy horizon continuation is invalid")
-    _refuse_machine_paths(dict(horizon), "legacy_horizon")
-
-
-def adopt_legacy_history(repository: Path, commits: Sequence[str]) -> dict[str, object]:
-    """Adopt explicit pre-modern tips. This does not move the cutover forward."""
-
-    if not commits:
-        raise AdmissionError("legacy adoption requires a commit")
-    selected: list[tuple[str, str]] = []
-    for commit in commits:
-        try:
-            oid = git_output(repository, "rev-parse", f"{commit}^{{commit}}")
-        except GitError as error:
-            raise AdmissionError(f"legacy adoption commit is unavailable: {commit}") from error
-        if not _reachable(repository, oid):
-            raise AdmissionError("legacy adoption commit is not in this repository")
-        containing = [
-            ref
-            for ref, tip in _branch_tips(repository).items()
-            if tip == oid or _ancestor(repository, oid, tip)
-        ]
-        if not containing:
-            raise AdmissionError("legacy adoption commit is not on a local branch")
-        selected.append((containing[0], oid))
-    with _lock(repository) as root:
-        horizon = _ensure_horizon(repository, root)
-        modern = _proof_commits(root)
-        tips = _string_keyed_dict(horizon.get("tips") or {}, "legacy operation horizon is invalid")
-        for ref, oid in selected:
-            _horizon_merges_are_legacy(repository, oid, modern)
-            previous = tips.get(ref)
-            if isinstance(previous, str) and previous != oid:
-                if _ancestor(repository, previous, oid):
-                    raise AdmissionError("legacy adoption cannot expand the recorded cutover")
-                if not _ancestor(repository, oid, previous):
-                    raise AdmissionError("legacy adoption conflicts with the recorded cutover")
-            tips[ref] = oid if not isinstance(previous, str) else previous
-            shrinks = (
-                isinstance(previous, str)
-                and oid != previous
-                and _ancestor(repository, oid, previous)
-            )
-            if shrinks:
-                tips[ref] = oid
-        adopted = {
-            "schema_version": SCHEMA_VERSION,
-            "adopted": True,
-            "tips": tips,
-            "pending_merges": horizon.get("pending_merges"),
-            "sync_record_sha256": horizon.get("sync_record_sha256"),
-        }
-        _validate_horizon_git(repository, adopted, modern=modern)
-        path = root / "operations" / "legacy-horizon.json"
-        _write_atomic(path, _canonical(adopted))
-    return adopted
-
-
-def store_legacy_continuation(
-    repository: Path,
-    before: str,
-    source: str,
-    messages: Sequence[str],
-    prepared: Sequence[str] | None = None,
-) -> None:
-    """Persist caller text for the members an old pending admission still owes.
-
-    An older engine may open the merge after this checkout recorded its horizon;
-    its prepared trailers then evidence the pending merge instead.
-    """
-
-    frozen = [freeze_message(message) for message in messages]
-    with _lock(repository) as root:
-        horizon = _ensure_horizon(repository, root)
-        pending = horizon.get("pending_merges")
-        if not isinstance(pending, list):
-            raise AdmissionError("legacy operation horizon is invalid")
-        updated = []
-        found = False
-        for item in pending:
-            if not isinstance(item, dict):
-                raise AdmissionError("legacy operation horizon is invalid")
-            if item.get("before") == before and item.get("source") == source:
-                existing = item.get("continuation_messages")
-                if existing is not None and existing != frozen:
-                    raise AdmissionError(
-                        "recorded operation conflicts with this request",
-                        expected="retry the same continuation messages",
-                    )
-                updated.append({**item, "continuation_messages": frozen})
-                found = True
-            else:
-                updated.append(dict(item))
-        if not found:
-            if not prepared or not all(_known_trailer(line) for line in prepared):
-                raise AdmissionError("batch has no recorded merge to continue")
-            updated.append(
-                {
-                    "before": before,
-                    "source": source,
-                    "trailers": list(prepared),
-                    "continuation_messages": frozen,
-                }
-            )
-        horizon = {**horizon, "pending_merges": updated}
-        _write_atomic(root / "operations" / "legacy-horizon.json", _canonical(horizon))
-
-
-def legacy_continuation_messages(
-    repository: Path, before: str, source: str
-) -> tuple[str, ...] | None:
-    with _lock(repository) as root:
-        horizon = _ensure_horizon(repository, root)
-    pending = horizon.get("pending_merges")
-    if not isinstance(pending, list):
-        return None
-    for item in pending:
-        if isinstance(item, dict) and item.get("before") == before and item.get("source") == source:
-            messages = item.get("continuation_messages")
-            if messages is None:
-                return None
-            if not isinstance(messages, list) or not all(
-                isinstance(line, str) for line in messages
-            ):
-                raise AdmissionError("stored continuation messages are invalid")
-            return tuple(messages)
-    return None
+        require_qualification(repository, digest)
+    return parsed
 
 
 def _load_document(path: Path) -> dict[str, object]:
@@ -1167,106 +596,29 @@ class OperationIndex:
 
 
 def _operation_index(documents: Iterable[Mapping[str, object]]) -> OperationIndex:
-    stored = [dict(document) for document in documents]
-    _reject_duplicate_proofs(stored)
     by_id: dict[str, dict[str, object]] = {}
     by_commit: dict[str, dict[str, object]] = {}
-    for document in stored:
-        identity = document.get("id")
-        if not isinstance(identity, str):
-            raise AdmissionError("operation record has no identity")
+    for document in documents:
+        identity = str(document["id"])
         if identity in by_id:
             raise AdmissionError("operation identity is recorded twice")
-        by_id[identity] = document
+        by_id[identity] = dict(document)
         proof = document.get("proof")
         if document.get("status") != "completed" or not isinstance(proof, dict):
             continue
-        commit = proof.get("commit")
-        if isinstance(commit, str):
-            by_commit[commit] = document
-    return OperationIndex(by_id, by_commit)
-
-
-def _reject_duplicate_proofs(documents: Sequence[Mapping[str, object]]) -> None:
-    claimed: dict[str, Mapping[str, object]] = {}
-    for document in documents:
-        proof = document.get("proof")
-        if document.get("status") != "completed" or not isinstance(proof, dict):
-            continue
-        commit = proof.get("commit")
-        if not isinstance(commit, str):
-            raise AdmissionError("completed operation has no commit")
-        previous = claimed.get(commit)
-        if previous is not None and previous != document:
+        commit = str(proof["commit"])
+        if commit in by_commit:
             raise AdmissionError("conflicting operation proofs claim one commit")
-        claimed[commit] = document
-
-
-# Validated indexes of this process, keyed by checkout and the exact stored state
-# they judged. Git objects are immutable, so only a change to the stored records,
-# horizon, qualifications or synchronization records can change the verdict.
-_validated_indexes: dict[tuple[str, str], OperationIndex] = {}
-_validated_indexes_guard = threading.Lock()
-_VALIDATED_INDEX_LIMIT = 64
-
-
-def _stored_state(root: Path, documents: Sequence[Mapping[str, object]]) -> str:
-    digest = hashlib.sha256()
-    for document in documents:
-        digest.update(_canonical(document).encode("utf-8"))
-    digest.update(b"\0horizon\0")
-    try:
-        digest.update((root / "operations" / "legacy-horizon.json").read_bytes())
-    except OSError:
-        digest.update(b"absent")
-    for directory in (root / "operations" / "qualifications", root / "synchronization"):
-        digest.update(b"\0" + directory.name.encode("utf-8") + b"\0")
-        if not directory.is_dir():
-            continue
-        for path in sorted(directory.rglob("*")):
-            if not path.is_file():
-                continue
-            try:
-                state = path.stat()
-            except OSError:
-                continue
-            digest.update(
-                f"{path.relative_to(directory)}:{state.st_size}:{state.st_mtime_ns}\n".encode()
-            )
-    return digest.hexdigest()
-
-
-def _copied_index(index: OperationIndex) -> OperationIndex:
-    by_id = {key: json.loads(json.dumps(value)) for key, value in index.by_id.items()}
-    by_commit = {
-        key: by_id.get(str(value.get("id")), json.loads(json.dumps(value)))
-        for key, value in index.by_commit.items()
-    }
+        by_commit[commit] = by_id[identity]
     return OperationIndex(by_id, by_commit)
 
 
 def load_index(repository: Path) -> OperationIndex:
+    """Stored records, parsed. Each was validated against Git when it was written."""
+
     with _lock(repository) as root:
-        _ensure_horizon(repository, root)
         documents = _documents(root)
-        key = (str(Path(repository).resolve()), _stored_state(root, documents))
-    _reject_duplicate_proofs(documents)
-    # An admission bind is already judging one record. Sync and scope reads need
-    # the other stored records, not another pass through that same bind.
-    if _binding_ids.get():
-        return _operation_index(documents)
-    with _validated_indexes_guard:
-        cached = _validated_indexes.get(key)
-    if cached is None:
-        # A refused record raises here, so only a fully validated state is kept.
-        cached = _operation_index(
-            validate_operation(repository, document) for document in documents
-        )
-        with _validated_indexes_guard:
-            if len(_validated_indexes) >= _VALIDATED_INDEX_LIMIT:
-                _validated_indexes.clear()
-            _validated_indexes[key] = cached
-    return _copied_index(cached)
+    return _operation_index(parse_operation(document) for document in documents)
 
 
 def _intent_document(intent: OperationIntent) -> dict[str, object]:
@@ -1331,9 +683,8 @@ def begin_operation(repository: Path, intent: OperationIntent) -> dict[str, obje
     document = _intent_document(intent)
     validate_operation(repository, document)
     with _lock(repository) as root:
-        _ensure_horizon(repository, root)
         for stored in _documents(root):
-            other = validate_operation(repository, stored)
+            other = parse_operation(stored)
             if (
                 other.get("status") == "pending"
                 and other.get("branch") == intent.branch
@@ -1386,7 +737,6 @@ def complete_operation(repository: Path, intent: OperationIntent, commit: str) -
         raise AdmissionError("operation commit tree does not match the recorded tree")
     stored = {"commit": proof["commit"], "parents": proof["parents"], "tree": proof["tree"]}
     with _lock(repository) as root:
-        _ensure_horizon(repository, root)
         path = _record_path(root, intent.identity())
         if not path.exists():
             raise AdmissionError("operation completion has no pending intent")
@@ -1414,7 +764,6 @@ def complete_operation(repository: Path, intent: OperationIntent, commit: str) -
 
 def operation_for(repository: Path, intent: OperationIntent) -> dict[str, object] | None:
     with _lock(repository) as root:
-        _ensure_horizon(repository, root)
         path = _record_path(root, intent.identity())
         if not path.exists():
             return None
@@ -1466,7 +815,6 @@ def pending_tree(repository: Path, branch: str, before: str, source: str) -> str
 def store_qualification(repository: Path, content: bytes) -> str:
     digest = _digest(content)
     with _lock(repository) as root:
-        _ensure_horizon(repository, root)
         destination = _qualifications(root) / digest
         if destination.exists():
             try:
@@ -1654,14 +1002,19 @@ def _proof_document(document: Mapping[str, object]) -> dict[str, object] | None:
 
 
 def require_bound_commit(repository: Path, document: Mapping[str, object]) -> dict[str, object]:
-    """Refuse a completed record whose identity or Git object does not match."""
+    """Refuse a completed record whose Git object does not match where it is used."""
 
-    validated = validate_operation(repository, document)
-    if validated.get("status") != "completed":
+    parsed = parse_operation(document)
+    proof = parsed.get("proof")
+    if parsed.get("status") != "completed" or not isinstance(proof, dict):
         raise AdmissionError("operation is not complete")
-    proof = validated.get("proof")
-    if not isinstance(proof, dict):
-        raise AdmissionError("operation is not complete")
+    actual = git_proof(repository, str(proof["commit"]))
+    if (
+        actual["parents"] != proof["parents"]
+        or actual["tree"] != proof["tree"]
+        or actual["message"] != parsed["message"]
+    ):
+        raise AdmissionError("operation proof does not match the Git object")
     return proof
 
 
@@ -1680,7 +1033,7 @@ def attested_base_from(repository: Path, tip: str) -> str | None:
             if isinstance(attested, str) and attested:
                 return attested
             raise AdmissionError("completed operation does not record its base")
-        if not (legacy_commit(repository, commit) or legacy_pending_commit(repository, commit)):
+        if not legacy_commit(repository, commit):
             parents = git_output(repository, "rev-list", "--parents", "-n", "1", commit).split()[1:]
             if len(parents) > 1:
                 raise AdmissionError("unrecorded merge cannot establish a baseline")
@@ -1751,456 +1104,6 @@ def operation_input_names(repository: Path, base: str, tip: str) -> tuple[str, .
         if isinstance(digest, str) and digest:
             names.append(f"operations/qualifications/{digest}")
     return tuple(sorted(names))
-
-
-def _export_record(document: Mapping[str, object]) -> dict[str, object]:
-    proof = require_bound_proof_shape(document)
-    portable = {
-        "schema_version": SCHEMA_VERSION,
-        "id": document["id"],
-        "kind": document["kind"],
-        "message": document["message"],
-        "branch": document["branch"],
-        "before": document["before"],
-        "source": document["source"],
-        "base": document["base"],
-        "attested_base": document["attested_base"],
-        "parents": document["parents"],
-        "sync_kind": document["sync_kind"],
-        "previous_base": document["previous_base"],
-        "member": document["member"],
-        "plans": document["plans"],
-        "ready_evidence": document["ready_evidence"],
-        "ready_evidence_sha256": document["ready_evidence_sha256"],
-        "patch_id": document["patch_id"],
-        "tree": document["tree"],
-        "mappings": _json_list(document.get("mappings") or [], "operation mappings are invalid"),
-        "proof": proof,
-    }
-    _refuse_machine_paths(portable)
-    return portable
-
-
-def require_bound_proof_shape(document: Mapping[str, object]) -> dict[str, object]:
-    proof = document.get("proof")
-    if not isinstance(proof, dict):
-        raise AdmissionError("only completed operations export")
-    commit = proof.get("commit")
-    parents = proof.get("parents")
-    tree = proof.get("tree")
-    if not isinstance(commit, str) or not isinstance(tree, str) or not isinstance(parents, list):
-        raise AdmissionError("operation proof shape is invalid")
-    return {"commit": commit, "parents": list(parents), "tree": tree}
-
-
-def _refuse_machine_paths(value: object, location: str = "export") -> None:
-    if isinstance(value, dict):
-        for key, item in value.items():
-            if key in {"message", "content"}:
-                continue
-            _refuse_machine_paths(item, f"{location}.{key}")
-        return
-    if isinstance(value, list):
-        for item in value:
-            _refuse_machine_paths(item, location)
-        return
-    if not isinstance(value, str) or value == "":
-        return
-    if value.startswith(("/", "~")) or "\\" in value or ".." in Path(value).parts:
-        raise AdmissionError(f"{location} depends on a machine path")
-
-
-def export_operations(repository: Path, start: str, end: str) -> dict[str, object]:
-    """Portable proof for commits reachable from ``end`` but not from ``start``."""
-
-    try:
-        commits = set(
-            filter(
-                None,
-                git_output(repository, "rev-list", f"{start}..{end}").splitlines(),
-            )
-        )
-    except GitError as error:
-        raise AdmissionError(f"operation range is unavailable: {error}") from error
-    index = load_index(repository)
-    operations = []
-    qualifications: dict[str, str] = {}
-    for document in index.by_commit.values():
-        proof = document.get("proof")
-        if not isinstance(proof, dict) or proof.get("commit") not in commits:
-            continue
-        require_bound_commit(repository, document)
-        operations.append(_export_record(document))
-        digest = document.get("ready_evidence_sha256")
-        if isinstance(digest, str) and digest:
-            content = qualification_bytes(repository, digest)
-            if content is None:
-                raise AdmissionError("operation qualification bytes are missing")
-            qualifications[digest] = content.decode("utf-8")
-    operations.sort(key=lambda item: str(item["id"]))
-    document: dict[str, object] = {
-        "schema_version": SCHEMA_VERSION,
-        "operations": operations,
-        "qualifications": [
-            {"sha256": digest, "content": qualifications[digest]}
-            for digest in sorted(qualifications)
-        ],
-    }
-    horizon = _read_horizon(repository)
-    if horizon is not None:
-        adopted = horizon.get("adopted")
-        document["legacy_horizon"] = {
-            "schema_version": SCHEMA_VERSION,
-            "adopted": adopted if adopted in {True, False} else False,
-            "tips": horizon.get("tips"),
-            "pending_merges": horizon.get("pending_merges"),
-            "sync_record_sha256": horizon.get("sync_record_sha256"),
-        }
-    _refuse_machine_paths(document)
-    return document
-
-
-def _read_horizon(repository: Path) -> dict[str, object] | None:
-    """Return the recorded horizon without creating one."""
-
-    path = state_root(repository) / "operations" / "legacy-horizon.json"
-    document = _read_json(path)
-    if document is None:
-        if path.exists():
-            raise AdmissionError("legacy operation horizon is unreadable")
-        return None
-    if document.get("schema_version") != SCHEMA_VERSION:
-        raise AdmissionError("legacy operation horizon is unreadable")
-    return document
-
-
-def _pending_merge_is_evidenced(
-    repository: Path, item: Mapping[str, object], tips: Mapping[str, object]
-) -> bool:
-    """An imported pending merge must still be open or already inside an adopted tip."""
-
-    before = item.get("before")
-    source = item.get("source")
-    trailers = item.get("trailers")
-    if not isinstance(before, str) or not isinstance(source, str) or not isinstance(trailers, list):
-        return False
-    expected = tuple(sorted(str(line) for line in trailers))
-    for _, checkout, _ in branch_checkouts(repository):
-        head = run_git(checkout, "rev-parse", "--verify", "HEAD")
-        merge_head = run_git(checkout, "rev-parse", "--verify", "MERGE_HEAD")
-        if head.returncode != 0 or merge_head.returncode != 0:
-            continue
-        if head.stdout.strip() != before or merge_head.stdout.strip() != source:
-            continue
-        message_path = repository_path(checkout, "rev-parse", "--git-path", "MERGE_MSG")
-        try:
-            message = message_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            continue
-        if tuple(sorted(_trailer_lines(message))) == expected:
-            return True
-    for oid in tips.values():
-        if not isinstance(oid, str):
-            continue
-        for merge in git_output(repository, "rev-list", "--merges", oid).splitlines():
-            parents = git_output(repository, "rev-list", "--parents", "-n", "1", merge).split()[1:]
-            if parents != [before, source]:
-                continue
-            if tuple(sorted(_trailer_lines(commit_message(repository, merge)))) == expected:
-                return True
-    return False
-
-
-def _horizon_payload(document: Mapping[str, object]) -> dict[str, object] | None:
-    horizon = document.get("legacy_horizon")
-    if horizon is None:
-        return None
-    if (
-        not isinstance(horizon, dict)
-        or horizon.get("schema_version") != SCHEMA_VERSION
-        or type(horizon.get("schema_version")) is not int
-        or horizon.get("adopted") not in {True, False}
-    ):
-        raise AdmissionError("exported legacy horizon is invalid")
-    tips = horizon.get("tips")
-    pending = horizon.get("pending_merges")
-    digests = horizon.get("sync_record_sha256")
-    if not isinstance(tips, dict) or not isinstance(pending, list) or not isinstance(digests, list):
-        raise AdmissionError("exported legacy horizon is invalid")
-    _refuse_machine_paths(horizon, "legacy_horizon")
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "adopted": horizon.get("adopted") is True,
-        "tips": dict(tips),
-        "pending_merges": list(pending),
-        "sync_record_sha256": list(digests),
-    }
-
-
-def _tip_commits(tips: Mapping[str, object]) -> tuple[str, ...]:
-    commits: list[str] = []
-    for oid in tips.values():
-        if not isinstance(oid, str):
-            raise AdmissionError("imported legacy horizon conflicts with the local horizon")
-        commits.append(oid)
-    return tuple(commits)
-
-
-def _covered_by(repository: Path, commit: str, tips: Sequence[str]) -> bool:
-    return any(commit == tip or _ancestor(repository, commit, tip) for tip in tips)
-
-
-def _same_reachable_cutover(
-    repository: Path, local: Sequence[str], incoming: Sequence[str]
-) -> bool:
-    """True when both tip sets reach exactly the same commits."""
-
-    if not local and not incoming:
-        return True
-    if not local or not incoming:
-        return False
-    return all(_covered_by(repository, commit, local) for commit in incoming) and all(
-        _covered_by(repository, commit, incoming) for commit in local
-    )
-
-
-def _cutover_expands(repository: Path, local: Sequence[str], incoming: Sequence[str]) -> bool:
-    if not incoming:
-        return False
-    if not local:
-        return True
-    return any(not _covered_by(repository, commit, local) for commit in incoming)
-
-
-def _require_compatible_cutover(
-    repository: Path,
-    existing: Mapping[str, object],
-    horizon: Mapping[str, object],
-    previous_tips: Mapping[str, object],
-    tips: Mapping[str, object],
-) -> bool:
-    """Refuse a different cutover. True means the destination bytes stay.
-
-    Adopt records one containing branch name. That label is not the authority:
-    ``_in_horizon`` follows the tip commits. Equal commits must import even when
-    the checkouts chose different branch names, and the destination record is
-    not rewritten to the foreign names.
-    """
-
-    if horizon.get("adopted") is not True or existing.get("adopted") is not True:
-        raise AdmissionError("imported legacy horizon conflicts with the local horizon")
-    local_commits = _tip_commits(previous_tips)
-    incoming_commits = _tip_commits(tips)
-    if _same_reachable_cutover(repository, local_commits, incoming_commits):
-        if existing.get("pending_merges") != horizon.get("pending_merges") or existing.get(
-            "sync_record_sha256"
-        ) != horizon.get("sync_record_sha256"):
-            raise AdmissionError("imported legacy horizon conflicts with the local horizon")
-        return True
-    if _cutover_expands(repository, local_commits, incoming_commits):
-        raise AdmissionError("imported legacy horizon cannot expand the recorded cutover")
-    if set(tips) != set(previous_tips):
-        raise AdmissionError("imported legacy horizon conflicts with the local horizon")
-    for ref, oid in tips.items():
-        previous = previous_tips.get(ref)
-        if (
-            not isinstance(previous, str)
-            or not isinstance(oid, str)
-            or (previous != oid and not _ancestor(repository, oid, previous))
-        ):
-            raise AdmissionError("imported legacy horizon cannot expand the recorded cutover")
-    return False
-
-
-def _accept_imported_horizon(
-    repository: Path,
-    root: Path,
-    horizon: Mapping[str, object],
-    *,
-    modern: Sequence[str],
-    write: bool = True,
-) -> None:
-    """Install a validated horizon without moving an existing cutover forward."""
-
-    _validate_horizon_git(repository, horizon, modern=modern)
-    tips = horizon.get("tips")
-    pending = horizon.get("pending_merges")
-    digests = horizon.get("sync_record_sha256")
-    if not isinstance(tips, dict) or not isinstance(pending, list) or not isinstance(digests, list):
-        raise AdmissionError("exported legacy horizon is invalid")
-    local_digests = set(_sync_digests(root))
-    path = root / "operations" / "legacy-horizon.json"
-    existing = _read_json(path)
-    if existing is None and path.exists():
-        raise AdmissionError("legacy operation horizon is unreadable")
-    if existing is not None and "adopted" not in existing:
-        existing = {**existing, "adopted": False}
-    recorded = existing.get("sync_record_sha256") if isinstance(existing, dict) else []
-    allowed = local_digests | set(recorded if isinstance(recorded, list) else [])
-    if any(not isinstance(item, str) or item not in allowed for item in digests):
-        raise AdmissionError("imported sync evidence is not in this repository")
-    evidenced_tips = tips if horizon.get("adopted") is True else {}
-    for item in pending:
-        evidenced = isinstance(item, dict) and _pending_merge_is_evidenced(
-            repository, item, evidenced_tips
-        )
-        if isinstance(item, dict) and not evidenced:
-            raise AdmissionError("imported legacy merge is not evidenced in this repository")
-    # A checkout establishes its own cutover. Import may repeat that record; it
-    # may not create one, including on a fresh clone or an unadopted horizon.
-    if horizon.get("adopted") is True and not (
-        isinstance(existing, dict) and existing.get("adopted") is True
-    ):
-        raise AdmissionError("imported legacy horizon cannot establish a cutover")
-    if existing is None:
-        if write:
-            _write_atomic(path, _canonical(dict(horizon)))
-        return
-    if _canonical(existing) == _canonical(dict(horizon)):
-        return
-    previous_tips = existing.get("tips")
-    unadopted_empty = (
-        existing.get("adopted") is False and isinstance(previous_tips, dict) and not previous_tips
-    )
-    if not unadopted_empty:
-        if not isinstance(previous_tips, dict):
-            raise AdmissionError("imported legacy horizon conflicts with the local horizon")
-        if _require_compatible_cutover(repository, existing, horizon, previous_tips, tips):
-            return
-    if write:
-        _write_atomic(path, _canonical(dict(horizon)))
-
-
-def import_operations(repository: Path, document: Mapping[str, object]) -> dict[str, object]:
-    """Load portable proof. The same bundle is a no-op; a conflict writes nothing."""
-
-    if document.get("schema_version") != SCHEMA_VERSION:
-        raise AdmissionError("operation export schema is unsupported")
-    operations = document.get("operations")
-    qualifications = document.get("qualifications")
-    if not isinstance(operations, list) or not isinstance(qualifications, list):
-        raise AdmissionError("operation export is invalid")
-    blobs: dict[str, bytes] = {}
-    for item in qualifications:
-        if not isinstance(item, dict):
-            raise AdmissionError("qualification export is invalid")
-        digest = item.get("sha256")
-        content = item.get("content")
-        if not isinstance(digest, str) or not isinstance(content, str):
-            raise AdmissionError("qualification export is invalid")
-        data = content.encode()
-        if _digest(data) != digest:
-            raise AdmissionError("qualification bytes do not match their digest")
-        if digest in blobs and blobs[digest] != data:
-            raise AdmissionError("qualification export conflicts")
-        blobs[digest] = data
-    normalized: list[dict[str, object]] = []
-    seen: set[str] = set()
-    claimed: dict[str, dict[str, object]] = {}
-    for item in operations:
-        if not isinstance(item, dict):
-            raise AdmissionError("operation export entry is invalid")
-        _refuse_machine_paths(item)
-        identity = item.get("id")
-        if not isinstance(identity, str) or identity in seen:
-            raise AdmissionError("operation export identity conflicts")
-        seen.add(identity)
-        proof = require_bound_proof_shape(item)
-        commit = str(proof["commit"])
-        try:
-            actual = git_proof(repository, commit)
-        except AdmissionError as error:
-            raise AdmissionError(f"exported commit is not in this repository: {commit}") from error
-        if actual["parents"] != proof["parents"] or actual["tree"] != proof["tree"]:
-            raise AdmissionError("exported commit parents or tree do not match this repository")
-        if actual["message"] != item.get("message"):
-            raise AdmissionError("exported commit message does not match this repository")
-        digest = item.get("ready_evidence_sha256")
-        if isinstance(digest, str) and digest:
-            if digest not in blobs:
-                raise AdmissionError("exported qualification bytes are missing")
-        elif digest not in ("", None):
-            raise AdmissionError("exported qualification identity is invalid")
-        candidate = {**item, "schema_version": SCHEMA_VERSION, "status": "completed"}
-        validate_operation(
-            repository,
-            {key: value for key, value in candidate.items() if key != "status"},
-            portable=True,
-            qualifications=blobs,
-        )
-        proof_commit = str(proof["commit"])
-        previous = claimed.get(proof_commit)
-        if previous is not None and previous != candidate:
-            raise AdmissionError("conflicting operation proofs claim one commit")
-        claimed[proof_commit] = candidate
-        normalized.append(candidate)
-    horizon = _horizon_payload(document)
-    with _lock(repository) as root:
-        modern = _proof_commits(root)
-        for item in normalized:
-            proof = item.get("proof")
-            if not isinstance(proof, dict):
-                continue
-            commit = proof.get("commit")
-            if isinstance(commit, str):
-                modern.append(commit)
-        if horizon is not None:
-            _accept_imported_horizon(repository, root, horizon, modern=modern, write=False)
-        local_commits: dict[str, str] = {}
-        for existing in _documents(root):
-            proof = existing.get("proof")
-            if existing.get("status") != "completed" or not isinstance(proof, dict):
-                continue
-            commit = proof.get("commit")
-            identity = existing.get("id")
-            if isinstance(commit, str) and isinstance(identity, str):
-                local_commits[commit] = identity
-        for item in normalized:
-            path = _record_path(root, str(item["id"]))
-            proof = item.get("proof")
-            commit = proof.get("commit") if isinstance(proof, dict) else None
-            if (
-                isinstance(commit, str)
-                and commit in local_commits
-                and local_commits[commit] != item.get("id")
-            ):
-                raise AdmissionError("conflicting operation proofs claim one commit")
-            incoming = {**item, "schema_version": SCHEMA_VERSION, "status": "completed"}
-            if path.exists():
-                existing = _load_document(path)
-                if _canonical(_export_record(existing)) != _canonical(_export_record(incoming)):
-                    raise AdmissionError("imported operation conflicts with the local record")
-                continue
-        for digest, content in blobs.items():
-            destination = _qualifications(root) / digest
-            if destination.exists() and destination.read_bytes() != content:
-                raise AdmissionError("imported qualification conflicts with local bytes")
-        for digest, content in blobs.items():
-            destination = _qualifications(root) / digest
-            if not destination.exists():
-                store_outside = content
-                descriptor, temporary = tempfile.mkstemp(
-                    prefix=".qualification-", dir=destination.parent
-                )
-                try:
-                    with os.fdopen(descriptor, "wb") as stream:
-                        stream.write(store_outside)
-                        stream.flush()
-                        os.fsync(stream.fileno())
-                    os.replace(temporary, destination)
-                finally:
-                    Path(temporary).unlink(missing_ok=True)
-        for item in normalized:
-            path = _record_path(root, str(item["id"]))
-            if path.exists():
-                continue
-            _write_atomic(
-                path,
-                _canonical({**item, "schema_version": SCHEMA_VERSION, "status": "completed"}),
-            )
-        if horizon is not None:
-            _accept_imported_horizon(repository, root, horizon, modern=modern)
-    return {"schema_version": SCHEMA_VERSION, "status": "imported", "operations": len(normalized)}
 
 
 @dataclass(frozen=True)
@@ -2495,38 +1398,6 @@ def commit_operation(repository: Path, intent: OperationIntent) -> str:
     return created
 
 
-def legacy_publication_commit(
-    repository: Path, commit: str, target_branch: str, base: str, tip: str
-) -> bool:
-    """True when ``commit`` is retained old publication evidence, not a copied trailer."""
-
-    if not (legacy_commit(repository, commit) or legacy_pending_commit(repository, commit)):
-        return False
-    try:
-        parents = git_output(repository, "rev-list", "--parents", "-n", "1", commit).split()[1:]
-        tree = git_output(repository, "rev-parse", f"{commit}^{{tree}}")
-        source_tree = git_output(repository, "rev-parse", f"{tip}^{{tree}}")
-        message = commit_message(repository, commit)
-    except (GitError, AdmissionError):
-        return False
-    text = message if message.endswith("\n") else f"{message}\n"
-    if parents != [base, tip] or tree != source_tree or not _legacy_merge_message(text):
-        return False
-    subject, _, _rest = text.partition("\n")
-    trailers = {
-        line.split(":", 1)[0]: line.split(":", 1)[1].strip()
-        for line in _trailer_lines(text)
-        if ":" in line
-    }
-    return (
-        subject.startswith("Merge ")
-        and subject.endswith(f" into {target_branch}")
-        and trailers.get("Signetum-Batch-Base") == base
-        and trailers.get("Signetum-Batch-Tip") == tip
-        and "Signetum-Member" not in trailers
-    )
-
-
 def record_decision_mapping(
     repository: Path, commit: str, base: str, directory: str, message: str
 ) -> dict[str, object]:
@@ -2572,501 +1443,6 @@ def record_decision_mapping(
     )
     begin_operation(repository, intent)
     return complete_operation(repository, intent, resolved)
-
-
-def engine_accepts_message_file(engine: Path) -> bool:
-    """True when the engine at ``engine`` can take ``--message-file`` on admission."""
-
-    if not (engine / "signetum" / "lifecycle.py").is_file():
-        return False
-    script = """
-import sys
-sys.path.insert(0, sys.argv[1])
-from signetum.lifecycle import _parser
-parser = _parser()
-for action in parser._actions:
-    choices = getattr(action, "choices", None)
-    if not isinstance(choices, dict) or "batch-admit" not in choices:
-        continue
-    raise SystemExit(0 if "--message-file" in choices["batch-admit"].format_help() else 1)
-raise SystemExit(1)
-"""
-    completed = subprocess.run(  # noqa: S603  # nosec B603 -- local interpreter, engine path only
-        (sys.executable, "-I", "-B", "-c", script, str(engine)),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    return completed.returncode == 0
-
-
-def _running_engine_repository() -> Path:
-    engine = Path(__file__).resolve().parents[1]
-    try:
-        return Path(git_output(engine, "rev-parse", "--show-toplevel"))
-    except GitError as error:
-        raise AdmissionError(
-            "repository engine adoption refuses an engine outside a repository"
-        ) from error
-
-
-def _path_blob(repository: Path, commit: str, path: str) -> str | None:
-    completed = run_git(repository, "rev-parse", "--verify", "-q", f"{commit}:{path}")
-    if completed.returncode != 0:
-        return None
-    return completed.stdout.strip()
-
-
-def _inside_engine(path: str) -> bool:
-    return path == _ENGINE_TREE or path.startswith(f"{_ENGINE_TREE}/")
-
-
-def _repo_relative(base: Path, value: str) -> str | None:
-    if Path(value).is_absolute():
-        return None
-    parts: list[str] = []
-    for part in (*base.parts, *Path(value).parts):
-        if part in {"", "."}:
-            continue
-        if part == "..":
-            if not parts:
-                return None
-            parts.pop()
-            continue
-        parts.append(part)
-    return "/".join(parts)
-
-
-def _lock_binds_engine(lock_path: str, text: str) -> bool:
-    try:
-        data = tomllib.loads(text)
-    except tomllib.TOMLDecodeError as error:
-        raise AdmissionError(
-            f"engine handoff source lockfile is unreadable: {lock_path}"
-        ) from error
-    found = False
-
-    def walk(node: object, key: str | None = None) -> None:
-        nonlocal found
-        if isinstance(node, dict):
-            for child_key, child in node.items():
-                walk(child, child_key if isinstance(child_key, str) else None)
-        elif isinstance(node, list):
-            for child in node:
-                walk(child, key)
-        elif isinstance(node, str) and key in _LOCK_SOURCE_KEYS:
-            relative = _repo_relative(Path(lock_path).parent, node)
-            if relative is not None and _inside_engine(relative):
-                found = True
-
-    try:
-        walk(data)
-    except RecursionError as error:
-        raise AdmissionError(
-            f"engine handoff source lockfile is unreadable: {lock_path}"
-        ) from error
-    return found
-
-
-def _source_text(repository: Path, source: str, path: str) -> str | None:
-    completed = run_git(repository, "show", f"{source}:{path}")
-    if completed.returncode != 0:
-        return None
-    return completed.stdout
-
-
-def _preparation_bindings(repository: Path, source: str) -> tuple[str, ...]:
-    """Lockfiles that bind the engine, plus the uv manifest each such lock binds.
-
-    Declared lockfiles come from the source manifest. The engine tree already
-    carries lockfiles inside itself. A missing manifest means there is nothing
-    further to carry. Historical engine-only proofs do not call this.
-    """
-
-    manifest_text = _source_text(repository, source, "signetum.toml")
-    if manifest_text is None:
-        return ()
-    # manifest imports the validation graph. Load it only while discovering inputs.
-    from signetum.manifest import ManifestError, parse_manifest  # noqa: PLC0415
-
-    try:
-        manifest = parse_manifest(manifest_text)
-    except ManifestError as error:
-        raise AdmissionError(f"engine handoff source manifest is unreadable: {error}") from error
-    bindings: list[str] = []
-    for lock in manifest.repository.lockfiles:
-        if _inside_engine(lock):
-            continue
-        lock_text = _source_text(repository, source, lock)
-        if lock_text is None:
-            raise AdmissionError(f"engine handoff source is missing a declared lockfile: {lock}")
-        if not _lock_binds_engine(lock, lock_text):
-            continue
-        bindings.append(lock)
-        if Path(lock).name != "uv.lock":
-            raise AdmissionError(
-                "engine handoff cannot check the declared preparation bundle: " + lock,
-                expected="bind the repository engine with a uv.lock this operation can check",
-            )
-        project = (Path(lock).parent / "pyproject.toml").as_posix()
-        if _inside_engine(project):
-            continue
-        if _source_text(repository, source, project) is None:
-            raise AdmissionError(
-                f"engine handoff source is missing the project manifest for {lock}"
-            )
-        bindings.append(project)
-    return tuple(sorted(set(bindings)))
-
-
-def _safe_archive_target(root: Path, name: str) -> Path:
-    if not name or name.startswith(("/", "\\")) or "\\" in name:
-        raise AdmissionError("engine handoff source archive escapes its directory")
-    candidate = Path(name)
-    if candidate.is_absolute() or ".." in candidate.parts:
-        raise AdmissionError("engine handoff source archive escapes its directory")
-    target = (root / candidate).resolve()
-    if not target.is_relative_to(root.resolve()):
-        raise AdmissionError("engine handoff source archive escapes its directory")
-    return target
-
-
-def _extract_git_archive(archive: Path, destination: Path) -> None:
-    destination.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive) as bundle:
-        for member in bundle.getmembers():
-            target = _safe_archive_target(destination, member.name)
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            if not member.isfile():
-                raise AdmissionError("engine handoff source archive contains an unexpected member")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            extracted = bundle.extractfile(member)
-            if extracted is None:
-                raise AdmissionError("engine handoff source archive is unreadable")
-            with extracted:
-                target.write_bytes(extracted.read())
-
-
-def _require_coherent_preparation(repository: Path, source: str, bindings: Sequence[str]) -> None:
-    """Refuse a source whose declared uv project and lock do not match, before effects."""
-
-    locks = [path for path in bindings if Path(path).name == "uv.lock"]
-    if not locks:
-        return
-    uv = shutil.which("uv")
-    if uv is None:
-        raise AdmissionError(
-            "engine handoff cannot check the declared preparation bundle",
-            expected="install uv and retry adopt-repository-engine",
-        )
-    directory = state_root(repository) / "operations"
-    directory.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".bundle-", dir=directory) as temporary:
-        root = Path(temporary)
-        archive = root / "source.tar"
-        tree = root / "tree"
-        completed = run_git(
-            repository,
-            "archive",
-            "--output",
-            str(archive),
-            source,
-            "--",
-            _ENGINE_TREE,
-            *bindings,
-        )
-        if completed.returncode != 0:
-            raise AdmissionError(completed.stderr.strip() or "engine handoff source archive failed")
-        _extract_git_archive(archive, tree)
-        for lock in locks:
-            project = tree / Path(lock).parent
-            if not (project / "pyproject.toml").is_file() or not (project / "uv.lock").is_file():
-                raise AdmissionError(
-                    f"engine handoff source is missing the project manifest for {lock}"
-                )
-            checked = subprocess.run(  # noqa: S603  # nosec B603 -- resolved uv, lock check only
-                (uv, "lock", "--check", "--offline"),
-                cwd=project,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if checked.returncode != 0:
-                diagnostic = (checked.stderr or checked.stdout).strip()
-                detail = f": {diagnostic}" if diagnostic else ""
-                raise AdmissionError(
-                    "engine handoff source preparation bundle does not match its lock" + detail,
-                    expected=(
-                        "ready a commit whose declared manifest and lock match the repository "
-                        "engine, then retry adopt-repository-engine"
-                    ),
-                )
-
-
-def _preparation_bundle_matches(repository: Path, source: str, bindings: Sequence[str]) -> bool:
-    if _path_blob(repository, "HEAD", _ENGINE_TREE) != _path_blob(repository, source, _ENGINE_TREE):
-        return False
-    return all(
-        _path_blob(repository, "HEAD", path) == _path_blob(repository, source, path)
-        for path in bindings
-    )
-
-
-def _binding_cacheinfo(repository: Path, source: str, path: str) -> tuple[str, str]:
-    completed = run_git(repository, "ls-tree", source, "--", path)
-    line = completed.stdout.strip()
-    meta, separator, name = line.partition("\t")
-    parts = meta.split()
-    if completed.returncode != 0 or not separator or name != path or len(parts) != 3:
-        raise AdmissionError(f"engine handoff source preparation input is unreadable: {path}")
-    if parts[1] != "blob":
-        raise AdmissionError(f"engine handoff source preparation input is unreadable: {path}")
-    return parts[0], parts[2]
-
-
-def _replaced_engine_tree(
-    repository: Path, before: str, source: str, bindings: Sequence[str] = ()
-) -> str:
-    try:
-        source_tree = git_output(repository, "rev-parse", f"{source}:{_ENGINE_TREE}")
-    except GitError as error:
-        raise AdmissionError("engine handoff source has no repository engine") from error
-    directory = state_root(repository) / "operations"
-    directory.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix=".index-", dir=directory)
-    os.close(descriptor)
-    index = Path(temporary)
-    # An empty placeholder is not a Git index. read-tree creates the real one.
-    index.unlink()
-    try:
-        for arguments in (
-            ("read-tree", before),
-            ("rm", "-r", "--cached", "--ignore-unmatch", "--", _ENGINE_TREE),
-            ("read-tree", f"--prefix={_ENGINE_TREE}/", source_tree),
-        ):
-            completed = run_git(repository, *arguments, index_file=index)
-            if completed.returncode != 0:
-                raise AdmissionError(completed.stderr.strip() or "engine handoff tree failed")
-        for path in bindings:
-            mode, blob = _binding_cacheinfo(repository, source, path)
-            updated = run_git(
-                repository,
-                "update-index",
-                "--add",
-                "--cacheinfo",
-                f"{mode},{blob},{path}",
-                index_file=index,
-            )
-            if updated.returncode != 0:
-                raise AdmissionError(updated.stderr.strip() or "engine handoff tree failed")
-        written = run_git(repository, "write-tree", index_file=index)
-        if written.returncode != 0:
-            raise AdmissionError(written.stderr.strip() or "engine handoff tree failed")
-        return written.stdout.strip()
-    finally:
-        index.unlink(missing_ok=True)
-
-
-def _handoff_result(
-    batch: Path, record: WorkspaceRecord, created: str, source: str
-) -> dict[str, object]:
-    pinned = read_record(state_root(batch), branch_name(batch)).engine
-    if pinned is None or pinned.source != "repository" or pinned != record.engine:
-        raise AdmissionError("engine handoff changed the batch engine pin")
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "status": "adopted",
-        "commit": created,
-        "source": source,
-    }
-
-
-def _recorded_engine_handoff(
-    batch: Path, *, source: str, message: str, base: str, branch: str
-) -> dict[str, object] | None:
-    """A completed handoff for this exact source and message, if one exists."""
-
-    index = load_index(batch)
-    head = git_output(batch, "rev-parse", "HEAD")
-    current = index.for_commit(head)
-    if (
-        isinstance(current, dict)
-        and current.get("kind") == "engine-handoff"
-        and current.get("status") == "completed"
-        and current.get("source") == source
-        and current.get("message") == message
-        and current.get("base") == base
-        and current.get("branch") == branch
-    ):
-        return current
-    for document in index.by_id.values():
-        proof = document.get("proof")
-        if (
-            document.get("kind") == "engine-handoff"
-            and document.get("status") == "completed"
-            and document.get("source") == source
-            and document.get("message") == message
-            and document.get("base") == base
-            and document.get("branch") == branch
-            and document.get("before") == head
-            and isinstance(proof, dict)
-            and isinstance(proof.get("commit"), str)
-        ):
-            return document
-    return None
-
-
-def _advance_recorded_handoff(batch: Path, document: Mapping[str, object]) -> str:
-    proof = document.get("proof")
-    if not isinstance(proof, dict) or not isinstance(proof.get("commit"), str):
-        raise AdmissionError("engine handoff did not advance the batch to the recorded commit")
-    created = str(proof["commit"])
-    if git_output(batch, "rev-parse", "HEAD") != created:
-        moved = run_git(batch, "merge", "--ff-only", created)
-        if moved.returncode != 0:
-            raise AdmissionError(
-                moved.stderr.strip() or "engine handoff could not advance the batch"
-            )
-    if git_output(batch, "rev-parse", "HEAD") != created:
-        raise AdmissionError("engine handoff did not advance the batch to the recorded commit")
-    return created
-
-
-def _member_at_source(repository: Path, source: str) -> tuple[Path, WorkspaceRecord]:
-    """The registered member workspace whose tip is ``source``."""
-
-    inventory = git_output(repository, "worktree", "list", "--porcelain", strip=False)
-    for block in inventory.split("\n\n"):
-        fields: dict[str, str] = {}
-        for line in block.splitlines():
-            key, separator, value = line.partition(" ")
-            if separator:
-                fields[key] = value
-        branch = fields.get("branch", "").removeprefix("refs/heads/")
-        if fields.get("HEAD") != source or not branch or "worktree" not in fields:
-            continue
-        try:
-            record = read_record(state_root(repository), branch)
-        except WorkspaceError:
-            continue
-        if record.kind == "member":
-            return Path(fields["worktree"]), record
-    raise AdmissionError(
-        "engine handoff source is not an approved ready member",
-        expected=(
-            "ready the approved member that contains this repository engine, then retry "
-            "adopt-repository-engine"
-        ),
-    )
-
-
-def adopt_repository_engine(
-    batch: Path, message: str, source_commit: str | None = None
-) -> dict[str, object]:
-    """Copy this repository engine and the preparation inputs it needs.
-
-    The source must be an approved Ready member tip. Declared lockfiles that bind
-    the engine, and the uv project manifest those locks bind, travel with the
-    engine tree. Other application paths stay behind. The caller message is stored
-    on the handoff commit. The batch pin stays ``repository``. A completed handoff
-    for the same source and message is reused, including when the checked-out
-    engine already accepts message files, and is not rewritten. A later message
-    and Ready source continue when the checked-out preparation bundle does not
-    match. Accepting a message file is not that match. The installed engine is
-    not changed.
-    """
-
-    frozen = freeze_message(message)
-    if _trailer_lines(frozen):
-        raise AdmissionError("operation message cannot carry Signetum trailers")
-    record = read_record(state_root(batch), branch_name(batch))
-    if record.kind != "batch" or record.engine is None or record.engine.source != "repository":
-        raise AdmissionError(
-            "repository engine adoption requires a repository-pinned batch",
-            expected=(
-                "open the batch with the repository engine, then retry adopt-repository-engine"
-            ),
-        )
-    engine_repository = _running_engine_repository()
-    if state_root(engine_repository) != state_root(batch):
-        raise AdmissionError(
-            "repository engine adoption refuses an engine from another checkout",
-            expected=(
-                "run maintenance adopt-repository-engine from the repository engine "
-                "inside this Git repository"
-            ),
-        )
-    if source_commit is None:
-        source = git_output(engine_repository, "rev-parse", "HEAD")
-    else:
-        try:
-            source = git_output(batch, "rev-parse", f"{source_commit}^{{commit}}")
-        except GitError as error:
-            raise AdmissionError(
-                f"engine handoff source is unavailable: {source_commit}"
-            ) from error
-    engine_status = git_output(
-        engine_repository, "status", "--porcelain", "--", "skills/signetum/scripts/engine"
-    )
-    if engine_status.strip():
-        raise AdmissionError("running repository engine does not match the source commit")
-    compared = run_git(
-        engine_repository, "diff", "--quiet", source, "--", "skills/signetum/scripts/engine"
-    )
-    if compared.returncode != 0:
-        raise AdmissionError("running repository engine does not match the source commit")
-    if not isinstance(record.base, str) or not record.base:
-        raise AdmissionError("batch has no recorded base")
-    branch = branch_name(batch)
-    recorded = _recorded_engine_handoff(
-        batch, source=source, message=frozen, base=record.base, branch=branch
-    )
-    if recorded is not None:
-        created = _advance_recorded_handoff(batch, recorded)
-        return _handoff_result(batch, record, created, source)
-    bindings = _preparation_bindings(batch, source)
-    # lifecycle imports this module. Handoff checks stay with admission evidence
-    # so scope and lifecycle are not imported while this module is loading.
-    from signetum.lifecycle import (  # noqa: PLC0415
-        _qualify_engine_source,
-        _require_handoff_authorization,
-    )
-
-    _qualify_engine_source(batch, source)
-    before = git_output(batch, "rev-parse", "HEAD")
-    _require_handoff_authorization(batch, record, before)
-    if run_git(batch, "status", "--porcelain").stdout.strip():
-        raise AdmissionError("repository engine adoption requires a clean batch")
-    # Message-file support does not prove the preparation bundle matches.
-    if _preparation_bundle_matches(batch, source, bindings) and engine_accepts_message_file(
-        batch / _ENGINE_TREE
-    ):
-        raise AdmissionError("batch engine already accepts message files")
-    _require_coherent_preparation(batch, source, bindings)
-    tree = _replaced_engine_tree(batch, before, source, bindings)
-    intent = OperationIntent(
-        kind="engine-handoff",
-        branch=branch,
-        before=before,
-        source=source,
-        base=record.base,
-        message=frozen,
-        attested_base=record.base,
-        parents=(before,),
-        tree=tree,
-    )
-    created = commit_operation(batch, intent)
-    if git_output(batch, "rev-parse", "HEAD") == before:
-        moved = run_git(batch, "merge", "--ff-only", created)
-        if moved.returncode != 0:
-            raise AdmissionError(
-                moved.stderr.strip() or "engine handoff could not advance the batch"
-            )
-    if git_output(batch, "rev-parse", "HEAD") != created:
-        raise AdmissionError("engine handoff did not advance the batch to the recorded commit")
-    return _handoff_result(batch, record, created, source)
 
 
 def evidence_sha256(repository: Path, receipt_root: Path, name: str) -> str:

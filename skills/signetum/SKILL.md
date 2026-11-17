@@ -2,7 +2,7 @@
 name: signetum
 description: Use Signetum for reliable Agent development and delivery in evolving repositories, from a single Agent across sessions to parallel coding Agents. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
 metadata:
-  version: "0.9.3"
+  version: "0.9.4"
 ---
 
 # Reliable Agent development and delivery
@@ -96,30 +96,13 @@ is the proof: it is written before the Git effect and completed with the commit,
 parents and tree Git stored. The same record also binds a human decision-numbering
 commit: `maintenance record-decision-mapping --commit <commit> --base <approved-base>
 --directory <decision-directory> --message-file <path>` requires the file to match
-that commit and creates no second commit. `maintenance operation-export` and
-`operation-import` move that completed proof between checkouts. Pass those public
-arguments; do not read the Skill's private operation files. The same bundle imports
-again unchanged. A missing, foreign, inconsistent or conflicting proof refuses.
-Copied trailers do not become proof. Retained history becomes readable only after
-`maintenance adopt-legacy --commit <commit>` on this checkout, including older
-protocol merges and ordinary pre-protocol ancestry. That cutover does not grant
-new provenance; exact reviewed old-engine text still supplies historical facts.
-This checkout establishes its own cutover. Import repeats a cutover already
-recorded here and refuses to establish or expand one, including on a fresh clone
-or an unadopted horizon. A later merge without a structured record stays modern.
-A repository-pinned batch whose checked-out engine rejects `--message-file`
-refuses admission until `maintenance adopt-repository-engine --message-file <path>`
-copies that repository's engine and the declared preparation inputs it needs
-from an approved Ready commit. That source is qualified with the same approval
-and ready evidence as admission. The repository pin stays. The installed Skill
-and any batch that pinned an installed engine stay unchanged. An unqualified
-source, or a source whose declared manifest and lock do not match the engine,
-is refused before a handoff object exists. A completed engine-only handoff stays
-readable. A later call with a new message and Ready source continues when the
-checked-out preparation bundle does not match, without rewriting the earlier
-proof. Accepting a message file is not evidence that the bundle matches. Retry
-after a crash before the branch moves fast-forwards the same object. The same
-source and message retry after the branch moves returns that object.
+that commit and creates no second commit. Records stay local to the repository;
+do not read or edit the Skill's private operation files. A missing or conflicting
+record, or one whose commit no longer matches Git where it is used, refuses.
+Copied trailers do not become proof. History before the first structured
+operation stays readable through the old engine's exact merge text; once an
+operation is an ancestor, a later commit cannot fall back to message proof.
+Finish a batch an older engine opened with that engine before updating.
 Split a large change into stacked members: `workspace-open <branch> <parent-branch>`
 bases a member on another open member's tip, and its ready selects only its own diff.
 After a sibling batch delivers, run `maintenance workspace-sync --message-file <path>`

@@ -2,32 +2,27 @@
 
 Retained legacy and authorization coverage stays in the existing modules.
 This module replaces superseded trailer assertions with exact message and
-object checks, and adds read-only history plus already-pending old proofs.
+object checks, and keeps history before the first operation readable.
 """
 
 import fcntl
-import hashlib
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 from operation_messages import operation_message, operation_messages, write_operation_message
 from signetum import lifecycle, maintenance
 from signetum import operation_records as records
 from signetum import workspace_operations as ops
-from signetum import worktrunk as wt
-from signetum.commit_check import install_commit_check
 from signetum.delivery import publish_batch
 from signetum.execution_review import execution_review_inputs
-from signetum.gate_records import record_pending_admissions
 from signetum.git import git_output, repository_path
 from signetum.manifest import load_manifest
 from signetum.operations import AdmissionError
 from signetum.provenance import attested_base
 from signetum.stacking import is_ancestor
-from signetum.synchronization import authorize_source, prepare_merge, verified_syncs
+from signetum.synchronization import authorize_source, verified_syncs
 from signetum.workspaces import branch_name, read_record, state_root
 from test_batch_synchronization import deliver, open_batch, parallel_batches, ready_member
 from test_workspace_operations import commit_file, opened
@@ -260,14 +255,15 @@ def test_forged_missing_and_conflicting_records_fail_closed(repository):
     conflict["id"] = "ab" * 32
     other = path.with_name(f"{conflict['id']}.json")
     other.write_text(json.dumps(conflict), encoding="utf-8")
-    with pytest.raises(AdmissionError, match="conflicting operation proofs"):
+    with pytest.raises(AdmissionError, match="identity does not match its fields"):
         records.load_index(member)
     other.unlink()
 
     path.unlink()
     assert verified_syncs(member, base, merge) == ()
-    with pytest.raises(AdmissionError, match="unrecorded merge"):
-        attested_base(member, merge)
+    # Without any record the merge reads as history before operations, which
+    # grants no base: only exact old-engine text could.
+    assert attested_base(member, merge) is None
     assert source not in records.commit_message(member, merge)
 
 
@@ -294,7 +290,7 @@ def test_copied_trailer_after_the_horizon_is_not_provenance(repository):
     assert ops.workspace_sync(member, message=operation_message())["status"] != "recognized"
 
 
-def test_legacy_merge_inside_the_horizon_stays_readable(repository):
+def test_legacy_merge_before_any_operation_stays_readable(repository):
     root, _ = repository
     member = opened(root, "plan/legacy-sync")
     base = read_record(state_root(member), "plan/legacy-sync").base
@@ -302,8 +298,6 @@ def test_legacy_merge_inside_the_horizon_stays_readable(repository):
     source = commit_file(root, "legacy.txt", "legacy")
     git_output(root, "push", "origin", "main")
     git_output(member, "fetch", "origin", "main")
-    horizon_path = state_root(member) / "operations" / "legacy-horizon.json"
-    assert not horizon_path.exists()
     authorize_source(member, base, source, "delivery")
     label = "delivery"
     git_output(
@@ -315,151 +309,33 @@ def test_legacy_merge_inside_the_horizon_stays_readable(repository):
         f"Merge {label} into {branch}\n\nSignetum-Sync: {source}\nSignetum-Sync-Source: {label}",
     )
     merge = git_output(member, "rev-parse", "HEAD")
-    assert verified_syncs(member, base, merge) == ()
-    horizon = json.loads(horizon_path.read_text(encoding="utf-8"))
-    assert horizon["adopted"] is False
-    assert horizon["tips"] == {}
     assert not list((state_root(member) / "operations" / "records").glob("*.json"))
-
-    records.adopt_legacy_history(member, [merge])
-    assert verified_syncs(member, base, merge) == ((merge, source),)
     assert records.legacy_commit(member, merge)
-    assert not list((state_root(member) / "operations" / "records").glob("*.json"))
+    assert verified_syncs(member, base, merge) == ((merge, source),)
 
+    delivered = commit_file(root, "modern.txt", "modern")
+    git_output(root, "push", "origin", "main")
+    ops.workspace_sync(member, message=operation_message())
+    modern = git_output(member, "rev-parse", "HEAD")
+    assert records.load_index(member).for_commit(modern) is not None
     copied = commit_file(root, "later.txt", "later")
     git_output(root, "push", "origin", "main")
     git_output(member, "fetch", "origin", "main")
-    git_output(member, "merge", "--no-ff", "FETCH_HEAD", "-m", f"manual\n\nSignetum-Sync: {copied}")
-    manual = git_output(member, "rev-parse", "HEAD")
-    found = verified_syncs(member, base, manual)
-    assert (merge, source) in found
-    assert all(item != manual for item, _merged in found)
-    with pytest.raises(AdmissionError, match="cannot expand"):
-        records.adopt_legacy_history(member, [manual])
-    assert not records.legacy_commit(member, manual)
-
-
-def test_published_history_adopts_without_granting_new_provenance(repository, tmp_path):
-    del repository
-    published = "75ed8fd577c6d5422b295de9b6358e12e5ca5d4c"
-    origin = Path(__file__).resolve().parents[2]
-    checkout = tmp_path / "published-history"
-    git_output(
-        origin,
-        "clone",
-        "--shared",
-        "--no-checkout",
-        "--branch",
-        "v0.9.1",
-        str(origin),
-        str(checkout),
-    )
-    git_output(checkout, "branch", "published-history", published)
-    adopted = records.adopt_legacy_history(checkout, [published])
-    assert adopted["adopted"] is True
-    assert records.legacy_commit(checkout, published)
-    roots = git_output(checkout, "rev-list", "--max-parents=0", published).splitlines()
-    assert roots
-    assert all(records.legacy_commit(checkout, commit) for commit in roots)
-    attested_base(checkout, published)
-
-
-def test_pre_protocol_ancestry_is_readable_and_import_cannot_cut_over(repository, tmp_path):
-    root, _ = repository
-    member = opened(root, "plan/pre-protocol")
-    base = read_record(state_root(member), "plan/pre-protocol").base
-    parent = git_output(root, "rev-parse", "HEAD")
-    side = tmp_path / "side"
-    git_output(root, "worktree", "add", "-b", "side", str(side), parent)
-    source = commit_file(side, "ancestor.txt", "ancestor")
-    commit_file(member, "own.txt", "own")
+    authorize_source(member, base, copied, "delivery")
     git_output(
         member,
         "merge",
         "--no-ff",
-        source,
+        "FETCH_HEAD",
         "-m",
-        f"ordinary ancestry\n\nSignetum-Sync: {source}\nSignetum-Batch-Base: {base}\n",
+        f"Merge {label} into {branch}\n\nSignetum-Sync: {copied}\nSignetum-Sync-Source: {label}",
     )
-    merge = git_output(member, "rev-parse", "HEAD")
-    records.adopt_legacy_history(member, [merge])
+    manual = git_output(member, "rev-parse", "HEAD")
     assert records.legacy_commit(member, merge)
-    assert records.legacy_commit(member, parent)
-    assert attested_base(member, merge) is None
-    authorize_source(member, base, source, "delivery")
-    assert all(item != merge for item, _merged in verified_syncs(member, base, merge))
-    commit_file(member, "after.txt", "after")
-    with pytest.raises(AdmissionError, match="cannot expand"):
-        records.adopt_legacy_history(member, ["HEAD"])
-    assert not records.legacy_commit(member, git_output(member, "rev-parse", "HEAD"))
-
-    fresh = _clone(root, tmp_path / "fresh-cutover")
-    # The member merge is not on the clone's main branch until a ref can see it.
-    git_output(fresh, "update-ref", "refs/heads/observed", merge)
-    horizon = {
-        "schema_version": records.SCHEMA_VERSION,
-        "adopted": True,
-        "tips": {"refs/heads/observed": merge},
-        "pending_merges": [],
-        "sync_record_sha256": [],
-    }
-    payload = {
-        "schema_version": records.SCHEMA_VERSION,
-        "operations": [],
-        "qualifications": [],
-        "legacy_horizon": horizon,
-    }
-    with pytest.raises(AdmissionError, match="cannot establish a cutover"):
-        records.import_operations(fresh, payload)
-    assert records.legacy_commit(fresh, merge) is False
-    with pytest.raises(AdmissionError, match="unrecorded merge"):
-        attested_base(fresh, merge)
-
-    records.adopt_legacy_history(fresh, [merge])
-    assert records.import_operations(fresh, payload)["status"] == "imported"
-    assert records.legacy_commit(fresh, merge)
-
-    tree = git_output(root, "rev-parse", f"{parent}^{{tree}}")
-    message = tmp_path / "orphan.txt"
-    message.write_text("unrelated history\n", encoding="utf-8")
-    orphan = git_output(root, "commit-tree", tree, "-F", str(message))
-    git_output(fresh, "update-ref", "refs/heads/orphan", orphan)
-    conflict = json.loads(json.dumps(payload))
-    conflict["legacy_horizon"]["tips"] = {"refs/heads/observed": orphan}
-    with pytest.raises(AdmissionError, match="cannot expand"):
-        records.import_operations(fresh, conflict)
-    assert records.legacy_commit(fresh, merge)
-    assert records.legacy_commit(fresh, orphan) is False
-
-
-def test_legacy_pending_merge_completes_under_its_snapshot(repository):
-    root, _ = repository
-    member = opened(root, "plan/legacy-pending")
-    base = read_record(state_root(member), "plan/legacy-pending").base
-    source = commit_file(root, "pending.txt", "pending")
-    git_output(root, "push", "origin", "main")
-    git_output(member, "fetch", "origin", "main")
-    before = git_output(member, "rev-parse", "HEAD")
-    git_output(member, "merge", "--no-ff", "--no-commit", "FETCH_HEAD")
-    message = f"record delivery\n\nSignetum-Sync: {source}\n"
-    repository_path(member, "rev-parse", "--git-path", "MERGE_MSG").write_text(
-        message, encoding="utf-8"
-    )
-    authorize_source(member, base, source, "delivery")
-    prepare_merge(member, source, message)
-    assert not (state_root(member) / "operations" / "legacy-horizon.json").exists()
-    records.load_index(member)
-    horizon = json.loads(
-        (state_root(member) / "operations" / "legacy-horizon.json").read_text(encoding="utf-8")
-    )
-    assert {"before": before, "source": source, "trailers": [f"Signetum-Sync: {source}"]} in (
-        horizon["pending_merges"]
-    )
-    git_output(member, "commit", "--no-edit")
-    merge = git_output(member, "rev-parse", "HEAD")
-    assert records.legacy_pending_commit(member, merge)
-    assert verified_syncs(member, base, merge) == ((merge, source),)
-    assert not records.legacy_commit(member, merge)
+    assert not records.legacy_commit(member, manual)
+    found = verified_syncs(member, base, manual)
+    assert (merge, source) in found and (modern, delivered) in found
+    assert all(item != manual for item, _merged in found)
 
 
 def test_admission_maps_plans_and_ready_evidence_without_trailers(repository):
@@ -511,255 +387,6 @@ def test_batch_sync_and_publication_bind_caller_messages(repository):
     assert batch_sync["kind"] == "batch-sync"
     assert batch_sync["attested_base"] == landed
     assert attested_base(batch_b, tip) == landed
-
-
-def test_export_import_round_trip_is_idempotent_and_refuses_bad_proof(
-    repository, monkeypatch, capsys, tmp_path
-):
-    root, member, base, _before, source, merge, _result = _sync_delivery(repository)
-    proof = tmp_path / "operations.json"
-    code, payload, _ = _maintenance(
-        member,
-        ["operation-export", "--from", base, "--to", merge, "--output", str(proof)],
-        monkeypatch,
-        capsys,
-    )
-    assert code == 0, payload
-    assert payload["outcome"] == "exported"
-    assert payload["operations"] == 1
-    exported = proof.read_text(encoding="utf-8")
-    assert str(tmp_path) not in exported
-    assert "/Users/" not in exported
-    assert "~/" not in exported
-    checkout = tmp_path / "independent"
-    git_output(root, "clone", "--shared", str(root), str(checkout))
-    assert state_root(checkout) != state_root(member)
-    code, payload, _ = _maintenance(
-        checkout, ["operation-import", "--input", str(proof)], monkeypatch, capsys
-    )
-    assert code == 0, payload
-    assert payload["outcome"] == "imported"
-    imported = _record_document(checkout, merge)
-    assert imported["proof"]["parents"] == [imported["before"], source]
-    assert verified_syncs(checkout, base, merge) == ((merge, source),)
-    record_path = state_root(checkout) / "operations" / "records" / f"{imported['id']}.json"
-    stored = record_path.read_bytes()
-    code, payload, _ = _maintenance(
-        checkout, ["operation-import", "--input", str(proof)], monkeypatch, capsys
-    )
-    assert code == 0, payload
-    assert record_path.read_bytes() == stored
-
-    tampered = json.loads(exported)
-    tampered["operations"][0]["message"] = "tampered message\n"
-    tampered_path = tmp_path / "tampered.json"
-    tampered_path.write_text(json.dumps(tampered), encoding="utf-8")
-    code, payload, _ = _maintenance(
-        checkout, ["operation-import", "--input", str(tampered_path)], monkeypatch, capsys
-    )
-    assert code == 2, payload
-    assert "message" in payload["cause"]
-    assert record_path.read_bytes() == stored
-
-    record_path.write_text(stored.decode().replace(operation_message().strip(), "local edit"))
-    local = record_path.read_bytes()
-    code, payload, _ = _maintenance(
-        checkout, ["operation-import", "--input", str(proof)], monkeypatch, capsys
-    )
-    assert code == 2, payload
-    assert "conflict" in payload["cause"]
-    assert record_path.read_bytes() == local
-
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    git_output(empty, "init", "-b", "main")
-    code, payload, _ = _maintenance(
-        empty, ["operation-import", "--input", str(proof)], monkeypatch, capsys
-    )
-    assert code == 2, payload
-    assert "not in this repository" in payload["cause"]
-    assert not list((state_root(empty) / "operations" / "records").glob("*.json"))
-
-    foreign = json.loads(exported)
-    foreign["operations"][0]["proof"]["commit"] = base
-    foreign_path = tmp_path / "foreign.json"
-    foreign_path.write_text(json.dumps(foreign), encoding="utf-8")
-    bare = tmp_path / "foreign-checkout"
-    git_output(root, "clone", "--shared", str(root), str(bare))
-    code, payload, _ = _maintenance(
-        bare, ["operation-import", "--input", str(foreign_path)], monkeypatch, capsys
-    )
-    assert code == 2, payload
-    assert not list((state_root(bare) / "operations" / "records").glob("*.json"))
-
-    # Same adopted commit, different local branch inventories. The cutover is the
-    # reachable commit, so the extra branch name must not make the import conflict.
-    monkeypatch.setattr(wt, "worktrunk", _worktrunk_for_repository)
-    source = _clone(root, tmp_path / "cutover-source")
-    git_output(source, "config", "user.name", "Workspace Test")
-    git_output(source, "config", "user.email", "workspace@example.invalid")
-    baseline = git_output(source, "rev-parse", "HEAD")
-    git_output(source, "branch", "a-local-retained-tip", baseline)
-    code, adopted, _ = _maintenance(
-        source, ["adopt-legacy", "--commit", baseline], monkeypatch, capsys
-    )
-    assert code == 0, adopted
-    assert adopted["tips"] == {"refs/heads/a-local-retained-tip": baseline}
-    member = ready_member(source, "ported", "ported.txt")
-    batch = open_batch(source, member)
-    tip = git_output(batch, "rev-parse", "HEAD")
-    proof = tmp_path / "cutover-operations.json"
-    code, exported, _ = _maintenance(
-        source,
-        ["operation-export", "--from", baseline, "--to", tip, "--output", str(proof)],
-        monkeypatch,
-        capsys,
-    )
-    assert code == 0, exported
-    assert exported["operations"] == 1
-    assert exported["qualifications"] == 1
-    document = json.loads(proof.read_text(encoding="utf-8"))
-    operation = document["operations"][0]
-    qualification = document["qualifications"][0]
-    assert operation["kind"] == "admission"
-    assert operation["plans"] == ["changes/ported/change.toml"]
-    assert operation["ready_evidence_sha256"] == qualification["sha256"]
-    assert document["legacy_horizon"]["tips"] == {"refs/heads/a-local-retained-tip": baseline}
-    source_qualification = (
-        state_root(source) / "operations" / "qualifications" / str(qualification["sha256"])
-    ).read_bytes()
-    git_output(source, "push", "origin", "--all")
-
-    destination = _clone(root, tmp_path / "cutover-destination")
-    code, dest_adopted, _ = _maintenance(
-        destination, ["adopt-legacy", "--commit", baseline], monkeypatch, capsys
-    )
-    assert code == 0, dest_adopted
-    assert dest_adopted["tips"] == {"refs/heads/main": baseline}
-    horizon_path = state_root(destination) / "operations" / "legacy-horizon.json"
-    horizon_bytes = horizon_path.read_bytes()
-    code, imported, _ = _maintenance(
-        destination, ["operation-import", "--input", str(proof)], monkeypatch, capsys
-    )
-    assert code == 0, imported
-    assert imported["operations"] == 1
-    assert horizon_path.read_bytes() == horizon_bytes
-    imported_record = _record_document(destination, tip)
-    assert imported_record["kind"] == "admission"
-    assert imported_record["plans"] == operation["plans"]
-    assert imported_record["ready_evidence_sha256"] == qualification["sha256"]
-    assert imported_record["mappings"] == operation["mappings"]
-    assert attested_base(destination, tip) == operation["base"]
-    stored_qualification = (
-        state_root(destination) / "operations" / "qualifications" / str(qualification["sha256"])
-    )
-    assert stored_qualification.read_bytes() == source_qualification
-    record_path = (
-        state_root(destination) / "operations" / "records" / f"{imported_record['id']}.json"
-    )
-    record_bytes = record_path.read_bytes()
-    code, again, _ = _maintenance(
-        destination, ["operation-import", "--input", str(proof)], monkeypatch, capsys
-    )
-    assert code == 0, again
-    assert horizon_path.read_bytes() == horizon_bytes
-    assert record_path.read_bytes() == record_bytes
-    assert stored_qualification.read_bytes() == source_qualification
-    assert records.legacy_commit(destination, baseline)
-    assert records.legacy_commit(destination, tip) is False
-
-    fresh = _clone(root, tmp_path / "cutover-fresh")
-    code, refused, _ = _maintenance(
-        fresh, ["operation-import", "--input", str(proof)], monkeypatch, capsys
-    )
-    assert code == 2, refused
-    assert "cannot establish" in str(refused["cause"])
-    assert not list((state_root(fresh) / "operations" / "records").glob("*.json"))
-    assert not list((state_root(fresh) / "operations" / "qualifications").glob("*"))
-    assert records.legacy_commit(fresh, baseline) is False
-
-    parent = git_output(root, "rev-parse", f"{baseline}^")
-    expanded = _clone(root, tmp_path / "cutover-expanded")
-    code, narrowed, _ = _maintenance(
-        expanded, ["adopt-legacy", "--commit", parent], monkeypatch, capsys
-    )
-    assert code == 0, narrowed
-    expanded_horizon = state_root(expanded) / "operations" / "legacy-horizon.json"
-    expanded_bytes = expanded_horizon.read_bytes()
-    code, refused, _ = _maintenance(
-        expanded, ["operation-import", "--input", str(proof)], monkeypatch, capsys
-    )
-    assert code == 2, refused
-    assert "cannot expand" in str(refused["cause"])
-    assert expanded_horizon.read_bytes() == expanded_bytes
-    assert not list((state_root(expanded) / "operations" / "records").glob("*.json"))
-    assert not list((state_root(expanded) / "operations" / "qualifications").glob("*"))
-    assert records.legacy_commit(expanded, parent)
-    assert records.legacy_commit(expanded, baseline) is False
-
-
-def _worktrunk_for_repository(repository, arguments, *, json_output=False):
-    """Worktrunk stand-in that follows the repository it was given.
-
-    The shared fixture stand-in always drives the primary root. This traversal
-    has to open a member inside an independent clone.
-    """
-
-    del json_output
-    if arguments[0] == "list":
-        items = []
-        for block in git_output(repository, "worktree", "list", "--porcelain").split("\n\n"):
-            fields = dict(line.split(" ", 1) for line in block.splitlines() if " " in line)
-            branch = fields.get("branch", "").removeprefix("refs/heads/")
-            if not branch:
-                continue
-            path = Path(fields["worktree"])
-            items.append(
-                {
-                    "branch": branch,
-                    "head": {"sha": fields["HEAD"]},
-                    "worktree": {
-                        "path": str(path),
-                        "changes": {
-                            "modified": bool(git_output(path, "status", "--porcelain")),
-                        },
-                    },
-                }
-            )
-        return {"schema": 2, "items": items}
-    destination = None
-    if arguments[0] == "--config-set":
-        destination = Path(json.loads(arguments[1].split("=", 1)[1]))
-        arguments = arguments[2:]
-    if arguments[0] == "switch":
-        branch = arguments[arguments.index("--create") + 1]
-        base = arguments[arguments.index("--base") + 1]
-        assert destination is not None
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        assert "--no-hooks" in arguments and "--no-cd" in arguments
-        git_output(repository, "worktree", "add", "-b", branch, str(destination), base)
-        return {}
-    assert arguments[0] == "remove"
-    assert {"--foreground", "--no-hooks", "--force-delete"} <= set(arguments)
-    path = Path(arguments[-2])
-    branch = branch_name(path)
-    git_output(
-        repository,
-        "worktree",
-        "remove",
-        *(("--force",) if "--force" in arguments else ()),
-        str(path),
-    )
-    git_output(repository, "branch", "-D", branch)
-    return [
-        {
-            "kind": "worktree",
-            "branch": branch,
-            "path": str(path),
-            "branch_outcome": "deleted",
-            "branch_checked_out_at": None,
-        }
-    ]
 
 
 def test_shared_operation_lock_overlap_fails_closed(repository):
@@ -825,11 +452,6 @@ def test_shared_operation_lock_overlap_fails_closed(repository):
     assert stored["message"] == "Different message.\n"
 
 
-def _clone(root, destination):
-    git_output(root, "clone", "--shared", str(root), str(destination))
-    return destination
-
-
 def _intent(member, *, source, message, branch=None):
     head = git_output(member, "rev-parse", "HEAD")
     return records.OperationIntent(
@@ -867,256 +489,6 @@ def _publication_world(repository):
     source = opened(root, "plan/publication")
     tip = commit_file(source, "batch.txt", "published")
     return root, source, base, tip
-
-
-def _legacy_admission_message(batch, member):
-    member_branch = branch_name(member)
-    member_tip = git_output(member, "rev-parse", "HEAD")
-    batch_base = read_record(state_root(batch), branch_name(batch)).base
-    manifest = load_manifest(member / "signetum.toml")
-    evidence = lifecycle._admission_evidence(member, member_tip, manifest)
-    patch = lifecycle._stable_patch_id(member, batch_base, member_tip)
-    text = "\n".join(
-        (
-            f"Merge {member_branch} into integration batch",
-            "",
-            f"Signetum-Base: {batch_base}",
-            f"Signetum-Original: {member_tip}",
-            f"Signetum-Member: {member_branch}",
-            f"Signetum-Batch-Base: {batch_base}",
-            f"Signetum-Patch-ID: {patch}",
-            f"Signetum-Ready-Evidence: {evidence}",
-        )
-    )
-    frozen = records.freeze_message(text)
-    assert records._legacy_merge_message(frozen)
-    return frozen, member_tip
-
-
-def test_import_rejects_inconsistent_identity_and_proof(repository, tmp_path):
-    root, member, base, _before, source, merge, _result = _sync_delivery(repository)
-    document = records.export_operations(member, base, merge)
-    clone = _clone(root, tmp_path / "forged")
-    forged = json.loads(json.dumps(document))
-    item = forged["operations"][0]
-    item["source"] = item["before"]
-    item["parents"] = [item["source"], item["before"]]
-    item["id"] = records.intent_from_document(item).identity()
-    item["parents"] = list(item["proof"]["parents"])
-    item["before"] = item["proof"]["parents"][0]
-    item["id"] = records.intent_from_document(item).identity()
-    with pytest.raises(AdmissionError, match="operation source is not its second parent"):
-        records.import_operations(clone, forged)
-    assert not list((state_root(clone) / "operations" / "records").glob("*.json"))
-
-    found = records.load_index(member).for_commit(merge)
-    assert found is not None
-    parents = found["parents"]
-    assert isinstance(parents, list)
-    reversed_parents = list(reversed(parents))
-    assert reversed_parents
-    first_parent = reversed_parents[0]
-    assert isinstance(first_parent, str)
-    loaded = dict(found)
-    loaded["parents"] = reversed_parents
-    loaded["before"] = first_parent
-    loaded["attested_base"] = source
-    with pytest.raises(AdmissionError, match="operation parents do not match its proof"):
-        records.require_bound_commit(member, loaded)
-
-
-def test_import_rejects_duplicate_commits_and_malformed_records(repository, tmp_path):
-    root, member, base, _before, _source, merge, _result = _sync_delivery(repository)
-    document = records.export_operations(member, base, merge)
-    bundle = json.loads(json.dumps(document))
-    extra = json.loads(json.dumps(bundle["operations"][0]))
-    extra["branch"] = "plan/other-claim"
-    extra["id"] = records.intent_from_document(extra).identity()
-    bundle["operations"].append(extra)
-    fresh = _clone(root, tmp_path / "bundle")
-    with pytest.raises(AdmissionError, match="conflicting operation proofs claim one commit"):
-        records.import_operations(fresh, bundle)
-    assert not list((state_root(fresh) / "operations" / "records").glob("*.json"))
-
-    checkout = _clone(root, tmp_path / "once")
-    assert records.import_operations(checkout, document)["status"] == "imported"
-    imported = records.load_index(checkout).for_commit(merge)
-    assert imported is not None
-    identity = imported["id"]
-    assert isinstance(identity, str)
-    record_path = state_root(checkout) / "operations" / "records" / f"{identity}.json"
-    stored = record_path.read_bytes()
-    second = json.loads(json.dumps(document))
-    second["operations"][0]["branch"] = "plan/other-claim"
-    second["operations"][0]["id"] = records.intent_from_document(second["operations"][0]).identity()
-    with pytest.raises(AdmissionError, match="conflicting operation proofs claim one commit"):
-        records.import_operations(checkout, second)
-    assert record_path.read_bytes() == stored
-    other_path = record_path.with_name(f"{second['operations'][0]['id']}.json")
-    assert not other_path.exists()
-
-    missing = json.loads(json.dumps(document))
-    del missing["operations"][0]["mappings"]
-    bare = _clone(root, tmp_path / "missing")
-    with pytest.raises(AdmissionError, match="operation mappings are invalid"):
-        records.import_operations(bare, missing)
-    assert not list((state_root(bare) / "operations" / "records").glob("*.json"))
-
-    unknown = json.loads(json.dumps(document))
-    unknown["operations"][0]["note"] = "not a proof field"
-    unknown_clone = _clone(root, tmp_path / "unknown")
-    with pytest.raises(AdmissionError, match="unknown fields"):
-        records.import_operations(unknown_clone, unknown)
-    assert not list((state_root(unknown_clone) / "operations" / "records").glob("*.json"))
-
-
-def test_import_rejects_horizon_that_is_not_legacy_evidence(repository, tmp_path):
-    root, member, base, _before, source, merge, _result = _sync_delivery(repository)
-    document = records.export_operations(member, base, merge)
-
-    foreign = json.loads(json.dumps(document))
-    foreign["legacy_horizon"]["adopted"] = True
-    foreign["legacy_horizon"]["tips"] = {"refs/heads/main": "ab" * 20}
-    foreign_clone = _clone(root, tmp_path / "foreign-tip")
-    with pytest.raises(AdmissionError, match="operation object is unavailable"):
-        records.import_operations(foreign_clone, foreign)
-    assert not (state_root(foreign_clone) / "operations" / "legacy-horizon.json").exists()
-
-    pending = json.loads(json.dumps(document))
-    pending["legacy_horizon"]["pending_merges"] = [
-        {"before": base, "source": source, "trailers": [f"Signetum-Sync: {source}"]}
-    ]
-    pending_clone = _clone(root, tmp_path / "pending")
-    with pytest.raises(AdmissionError, match="imported legacy merge is not evidenced"):
-        records.import_operations(pending_clone, pending)
-    assert not list((state_root(pending_clone) / "operations" / "records").glob("*.json"))
-
-    digested = json.loads(json.dumps(document))
-    digested["legacy_horizon"]["sync_record_sha256"] = ["ab" * 32]
-    digest_clone = _clone(root, tmp_path / "digest")
-    with pytest.raises(AdmissionError, match="imported sync evidence is not in this repository"):
-        records.import_operations(digest_clone, digested)
-
-    modern = json.loads(json.dumps(document))
-    modern["legacy_horizon"]["adopted"] = True
-    modern["legacy_horizon"]["tips"] = {"refs/heads/main": merge}
-    modern_clone = _clone(root, tmp_path / "modern")
-    # The shared clone has the object, but no local branch can see the member merge yet.
-    git_output(modern_clone, "update-ref", "refs/heads/observed", merge)
-    with pytest.raises(
-        AdmissionError, match="legacy adoption cannot include a structured operation"
-    ):
-        records.import_operations(modern_clone, modern)
-    assert not list((state_root(modern_clone) / "operations" / "records").glob("*.json"))
-    assert not (state_root(modern_clone) / "operations" / "legacy-horizon.json").exists()
-
-    initial = git_output(root, "rev-list", "--max-parents=0", "HEAD")
-    records.adopt_legacy_history(root, [initial])
-    commit_file(root, "after-cutover.txt", "later")
-    with pytest.raises(AdmissionError, match="cannot expand"):
-        records.adopt_legacy_history(root, ["HEAD"])
-
-    later = commit_file(root, "after-record.txt", "after")
-    git_output(root, "push", "origin", "main")
-    git_output(member, "fetch", "origin", "main")
-    git_output(
-        member,
-        "merge",
-        "--no-ff",
-        "FETCH_HEAD",
-        "-m",
-        f"manual\n\nSignetum-Sync: {later}\n",
-    )
-    descendant = git_output(member, "rev-parse", "HEAD")
-    with pytest.raises(AdmissionError, match="structured operation"):
-        records.adopt_legacy_history(member, [descendant])
-    assert not records.legacy_commit(member, descendant)
-    with pytest.raises(AdmissionError, match="unrecorded merge"):
-        attested_base(member, descendant)
-
-
-def test_imported_qualification_must_match_the_admission_bytes(repository, tmp_path):
-    root, _ = repository
-    member = ready_member(root, "qualified", "qualified.txt")
-    batch = open_batch(root, member)
-    base = read_record(state_root(batch), branch_name(batch)).base
-    tip = git_output(batch, "rev-parse", "HEAD")
-    document = records.export_operations(batch, base, tip)
-    qualifications = document["qualifications"]
-    assert isinstance(qualifications, list) and qualifications
-    qualification = qualifications[0]
-    assert isinstance(qualification, dict)
-    digest = qualification["sha256"]
-    assert isinstance(digest, str)
-    original = (state_root(batch) / "operations" / "qualifications" / digest).read_bytes()
-    clone = _clone(root, tmp_path / "qualified")
-    assert records.import_operations(clone, document)["status"] == "imported"
-    assert (state_root(clone) / "operations" / "qualifications" / digest).read_bytes() == original
-
-    tampered = json.loads(json.dumps(document))
-    tampered["qualifications"][0]["content"] = "tampered qualification\n"
-    refused = _clone(root, tmp_path / "tampered")
-    with pytest.raises(AdmissionError, match="do not match their digest"):
-        records.import_operations(refused, tampered)
-    assert not list((state_root(refused) / "operations" / "records").glob("*.json"))
-    assert (state_root(batch) / "operations" / "qualifications" / digest).read_bytes() == original
-
-    absent = json.loads(json.dumps(document))
-    absent["qualifications"] = []
-    bare = _clone(root, tmp_path / "absent-qualification")
-    with pytest.raises(AdmissionError, match="exported qualification bytes are missing"):
-        records.import_operations(bare, absent)
-    assert not list((state_root(bare) / "operations" / "records").glob("*.json"))
-
-    other = ready_member(root, "unrelated", "unrelated.txt")
-    other_tip = git_output(other, "rev-parse", "HEAD")
-    foreign_bytes = None
-    foreign_name = ""
-    for path in lifecycle._receipt_root(root).glob("*-lifecycle-*.json"):
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        evidence = payload.get("evidence")
-        if isinstance(evidence, dict) and evidence.get("identity", {}).get("commit") == other_tip:
-            foreign_bytes = path.read_bytes()
-            foreign_name = path.name
-            break
-    assert foreign_bytes is not None
-    foreign_digest = hashlib.sha256(foreign_bytes).hexdigest()
-    replaced = json.loads(json.dumps(document))
-    replaced["qualifications"] = [
-        {"sha256": foreign_digest, "content": foreign_bytes.decode("utf-8")}
-    ]
-    replaced["operations"][0]["ready_evidence"] = foreign_name
-    replaced["operations"][0]["ready_evidence_sha256"] = foreign_digest
-    replaced["operations"][0]["id"] = records.intent_from_document(
-        replaced["operations"][0]
-    ).identity()
-    substituted = _clone(root, tmp_path / "substituted-qualification")
-    with pytest.raises(AdmissionError, match="does not bind its source"):
-        records.import_operations(substituted, replaced)
-    assert not (state_root(substituted) / "operations" / "qualifications" / foreign_digest).exists()
-    assert not list((state_root(substituted) / "operations" / "records").glob("*.json"))
-
-    def _reidentified(change: dict[str, object]) -> dict[str, object]:
-        forged = json.loads(json.dumps(document))
-        forged["operations"][0].update(change)
-        forged["operations"][0]["id"] = records.intent_from_document(
-            forged["operations"][0]
-        ).identity()
-        return forged
-
-    replanned = _clone(root, tmp_path / "replanned")
-    with pytest.raises(AdmissionError, match="plans do not match the approved source"):
-        records.import_operations(
-            replanned, _reidentified({"plans": ["changes/unrelated/change.toml"]})
-        )
-    assert not list((state_root(replanned) / "operations" / "qualifications").glob("*"))
-    assert not list((state_root(replanned) / "operations" / "records").glob("*.json"))
-
-    repatched = _clone(root, tmp_path / "repatched")
-    with pytest.raises(AdmissionError, match="patch does not match the approved source"):
-        records.import_operations(repatched, _reidentified({"patch_id": "ab" * 20}))
-    assert not list((state_root(repatched) / "operations" / "qualifications").glob("*"))
-    assert not list((state_root(repatched) / "operations" / "records").glob("*.json"))
 
 
 def test_publication_crash_before_commit_keeps_the_pending_record(repository, monkeypatch):
@@ -1165,7 +537,7 @@ def test_publication_crash_after_commit_reuses_the_same_object(repository, monke
     assert _record_document(root, created["commit"])["status"] == "completed"
 
 
-def test_publication_refuses_unrelated_remotes_and_resumes_legacy_proof(repository, tmp_path):
+def test_publication_refuses_unrelated_remotes_and_resumes_its_own_proof(repository, tmp_path):
     root, source, base, tip = _publication_world(repository)
     tree = git_output(source, "rev-parse", f"{tip}^{{tree}}")
     unrelated = tmp_path / "unrelated.txt"
@@ -1177,20 +549,6 @@ def test_publication_refuses_unrelated_remotes_and_resumes_legacy_proof(reposito
     assert git_output(root, "rev-parse", "HEAD") == base
     assert not list((state_root(root) / "operations" / "records").glob("*.json"))
     git_output(source, "push", "--force", "origin", f"{base}:refs/heads/main")
-
-    legacy_path = tmp_path / "legacy.txt"
-    legacy_path.write_text(
-        records.legacy_publication_message("reviewed", "main", base, tip), encoding="utf-8"
-    )
-    legacy = git_output(source, "commit-tree", tree, "-p", base, "-p", tip, "-F", str(legacy_path))
-    git_output(source, "branch", "legacy-publication", legacy)
-    records.adopt_legacy_history(source, [legacy])
-    git_output(source, "push", "--force", "origin", f"{legacy}:refs/heads/main")
-    resumed = _publish(source, root, base, tip, operation_message())
-    assert resumed.commit == legacy
-    assert git_output(root, "rev-parse", "HEAD") == legacy
-    assert records.load_index(root).for_commit(legacy) is None
-    assert records.commit_message(root, legacy).startswith("Merge reviewed into main\n")
 
     git_output(source, "push", "--force", "origin", f"{base}:refs/heads/main")
     git_output(root, "reset", "--keep", base)
@@ -1373,106 +731,17 @@ def test_pending_reader_does_not_deadlock_behind_a_competing_begin(repository):
     assert git_output(member, "rev-parse", "HEAD") == held.before
 
 
-def test_legacy_admission_continuation_accepts_messages_for_remaining_members(
-    repository, monkeypatch
-):
-    root, _ = repository
-    first = ready_member(root, "legacy-first", "first.txt")
-    second = ready_member(root, "legacy-second", "second.txt")
-    base = git_output(root, "rev-parse", "HEAD")
-    batch = Path(str(ops.open_workspace(root, "batch/legacy-wave", base, kind="batch")["worktree"]))
-    message, member_tip = _legacy_admission_message(batch, first)
-    git_output(batch, "merge", "--no-ff", "--no-commit", member_tip)
-    repository_path(batch, "rev-parse", "--git-path", "MERGE_MSG").write_text(
-        message, encoding="utf-8"
-    )
-    prepare_merge(batch, member_tip, message)
-    record_pending_admissions(batch, branch_name(batch), (second,))
-    horizon_path = state_root(batch) / "operations" / "legacy-horizon.json"
-    if horizon_path.is_file():
-        horizon = json.loads(horizon_path.read_text(encoding="utf-8"))
-        assert horizon.get("adopted") is False
-        assert horizon.get("tips") == {}
-        assert horizon.get("pending_merges") == []
-        horizon_path.unlink()
-    before = git_output(batch, "rev-parse", "HEAD")
-    with pytest.raises(AdmissionError, match="missing frozen messages"):
-        lifecycle.continue_batch(batch)
-    assert git_output(batch, "rev-parse", "HEAD") == before
-    assert run_merge_head(batch)
-    original = lifecycle.create_commit
-
-    def explode(*_args, **_kwargs):
-        raise AdmissionError("simulated crash before the legacy resolution commit")
-
-    monkeypatch.setattr(lifecycle, "create_commit", explode)
-    remaining = operation_messages(1)
-    with pytest.raises(AdmissionError, match="simulated crash before the legacy resolution commit"):
-        lifecycle.continue_batch(batch, messages=remaining)
-    assert git_output(batch, "rev-parse", "HEAD") == before
-    assert run_merge_head(batch)
-    stored = json.loads(horizon_path.read_text(encoding="utf-8"))
-    pending = stored["pending_merges"]
-    assert pending[0]["continuation_messages"] == list(remaining)
-    assert install_commit_check(batch)["status"] == "active"
-    monkeypatch.setattr(lifecycle, "create_commit", original)
-    result = lifecycle.continue_batch(batch, messages=remaining)
-    merge = str(result["admission_commit"])
-    assert git_output(batch, "rev-parse", "HEAD^{}") != before
-    assert records.commit_message(batch, merge) == message
-    assert "batch resolution" not in records.commit_message(batch, merge)
-    assert "Signetum-Member:" in records.commit_message(batch, merge)
-    assert records.load_index(batch).for_commit(merge) is None
-    assert (batch / "first.txt").is_file()
-    assert (batch / "second.txt").is_file()
-    resumed = result["resumed_admission"]
-    assert isinstance(resumed, dict)
-    admitted = resumed["admitted"]
-    assert isinstance(admitted, list)
-    branches: list[object] = []
-    for item in admitted:
-        assert isinstance(item, dict)
-        branches.append(item["branch"])
-    assert branches == ["change/legacy-second"]
-    modern = _record_document(batch, git_output(batch, "rev-parse", "HEAD"))
-    assert modern["kind"] == "admission"
-    assert modern["message"] == remaining[0]
-    assert "Signetum-" not in modern["message"]
-
-
-def test_legacy_merge_opened_after_the_horizon_continues_after_a_manual_commit(repository):
-    root, _ = repository
-    first = ready_member(root, "late-first", "first.txt")
-    second = ready_member(root, "late-second", "second.txt")
-    base = git_output(root, "rev-parse", "HEAD")
-    batch = Path(str(ops.open_workspace(root, "batch/late-wave", base, kind="batch")["worktree"]))
-    horizon_path = state_root(batch) / "operations" / "legacy-horizon.json"
-    assert records.legacy_pending_trailers(batch, base, base) is None
-    assert json.loads(horizon_path.read_text(encoding="utf-8"))["pending_merges"] == []
-    message, member_tip = _legacy_admission_message(batch, first)
-    git_output(batch, "merge", "--no-ff", "--no-commit", member_tip)
-    repository_path(batch, "rev-parse", "--git-path", "MERGE_MSG").write_text(
-        message, encoding="utf-8"
-    )
-    prepare_merge(batch, member_tip, message)
-    record_pending_admissions(batch, branch_name(batch), (second,))
-    git_output(batch, "commit", "--no-edit")
-    committed = git_output(batch, "rev-parse", "HEAD")
-    remaining = operation_messages(1)
-
-    result = lifecycle.continue_batch(batch, messages=remaining)
-
-    assert result["admission_commit"] == committed
-    stored = json.loads(horizon_path.read_text(encoding="utf-8"))["pending_merges"]
-    assert [item["continuation_messages"] for item in stored] == [list(remaining)]
-    resumed = result["resumed_admission"]
-    assert isinstance(resumed, dict)
-    admitted = resumed["admitted"]
-    assert isinstance(admitted, list)
-    assert [item["branch"] for item in admitted if isinstance(item, dict)] == ["change/late-second"]
-    assert (batch / "first.txt").is_file() and (batch / "second.txt").is_file()
-
-
 def run_merge_head(repository):
     completed = git_output(repository, "rev-parse", "--verify", "MERGE_HEAD", check=False)
     return bool(completed)
+
+
+def test_index_reads_parse_records_without_consulting_git(repository, monkeypatch):
+    _root, member, _base, _before, _source, merge, _result = _sync_delivery(repository)
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("an index read consulted Git")
+
+    monkeypatch.setattr(records, "run_git", refuse)
+    monkeypatch.setattr(records, "git_output", refuse)
+    assert records.load_index(member).for_commit(merge) is not None

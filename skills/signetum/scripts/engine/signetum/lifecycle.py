@@ -22,11 +22,9 @@ from signetum import worktrunk as wt
 from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
 from signetum.change.scope import (
-    ChangeError,
     delivered_plans,
     records_only,
     records_only_ancestors,
-    require_batch_implementation,
 )
 from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
 from signetum.decision_proposals import proposal_paths
@@ -54,25 +52,20 @@ from signetum.manifest import RepositoryManifest, load_bindings, load_manifest
 from signetum.operation_cli import OperationParser, run_operation
 from signetum.operation_records import (
     OperationIntent,
-    _member_at_source,
     batch_sync_record,
     commit_message,
     commit_operation,
     continuation_messages,
     create_commit,
-    engine_accepts_message_file,
     evidence_sha256,
     freeze_message,
     intent_from_document,
     legacy_commit,
-    legacy_continuation_messages,
-    legacy_pending_trailers,
     load_index,
     merge_operation,
     read_message_file,
     read_message_files,
     remember_continuation,
-    store_legacy_continuation,
     write_message_copy,
 )
 from signetum.operation_records import complete_operation as _complete_operation
@@ -91,11 +84,7 @@ from signetum.publication_binding import require_publication_binding
 from signetum.repository_selection import select_repository
 from signetum.source_admission import require_source_admission, stable_patch_id
 from signetum.stacking import require_parent_admitted
-from signetum.synchronization import (
-    member_contribution_paths,
-    prepared_merge,
-    preserves_merge_message,
-)
+from signetum.synchronization import member_contribution_paths
 from signetum.validation import (
     ValidationGraph,
 )
@@ -122,7 +111,6 @@ from signetum.workspace_operations import (
 from signetum.workspaces import (
     BatchAuthorization,
     WorkspaceError,
-    WorkspaceRecord,
     advance_batch_base,
     read_record,
 )
@@ -346,23 +334,6 @@ def _admission_evidence(member: Path, tip: str, manifest: RepositoryManifest) ->
             except AdmissionError:
                 continue
         raise missing
-
-
-def _qualify_engine_source(batch: Path, source: str) -> None:
-    """Use member approval and ready evidence. This is not a second authority."""
-
-    workspace, record = _member_at_source(batch, source)
-    manifest = load_manifest(workspace / "signetum.toml")
-    # Ready evidence before qualification so a missing receipt writes no owner claim.
-    _admission_evidence(workspace, source, manifest)
-    qualify_member(workspace, manifest, record.base, source, operation="engine handoff")
-
-
-def _require_handoff_authorization(batch: Path, record: WorkspaceRecord, before: str) -> None:
-    try:
-        require_batch_implementation(batch, load_manifest(batch / "signetum.toml"), record, before)
-    except ChangeError as error:
-        raise AdmissionError(str(error), expected=error.expected) from error
 
 
 def _evidence_at(member: Path, base: str, commit: str, manifest: RepositoryManifest) -> str:
@@ -668,29 +639,22 @@ def _continue_batch_held(
     against_first = set(_git(batch, "diff", "--name-only", before, staged_tree).splitlines())
     against_second = set(_git(batch, "diff", "--name-only", other, staged_tree).splitlines())
     repaired = tuple(sorted(against_first & against_second))
-    if pending is not None:
-        frozen = pending.get("message")
-        if not isinstance(frozen, str):
-            raise AdmissionError("pending operation message is invalid")
-        _require_modern_continuation(message, messages, frozen, pending)
-        resolution = create_commit(
-            batch,
-            tree=staged_tree,
-            parents=(before, other),
-            message=frozen,
-            identity=other,
+    if pending is None:
+        raise AdmissionError(
+            "batch has no recorded merge to continue",
+            expected="finish a merge an older engine started with the engine that opened the batch",
         )
-    else:
-        _require_legacy_continue_message(batch, before, other, message)
-        _store_legacy_member_messages(batch, before, other, messages)
-        merge_message = _snapshotted_merge_message(batch, before, other)
-        resolution = create_commit(
-            batch,
-            tree=staged_tree,
-            parents=(before, other),
-            message=merge_message,
-            identity=other,
-        )
+    frozen = pending.get("message")
+    if not isinstance(frozen, str):
+        raise AdmissionError("pending operation message is invalid")
+    _require_modern_continuation(message, messages, frozen, pending)
+    resolution = create_commit(
+        batch,
+        tree=staged_tree,
+        parents=(before, other),
+        message=frozen,
+        identity=other,
+    )
     with _selection_checkout(batch, resolution, prepare=False) as selector:
         require_source_admission(
             selector, load_manifest(selector / "signetum.toml"), _recorded_base(batch), resolution
@@ -709,20 +673,9 @@ def _continue_batch_held(
         raise ValidationExecutionError("validation changed staged merge identity")
     if run_git(batch, "diff", "--quiet").returncode:
         raise ValidationExecutionError("validation changed merge working files")
-    if pending is not None:
-        _commit_frozen_message(batch, str(pending["message"]))
-        committed = _git(batch, "rev-parse", "HEAD")
-        _complete_operation(batch, intent_from_document(pending), committed)
-    else:
-        completed = subprocess.run(  # nosec B603
-            (_git_executable(), "-C", str(batch), "commit", "--no-edit"),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if completed.returncode != 0:
-            raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
-        committed = _git(batch, "rev-parse", "HEAD")
+    _commit_frozen_message(batch, frozen)
+    committed = _git(batch, "rev-parse", "HEAD")
+    _complete_operation(batch, intent_from_document(pending), committed)
     return _finish_batch_merge(batch, committed, other, preparation, static, repaired)
 
 
@@ -759,54 +712,6 @@ def _require_modern_continuation(
         )
 
 
-def _store_legacy_member_messages(
-    batch: Path, before: str, source: str, messages: tuple[str, ...]
-) -> None:
-    """Persist caller text for members the snapshotted admission still owes."""
-
-    owed = pending_admissions(batch, _branch(batch))
-    if not owed:
-        if messages:
-            raise AdmissionError("batch continuation has no remaining members")
-        return
-    if len(messages) != len(owed):
-        raise AdmissionError(
-            "batch continuation is missing frozen messages for the remaining members",
-            expected=(
-                f"retry batch-continue --batch {batch} with one --message-file "
-                "for each remaining member"
-            ),
-        )
-    store_legacy_continuation(
-        batch, before, source, messages, prepared_merge(batch, before, source)
-    )
-
-
-def _snapshotted_merge_message(batch: Path, before: str, source: str) -> str:
-    """The legacy merge text already frozen in this worktree, not a generated subject."""
-
-    trailers = legacy_pending_trailers(batch, before, source) or prepared_merge(
-        batch, before, source
-    )
-    if trailers is None:
-        raise AdmissionError("batch has no recorded merge to continue")
-    path = repository_path(batch, "rev-parse", "--git-path", "MERGE_MSG")
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        raise AdmissionError("merge message is unreadable") from error
-    frozen = freeze_message(text)
-    actual = tuple(
-        sorted(line for line in frozen.splitlines() if line.lower().startswith("signetum-"))
-    )
-    if actual != tuple(sorted(trailers)):
-        raise AdmissionError(
-            "merge message does not preserve the prepared Signetum trailers",
-            expected="commit with git commit --no-edit to preserve the prepared merge message",
-        )
-    return frozen
-
-
 def _commit_frozen_message(repository: Path, message: str) -> None:
     path = write_message_copy(repository, message)
     try:
@@ -815,26 +720,6 @@ def _commit_frozen_message(repository: Path, message: str) -> None:
         path.unlink(missing_ok=True)
     if completed.returncode != 0:
         raise AdmissionError(completed.stderr.strip() or completed.stdout.strip())
-
-
-def _require_legacy_continue_message(
-    batch: Path, before: str, source: str, message: str | None
-) -> None:
-    trailers = legacy_pending_trailers(batch, before, source) or prepared_merge(
-        batch, before, source
-    )
-    if trailers is None:
-        raise AdmissionError("batch has no recorded merge to continue")
-    if message is None:
-        return
-    actual = tuple(
-        sorted(line for line in message.splitlines() if line.lower().startswith("signetum-"))
-    )
-    if actual != tuple(sorted(trailers)):
-        raise AdmissionError(
-            "merge message does not preserve the prepared Signetum trailers",
-            expected="commit with git commit --no-edit to preserve the prepared merge message",
-        )
 
 
 def _continue_committed_batch_merge(
@@ -864,13 +749,10 @@ def _continue_committed_batch_merge(
         # and the batch base was not advanced; the gate and the advance remain.
         pass
     else:
-        prepared = prepared_merge(batch, before, other) or legacy_pending_trailers(
-            batch, before, other
+        raise AdmissionError(
+            "batch has no recorded merge to continue",
+            expected="finish a merge an older engine started with the engine that opened the batch",
         )
-        if prepared is None or not preserves_merge_message(batch, committed, prepared):
-            raise AdmissionError("batch has no recorded merge to continue")
-        _require_legacy_continue_message(batch, before, other, message)
-        _store_legacy_member_messages(batch, before, other, messages)
     against_first = set(_git(batch, "diff", "--name-only", before, committed).splitlines())
     against_second = set(_git(batch, "diff", "--name-only", other, committed).splitlines())
     preparation = worktree_prepare(batch)
@@ -912,10 +794,6 @@ def _finish_batch_merge(
     resumed: dict[str, object] | None = None
     if pending := pending_admissions(batch, _branch(batch)):
         stored = continuation_messages(batch, committed)
-        if stored is None:
-            parents = _git(batch, "show", "-s", "--format=%P", committed).split()
-            if len(parents) == 2:
-                stored = legacy_continuation_messages(batch, parents[0], parents[1])
         if stored is None or len(stored) != len(pending):
             raise AdmissionError(
                 "batch continuation is missing frozen messages for the remaining members",
@@ -1172,14 +1050,6 @@ def _open_admission(
     engine = batch / "skills/signetum/scripts/engine"
     if not (engine / "signetum/lifecycle.py").is_file():
         raise AdmissionError("repository engine is absent from the batch")
-    if not engine_accepts_message_file(engine):
-        raise AdmissionError(
-            "batch engine cannot accept a message file",
-            expected=(
-                "run maintenance adopt-repository-engine --message-file <path> in the batch, "
-                "then retry batch-open"
-            ),
-        )
     worktree_prepare(batch)
     program = (
         "import sys; sys.path.insert(0,sys.argv.pop(1)); "

@@ -178,19 +178,12 @@ stays intact. A different message fails closed. Retry binds the commit that
 already matches the pending operation and does not create another merge. A
 completed proof for the same source that is not on the branch fast-forwards only
 while HEAD is still that proof's first parent; any other tip fails closed. A merge
-without an operation record stays unverified. The first use of this store records
-an open legacy merge and its sync file. It does not adopt branch tips. Retained
-history becomes readable through an explicit `maintenance adopt-legacy --commit`
-on this checkout. That cutover may include older protocol merges and ordinary
-pre-protocol ancestry. It records the selected tips and does not grant those
-commits new provenance. Exact reviewed old-engine merge text still supplies the
-historical sync, admission, publication, and baseline facts. A copied trailer is
-not that proof. Adoption refuses a tip that contains a structured operation, and
-it cannot move an existing cutover forward. This checkout establishes its own
-cutover. Import repeats a cutover already recorded here and refuses to establish
-or expand one, including on a fresh clone or an unadopted horizon. A later merge
-without a structured record stays modern. An old lost-trailer merge is recognized only
-when that older proof exists.
+without an operation record stays unverified. Records stay local to the
+repository: each is validated completely when written, reads parse the stored
+records, and a record is checked against its commit, parents and tree where it is
+used. History before the first structured operation stays readable through the
+old engine's exact merge text; once an operation is an ancestor, a later commit
+cannot fall back to message proof, and a copied trailer is never proof.
 
 A stacked member's workspace record names its parent member branch, and its base
 is that parent's tip; the record is the only source of the chain. Its contribution,
@@ -297,39 +290,15 @@ has one pending operation. During the
 reference transaction, a candidate merge whose parents and pending MERGE_HEAD
 match that operation must carry exactly that message. A different message
 refuses before the branch moves, naming `git commit --no-edit` and, for a batch,
-`batch-continue`. An old merge that was already pending when this store was
-first used still requires its snapshotted trailer lines. Ordinary commits and
-unrelated merges retain their existing rules. After a manual `--no-edit` commit,
-`batch-continue` accepts only the exact recorded merge at HEAD, validates it and
-completes base advancement and pending admissions; it also commits a staged
-resolution with the frozen message. A legacy admission that still owes members
-takes one `--message-file` for each remaining member and stores those descriptions
-before either the validation commit or the merge commit. The validation commit is
-still created with `commit-tree`, but its message is the snapshotted legacy merge
-text, not a generated subject. The final merge commit keeps that same text
-through `git commit --no-edit`. `maintenance operation-export` and
-`operation-import` move completed proof and qualification bytes. Import checks
-identity, kind, parents, bases, tree, message, plans, patch, and qualification
-bytes against the Git objects and the approved source in the destination. A
-qualification digest proves the bytes are intact; the receipt still has to bind
-the declared source. That binding reads the source commit's approved member
-changes, plans, and patch. Decision journals are read from that same commit when
-the batch checkout is not the member tip. It does not replay the member
-checkout's live source review, which already ran when that tip became ready. The same bundle imports
-again as a no-op. A missing,
-foreign, inconsistent, or conflicting object refuses before any write. An
-exported legacy horizon cannot establish or expand a cutover, including on a
-fresh clone or an unadopted horizon. Import repeats a cutover this checkout
-already recorded. Matching adopted commits are one cutover even when the
-recorded branch names differ, and import does not rewrite the destination's
-cutover to those names. That horizon is also not authority for a tip the
-destination cannot see, for a tip that contains a structured operation, or for
-a pending merge the destination cannot evidence.
-Sync-file hashes travel only when this checkout already has those bytes.
+`batch-continue`. A merge an older engine started finishes with the engine that
+opened its batch. Ordinary commits and unrelated merges retain their existing
+rules. After a manual `--no-edit` commit, `batch-continue` accepts only the exact
+recorded merge at HEAD, validates it and completes base advancement and pending
+admissions; it also commits a staged resolution with the frozen message.
 
 Decision numbering uses the same store. `maintenance record-decision-mapping`
 binds the human commit, its parent, its tree and the approved base. Old
-`Signetum-Decision-*` lines are read only for commits covered by `adopt-legacy`.
+`Signetum-Decision-*` lines are read only for history before the first structured operation.
 A copied modern message cannot create a mapping or change a baseline. The
 numbering check still requires the committed rename.
 
@@ -337,26 +306,7 @@ Batch-open captures `engine = {version, implementation, source}` in its schema-2
 workspace record. An installed Skill engine pins version and implementation;
 a self-hosted repository engine pins its location inside the batch worktree,
 because admission legitimately changes its source. Initial self-hosted admission
-enters that batch's engine only when that engine accepts a message file. An older
-repository engine refuses before admission and names
-`maintenance adopt-repository-engine --message-file`. That operation copies the
-repository engine and the declared preparation inputs that engine needs from one
-approved Ready commit, using the same source admission and ready evidence as
-member admission. Declared lockfiles come from that commit's manifest. A lockfile
-that binds the engine, and the uv project manifest that lock binds, travel with
-the engine tree. Other application paths stay behind. The batch must already
-carry recorded authorization for that implementation commit, or an approved
-batch-owned change that attributes it. The caller message is kept. The pin stays
-`repository`. It does not change the installed Skill, a batch that pinned an
-installed engine, or weaken `--locked` preparation. A completed engine-only
-handoff remains readable. A later call with a new caller message and a new exact
-Ready source continues when the checked-out preparation bundle does not match,
-without rewriting the earlier proof. Accepting a message file is not evidence
-that the bundle matches. A crash after the handoff object exists and before the
-branch moves retries that same object. The same source, message, and effect
-retry after the branch moves returns that object. An unqualified source, or a
-source whose declared manifest and lock do not match the engine, is refused
-before any handoff object exists. A foreign checkout engine cannot open
+enters that batch's engine. A foreign checkout engine cannot open
 a batch: invoke the installed Skill launcher instead. Admission, continuation,
 batch sync, final and delivery refuse mismatches before work, naming the pin and
 the remedy: finish with that engine or open a new batch for the same ready

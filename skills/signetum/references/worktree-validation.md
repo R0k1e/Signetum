@@ -107,35 +107,15 @@ follow it with `batch-continue` to validate and finish the recorded operation;
 Pass `--message-file` on `workspace-sync`, `batch-open`, `batch-admit`,
 `batch-deliver` and `final --deliver`. One admission file is required for each
 `--member`, in the same order. `batch-continue` uses the frozen message; a file
-supplied then must match it. For a legacy admission, pass one `--message-file`
-for each member that admission had not started. History that already existed
-becomes readable only through `maintenance adopt-legacy --commit <commit>` on
-this checkout. Older protocol merges and ordinary pre-protocol ancestry can be
-inside that cutover. Exact reviewed old-engine text still supplies historical
-facts; a copied trailer does not. This checkout establishes its own cutover.
-Import repeats a cutover already recorded here and refuses to establish or
-expand one, including on a fresh clone or an unadopted horizon. A later merge
-without a structured record stays modern. An old merge that was already pending
-can still finish under that snapshot. Retry the same operation after a crash;
-do not create a second merge. A completed operation that is not on the branch
-does not authorize another one. `maintenance record-decision-mapping` binds a
-human numbering commit to its approved base. `maintenance operation-export` and
-`operation-import` carry the completed proof to another checkout. A qualification
-must bind its declared source, not only its digest. When a repository-pinned
-batch still runs an engine that rejects `--message-file`, run
-`maintenance adopt-repository-engine --message-file <path>` in that batch before
-admission. Its source must be an approved Ready commit in this repository,
-qualified with that commit's approval and ready evidence. The operation copies
-the repository engine and the declared preparation inputs that engine needs.
-Other application paths stay behind. The repository pin stays unchanged. The
-installed Skill and any batch that pinned an installed engine stay unchanged.
-An unqualified source, or a source whose declared manifest and lock do not match
-the engine, is refused before a handoff object exists. A completed engine-only
-handoff stays readable. A later call with a new message and Ready source
-continues when the checked-out preparation bundle does not match. Accepting a
-message file is not evidence that the bundle matches. If the handoff object
-exists but the branch did not move, retry fast-forwards that object. The same
-source and message retry after the branch moves returns that object.
+supplied then must match it. A merge an older engine started finishes with the
+engine that opened its batch. History before the first structured operation stays
+readable through the old engine's exact merge text; a copied trailer does not
+become proof, and once an operation is an ancestor a later commit cannot fall
+back to message proof. Retry the same operation after a crash; do not create a
+second merge. A completed operation that is not on the branch does not authorize
+another one. `maintenance record-decision-mapping` binds a human numbering
+commit to its approved base. Records stay local to this repository and are
+checked against Git where they are used.
 
 ## Significant records
 

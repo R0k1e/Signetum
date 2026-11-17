@@ -3,28 +3,20 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## 0.9.3
+## 0.9.4
 
 - Automatic commits take a caller-supplied `--message-file`. The project's commit
   convention remains authoritative. Where the project declares none, guidance
   stays one lightweight Conventional Commit subject and does not assign a type
   from the lifecycle stage.
-- Structured records bind synchronization, admission, publication, baselines and
-  decision mappings to the actual commit, parents and tree. That exact-object
-  evidence replaces generated Signetum trailers in new operation messages. A
-  copied message does not become proof.
-- Explicit `maintenance adopt-legacy` keeps retained old history readable on
-  this checkout, without rewriting it or granting those commits new provenance.
-  `operation-export` and `operation-import` transfer evidence that matches the
-  destination's Git objects and qualifications. An operation that was already
-  pending can still finish.
-- A repository-pinned batch whose engine rejects `--message-file` adopts the
-  qualified repository engine with `maintenance adopt-repository-engine` before
-  admission. The handoff also carries the declared root manifest and lock that
-  locked preparation needs. An earlier engine-only handoff stays as recorded; a
-  later call with a new message and Ready source continues it. The pin stays on
-  that batch. Installed consumers, including an open batch's installed engine
-  and pin, stay as they are.
+- Local structured records bind synchronization, admission, publication,
+  baselines and decision mappings to the actual commit, parents and tree. That
+  exact-object evidence replaces generated Signetum trailers in new operation
+  messages; a copied message does not become proof. Each record is validated
+  when written and checked against Git where it is used.
+- History before the first structured operation stays readable through the old
+  engine's exact merge text. Finish a batch an older engine opened with that
+  engine before updating.
 - A `batch-continue` whose batch gate fails stays retryable: the batch base
   advances only after the gate passes, and admission refuses a batch whose tip
   is a synchronization the base has not reached.
@@ -33,15 +25,10 @@ their original release history. Git and accepted change records retain reasoning
   later plain `workspace-sync` still reports `unchanged`, and `batch-admit`
   accepts the child instead of comparing against its original base.
 - When Signetum develops itself, the commit check runs the engine of the
-  worktree updating a branch, so removing another worktree no longer blocks
-  branch updates. Skill installations are unchanged.
-  Creating a new worktree also falls back to the main worktree's engine.
-- Operations reuse the validation of unchanged operation records and exact Git
-  object queries within one invocation, so admission, synchronization and
-  final no longer revalidate every stored record on each read.
-- Continuing an admission an older engine left pending stores the messages for
-  the remaining members even when this checkout recorded its legacy horizon
-  earlier.
+  worktree updating a branch, falling back to the main worktree's engine, so
+  removing a worktree no longer blocks branch updates. Skill installations are
+  unchanged.
+- Operations reuse exact Git object queries within one invocation.
 
 ## 0.9.1
 

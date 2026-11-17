@@ -11,7 +11,6 @@ from signetum.operation_records import (
     complete_operation,
     freeze_message,
     intent_from_document,
-    legacy_publication_commit,
     load_index,
     require_bound_commit,
 )
@@ -135,11 +134,9 @@ def _resume_publication(
         if proof.get("commit") != commit:
             raise AdmissionError("completed operation proof conflicts with the remote commit")
         return commit
-    if legacy_publication_commit(repository, commit, target_branch, intent.base, intent.source):
-        return commit
     raise AdmissionError(
         "remote publication has no matching operation proof",
-        expected="retry the publication that recorded this commit, or adopt its legacy history",
+        expected="retry the publication with the engine that recorded this commit",
     )
 
 
