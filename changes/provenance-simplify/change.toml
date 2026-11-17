@@ -1,0 +1,137 @@
+[change]
+schema_version = 2
+id = "provenance-simplify"
+
+[change.source]
+kind = "human_direction"
+summary = "The 0.9.3 release workflow passed every validation target but its combined coverage gate measured 87.40 percent against the unchanged 90 percent threshold. Most uncovered code is the defensive contract of the operation records owner added in 0.9.2: every index read revalidated every stored record and reran each admission's source review, field-by-field forgery checks, portable export and import, a legacy cutover horizon, and a one-time repository engine handoff. No release with structured records was ever published, so no consumer holds them. The owner questioned whether that authentication is worth its cost and approved simplifying it to the guarantees that matter."
+
+[change.contract]
+version = 1
+approved_base = "cd69f986a018bca87fcb156de1b19d43c303fb70" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "CORE-001"
+outcome = "An operation still writes its pending intent before Git effects, completes by binding the actual commit, parents and tree, recovers idempotently after a crash, and the commit check still refuses a merge that no pending operation describes, so a manual merge or copied message cannot become synchronization, admission or publication."
+acceptance = [
+    "Existing real-Git crash recovery, conflict continuation, synchronization, admission, publication and commit-check refusal scenarios keep passing.",
+    "Records written by 0.9.2 and 0.9.3 in this repository remain readable without migration.",
+]
+
+[[change.contract.requirements]]
+id = "TRUST-002"
+outcome = "Records are validated completely once when written. Reading the index parses the stored records and refuses a malformed one; a record is checked against Git only when it is used, by confirming its commit, parents and tree."
+acceptance = [
+    "A record whose proof no longer matches Git is refused where it is used.",
+    "Index reads no longer rerun source admission or Git checks for unrelated records.",
+]
+
+[[change.contract.requirements]]
+id = "SCOPE-003"
+outcome = "Portable operation export and import, the legacy cutover horizon with adoption and continuation of merges an older engine left pending, and the one-time repository engine handoff are removed. Retained 0.9.1 history stays readable through its existing messages, and the Skill keeps requiring that a batch finishes with the engine that opened it before an update."
+acceptance = [
+    "The removed maintenance commands are gone from the CLI, Skill and documentation.",
+    "Delivered 0.9.1 history in this repository still validates.",
+]
+
+[[change.contract.requirements]]
+id = "REL-004"
+outcome = "Release 0.9.4 carries the unpublished 0.9.2 and 0.9.3 candidate notes reconciled with this simplification, with combined hosted coverage meeting the unchanged 90 percent threshold; the unpublished v0.9.2 and v0.9.3 tags stay untouched."
+acceptance = ["Package and Skill versions agree on 0.9.4 and the release workflow publishes it."]
+
+[change.contract.autonomy]
+allowed = [
+    "Rewrite the operation records owner and its callers within these outcomes, deleting tests of removed behavior and keeping core guarantee tests.",
+    "Reconcile architecture, Skill references, CLI help and the changelog.",
+    "Prepare, deliver and tag release 0.9.4 after final passes.",
+]
+requires_confirmation = [
+    "Changing the record format in a way that breaks reading existing records, lowering the coverage threshold, raising timeouts or deselecting tests.",
+]
+
+[[change.contract.decisions]]
+id = "provenance-simplify/local-operation-trust"
+change_id = "provenance-simplify"
+authority = "changes/provenance-simplify/change.toml#decisions/provenance-simplify/local-operation-trust"
+parents = ["structured-operation-provenance/operation-authority"]
+reason = "Operation records live only in the local Git common directory. Anyone able to forge them can already rewrite refs and history, so field-level forgery defence and portable proof add cost without protection. The real risks are interrupted writes and agents presenting manual merges or copied messages as operations; pending intent before effects, completion bound to actual Git identity, the commit check and use-time object checks cover them. Revalidating every record on every read made operations quadratic in their history and drove the 0.9.2 release over its hosted bound. Structured records never shipped, so removing portability and the legacy cutover machinery strands no consumer; older pending work finishes with the engine that opened its batch. Reopen if records must travel between checkouts or become a shared trust boundary."
+
+[[change.contract.decisions.clauses]]
+id = "provenance-simplify/narrow-operation-proof"
+change_id = "provenance-simplify"
+action = "amend"
+expected = [{id = "OPERATION-PROOF-001", version = 1}]
+authority = "changes/provenance-simplify/change.toml#decisions/provenance-simplify/local-operation-trust"
+reason = "Keep exact-object binding and recovery; drop portability and legacy pending completion."
+[[change.contract.decisions.clauses.updates]]
+id = "OPERATION-PROOF-001"
+version = 2
+topic = "skill-first-development"
+scope = ["Structured operation storage", "Recovery", "Final and delivery"]
+statement = "Versioned local structured operations bind source, baseline, qualification and decision mappings to actual immutable Git commits, parents and trees. Pending intent precedes effects, recovery is idempotent and conflicting proof refuses. A record is validated completely when written; reads parse the stored records and check a record's commit, parents and tree against Git where it is used. Legacy history is not rewritten and stays readable through its existing messages, and missing modern authority cannot be manufactured from a message."
+rationale = "Local records need integrity against interruption and misuse, not a portable forgery boundary; use-time checks keep the exact-object guarantee at a cost proportional to what an operation consults."
+
+[[change.contract.decisions.clauses]]
+id = "provenance-simplify/drop-legacy-pending-recovery"
+change_id = "provenance-simplify"
+action = "amend"
+expected = [{id = "COMMIT-MERGE-001", version = 2}]
+authority = "changes/provenance-simplify/change.toml#decisions/provenance-simplify/local-operation-trust"
+reason = "Merges an older engine left pending finish with that engine before an update."
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-MERGE-001"
+version = 3
+topic = "skill-first-development"
+scope = ["Commit checks", "Workspace synchronization", "Batch admission", "Publication"]
+statement = "A recorded operation persists its pending intent before Git effects. The commit check validates the actual candidate commit, parents and tree against that operation, and completion and retry retain the same identity. New operation messages contain caller-supplied real content without automatically added Signetum trailers or internal tags. Ordinary commits and unrelated merges retain their authorization and project validation rules."
+rationale = "Exact recorded object identity preserves early provenance enforcement; pending work of an older engine belongs to the batch that engine opened."
+
+[[change.contract.decisions.clauses]]
+id = "provenance-simplify/batch-legacy-wording"
+change_id = "provenance-simplify"
+action = "amend"
+expected = [{id = "SKILL-BATCH-001", version = 3}]
+authority = "changes/provenance-simplify/change.toml#decisions/provenance-simplify/local-operation-trust"
+reason = "Legacy compatibility is read-only history, not pending proof."
+[[change.contract.decisions.clauses.updates]]
+id = "SKILL-BATCH-001"
+version = 4
+topic = "skill-first-development"
+scope = ["Batch assembly"]
+statement = "Batch creation records the fresh delivery tip as its base without executing an obsolete environment. Only a verified batch synchronization operation can merge a later delivered descendant and advance that base; pending, actual commit, parents and tree are durably bound, and a conflict completes through normal continuation first. Existing admissions retain their exact source and evidence and remain bound to the base in effect when admitted. Preparation and the batch gate judge the newly introduced committed range. Retained legacy history stays readable; new messages carry real caller content rather than internal synchronization metadata."
+rationale = "Structured exact-object evidence retains every earlier admission and permits safe base advancement without encoding state changes in commit prose."
+
+[[change.contract.decisions.clauses]]
+id = "provenance-simplify/sync-legacy-wording"
+change_id = "provenance-simplify"
+action = "amend"
+expected = [{id = "SYNC-RECORD-001", version = 5}]
+authority = "changes/provenance-simplify/change.toml#decisions/provenance-simplify/local-operation-trust"
+reason = "Synchronization records are checked where they are used."
+[[change.contract.decisions.clauses.updates]]
+id = "SYNC-RECORD-001"
+version = 6
+topic = "member-synchronization"
+scope = ["Member synchronization and ratchet baselines"]
+statement = "A member's synchronization and ratchet baseline come from a durable operation record binding its before tip, authorized source, actual merge commit, parents and tree, checked against Git where it is used. Manual merges or copied messages cannot become synchronization. Recovery resumes that same recorded operation without history rewriting; retained legacy synchronizations remain readable. The latest verified source remains the ratchet baseline, otherwise the registered base, and failures name the normal workspace synchronization recovery."
+rationale = "The synchronization record supplies the operation authority; checking its Git identity at use keeps that authority without revalidating unrelated records."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["CORE-001", "TRUST-002"]
+action = "Validate records on write, parse on read, check used records against Git, and remove the read-time revalidation and its cache."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["SCOPE-003"]
+action = "Remove export and import, the legacy horizon with pending continuation, and the repository engine handoff, with their commands, tests and documentation."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["REL-004"]
+action = "Bump versions to 0.9.4, reconcile the candidate notes, confirm local coverage, run ready and deliver the release."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-17
+statement = "The owner approved simplifying operation record validation to local integrity, removing portable export and import, legacy pending continuation and the repository engine handoff, and releasing the result as 0.9.4."
