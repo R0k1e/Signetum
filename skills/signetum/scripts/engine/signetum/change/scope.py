@@ -599,30 +599,6 @@ _BATCH_IMPLEMENTATION_REMEDY = (
 )
 
 
-def require_batch_implementation(
-    repository: Path, manifest: RepositoryManifest, record: WorkspaceRecord, parent: str
-) -> None:
-    """Refuse an implementation commit whose parent has no batch attribution.
-
-    Recorded batch authorization covers the commit. Otherwise an approved
-    batch-owned change already present at ``parent`` does. This is the same
-    rule ``commit_attribution`` applies after the commit exists.
-    """
-
-    if record.authorization is not None:
-        return
-    for change_id in written_packages(repository, manifest, record.base, parent):
-        try:
-            read_package(repository, manifest, change_id, parent).require_approval()
-        except ChangeError:
-            continue
-        return
-    raise ChangeError(
-        "batch commit is not attributed to an approved batch-owned change",
-        expected=_BATCH_IMPLEMENTATION_REMEDY,
-    )
-
-
 def batch_owned_commits(
     repository: Path, manifest: RepositoryManifest, base: str, tip: str
 ) -> list[dict[str, object]]:

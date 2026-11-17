@@ -152,19 +152,6 @@ def _trailer_lines(message: str) -> tuple[str, ...]:
     return tuple(line for line in message.splitlines() if _TRAILER.match(line.lstrip()))
 
 
-def _object_kind(repository: Path, oid: str) -> str:
-    try:
-        return git_output(repository, "cat-file", "-t", oid)
-    except GitError as error:
-        raise AdmissionError(f"operation object is unavailable: {oid}") from error
-
-
-def _require_object(repository: Path, oid: str, kind: str, name: str) -> None:
-    actual = _object_kind(repository, oid)
-    if actual != kind:
-        raise AdmissionError(f"operation {name} is not a {kind}")
-
-
 def _legacy_merge_message(message: str) -> bool:
     """True only for an old engine's exact merge text, not a copied trailer line."""
 
@@ -217,16 +204,6 @@ def legacy_proof_message(message: str) -> bool:
     """Exact old-engine merge text. Adopted history can be read without this proof."""
 
     return _legacy_merge_message(message)
-
-
-def legacy_publication_message(task: str, target_branch: str, base: str, tip: str) -> str:
-    """The exact publication text the 0.9.1 engine stored."""
-
-    return (
-        f"Merge {task} into {target_branch}\n\n"
-        f"Signetum-Batch-Base: {base}\n"
-        f"Signetum-Batch-Tip: {tip}\n"
-    )
 
 
 def freeze_message(message: str) -> str:
@@ -762,17 +739,6 @@ def complete_operation(repository: Path, intent: OperationIntent, commit: str) -
         return document
 
 
-def operation_for(repository: Path, intent: OperationIntent) -> dict[str, object] | None:
-    with _lock(repository) as root:
-        path = _record_path(root, intent.identity())
-        if not path.exists():
-            return None
-        document = _load_document(path)
-    if not _same_intent(document, intent):
-        raise AdmissionError("recorded operation conflicts with this request")
-    return document
-
-
 def pending_message(repository: Path, branch: str, before: str, source: str) -> str | None:
     """The frozen message of a pending operation for this exact merge, if one exists."""
 
@@ -856,34 +822,6 @@ def require_qualification(repository: Path, digest: str) -> None:
         return
     if qualification_bytes(repository, digest) is None:
         raise AdmissionError("operation qualification bytes are missing")
-
-
-def message_matches(repository: Path, commit: str, message: str) -> bool:
-    try:
-        return commit_message(repository, commit) == message
-    except (GitError, AdmissionError):
-        return False
-
-
-def head_matches(repository: Path, intent: OperationIntent) -> str | None:
-    """Return HEAD when it is already the recorded merge; refuse a different advance."""
-
-    head = git_output(repository, "rev-parse", "HEAD")
-    if head == intent.before:
-        merge_head = run_git(repository, "rev-parse", "--verify", "MERGE_HEAD")
-        if merge_head.returncode == 0:
-            if merge_head.stdout.strip() != intent.source:
-                raise AdmissionError("open merge does not match the recorded operation")
-            return None
-        return None
-    proof = git_proof(repository, head)
-    if proof["parents"] == list(intent.parents) and proof["message"] == intent.message:
-        if intent.tree is None or proof["tree"] == intent.tree:
-            return head
-    raise AdmissionError(
-        "branch advanced to a commit that does not match the recorded operation",
-        expected="retry the same operation; do not create a second merge",
-    )
 
 
 def committer_environment(repository: Path, source: str) -> dict[str, str]:
@@ -1115,57 +1053,29 @@ class MergeOutcome:
 
 
 def intent_from_document(document: Mapping[str, object]) -> OperationIntent:
-    """Rebuild the intent that was frozen in a record."""
-
-    def text(name: str) -> str:
-        value = document.get(name)
-        if not isinstance(value, str):
-            raise AdmissionError(f"operation record field is invalid: {name}")
-        return value
+    """Rebuild the intent frozen in a record whose field types parse_operation checked."""
 
     def optional(name: str) -> str | None:
         value = document.get(name)
-        if value is None:
-            return None
-        if not isinstance(value, str):
-            raise AdmissionError(f"operation record field is invalid: {name}")
-        return value
+        return None if value is None else str(value)
 
-    parents = document.get("parents")
-    plans = document.get("plans")
-    tree = document.get("tree")
-    sync_kind = document.get("sync_kind")
-    if not isinstance(parents, list) or not all(isinstance(item, str) for item in parents):
-        raise AdmissionError("operation parents are invalid")
-    if not isinstance(plans, list) or not all(isinstance(item, str) for item in plans):
-        raise AdmissionError("operation plans are invalid")
-    if tree is not None and not isinstance(tree, str):
-        raise AdmissionError("operation tree is invalid")
-    if sync_kind is not None and not isinstance(sync_kind, str):
-        raise AdmissionError("operation sync kind is invalid")
     return OperationIntent(
-        kind=text("kind"),
-        branch=text("branch"),
-        before=text("before"),
-        source=text("source"),
-        base=text("base"),
-        message=text("message"),
-        attested_base=text("attested_base"),
-        parents=tuple(parents),
-        sync_kind=sync_kind,
+        kind=str(document["kind"]),
+        branch=str(document["branch"]),
+        before=str(document["before"]),
+        source=str(document["source"]),
+        base=str(document["base"]),
+        message=str(document["message"]),
+        attested_base=str(document["attested_base"]),
+        parents=tuple(str(item) for item in _string_list(document["parents"])),
+        sync_kind=optional("sync_kind"),
         previous_base=optional("previous_base"),
         member=optional("member"),
-        plans=tuple(plans),
-        ready_evidence=(
-            text("ready_evidence") if isinstance(document.get("ready_evidence"), str) else ""
-        ),
-        ready_evidence_sha256=(
-            text("ready_evidence_sha256")
-            if isinstance(document.get("ready_evidence_sha256"), str)
-            else ""
-        ),
-        patch_id=text("patch_id") if isinstance(document.get("patch_id"), str) else "",
-        tree=tree if isinstance(tree, str) else None,
+        plans=tuple(_string_list(document.get("plans", []))),
+        ready_evidence=str(document.get("ready_evidence") or ""),
+        ready_evidence_sha256=str(document.get("ready_evidence_sha256") or ""),
+        patch_id=str(document.get("patch_id") or ""),
+        tree=optional("tree"),
         mappings=_mapping_pairs(document.get("mappings") or []),
     )
 

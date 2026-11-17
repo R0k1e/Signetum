@@ -40,7 +40,7 @@ from signetum.source_authority import (
     source_path,
 )
 from signetum.traceability.loading import parse_decision
-from signetum.workspaces import claim_change, read_record, state_root
+from signetum.workspaces import claim_change, read_record
 
 
 def _digest(data: bytes) -> str:
@@ -473,14 +473,6 @@ def _writer(repository: Path) -> Iterator[Path]:
             yield root
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
-
-
-def known_receipt(repository: Path, name: str) -> bool:
-    """A validation receipt this repository keeps machine-locally, named exactly."""
-    return (
-        PurePosixPath(name).name == name
-        and (state_root(repository) / "validation" / name).is_file()
-    )
 
 
 def _require_known_followup(repository: Path, followup: str) -> None:
