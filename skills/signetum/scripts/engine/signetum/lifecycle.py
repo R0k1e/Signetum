@@ -41,7 +41,14 @@ from signetum.gate_records import (
     remember_failure,
     verified_batch_tip,
 )
-from signetum.git import GitError, GitInfrastructureError, git_output, repository_path, run_git
+from signetum.git import (
+    GitError,
+    GitInfrastructureError,
+    git_output,
+    immutable_git_reads,
+    repository_path,
+    run_git,
+)
 from signetum.lifecycle_validation import validate_workspace
 from signetum.manifest import RepositoryManifest, load_bindings, load_manifest
 from signetum.operation_cli import OperationParser, run_operation
@@ -258,6 +265,7 @@ def _ready_member(repository: Path) -> dict[str, object]:
     return result
 
 
+@immutable_git_reads()
 def validate(
     repository: Path, kind: str, *, delivery_authorization: dict[str, str] | None = None
 ) -> dict[str, object]:
@@ -432,6 +440,7 @@ def _require_numbering_base(repository: Path, base: str | None, tip: str) -> Non
             raise AdmissionError("decision numbering is bound to a different delivery base")
 
 
+@immutable_git_reads()
 def admit(
     batch: Path, members: tuple[Path, ...], *, messages: tuple[str, ...] | list[str]
 ) -> dict[str, object]:
@@ -620,6 +629,7 @@ def _pending_merge_record(batch: Path, before: str, source: str) -> dict[str, ob
     return matches[0]
 
 
+@immutable_git_reads()
 def continue_batch(
     batch: Path,
     *,
@@ -1225,6 +1235,7 @@ def _open_admission(
     }
 
 
+@immutable_git_reads()
 def batch_open(
     repository: Path,
     members: tuple[Path, ...],
@@ -1287,6 +1298,7 @@ def _require_worktree_directory(path: Path, role: str) -> None:
         )
 
 
+@immutable_git_reads()
 def batch_deliver(
     source: Path, target: Path, expected_base: str, expected_tip: str, *, message: str
 ) -> dict[str, object]:

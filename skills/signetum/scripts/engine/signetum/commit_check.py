@@ -47,13 +47,26 @@ def hook_script(engine: str, *, launcher: bool = False, local: str | None = None
     ``local`` is the engine path relative to a worktree root. Git runs the hook
     from the root of the worktree that updates the reference, so each worktree
     uses its own engine and removing another worktree cannot strand the hook.
+    A worktree that is still being created has no engine yet; the main worktree,
+    found beside the common directory that holds this shim, is tried next.
     """
     if launcher:
         resolve = f"engine={shlex.quote(engine)}"
         command = '"$engine" maintenance commit-check'
     else:
-        candidates = ([f'"$PWD"/{shlex.quote(local)}'] if local else []) + [shlex.quote(engine)]
-        resolve = "engine=\nfor candidate in " + " ".join(candidates) + "; do\n"
+        resolve = ""
+        candidates = [shlex.quote(engine)]
+        if local:
+            resolve = (
+                'common=$(dirname "$(dirname "$(dirname "$0")")")\n'
+                'case "$common" in\n'
+                '    .git | */.git) main=$(dirname "$common") ;;\n'
+                "    *) main=$PWD ;;\n"
+                "esac\n"
+            )
+            relative = shlex.quote(local)
+            candidates = [f'"$PWD"/{relative}', f'"$main"/{relative}', *candidates]
+        resolve += "engine=\nfor candidate in " + " ".join(candidates) + "; do\n"
         resolve += '    if [ -x "$candidate" ]; then engine=$candidate; break; fi\ndone\n'
         resolve += 'if [ -z "$engine" ]; then\n'
         resolve += (

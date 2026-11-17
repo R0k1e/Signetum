@@ -3,7 +3,7 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## 0.9.2
+## 0.9.3
 
 - Automatic commits take a caller-supplied `--message-file`. The project's commit
   convention remains authoritative. Where the project declares none, guidance
@@ -35,6 +35,13 @@ their original release history. Git and accepted change records retain reasoning
 - When Signetum develops itself, the commit check runs the engine of the
   worktree updating a branch, so removing another worktree no longer blocks
   branch updates. Skill installations are unchanged.
+  Creating a new worktree also falls back to the main worktree's engine.
+- Operations reuse the validation of unchanged operation records and exact Git
+  object queries within one invocation, so admission, synchronization and
+  final no longer revalidate every stored record on each read.
+- Continuing an admission an older engine left pending stores the messages for
+  the remaining members even when this checkout recorded its legacy horizon
+  earlier.
 
 ## 0.9.1
 

@@ -1202,16 +1202,71 @@ def _reject_duplicate_proofs(documents: Sequence[Mapping[str, object]]) -> None:
         claimed[commit] = document
 
 
+# Validated indexes of this process, keyed by checkout and the exact stored state
+# they judged. Git objects are immutable, so only a change to the stored records,
+# horizon, qualifications or synchronization records can change the verdict.
+_validated_indexes: dict[tuple[str, str], OperationIndex] = {}
+_validated_indexes_guard = threading.Lock()
+_VALIDATED_INDEX_LIMIT = 64
+
+
+def _stored_state(root: Path, documents: Sequence[Mapping[str, object]]) -> str:
+    digest = hashlib.sha256()
+    for document in documents:
+        digest.update(_canonical(document).encode("utf-8"))
+    digest.update(b"\0horizon\0")
+    try:
+        digest.update((root / "operations" / "legacy-horizon.json").read_bytes())
+    except OSError:
+        digest.update(b"absent")
+    for directory in (root / "operations" / "qualifications", root / "synchronization"):
+        digest.update(b"\0" + directory.name.encode("utf-8") + b"\0")
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("*")):
+            if not path.is_file():
+                continue
+            try:
+                state = path.stat()
+            except OSError:
+                continue
+            digest.update(
+                f"{path.relative_to(directory)}:{state.st_size}:{state.st_mtime_ns}\n".encode()
+            )
+    return digest.hexdigest()
+
+
+def _copied_index(index: OperationIndex) -> OperationIndex:
+    by_id = {key: json.loads(json.dumps(value)) for key, value in index.by_id.items()}
+    by_commit = {
+        key: by_id.get(str(value.get("id")), json.loads(json.dumps(value)))
+        for key, value in index.by_commit.items()
+    }
+    return OperationIndex(by_id, by_commit)
+
+
 def load_index(repository: Path) -> OperationIndex:
     with _lock(repository) as root:
         _ensure_horizon(repository, root)
         documents = _documents(root)
+        key = (str(Path(repository).resolve()), _stored_state(root, documents))
     _reject_duplicate_proofs(documents)
     # An admission bind is already judging one record. Sync and scope reads need
     # the other stored records, not another pass through that same bind.
     if _binding_ids.get():
         return _operation_index(documents)
-    return _operation_index(validate_operation(repository, document) for document in documents)
+    with _validated_indexes_guard:
+        cached = _validated_indexes.get(key)
+    if cached is None:
+        # A refused record raises here, so only a fully validated state is kept.
+        cached = _operation_index(
+            validate_operation(repository, document) for document in documents
+        )
+        with _validated_indexes_guard:
+            if len(_validated_indexes) >= _VALIDATED_INDEX_LIMIT:
+                _validated_indexes.clear()
+            _validated_indexes[key] = cached
+    return _copied_index(cached)
 
 
 def _intent_document(intent: OperationIntent) -> dict[str, object]:

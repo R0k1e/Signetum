@@ -1275,6 +1275,10 @@ def test_check_runs_the_engine_of_the_worktree_updating_the_branch(
     git_output(root, "branch", "-D", "plan/after-owner-removal")
 
     assert calls.read_text().splitlines() == [str(main_engine)] * 2
+    created = tmp_path / "created"
+    git_output(root, "worktree", "add", "-b", "plan/created", str(created))
+    assert set(calls.read_text().splitlines()) == {str(main_engine)}
+    git_output(root, "worktree", "remove", str(created))
     shutil.rmtree(root / ".venv")
     refused = run_git(root, "branch", "plan/without-engine")
     assert refused.returncode != 0
@@ -1709,7 +1713,7 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
     assert "uv.lock" not in changed
     released_lock = git_output(batch, "show", f"{created}:uv.lock", strip=False)
     assert 'name = "signetum"\nversion = "0.9.1"\n' in released_lock
-    assert 'version = "0.9.2"' in git_output(
+    assert 'version = "0.9.3"' in git_output(
         batch, "show", f"{created}:skills/signetum/scripts/engine/pyproject.toml"
     )
     repeated = invoke(
@@ -1816,7 +1820,7 @@ def test_old_engine_handoff_keeps_the_caller_message_and_admits(repository, monk
     repair_diff = git_output(batch, "diff", "--name-only", f"{created}..{repaired}").splitlines()
     assert repair_diff == ["uv.lock"]
     assert "notes.txt" not in git_output(batch, "ls-tree", "-r", "--name-only", repaired)
-    assert 'name = "signetum"\nversion = "0.9.2"\n' in git_output(
+    assert 'name = "signetum"\nversion = "0.9.3"\n' in git_output(
         batch, "show", f"{repaired}:uv.lock", strip=False
     )
     assert historical_path.read_bytes() == historical_bytes
