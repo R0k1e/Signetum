@@ -128,30 +128,17 @@ def test_structured_mapping_binds_the_human_commit(repository, monkeypatch, caps
     assert document["attested_base"] == base
     assert document["mappings"] == [[old, new]]
     assert git_output(root, "rev-parse", "HEAD") == commit
-
-    commit_file_name = root / "later.txt"
-    commit_file_name.write_text("later\n")
-    git_output(root, "add", "later.txt")
-    git_output(root, "commit", "-m", "continue after numbering")
-    with pytest.raises(AdmissionError, match="cannot include a structured operation"):
-        records.adopt_legacy_history(root, ["HEAD"])
+    assert not records.legacy_commit(root, commit)
 
 
-def test_legacy_numbering_trailers_apply_only_after_adoption(repository):
+def test_legacy_numbering_trailers_apply_before_any_operation(repository):
     root, _ = repository
     initial = git_output(root, "rev-parse", "HEAD")
     proposal, commit, old, new = _number(root)
-    with pytest.raises(AdmissionError, match="structured operation or legacy history"):
-        numbered_targets(root, proposal, commit, "docs/decisions")
-    lifecycle._require_numbering_base(root, initial, commit)
-
-    records.adopt_legacy_history(root, [commit])
+    assert records.legacy_commit(root, commit)
     assert numbered_targets(root, proposal, commit, "docs/decisions") == {old: new}
     with pytest.raises(AdmissionError, match="do not bind the batch base"):
         numbered_targets(root, initial, commit, "docs/decisions")
     lifecycle._require_numbering_base(root, proposal, commit)
     with pytest.raises(AdmissionError, match="decision numbering is bound to a different"):
         lifecycle._require_numbering_base(root, initial, commit)
-    git_output(root, "commit", "--allow-empty", "-m", "after the adopted numbering")
-    with pytest.raises(AdmissionError, match="cannot expand"):
-        records.adopt_legacy_history(root, ["HEAD"])
