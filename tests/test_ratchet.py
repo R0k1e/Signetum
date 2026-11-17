@@ -25,7 +25,7 @@ OLD = {"file": "module.py", "rule": "old-rule", "message": "inherited problem", 
 
 
 def _drop_sync_evidence(member: Path) -> None:
-    """Remove sync proof while keeping the horizon that makes the merge post-horizon."""
+    """Remove the sync proof of a merge made after structured operations began."""
 
     root = lifecycle._state_root(member)
     for path in (root / "synchronization").glob("*.json"):
@@ -33,7 +33,6 @@ def _drop_sync_evidence(member: Path) -> None:
     records = root / "operations" / "records"
     removed = list(records.glob("*.json"))
     assert removed
-    assert (root / "operations" / "legacy-horizon.json").is_file()
     for path in removed:
         path.unlink()
 

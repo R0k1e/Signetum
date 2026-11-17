@@ -24,13 +24,11 @@ from signetum.git import GitError, git_output, isolated_git_environment, reposit
 from signetum.manifest import ManifestError, parse_manifest
 from signetum.operation_records import (
     commit_message,
-    legacy_pending_trailers,
     pending_message,
     pending_tree,
 )
 from signetum.operations import AdmissionError
 from signetum.runtime_identity import engine_source
-from signetum.synchronization import prepared_merge, preserves_merge_message
 from signetum.workspaces import WorkspaceError, read_record, state_root
 
 HOOK_NAME = "reference-transaction"
@@ -220,30 +218,6 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
                             "commit with git commit --no-edit to keep the recorded message" + follow
                         ),
                     )
-            else:
-                trailers = legacy_pending_trailers(repository, old, parents[1])
-                if trailers is not None:
-                    prepared = trailers
-                    if not preserves_merge_message(repository, new, prepared):
-                        return ChangeError(
-                            "merge message does not preserve the prepared Signetum trailers",
-                            expected=(
-                                "commit with git commit --no-edit to preserve the prepared "
-                                "merge message" + follow
-                            ),
-                        )
-                else:
-                    prepared_file = prepared_merge(repository, old, parents[1])
-                    if prepared_file is not None and not preserves_merge_message(
-                        repository, new, prepared_file
-                    ):
-                        return ChangeError(
-                            "merge message does not preserve the prepared Signetum trailers",
-                            expected=(
-                                "commit with git commit --no-edit to preserve the prepared "
-                                "merge message" + follow
-                            ),
-                        )
     if parents != [old]:
         # Unrelated merges, branch moves and rewrites keep their provenance checks.
         return None
