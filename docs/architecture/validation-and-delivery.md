@@ -270,7 +270,8 @@ verify the commit check. The machine-local shim at
 installed Skill launcher for Skill engines, so cache replacement during update
 does not strand a hook on a removed interpreter. A repository engine inside a
 worktree runs at the same relative path in the worktree updating the reference,
-then the installing interpreter; with neither, the update is refused and names
+then in the main worktree, which covers a worktree still being created, then the
+installing interpreter; with none, the update is refused and names
 `maintenance worktree-prepare`. `maintenance commit-check` reads the reference transaction on stdin.
 The effective hooks directory honours `core.hooksPath`; Signetum preserves a
 foreign hook and never writes into tracked source. A project-owned
