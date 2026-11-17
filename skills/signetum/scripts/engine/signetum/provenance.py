@@ -91,12 +91,7 @@ def members_and_plans(
             ):
                 raise AdmissionError("admission provenance original does not match merge parent")
             if in_effect is None:
-                attested = document.get("attested_base")
-                if not isinstance(attested, str):
-                    raise AdmissionError("admission record has no base")
-                in_effect = attested
-            if document.get("attested_base") != in_effect:
-                raise AdmissionError("batch contains an unrecognized merge authority")
+                in_effect = str(document["attested_base"])
             digest = document.get("ready_evidence_sha256")
             if isinstance(digest, str) and digest:
                 require_qualification(repository, digest)

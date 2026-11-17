@@ -4,6 +4,7 @@ import pytest
 from signetum import operation_records as records
 from signetum.git import git_output
 from signetum.operations import AdmissionError
+from signetum.provenance import members_and_plans
 from test_batch_synchronization import open_batch, ready_member
 
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # pragma: allowlist secret
@@ -216,3 +217,18 @@ def test_beginning_a_completed_operation_again_returns_its_proof(admitted):
     assert records.begin_operation(batch, intent) == document
     other = records.intent_from_document({**document, "message": "Another description.\n"})
     assert records.begin_operation(batch, other) == document
+
+
+def test_batch_history_names_only_recorded_admissions(admitted):
+    batch, document, orphan = admitted
+    base, tip = str(document["attested_base"]), str(document["proof"]["commit"])
+    members, _ = members_and_plans(batch, base, tip)
+    assert [item["original"] for item in members] == [document["source"]]
+    with pytest.raises(AdmissionError, match="unrecognized merge authority"):
+        members_and_plans(batch, orphan, tip)
+    with pytest.raises(AdmissionError, match="no admitted member provenance"):
+        members_and_plans(batch, tip, tip)
+    side = git_output(batch, "commit-tree", EMPTY_TREE, "-p", base, "-m", "side")
+    manual = git_output(batch, "commit-tree", EMPTY_TREE, "-p", tip, "-p", side, "-m", "manual")
+    with pytest.raises(AdmissionError, match="unrecorded merge"):
+        members_and_plans(batch, base, manual)
