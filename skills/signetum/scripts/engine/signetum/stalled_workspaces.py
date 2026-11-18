@@ -6,13 +6,12 @@ Nothing is fetched, stored or started; the report is advisory and never blocks.
 import time
 from pathlib import Path
 
-from signetum.git import git_output
+from signetum.git import git_output, repository_path
 from signetum.workspaces import (
     WorkspaceError,
     branch_checkouts,
     read_record,
     record_path,
-    state_root,
 )
 
 DEFAULT_UNCOMMITTED_MINUTES = 30
@@ -35,7 +34,8 @@ def stalled_workspaces(
     """
 
     moment = time.time() if now is None else now
-    root = state_root(repository)
+    # Read-only: status never creates the state directory.
+    root = repository_path(repository, "rev-parse", "--git-common-dir").resolve() / "signetum"
     rows: list[dict[str, object]] = []
     for branch, path, head in branch_checkouts(repository):
         if branch == delivery_branch or not path.is_dir():
