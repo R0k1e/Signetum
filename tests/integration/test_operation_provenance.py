@@ -172,9 +172,8 @@ def test_project_hook_rejection_and_rewrite_fail_closed_before_the_merge(reposit
     with pytest.raises(AdmissionError, match="project commit policy refused"):
         ops.workspace_sync(member, message=operation_message())
     assert git_output(member, "rev-parse", "HEAD") == before
-    pending = list((state_root(member) / "operations" / "records").glob("*.json"))
-    assert len(pending) == 1
-    assert json.loads(pending[0].read_text())["status"] == "pending"
+    # A refused message never becomes pending intent.
+    assert list((state_root(member) / "operations" / "records").glob("*.json")) == []
     hook.write_text(
         "#!/bin/sh\nprintf '%s\\n' rewritten > \"$1\"\nexit 0\n",
         encoding="utf-8",
@@ -433,7 +432,7 @@ def test_shared_operation_lock_overlap_fails_closed(repository):
         assert process.stdout.readline().strip() == "READY"
         assert process.poll() is None
         conflicting = records._intent_document(intent)
-        conflicting["message"] = "Different message.\n"
+        conflicting["attested_base"] = source
         destination = operations / "records" / f"{intent.identity()}.json"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(records._canonical(conflicting), encoding="utf-8")
@@ -449,7 +448,7 @@ def test_shared_operation_lock_overlap_fails_closed(repository):
     assert process.returncode != 0
     assert "conflicts" in stdout + stderr
     stored = json.loads(destination.read_text(encoding="utf-8"))
-    assert stored["message"] == "Different message.\n"
+    assert stored["attested_base"] == source
 
 
 def _intent(member, *, source, message, branch=None):
