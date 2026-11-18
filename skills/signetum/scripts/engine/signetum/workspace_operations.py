@@ -21,6 +21,7 @@ from signetum.operation_records import (
     OperationIntent,
     freeze_message,
     merge_operation,
+    require_project_commit_message,
 )
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict
 from signetum.policy import delivery_policy
@@ -306,14 +307,19 @@ def workspace_sync(
     repository: Path, batch: Path | None = None, *, message: str
 ) -> dict[str, object]:
     message = freeze_message(message)
-    if run_git(repository, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0:
+    require_project_commit_message(repository, message)
+    resuming = run_git(repository, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
+    if resuming and git_output(repository, "diff", "--name-only", "--diff-filter=U"):
         raise MergeConflict(
             "member has an open merge",
             expected=CONFLICT_RECOVERY,
         )
-    if _has_git_operation(repository):
-        raise AdmissionError("cannot synchronize during another Git operation")
-    require_clean(repository)
+    if not resuming:
+        # A clean open merge is one the project's commit-msg hook refused; the recorded
+        # operation takes a corrected message and commits it.
+        if _has_git_operation(repository):
+            raise AdmissionError("cannot synchronize during another Git operation")
+        require_clean(repository)
     record = read_record(state_root(repository), branch_name(repository))
     policy = delivery_policy(repository)
     if record.kind != "member" or record.branch == policy.branch:
