@@ -15,6 +15,16 @@ from shutil import which
 from signetum.operations import AdmissionError, InfrastructureError, OperationFailed
 from signetum.validation.process import run_command
 
+PROVIDED_WORKTRUNK = "SIGNETUM_WORKTRUNK"
+"""The absolute Worktrunk executable the Skill launcher provides to the engine."""
+
+
+def provided_worktrunk() -> str | None:
+    """The Skill's own Worktrunk, or None when the engine runs without the launcher."""
+
+    value = os.environ.get(PROVIDED_WORKTRUNK)
+    return value if value and Path(value).is_absolute() else None
+
 
 @dataclass(frozen=True)
 class WorkspaceIdentity:
@@ -206,7 +216,7 @@ def run_tool(
 
 def worktrunk(repository: Path, arguments: tuple[str, ...], *, json_output: bool = False) -> object:
     command = (
-        "wt",
+        provided_worktrunk() or "wt",
         "-C",
         str(repository),
         "--yes",

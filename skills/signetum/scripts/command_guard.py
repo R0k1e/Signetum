@@ -3,8 +3,10 @@
 Reads one Claude Code or Codex PreToolUse payload on stdin. In a Git work tree
 whose root holds signetum.toml, exit 2 blocks the command and prints one JSON line
 naming the category and the operation to use; every other outcome, including a
-command elsewhere or a guard failure, allows it. Standard library
-only, compatible with Python 3.9.
+command elsewhere or a guard failure, allows it. Given ``session-start``, it
+reads one SessionStart payload instead and, only in such a repository, prints one
+generic additional-context notice that development there follows the Signetum
+Skill. Standard library only, compatible with Python 3.9.
 """
 
 from __future__ import annotations
@@ -537,7 +539,37 @@ def _quote(word: str) -> str:
     return "'" + word.replace("'", "'\\''") + "'"
 
 
-def main() -> int:
+def notice() -> int:
+    """Tell the Agent once per session that an adopted repository follows this Skill."""
+
+    try:
+        payload = json.loads(sys.stdin.read())
+        cwd = payload.get("cwd") if isinstance(payload, dict) else None
+        if not _adopted(cwd if isinstance(cwd, str) and cwd else os.getcwd()):
+            return 0
+        skill = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "SKILL.md"
+        )
+        text = (
+            "This repository is adopted by Signetum (signetum.toml at its root). Development "
+            "and delivery here follow the Signetum Skill: read " + skill + " before changing "
+            "or delivering code."
+        )
+        output = {
+            "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}
+        }
+        print(json.dumps(output))
+    except Exception as error:  # a notice that cannot run is silent
+        print(
+            json.dumps({"guard": "signetum", "status": "unavailable", "cause": repr(error)}),
+            file=sys.stderr,
+        )
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    if argv and argv[0] == "session-start":
+        return notice()
     try:
         command, cwd = _command(json.loads(sys.stdin.read()))
         if command is None or not _adopted(cwd):
@@ -566,4 +598,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

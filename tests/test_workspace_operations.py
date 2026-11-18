@@ -1084,6 +1084,48 @@ def test_status_lists_each_workspace_with_the_outcome_it_proves(repository):
     assert landed.exists()
 
 
+def test_status_reports_stalled_members_from_local_state_only(repository):
+    import time
+
+    from signetum.change_cli import main as change_main
+    from signetum.stalled_workspaces import stalled_workspaces
+
+    root, _ = repository
+    idle = opened(root, "plan/idle")
+    dirty = opened(root, "plan/dirty")
+    (dirty / "wip.txt").write_text("unsaved")
+    worked = opened(root, "plan/worked")
+    commit_file(worked, "worked.txt")
+    busy = opened(root, "plan/busy")
+    commit_file(busy, "busy.txt")
+    (busy / "more.txt").write_text("unsaved")
+    now = time.time()
+
+    assert stalled_workspaces(root, "main", now=now) == []
+    assert "stalled_workspaces" not in workflow_status(
+        root, snapshot(root), source=git_output(root, "rev-parse", "HEAD")
+    )
+
+    def reasons(**kwargs):
+        rows = stalled_workspaces(root, "main", now=now + 3 * 3600, **kwargs)
+        return {row["branch"]: row["reasons"] for row in rows}
+
+    assert reasons() == {
+        "plan/idle": ["no_commits_beyond_base"],
+        "plan/dirty": ["uncommitted_changes", "no_commits_beyond_base"],
+        "plan/busy": ["uncommitted_changes"],
+    }
+    # A threshold longer than the elapsed time reports nothing; the report never blocks.
+    assert reasons(uncommitted_after=1000, idle_after=1000) == {}
+    assert reasons(idle_after=1000) == {
+        "plan/dirty": ["uncommitted_changes"],
+        "plan/busy": ["uncommitted_changes"],
+    }
+    assert idle.exists() and dirty.exists() and busy.exists()
+    assert change_main(["status", "--repository", str(root), "--stalled-after", "0"]) != 0
+    assert change_main(["current", "--repository", str(root), "--idle-after", "5"]) != 0
+
+
 DECLARED_RUN_TOOL = wt.run_tool
 
 

@@ -15,6 +15,8 @@ from typing import Any
 
 HOSTS = ("claude", "codex")
 GUARD = "scripts/command-guard"
+# The guard runs before tools; the same script's notice mode runs at session start.
+EVENTS = ("PreToolUse", "SessionStart")
 # Any Signetum guard entry, wherever its Skill copy lives, ends with this path.
 GUARD_MARK = "signetum/" + GUARD
 PROJECT_CONFIGS = {
@@ -51,6 +53,17 @@ def guard_entry(skill: Path) -> JsonObject:
     }
 
 
+def session_entry(skill: Path) -> JsonObject:
+    command = "/bin/sh " + shlex.quote(str(skill / GUARD)) + " session-start"
+    return {"hooks": [{"type": "command", "command": command, "timeout": 10}]}
+
+
+def entries(skill: Path) -> dict[str, JsonObject]:
+    """The hook entry this Skill's copy registers for each event."""
+
+    return {"PreToolUse": guard_entry(skill), "SessionStart": session_entry(skill)}
+
+
 def read_config(path: Path) -> JsonObject:
     """A host configuration document; an absent file is empty, a malformed one is refused."""
 
@@ -63,14 +76,16 @@ def read_config(path: Path) -> JsonObject:
     if not isinstance(document, dict):
         raise ValueError(f"{path} must hold a JSON object")
     hooks = document.get("hooks", {})
-    if not isinstance(hooks, dict) or not isinstance(hooks.get("PreToolUse", []), list):
+    if not isinstance(hooks, dict) or any(
+        not isinstance(hooks.get(event, []), list) for event in EVENTS
+    ):
         raise ValueError(f"{path} hooks must be an object of event lists")
     return document
 
 
-def _commands(document: JsonObject) -> list[str]:
+def _commands(document: JsonObject, event: str) -> list[str]:
     hooks = document.get("hooks", {})
-    groups = hooks.get("PreToolUse", []) if isinstance(hooks, dict) else []
+    groups = hooks.get(event, []) if isinstance(hooks, dict) else []
     return [
         hook["command"]
         for group in groups
@@ -81,8 +96,13 @@ def _commands(document: JsonObject) -> list[str]:
 
 
 def runs_guard(document: JsonObject, skill: Path) -> bool:
+    """Whether both the guard and the session notice run this Skill's script."""
+
     paths = {str(skill / GUARD), str(skill.resolve() / GUARD)}
-    return any(path in command for command in _commands(document) for path in paths)
+    return all(
+        any(path in command for command in _commands(document, event) for path in paths)
+        for event in EVENTS
+    )
 
 
 def without_guard(document: JsonObject) -> JsonObject:
@@ -90,45 +110,58 @@ def without_guard(document: JsonObject) -> JsonObject:
 
     result = copy.deepcopy(document)
     hooks = result.get("hooks")
-    if not isinstance(hooks, dict) or not isinstance(hooks.get("PreToolUse"), list):
+    if not isinstance(hooks, dict) or not hooks:
         return result
-    kept = []
-    for group in hooks["PreToolUse"]:
-        entries = group.get("hooks") if isinstance(group, dict) else None
-        if not isinstance(entries, list):
-            kept.append(group)
+    for event in EVENTS:
+        if not isinstance(hooks.get(event), list):
             continue
-        remaining = [
-            hook
-            for hook in entries
-            if not (isinstance(hook, dict) and GUARD_MARK in str(hook.get("command", "")))
-        ]
-        if remaining or len(remaining) == len(entries):
-            kept.append({**group, "hooks": remaining})
-    if kept:
-        hooks["PreToolUse"] = kept
-    else:
-        del hooks["PreToolUse"]
-        if not hooks:
-            del result["hooks"]
+        kept = []
+        for group in hooks[event]:
+            listed = group.get("hooks") if isinstance(group, dict) else None
+            if not isinstance(listed, list):
+                kept.append(group)
+                continue
+            remaining = [
+                hook
+                for hook in listed
+                if not (isinstance(hook, dict) and GUARD_MARK in str(hook.get("command", "")))
+            ]
+            if remaining or len(remaining) == len(listed):
+                kept.append({**group, "hooks": remaining})
+        if kept:
+            hooks[event] = kept
+        else:
+            del hooks[event]
+    if not hooks:
+        del result["hooks"]
     return result
 
 
 def with_guard(document: JsonObject, skill: Path) -> JsonObject:
-    """The document running exactly this Skill's guard once; already-current input is returned."""
+    """The document running exactly this Skill's guard and notice once each.
 
-    entry = guard_entry(skill)
+    Already-current input is returned.
+    """
+
+    wanted = entries(skill)
     hooks = document.get("hooks", {})
-    groups = hooks.get("PreToolUse", []) if isinstance(hooks, dict) else []
-    guards = [command for command in _commands(document) if GUARD_MARK in command]
-    if entry in groups and len(guards) == 1:
+    current = all(
+        isinstance(hooks, dict)
+        and wanted[event] in hooks.get(event, [])
+        and sum(GUARD_MARK in command for command in _commands(document, event)) == 1
+        for event in EVENTS
+    )
+    if current:
         return document
     result = without_guard(document)
     revised = result.setdefault("hooks", {})
-    events = revised.setdefault("PreToolUse", []) if isinstance(revised, dict) else None
-    if not isinstance(events, list):
+    if not isinstance(revised, dict):
         raise ValueError("hook configuration must be an object of event lists")
-    events.append(entry)
+    for event in EVENTS:
+        groups = revised.setdefault(event, [])
+        if not isinstance(groups, list):
+            raise ValueError("hook configuration must be an object of event lists")
+        groups.append(wanted[event])
     return result
 
 
@@ -160,6 +193,6 @@ def guard_notice(skill: Path, project: Path) -> JsonObject | None:
         "configured": False,
         "enable": f"sh {launcher} install --host {host}",
         "config": str(hook_config(host)),
-        "hook": {"hooks": {"PreToolUse": [guard_entry(skill)]}},
+        "hook": {"hooks": {event: [entry] for event, entry in entries(skill).items()}},
         "note": "Optional: refuses work-losing commands early; operations work without it.",
     }

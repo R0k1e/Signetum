@@ -1,6 +1,6 @@
 ---
 name: signetum
-description: Use Signetum for reliable Agent development and delivery in evolving repositories, from a single Agent across sessions to parallel coding Agents. Use to initialize a project, explicitly adopt an existing repository, or develop under this protocol; installation alone does not authorize mutation or publication.
+description: "Develop and deliver code changes with Agents: approved scope, isolated workspaces, validated integration and explicit delivery, for one Agent or many in parallel."
 metadata:
   version: "0.9.2"
 ---
@@ -15,15 +15,19 @@ Keep cwd in the project. Invoke `sh <skill-base-dir>/scripts/signetum ...`.
 This folder is the complete install in any agent tool; a host loads one copy.
 The Skill owns a locked environment under `~/.local/share/signetum/runtime`, and
 no Signetum dependency belongs in the application. Prerequisites are Git 2.7 or newer for Signetum's
-own commands, Mise, Worktrunk 0.74, uv and host Python 3.12+. Cleanup through
-Worktrunk needs Git 2.17. Worktrunk 0.75 or newer needs Git 2.43. Resolve
-missing tools before promising a usable workspace.
+own commands, Mise and host Python 3.12+; setup selects Python, uv and a pinned
+Worktrunk (0.74) through Mise, and the engine runs that Worktrunk, so a project
+declares none of them for Signetum. Cleanup through Worktrunk needs Git 2.17;
+Worktrunk 0.75 or newer would need Git 2.43. Resolve missing tools before
+promising a usable workspace.
 Read [adoption](references/adoption.md) for setup and the one update procedure.
 `update` checks the newest published release against the project and replaces
 this folder in place; `update --check` is read-only. Ordinary commands other than
 `update` and `install --release` stay offline. The optional guard is a host
-PreToolUse hook that `install --host claude|codex` registers; when `status`
-reports a `guard` entry, tell the user once how to enable it and continue.
+PreToolUse hook that `install --host claude|codex` registers together with a
+SessionStart hook that tells the Agent once per session, in adopted repositories
+only, to follow this Skill; when `status` reports a `guard` entry, tell the user
+once how to enable it and continue.
 In repositories with `signetum.toml` the guard refuses stash, destructive reset,
 restore, clean and checkout, force push, unbounded `rm -rf`, direct merge or rebase, ad-hoc worktree creation or
 removal, `branch -D` and pre-commit on a dirty tree. Use the operation its
@@ -65,7 +69,9 @@ through the predicates final uses. Never hand back a member or call it done with
 Follow [work and validation](references/worktree-validation.md) during development
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
 for integration, review, explicit delivery and cleanup. The coordinating Agent owns
-scope, shared interfaces and integration; Signetum does not schedule Agents.
+scope, shared interfaces and integration and runs heavy validation serially;
+Signetum does not schedule Agents. A worker leaves a workspace only with every
+change committed. `status` lists stalled member workspaces.
 Every workspace ends delivered, contained (its content already reached the
 delivery branch) or abandoned. Publication leaves workspaces in place and reports
 cleanup as pending. `maintenance cleanup --all-delivered` removes the first two;
