@@ -407,7 +407,7 @@ def install(arguments: argparse.Namespace) -> dict[str, object]:
             if target.host:
                 entry.update(host=target.host, config=str(target.config), hook_action=hook)
             if hook == "add":
-                entry["hook"] = hosts.guard_entry(target.skill)
+                entry["hook"] = {event: item for event, item in hosts.entries(target.skill).items()}
             report.append(entry)
         changed = any(
             skill in {"place", "replace", "remove"} or hook in {"add", "remove"}

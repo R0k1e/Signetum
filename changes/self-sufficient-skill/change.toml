@@ -1,0 +1,170 @@
+[change]
+schema_version = 2
+id = "self-sufficient-skill"
+
+[change.source]
+kind = "human_direction"
+summary = "The owner approved a shorter Skill trigger description, generic discovery in adopted repositories, a Skill-provided Worktrunk, explicit parallel coordination rules and a stalled-workspace report, with delivery and release left for a later explicit request."
+
+[change.contract]
+version = 1
+approved_base = "183485c9354e74d0ae4b43df76faa20642cdaa2f" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "DESC-001"
+outcome = "The Skill description is exactly: Develop and deliver code changes with Agents: approved scope, isolated workspaces, validated integration and explicit delivery, for one Agent or many in parallel. The sentence that installation alone does not authorize mutation or publication is deleted and not moved into the body."
+acceptance = [
+    "SKILL.md frontmatter carries exactly that description and no mirrored copy of the old text remains in the repository outside historical records.",
+]
+
+[[change.contract.requirements]]
+id = "DISCOVER-002"
+outcome = "An adopted repository (a Git work tree whose root holds signetum.toml) tells the Agent once per session that development and delivery there follow the Signetum Skill, through a SessionStart hook that install registers beside the guard for Claude Code and Codex. The notice is generic, silent elsewhere and never blocks. Adoption still writes only signetum.toml."
+acceptance = [
+    "The session hook entry prints one generic notice naming the installed SKILL.md for a payload whose cwd lies in an adopted repository and prints nothing and exits 0 elsewhere or on any failure.",
+    "install writes, replaces, previews and removes the SessionStart entry together with the PreToolUse entry in each host's user configuration, preserving other settings; status guidance counts a missing entry as not configured.",
+    "Adoption writes no AGENTS.md or CLAUDE.md pointer.",
+]
+
+[[change.contract.requirements]]
+id = "WORKTRUNK-003"
+outcome = "The Skill provides its own pinned Worktrunk like Python and uv: setup selects it through Mise, the launcher gives the engine its absolute path, the engine runs workspace operations with it and records its identity in evidence as an internal tool. A project that still pins and declares Worktrunk keeps working. SKILL.md, adoption and the quickstart state the new prerequisites."
+acceptance = [
+    "Setup through the launcher prepares a Worktrunk whose recorded version equals the single pinned version, and an ordinary command refuses when that recorded executable changed.",
+    "A project with no Worktrunk in its Mise configuration opens workspaces through the Skill's Worktrunk; a project that still declares worktrunk in validation.tools is accepted unchanged.",
+    "Evidence binds the Skill Worktrunk identity as an internal tool that a project cannot declare, and member admission does not compare it, like the engine identity.",
+]
+
+[[change.contract.requirements]]
+id = "COORD-004"
+outcome = "The Skill's parallel coordination rules state generically that a worker ends work on a workspace only with every change committed (work in progress may be committed and amended later), that the coordinating Agent runs heavy validation (ready, final and the batch gate) serially, and that a failed final is fixed as the whole failure list in one round, while Signetum does not schedule Agents."
+acceptance = [
+    "references/worktree-validation.md and the SKILL.md summary carry those rules with no host-specific wording.",
+]
+
+[[change.contract.requirements]]
+id = "STALL-005"
+outcome = "status reports, read-only and offline, registered member workspaces that hold uncommitted changes with no commit or opening for longer than a threshold, and member workspaces with no commit beyond their base for longer than a threshold. Defaults are 30 and 60 minutes and each is configurable on status."
+acceptance = [
+    "A dirty member older than the first threshold and an unchanged member older than the second are listed with the reason and age; fresh, clean, committed and batch workspaces are not.",
+    "The thresholds are options of status and invalid values are refused.",
+    "Architecture, Skill instructions and the changelog describe the report.",
+]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the guard, hosts, distribution, launcher, worktrunk, validation configuration, status and adoption owners within these outcomes.",
+    "Choose the single-file pin, option names, defaults and notice wording within the stated defaults.",
+    "Replace or extend existing tests at the cheapest boundary and reconcile architecture, Skill references, quickstart, CLI help and the changelog.",
+]
+requires_confirmation = [
+    "Delivery to main, a tag, a release, or running update or install against an installed Skill.",
+    "Changing a manifest or evidence schema, or dropping the PreToolUse guard.",
+]
+
+[[change.contract.decisions]]
+id = "self-sufficient-skill/owner"
+change_id = "self-sufficient-skill"
+authority = "changes/self-sufficient-skill/change.toml#decisions/self-sufficient-skill/owner"
+parents = [
+    "skill-is-the-distribution/skill-distribution",
+    "workspaces-end-in-a-proven-outcome/workspace-endings",
+]
+reason = "A Skill that is rarely invoked and that needs every consumer to provision its own Worktrunk is not self-sufficient. Guard-owned discovery reuses the one registration install already performs and the adopted-repository test the guard already has, so no project file is touched; both hosts accept SessionStart hooks in the same configuration documents as PreToolUse. Provisioning Worktrunk beside Python and uv keeps one tool owner and one identity in evidence, and an internal identity name cannot collide with a project declaration, so existing projects keep working. A stalled-workspace report is a derived view of local workspace state and belongs with status, which already lists workspaces; leftovers lists checkouts created outside Signetum. Reopen if a host stops sending cwd in SessionStart payloads or Worktrunk can no longer be pinned through Mise."
+
+[[change.contract.decisions.clauses]]
+id = "self-sufficient-skill/hook-clauses"
+change_id = "self-sufficient-skill"
+action = "amend"
+expected = [
+    { id = "GUARD-SCOPE-001", version = 2 },
+    { id = "INSTALL-HOOK-001", version = 1 },
+    { id = "INSTALL-GUIDE-001", version = 1 },
+    { id = "INSTALL-RUNTIME-001", version = 2 },
+]
+authority = "changes/self-sufficient-skill/change.toml#decisions/self-sufficient-skill/owner"
+reason = "Discovery and the Skill-provided Worktrunk extend four existing owners."
+
+[[change.contract.decisions.clauses.updates]]
+id = "GUARD-SCOPE-001"
+version = 3
+topic = "command-guard"
+scope = ["Command guard hook"]
+statement = "The guard is an optional PreToolUse Bash hook entry in a host's configuration that runs an installed Skill's scripts/command-guard, with a SessionStart entry running the same script in notice mode. It applies the whole rule set when the payload cwd lies in a Git work tree whose root holds signetum.toml and allows every command elsewhere. In such a repository the session entry prints one generic additional-context notice that development and delivery follow the Signetum Skill and names its SKILL.md; elsewhere it prints nothing. A missing interpreter, malformed payload, exception or timeout exits 0 with a diagnostic, and the sh entry maps every status other than 2 to 0. It prevents mistakes and is not a security boundary."
+rationale = "The user-level hook already identifies adopted repositories, so discovery needs no project file; failing open keeps a broken guard from stopping a session."
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-HOOK-001"
+version = 2
+topic = "skill-installation"
+scope = ["Install command", "Hook registration"]
+statement = "sh <skill>/scripts/signetum install places the Skill at each target: --host claude at ${CLAUDE_CONFIG_DIR:-~/.claude}/skills/signetum, --host codex at ${CODEX_HOME:-~/.codex}/skills/signetum, and --skills-dir DIR at DIR/signetum for any other tool. The source is the running Skill by default, a local Skill folder or release archive with --source, or a published release with --release <tag> or latest, verified like update. For each host target it writes one PreToolUse Bash entry and one SessionStart entry running that copy's scripts/command-guard into the host's user hook configuration, settings.json for Claude Code and hooks.json for Codex, preserving every other setting and replacing only Signetum guard entries. It is idempotent; --preview reports the exact plan and writes nothing; --remove deletes the Signetum guard entries and the placed Skill. It refuses a target folder that is not a Signetum Skill or lies inside a Git work tree and never edits a project. When a host target also has the signetum@signetum plugin installed at user scope, install removes it through that host's plugin manager after the Skill and hooks are in place, and reports a project-scope plugin with its removal command instead of running it."
+rationale = "The session entry is registered by the same command and replaced or removed with the guard, so the path both hooks name stays correct."
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-GUIDE-001"
+version = 2
+topic = "command-guard"
+scope = ["Status guidance"]
+statement = "When the running Skill sits in a Claude Code or Codex user skills directory and no hook entries in that host's user configuration or in the project's .claude/settings.json, .claude/settings.local.json or .codex/hooks.json run its scripts/command-guard for both PreToolUse and SessionStart, status reports one guard entry naming the host, the install command and the exact hook entries to add by hand. The guidance never blocks or changes an operation, and a Skill anywhere else reports nothing about the guard."
+rationale = "An earlier install registered only the PreToolUse entry; reporting the missing session entry lets the same command complete it."
+
+[[change.contract.decisions.clauses.updates]]
+id = "INSTALL-RUNTIME-001"
+version = 3
+topic = "skill-installation"
+scope = ["Engine environment"]
+statement = "The locked engine environment lives in ${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>, where the fingerprint covers the implementation digest, uv.lock, pyproject.toml and the pinned Worktrunk version and not the install path. A shared runtime/host-python link only starts the launcher, which verifies the environment for its own fingerprint. setup selects Python, uv and Worktrunk through Mise and records the Worktrunk executable and version beside the engine identity. setup and ordinary commands write nothing into the Skill directory except interpreter bytecode caches."
+rationale = "A path-independent fingerprint lets every copy share one environment; including the Worktrunk pin re-prepares it when the pin changes."
+
+[[change.contract.decisions.clauses]]
+id = "self-sufficient-skill/new-clauses"
+change_id = "self-sufficient-skill"
+action = "add"
+expected = [
+    { id = "WORKTRUNK-OWNER-001", version = 0 },
+    { id = "WORKSPACE-STALL-001", version = 0 },
+]
+authority = "changes/self-sufficient-skill/change.toml#decisions/self-sufficient-skill/owner"
+reason = "The Skill owns its Worktrunk and reports stalled workspaces."
+
+[[change.contract.decisions.clauses.updates]]
+id = "WORKTRUNK-OWNER-001"
+version = 1
+topic = "skill-installation"
+scope = ["Workspace operations", "Evidence tool identities"]
+statement = "When the launcher supplies its Skill's pinned Worktrunk, the engine runs every Worktrunk operation with that absolute executable instead of resolving wt through the project's Mise configuration, and evidence binds its version output as the internal tool signetum-worktrunk, which a project cannot declare and member admission does not compare. Without the launcher, as in a development checkout, wt resolves through the project as before and no Worktrunk identity is bound. A project that still pins or declares Worktrunk, including as an ordinary validation tool, keeps working."
+rationale = "Projects should not provision the Skill's own tool, and an internal identity name avoids any collision with older project declarations."
+
+[[change.contract.decisions.clauses.updates]]
+id = "WORKSPACE-STALL-001"
+version = 1
+topic = "workspace-retirement"
+scope = ["Status"]
+statement = "Status derives, from local Git and workspace records without fetching, member workspaces that hold uncommitted changes while neither a commit nor the workspace opening is newer than a threshold, and member workspaces with no commit beyond their base for longer than a second threshold. The report is advisory, never blocks and starts nothing; the thresholds are status options with defaults of 30 and 60 minutes."
+rationale = "Abandoned or forgotten work in parallel workspaces is otherwise found only when delivery stops; a derived read-only view needs no stored state."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["DESC-001", "COORD-004"]
+action = "Replace the description and add the coordination rules."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["DISCOVER-002"]
+action = "Add the notice mode to the guard and register the SessionStart entry in hosts, install, status guidance and the packaged Skill."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["WORKTRUNK-003"]
+action = "Pin Worktrunk once, select it in setup, record and verify it in the launcher, run it from the engine and bind its internal identity."
+
+[[change.execution.steps]]
+id = "STEP-004"
+requirements = ["STALL-005"]
+action = "Derive the stalled report in status and document it."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-18
+statement = "The owner approved a shorter Skill description, generic session discovery in adopted repositories, a Skill-provided Worktrunk, generic coordination rules and a stalled-workspace report, stopping before delivery, release or publication."

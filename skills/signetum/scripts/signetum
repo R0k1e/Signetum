@@ -7,7 +7,8 @@ if [ -z "$data_home" ]; then
 fi
 bootstrap="$data_home/signetum/runtime/host-python"
 if [ "${1:-}" = setup ]; then
-    exec mise exec python@3.12 uv@0.12.2 -- python -B "$skill_dir/scripts/launch.py" "$@"
+    worktrunk=$(tr -d '[:space:]' <"$skill_dir/scripts/worktrunk-version")
+    exec mise exec python@3.12 uv@0.12.2 "worktrunk@$worktrunk" -- python -B "$skill_dir/scripts/launch.py" "$@"
 fi
 if [ ! -x "$bootstrap" ]; then
     printf '%s\n' '{"status":"failed","stage":"skill-execution","cause":"Skill environment is not prepared; run the explicit setup command first"}' >&2

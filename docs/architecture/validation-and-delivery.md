@@ -388,6 +388,14 @@ invoking process finishes. There is no background deletion, readiness cleanup or
 new public lifecycle operation. Status reads the last fetched delivery branch;
 cleanup fetches again before it removes anything.
 
+Status also derives `stalled_workspaces` offline from Git and the workspace
+records (`stalled_workspaces`): a registered member holding uncommitted changes
+while neither its tip commit nor its opening is older than `--stalled-after`
+minutes (default 30), and a member whose tip is still its base `--idle-after`
+minutes (default 60) after opening. The report is advisory, stores nothing and
+never blocks; batches and the delivery branch are not listed. `leftovers` stays
+the view of checkouts created outside Signetum.
+
 Publication leaves workspaces in place and returns `cleanup.status = pending`
 with the existing maintenance command. Cleanup is a separate outcome; its
 failure cannot change successful publication or its remote identity. No cleanup

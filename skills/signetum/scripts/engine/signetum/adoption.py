@@ -24,6 +24,7 @@ from signetum.runtime_identity import implementation_digest
 from signetum.serialization import contract_mapping, dataclass_from_mapping, load_json
 from signetum.source_authority import source_path
 from signetum.validation.repository import configured_validation
+from signetum.worktrunk import provided_worktrunk
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -98,7 +99,8 @@ def _version_met(text: str | None, minimum: tuple[int, ...]) -> bool:
 
 
 def _tool_report(name: str) -> dict[str, object]:
-    executable = which(name)
+    # The Skill's own Worktrunk, when the launcher provides it, is the one Signetum runs.
+    executable = (provided_worktrunk() if name == "wt" else None) or which(name)
     version = _tool_version(executable) if executable is not None else None
     report: dict[str, object] = {"present": executable is not None, "version": version}
     if name == "git":
