@@ -3,7 +3,7 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
-## Unreleased
+## 0.9.3 - 2026-11-18
 
 - The Skill description is shorter and states the outcome: develop and deliver
   code changes with Agents, for one Agent or many in parallel.
