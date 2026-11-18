@@ -66,6 +66,10 @@ requires_confirmation = [
 id = "self-sufficient-skill/owner"
 change_id = "self-sufficient-skill"
 authority = "changes/self-sufficient-skill/change.toml#decisions/self-sufficient-skill/owner"
+parents = [
+    "skill-is-the-distribution/skill-distribution",
+    "workspaces-end-in-a-proven-outcome/workspace-endings",
+]
 reason = "A Skill that is rarely invoked and that needs every consumer to provision its own Worktrunk is not self-sufficient. Guard-owned discovery reuses the one registration install already performs and the adopted-repository test the guard already has, so no project file is touched; both hosts accept SessionStart hooks in the same configuration documents as PreToolUse. Provisioning Worktrunk beside Python and uv keeps one tool owner and one identity in evidence, and an internal identity name cannot collide with a project declaration, so existing projects keep working. A stalled-workspace report is a derived view of local workspace state and belongs with status, which already lists workspaces; leftovers lists checkouts created outside Signetum. Reopen if a host stops sending cwd in SessionStart payloads or Worktrunk can no longer be pinned through Mise."
 
 [[change.contract.decisions.clauses]]
