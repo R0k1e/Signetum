@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 from change_fixtures import approve_change, commit_approval
 from operation_messages import operation_message, operation_messages
-from signetum import lifecycle, maintenance, runtime_identity
+from signetum import lifecycle, maintenance, operation_records, runtime_identity
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
 from signetum.change_cli import main as change_main
@@ -1085,6 +1085,124 @@ def test_status_lists_each_workspace_with_the_outcome_it_proves(repository):
         },
     ]
     assert landed.exists()
+
+
+PROJECT_HOOK = (
+    "#!/bin/sh\n"
+    'head -n 1 "$1" | grep -q "^feat: " || { echo "subject must be conventional" >&2; exit 1; }\n'
+    'if [ -n "$(git diff --cached --name-only --diff-filter=D)" ] && ! grep -q "^Removes:" "$1"\n'
+    'then echo "deletions need a Removes section" >&2; exit 1; fi\n'
+)
+VALID = "feat: synchronize the member\n"
+
+
+def project_message_hook(root):
+    """A project commit-msg hook that judges the subject and the staged change."""
+
+    hooks = state_root(root) / "project-hooks"
+    hooks.mkdir(exist_ok=True)
+    hook = hooks / "commit-msg"
+    hook.write_text(PROJECT_HOOK)
+    hook.chmod(0o755)
+    git_output(root, "config", "core.hooksPath", str(hooks))
+
+
+def pending_records(root):
+    directory = state_root(root) / "operations" / "records"
+    return sorted(directory.glob("*.json")) if directory.is_dir() else []
+
+
+def test_a_refused_message_leaves_nothing_pending_and_a_corrected_retry_works(repository):
+    root, _ = repository
+    member = opened(root, "plan/message")
+    commit_file(member, "own.txt")
+    source = commit_file(root, "sibling.txt")
+    git_output(root, "push", "origin", "main")
+    project_message_hook(root)
+
+    with pytest.raises(AdmissionError, match="conventional"):
+        ops.workspace_sync(member, message=operation_message())
+    assert pending_records(member) == []
+    assert ops.workspace_sync(member, message=VALID)["source"] == source
+
+
+def test_an_open_merge_the_hook_refused_takes_a_corrected_message(repository, monkeypatch):
+    root, _ = repository
+    member = opened(root, "plan/stale")
+    commit_file(member, "own.txt")
+    source = commit_file(root, "sibling.txt")
+    git_output(root, "push", "origin", "main")
+    project_message_hook(root)
+    # An earlier engine recorded intent and started the merge before checking the message.
+    with monkeypatch.context() as earlier:
+        earlier.setattr(ops, "require_project_commit_message", lambda *_: None)
+        earlier.setattr(operation_records, "require_project_commit_message", lambda *_: None)
+        with pytest.raises(OperationFailed, match="conventional"):
+            ops.workspace_sync(member, message=operation_message())
+    assert len(pending_records(member)) == 1
+    assert ops.workspace_sync(member, message=VALID)["source"] == source
+    assert git_output(member, "status", "--porcelain") == ""
+
+
+def test_a_merge_that_deletes_files_takes_a_corrected_message_after_the_hook_refuses(repository):
+    root, _ = repository
+    commit_file(root, "gone.txt")
+    git_output(root, "push", "origin", "main")
+    member = opened(root, "plan/removal")
+    commit_file(member, "own.txt")
+    git_output(root, "rm", "gone.txt")
+    git_output(root, "commit", "-m", "remove gone.txt")
+    git_output(root, "push", "origin", "main")
+    project_message_hook(root)
+
+    with pytest.raises(OperationFailed, match="Removes"):
+        ops.workspace_sync(member, message=VALID)
+    # Nothing was committed; a corrected message replaces the recorded one and commits the merge.
+    result = ops.workspace_sync(member, message=VALID + "\nRemoves:\n- gone.txt\n")
+    assert not (member / "gone.txt").exists()
+    assert result["source"] == git_output(member, "rev-parse", "HEAD^2")
+    assert git_output(member, "show", "-s", "--format=%s", "HEAD") == "feat: synchronize the member"
+    assert git_output(member, "status", "--porcelain") == ""
+
+
+def _batch_ready_member(root):
+    sibling = opened(root, "plan/sibling")
+    commit_approval(sibling, "sibling")
+    commit_file(sibling, "sibling.txt")
+    lifecycle.validate(sibling, "member")
+    return sibling
+
+
+def test_batch_open_with_a_refused_message_creates_nothing_and_a_valid_retry_opens(repository):
+    root, _ = repository
+    sibling = _batch_ready_member(root)
+    project_message_hook(root)
+    arguments = {"actor": "Owner", "source": "Owner authorized the fixture batch"}
+
+    with pytest.raises(AdmissionError, match="conventional"):
+        lifecycle.batch_open(
+            root, (sibling,), "hooked", messages=(operation_message(),), **arguments
+        )
+    assert git_output(root, "branch", "--list", "batch/hooked") == ""
+    assert list(root.glob(".worktrees/batch~*")) == []
+    assert pending_records(root) == []
+
+    opened_batch = lifecycle.batch_open(root, (sibling,), "hooked", messages=(VALID,), **arguments)
+    assert opened_batch["status"] == "opened"
+
+
+def test_batch_admit_with_a_refused_message_records_nothing_and_a_valid_retry_admits(repository):
+    root, _ = repository
+    base = git_output(root, "rev-parse", "HEAD")
+    sibling = _batch_ready_member(root)
+    batch = Path(str(ops.open_workspace(root, "batch/test", base, kind="batch")["worktree"]))
+    project_message_hook(root)
+
+    with pytest.raises(AdmissionError, match="conventional"):
+        lifecycle.admit(batch, (sibling,), messages=(operation_message(),))
+    assert pending_records(batch) == []
+    result = lifecycle.admit(batch, (sibling,), messages=(VALID,))
+    assert result["status"] == "admitted"
 
 
 def test_status_reports_stalled_members_from_local_state_only(repository):
