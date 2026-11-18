@@ -13,7 +13,7 @@ from signetum.evidence.receipts import (
 )
 from signetum.operations import AdmissionError
 from signetum.serialization import ValueDecodeError, load_json
-from signetum.validation.configuration import ENGINE_TOOL
+from signetum.validation.configuration import INTERNAL_TOOLS
 from signetum.validation.execution import ValidationInputs, require_original_success
 
 
@@ -35,7 +35,7 @@ def _observed_member_values(receipt: EvidenceReceipt, expected: Mapping[str, str
 
 
 def _checked_inputs(identity: EvidenceIdentity) -> EvidenceIdentity:
-    """The member's own inputs, without the engine that judged them.
+    """The member's own inputs, without the engine and Worktrunk that judged them.
 
     A sibling's engine or manifest-schema change makes the admitting engine
     differ from the one that ran ready. The member's tree, configuration,
@@ -44,7 +44,7 @@ def _checked_inputs(identity: EvidenceIdentity) -> EvidenceIdentity:
     """
 
     return replace(
-        identity, tools=tuple(tool for tool in identity.tools if tool.name != ENGINE_TOOL)
+        identity, tools=tuple(tool for tool in identity.tools if tool.name not in INTERNAL_TOOLS)
     )
 
 

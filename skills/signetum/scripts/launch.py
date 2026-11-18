@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import uuid
@@ -17,6 +18,8 @@ if sys.version_info < (3, 12):  # noqa: UP036 -- bootstrap runs before engine en
 
 SKILL = Path(__file__).resolve().parents[1]
 PROJECT = SKILL / "scripts/engine"
+# The one place the Skill's Worktrunk version is pinned; the launcher reads it for Mise too.
+WORKTRUNK_PIN = SKILL / "scripts/worktrunk-version"
 sys.path.insert(0, str(PROJECT))
 from signetum.commands import BOOTSTRAP  # noqa: E402 -- dependency-free registry
 from signetum.runtime_identity import implementation_digest  # noqa: E402 -- source identity only
@@ -39,8 +42,39 @@ def _observe(python: Path) -> dict[str, object]:
     )
 
 
-def _prepared(home: Path, fingerprint: str, code: str) -> dict[str, object] | None:
-    """Return the recorded engine identity when this environment is intact."""
+def _worktrunk_version(executable: Path) -> str:
+    completed = subprocess.run(  # noqa: S603 -- absolute recorded executable, fixed argv
+        [str(executable), "--version"],
+        env=environment(),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    version = completed.stdout.strip()
+    if completed.returncode or not version:
+        raise ValueError(f"Worktrunk at {executable} did not report its version")
+    return version
+
+
+def _provided_worktrunk() -> dict[str, str]:
+    """The pinned Worktrunk Mise put on PATH for setup, as an absolute executable and version."""
+
+    pin = WORKTRUNK_PIN.read_text().strip()
+    found = which("wt")
+    if found is None:
+        raise ValueError("Worktrunk is missing; run setup through the Skill launcher")
+    executable = Path(found).resolve()
+    version = _worktrunk_version(executable)
+    if re.search(rf"(?<![\d.]){re.escape(pin)}(?![\d.])", version) is None:
+        raise ValueError(f"Worktrunk {version} is not the pinned {pin}")
+    return {"path": str(executable), "version": version, "pin": pin}
+
+
+def _prepared(
+    home: Path, fingerprint: str, code: str
+) -> tuple[dict[str, object], dict[str, str]] | None:
+    """Return the recorded engine and Worktrunk identities when this environment is intact."""
 
     python = home / "environment/bin/python"
     receipt = home / "installed.json"
@@ -52,10 +86,21 @@ def _prepared(home: Path, fingerprint: str, code: str) -> dict[str, object] | No
     observed = _observe(python)
     if observed != recorded.get("engine") or observed["implementation"] != code:
         raise ValueError("Skill engine changed; ordinary execution will not repair or update it")
-    return observed
+    worktrunk = recorded.get("worktrunk")
+    if (
+        not isinstance(worktrunk, dict)
+        or not isinstance(worktrunk.get("path"), str)
+        or worktrunk.get("pin") != WORKTRUNK_PIN.read_text().strip()
+    ):
+        raise ValueError("Skill Worktrunk is not recorded; explicitly prepare it again")
+    path = Path(worktrunk["path"])
+    if not path.is_file() or _worktrunk_version(path) != worktrunk.get("version"):
+        raise ValueError("Skill Worktrunk changed; ordinary execution will not repair or update it")
+    return observed, {key: str(value) for key, value in worktrunk.items()}
 
 
-def _prepare(home: Path, fingerprint: str, code: str) -> dict[str, object]:
+def _prepare(home: Path, fingerprint: str, code: str) -> tuple[dict[str, object], dict[str, str]]:
+    worktrunk = _provided_worktrunk()
     home.mkdir(parents=True, exist_ok=True)
     child = environment()
     child["UV_PROJECT_ENVIRONMENT"] = str(home / "environment")
@@ -84,10 +129,13 @@ def _prepare(home: Path, fingerprint: str, code: str) -> dict[str, object]:
     receipt = home / "installed.json"
     temporary = receipt.with_suffix(".pending")
     temporary.write_text(
-        json.dumps({"environment": fingerprint, "engine": identity}, sort_keys=True)
+        json.dumps(
+            {"environment": fingerprint, "engine": identity, "worktrunk": worktrunk},
+            sort_keys=True,
+        )
     )
     os.replace(temporary, receipt)
-    return identity
+    return identity, worktrunk
 
 
 def _link_bootstrap(cache: Path, python: Path) -> None:
@@ -107,7 +155,12 @@ def main() -> int:
         return 0
     code = implementation_digest()
     lock = (PROJECT / "uv.lock").read_bytes()
-    content = code.encode() + lock + (PROJECT / "pyproject.toml").read_bytes()
+    content = (
+        code.encode()
+        + lock
+        + (PROJECT / "pyproject.toml").read_bytes()
+        + WORKTRUNK_PIN.read_bytes()
+    )
     fingerprint = hashlib.sha256(content).hexdigest()
     cache = runtime_root()
     home = cache / fingerprint
@@ -117,26 +170,35 @@ def main() -> int:
     if arguments == ["setup"]:
         try:
             with runtime_use(fingerprint):
-                identity = _prepared(home, fingerprint, code)
+                prepared = _prepared(home, fingerprint, code)
         except ValueError:
-            identity = None
-        if identity is None:
+            prepared = None
+        if prepared is None:
             with runtime_use(fingerprint, exclusive=True):
-                identity = _prepare(home, fingerprint, code)
+                prepared = _prepare(home, fingerprint, code)
         _link_bootstrap(cache, python)
         print(
             json.dumps(
-                {"status": "prepared", "environment": str(home), "engine": identity}, sort_keys=True
+                {
+                    "status": "prepared",
+                    "environment": str(home),
+                    "engine": prepared[0],
+                    "worktrunk": prepared[1],
+                },
+                sort_keys=True,
             )
         )
         return 0
     with runtime_use(fingerprint):
-        observed = _prepared(home, fingerprint, code)
-        if observed is None:
+        prepared = _prepared(home, fingerprint, code)
+        if prepared is None:
             raise ValueError(
                 "Skill environment is not prepared; run the explicit setup command first"
             )
+        observed, worktrunk = prepared
         child = environment()
+        # The engine runs this Worktrunk instead of resolving wt through the project.
+        child["SIGNETUM_WORKTRUNK"] = worktrunk["path"]
         # Status explains how to enable the guard for the host that loads this Skill.
         child["SIGNETUM_SKILL"] = str(SKILL)
         if arguments == ["identity"]:
@@ -147,7 +209,12 @@ def main() -> int:
                     text=True,
                 )
             )
-            print(json.dumps({"skill": complete, "engine": observed}, sort_keys=True))
+            print(
+                json.dumps(
+                    {"skill": complete, "engine": observed, "worktrunk": worktrunk},
+                    sort_keys=True,
+                )
+            )
             return 0
         os.execve(  # noqa: S606 -- absolute verified Skill executable
             str(home / "environment/bin/signetum"),

@@ -3,6 +3,27 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.3 - 2026-11-18
+
+- The Skill description is shorter and states the outcome: develop and deliver
+  code changes with Agents, for one Agent or many in parallel.
+- `install` also registers a SessionStart hook. In a repository with
+  `signetum.toml` it tells the Agent once per session, with one generic notice,
+  that development and delivery follow the Signetum Skill; elsewhere it is
+  silent. Run `install --host claude|codex` again to add it; `status` reports the
+  missing entry. Adoption still writes only `signetum.toml`.
+- Signetum provides its own pinned Worktrunk like Python and uv: `setup` selects
+  it through Mise, the engine runs it and evidence records its identity.
+  Projects no longer need to pin or declare Worktrunk; a project that still does
+  keeps working.
+- The Skill states the parallel coordination rules: a worker leaves a workspace
+  only with every change committed, the coordinating Agent runs heavy validation
+  serially, and a failed final is fixed as the whole failure list in one round.
+- `status` reports `stalled_workspaces`: member workspaces with uncommitted
+  changes and no recent commit, and members with no commit beyond their base.
+  It is advisory and offline; `--stalled-after` and `--idle-after` set the
+  thresholds in minutes (30 and 60 by default).
+
 ## 0.9.2
 
 - Automatic commits take a caller-supplied `--message-file`. The project's commit

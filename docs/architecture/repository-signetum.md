@@ -17,7 +17,8 @@ Updates are explicit; no second Skill copy exists in the repository.
 | `change_record`, `development_log`, `development_store`, `decision_clauses`, `decision_history` | Approved outcomes, significant atomic journal mutations and the derived decision set. |
 | `change/*`, `traceability/*`, `source_authority`, `execution_review` | Scope, immutable source proofs, accounting and review qualification. |
 | `lifecycle`, `lifecycle_validation`, `workspace_operations`, `workspaces`, `provenance`, `operation_records`, `delivery`, `synchronization`, `gate_records` | Isolated work, named integration, structured operation proof, machine-local gate diagnostics and exact remote-first delivery. |
-| `validation/*`, `preparation`, `worktrunk`, `git` | One supervised execution/verdict owner, preparation, tool identities and Git effects. |
+| `validation/*`, `preparation`, `worktrunk`, `git` | One supervised execution/verdict owner, preparation, tool identities, the Skill-provided Worktrunk and Git effects. |
+| `stalled_workspaces`, `workflow_status` | Derived offline status, including advisory stalled member workspaces. |
 | `profiles/*`, `manifest`, `resources/profiles` | Explicit capability composition and validation bindings. |
 | `repository_selection`, `selection_*`, `test_scheduling`, `pytest_scheduling`, `ci_partitions` | Optional source-bound optimization; no second runner or receipt authority. |
 | `adoption`, `runtime_identity`, `engine_pin`, Skill `scripts/launch.py` | Exact reviewed bindings, code identity, batch engine pins and isolated locked execution. |
@@ -33,12 +34,22 @@ Updates are explicit; no second Skill copy exists in the repository.
 source. The Skill launcher explicitly prepares a noneditable installation in
 `${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>` using
 `scripts/engine/uv.lock`. The fingerprint covers the implementation digest, the
-lock and `pyproject.toml`, not the install path, so the Claude copy, the Codex copy
+lock, `pyproject.toml` and the pinned Worktrunk version in `scripts/worktrunk-version`,
+not the install path, so the Claude copy, the Codex copy
 and an update candidate share one environment; `runtime/host-python` only starts
 the launcher. Nothing is written into the Skill directory, so its content digest
-stays the released one. Setup selects host Python 3.12 and uv 0.12.2 through Mise; a prepared launcher uses that
-interpreter directly instead of selecting the application’s Python. Tools the
-engine runs through Mise, such as Worktrunk's `wt`, run under the caller's
+stays the released one. Setup selects host Python 3.12, uv 0.12.2 and the pinned Worktrunk through Mise
+and records the Worktrunk's absolute path and version in the environment's
+`installed.json`; ordinary commands refuse a missing or changed executable,
+and the launcher gives the engine that path as `SIGNETUM_WORKTRUNK`. The engine
+runs every `wt` operation with it, and evidence binds its `--version` output as
+the internal tool `signetum-worktrunk`, which a project cannot declare and
+member admission does not compare, like `signetum-engine`. Without the launcher
+(a development checkout) `wt` resolves through the project as before and no
+Worktrunk identity is bound; a project that still pins or declares Worktrunk
+keeps working. A prepared launcher uses that
+interpreter directly instead of selecting the application’s Python. Other tools the
+engine runs through Mise, declared by the project, run under the caller's
 `MISE_ENV`; when a tool is missing there and exactly one Mise environment the
 project declares (`mise.<env>.toml` and Mise's other environment file forms)
 provides it, the engine sets that `MISE_ENV`, and otherwise its refusal names
@@ -63,14 +74,20 @@ against `SHA256SUMS` and `release-source.json` before the extracted Skill's vers
 and content digest are accepted. `update` prepares the candidate, checks the
 project manifest and swaps the Skill folder in place from a staged sibling copy;
 `install` places a Skill for `--host claude|codex` or `--skills-dir` and writes one
-guard entry into the host's user hook configuration (`settings.json` or
-`hooks.json`) through the engine's stdlib `hosts` module, replacing only Signetum
+PreToolUse guard entry and one SessionStart entry into the host's user hook
+configuration (`settings.json` or `hooks.json`) through the engine's stdlib `hosts` module, replacing only Signetum
 guard entries. Both refuse a folder inside a Git work tree and never edit a
 project. Install removes an earlier user-scope `signetum@signetum` plugin through
 the host after the Skill and hook are in place. `scripts/installation.py`
 gives running commands a shared lock on their environment and setup an exclusive
 one. Compatible implementation updates change only the installation; project
 edits are reserved for contract migrations.
+
+The SessionStart entry runs the same script in `session-start` mode: in an adopted
+repository it prints one generic additional-context notice naming the installed
+`SKILL.md`, so the Agent learns once per session that development and delivery
+there follow the Skill, and it prints nothing elsewhere or on any failure. Adoption
+still writes only `signetum.toml`; no Agent entry file carries a pointer.
 
 The guard reads `tool_input.command` and `cwd` from Claude Code and Codex payloads,
 splits the command into simple commands and exits 2 with one JSON line naming the

@@ -240,6 +240,18 @@ def test_installed_python_launcher_requires_preparation_and_rejects_changed_iden
     repaired = launch("setup")
     assert repaired.returncode == 0, repaired.stderr
     assert json.loads(repaired.stdout)["engine"] == observed["engine"]
+    # Setup records the one pinned Worktrunk, and an executable that changed is refused.
+    pin = (skill / "scripts/worktrunk-version").read_text().strip()
+    worktrunk = observed["worktrunk"]
+    assert pin in worktrunk["version"] and Path(worktrunk["path"]).is_absolute()
+    assert json.loads(identity.stdout)["worktrunk"] == worktrunk
+    record = json.loads(receipt.read_text())
+    record["worktrunk"]["version"] = "wt v0.0.0"
+    receipt.write_text(json.dumps(record))
+    swapped = launch("identity")
+    assert swapped.returncode == 2
+    assert "Worktrunk changed" in json.loads(swapped.stderr)["cause"]
+    assert json.loads(launch("setup").stdout)["worktrunk"] == worktrunk
 
 
 def test_copies_of_one_engine_share_one_environment_and_stay_unchanged(installed_skill, tmp_path):
@@ -295,7 +307,7 @@ def test_installed_skill_adopts_and_delivers_without_entering_application(
     git_output(project, "init", "-b", "main")
     git_output(project, "config", "user.name", "Acceptance owner")
     git_output(project, "config", "user.email", "fixture@example.invalid")
-    (project / "mise.toml").write_text('[tools]\nworktrunk="0.74.0"\n')
+    # The project provides no Worktrunk: the Skill's own pinned one opens its workspaces.
     (project / "app.py").write_text("def twice(value): return value * 3\n")
     (project / "test_app.py").write_text(
         "import unittest\nfrom app import twice\nclass Result(unittest.TestCase):\n"
@@ -700,14 +712,20 @@ def test_install_places_the_skill_and_guard_for_each_host_and_reverses(
     assert all(content_digest(copy) == content_digest(skill) for copy in placed.values())
     claude = json.loads(settings.read_text())
     assert claude["permissions"] == {"allow": ["Bash(ls:*)"]}
-    guard = result["targets"][0]["hook"]["hooks"][0]["command"]
+    guard = result["targets"][0]["hook"]["PreToolUse"]["hooks"][0]["command"]
+    notice_command = result["targets"][0]["hook"]["SessionStart"]["hooks"][0]["command"]
+    assert notice_command == guard + " session-start"
     assert guard.endswith(str(placed["claude"].resolve() / "scripts/command-guard"))
     assert claude["hooks"]["PreToolUse"] == [
         other_hook,
         {"matcher": "Bash", "hooks": [{"type": "command", "command": guard, "timeout": 10}]},
     ]
+    assert claude["hooks"]["SessionStart"] == [
+        {"hooks": [{"type": "command", "command": notice_command, "timeout": 10}]}
+    ]
     codex = json.loads(codex_hooks.read_text())
-    assert codex["hooks"]["SessionStart"] == [session]
+    assert codex["hooks"]["SessionStart"][0] == session
+    assert len(codex["hooks"]["SessionStart"]) == 2
     assert len(codex["hooks"]["PreToolUse"]) == 1
     assert calls == [
         "claude plugin uninstall signetum@signetum --scope user",
@@ -733,6 +751,15 @@ def test_install_places_the_skill_and_guard_for_each_host_and_reverses(
             check=False,
         )
         assert refused.returncode == expected, refused.stderr
+        told = subprocess.run(  # noqa: S603 -- the exact registered session hook command
+            ["/bin/sh", "-c", notice_command],
+            input=_guard_payload("", cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        # Adopted repositories hear about the Skill; every other repository hears nothing.
+        assert told.returncode == 0 and bool(told.stdout) == (expected == 2), told.stderr
 
     hosts.claude_list.write_text("[]")
     hosts.codex_list.write_text("")

@@ -27,6 +27,7 @@ from signetum.source_authority import (
     authority_roots,
     committed_blob,
 )
+from signetum.stalled_workspaces import DEFAULT_IDLE_MINUTES, DEFAULT_UNCOMMITTED_MINUTES
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import current_branch, read_change_owner, read_record, state_root
 
@@ -347,6 +348,22 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument(
         "--verbose", action="store_true", help="status: include resolved observations."
     )
+    parser.add_argument(
+        "--stalled-after",
+        type=float,
+        default=DEFAULT_UNCOMMITTED_MINUTES,
+        metavar="MINUTES",
+        help="status: report a member with uncommitted changes and no commit or opening "
+        f"for this long (default {DEFAULT_UNCOMMITTED_MINUTES}).",
+    )
+    parser.add_argument(
+        "--idle-after",
+        type=float,
+        default=DEFAULT_IDLE_MINUTES,
+        metavar="MINUTES",
+        help="status: report a member with no commit beyond its base for this long "
+        f"(default {DEFAULT_IDLE_MINUTES}).",
+    )
     sources = None
     try:
         options = parser.parse_args(arguments)
@@ -357,6 +374,13 @@ def main(arguments: list[str] | None = None) -> int:
             )
         if options.verbose and options.operation != "status":
             raise ValueError("only status accepts --verbose")
+        if options.operation != "status" and (
+            options.stalled_after != DEFAULT_UNCOMMITTED_MINUTES
+            or options.idle_after != DEFAULT_IDLE_MINUTES
+        ):
+            raise ValueError("only status accepts --stalled-after and --idle-after")
+        if options.stalled_after <= 0 or options.idle_after <= 0:
+            raise ValueError("--stalled-after and --idle-after must be positive minutes")
         if options.operation == "why":
             sources = read_sources(options.repository)
             print(
@@ -476,6 +500,8 @@ def main(arguments: list[str] | None = None) -> int:
                     if sources is not None
                     else git_output(options.repository, "rev-parse", "HEAD"),
                     verbose=options.verbose,
+                    uncommitted_after=options.stalled_after,
+                    idle_after=options.idle_after,
                 )
             )
             installed = os.environ.get("SIGNETUM_SKILL")

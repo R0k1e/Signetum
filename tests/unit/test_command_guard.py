@@ -249,9 +249,9 @@ def test_pre_commit_runs_only_when_the_payload_tree_has_no_unstaged_change(
         )
 
 
-def _entry(payload: str, path: str) -> subprocess.CompletedProcess[str]:
+def _entry(payload: str, path: str, *arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603 -- shipped guard entry through a fixed shell
-        ["/bin/sh", str(ENTRY)],
+        ["/bin/sh", str(ENTRY), *arguments],
         input=payload,
         capture_output=True,
         text=True,
@@ -280,6 +280,24 @@ def test_the_sh_entry_blocks_with_exit_two_and_otherwise_allows(adopted, tmp_pat
     empty.mkdir()
     missing = _entry(json.dumps(claude_payload("git stash", tmp_path)), str(empty))
     assert missing.returncode == 0
+
+
+def test_the_session_notice_is_generic_and_only_in_adopted_repositories(adopted, tmp_path):
+    path = _interpreter_path(tmp_path, sys.executable)
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    (plain / ".git").mkdir()
+    for shape in (claude_payload, codex_payload):
+        told = _entry(json.dumps(shape("", adopted)), path, "session-start")
+        assert told.returncode == 0, told.stderr
+        context = json.loads(told.stdout)["hookSpecificOutput"]
+        assert context["hookEventName"] == "SessionStart"
+        assert str(SCRIPTS.parent / "SKILL.md") in context["additionalContext"]
+        # Nothing names the project: the same text serves every adopted repository.
+        assert adopted.name not in context["additionalContext"]
+        quiet = _entry(json.dumps(shape("", plain)), path, "session-start")
+        assert (quiet.returncode, quiet.stdout, quiet.stderr) == (0, "", "")
+    assert _entry("not json", path, "session-start").stdout == ""
 
 
 def test_a_crashing_guard_allows_the_command(adopted, tmp_path):

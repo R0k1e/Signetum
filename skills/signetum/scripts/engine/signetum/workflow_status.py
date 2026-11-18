@@ -21,9 +21,15 @@ from signetum.evidence.receipts import ArtifactIdentity, EvidenceReceipt, Receip
 from signetum.gate_records import failed_tip, pending_admissions
 from signetum.git import git_output, repository_path
 from signetum.manifest import ManifestError, load_manifest
+from signetum.policy import delivery_policy
 from signetum.serialization import contract_mapping
 from signetum.source_authority import authority_roots, source_path
 from signetum.stacking import admission_order, parent_moved
+from signetum.stalled_workspaces import (
+    DEFAULT_IDLE_MINUTES,
+    DEFAULT_UNCOMMITTED_MINUTES,
+    stalled_workspaces,
+)
 from signetum.workspace_operations import workspace_endings
 from signetum.workspaces import current_branch, read_change_owner, read_record, record_path
 
@@ -41,7 +47,13 @@ def _manifest_cause(repository: Path) -> str | None:
 
 
 def workflow_status(
-    repository: Path, snapshot: DevelopmentSnapshot, *, source: str, verbose: bool = False
+    repository: Path,
+    snapshot: DevelopmentSnapshot,
+    *,
+    source: str,
+    verbose: bool = False,
+    uncommitted_after: float = DEFAULT_UNCOMMITTED_MINUTES,
+    idle_after: float = DEFAULT_IDLE_MINUTES,
 ) -> dict[str, object]:
     repository = repository.resolve()
     if git_output(repository, "rev-parse", "HEAD") != source:
@@ -207,6 +219,16 @@ def workflow_status(
     if engine is not None and engine["status"] == "mismatch":
         next_action = str(engine["expected"])
     workspaces = workspace_endings(repository)
+    stalled = (
+        stalled_workspaces(
+            repository,
+            delivery_policy(repository).branch,
+            uncommitted_after=uncommitted_after,
+            idle_after=idle_after,
+        )
+        if (repository / "signetum.toml").is_file()
+        else []
+    )
     if git_output(repository, "rev-parse", "HEAD") != source:
         raise ValueError("source changed while reading status")
     return {
@@ -225,6 +247,7 @@ def workflow_status(
         **({"pending_admissions": waiting} if waiting else {}),
         "receipts": receipts,
         "workspaces": workspaces,
+        **({"stalled_workspaces": stalled} if stalled else {}),
         **({"manifest": {"loadable": False, "cause": manifest_cause}} if manifest_cause else {}),
         "qualification": (
             "Recorded evidence only; tools, selection and admission are not re-executed by status."

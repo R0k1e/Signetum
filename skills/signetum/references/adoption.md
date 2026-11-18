@@ -61,12 +61,16 @@ the `enabledPlugins` and `extraKnownMarketplaces` `signetum` entries in
 
 ## Prepare the Skill once
 
-Check Git 2.7 or newer for Signetum's own commands, Mise, Worktrunk 0.74
-(`wt`), uv and host Python 3.12+. Cleanup through Worktrunk needs Git 2.17.
-Worktrunk 0.75 or newer needs Git 2.43. Report missing tools
-and resolve setup explicitly. Honor the host's Mise trust decision; never trust
-project configuration automatically. Run `setup` to select host Python 3.12 and uv 0.12.2 explicitly through Mise,
-including on hosts with unconfigured shims, and create a locked environment in `${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>`.
+Check Git 2.7 or newer for Signetum's own commands, Mise and host Python 3.12+.
+Signetum provides its own Worktrunk 0.74 (`wt`) and uv, so a project declares
+neither for it. Cleanup through Worktrunk needs Git 2.17; Worktrunk 0.75 or newer
+would need Git 2.43. A project that still pins Worktrunk keeps working.
+Report missing tools and resolve setup explicitly. Honor the host's Mise trust decision; never trust
+project configuration automatically. Run `setup` to select host Python 3.12, uv 0.12.2 and the pinned Worktrunk (the
+version in `scripts/worktrunk-version`) explicitly through Mise, including on
+hosts with unconfigured shims, and create a locked environment in `${XDG_DATA_HOME:-~/.local/share}/signetum/runtime/<fingerprint>`.
+The engine runs that Worktrunk by its recorded absolute path, and evidence binds
+its identity.
 Every installed copy of the same engine shares it, and nothing is written into the
 Skill directory, so its content digest stays the released one. `identity` reports its
 code and dependency identities. No Signetum dependency belongs in the application's

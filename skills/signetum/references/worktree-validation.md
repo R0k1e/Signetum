@@ -29,9 +29,10 @@ commitments through the predicates final uses. These checks read committed
 snapshots; the registered base identifies delivered packages, so newly introduced
 packages remain editable. Records-only commits still undergo these record checks.
 
-When a declared tool such as `wt` is missing from the default Mise environment,
-Signetum runs it under the one environment the project declares for it
-(`mise.<env>.toml`); otherwise the refusal names the `MISE_ENV` to set.
+Signetum runs its own pinned Worktrunk, so a project provides none. When another
+declared tool is missing from the default Mise environment, Signetum runs it under
+the one environment the project declares for it (`mise.<env>.toml`); otherwise
+the refusal names the `MISE_ENV` to set.
 
 Only `workspace-open` creates a registered worktree. Read history with read-only
 commands (`git log/show/diff/blame`, `git show <commit>:<path>`). When a full older
@@ -202,6 +203,13 @@ members can proceed while an affected choice is pending.
 
 Keep mutable dependencies, reports and scratch local. Bound concurrent gate runs
 at the caller; per-operation and nested limits are not a host-wide scheduler.
+A worker ends its work on a workspace only with every change committed; work in
+progress may be committed and amended later. Heavy validation (ready, final and
+the batch gate) is run by the coordinating Agent, one at a time, not by several
+workers at once. When final fails, fix the whole failure list in one round and
+rerun final once. Signetum does not schedule Agents; `status` lists member
+workspaces that hold uncommitted changes without a recent commit and members
+with no commit beyond their base, so the coordinator can find stalled work.
 The named integration owner admits exact ready tips, handles conflicts and runs
 complete final. A later member change needs fresh ready and admission. A clean
 Git merge does not establish semantic compatibility; validate the integrated

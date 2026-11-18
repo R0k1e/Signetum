@@ -80,16 +80,33 @@ def test_guard_entries_are_added_once_replaced_and_removed_alone(tmp_path):
     document = {"model": "fixture", "hooks": {"PreToolUse": [other], "Stop": []}}
     added = hosts.with_guard(document, skill)
     assert added["hooks"]["PreToolUse"] == [other, hosts.guard_entry(skill)]
+    assert added["hooks"]["SessionStart"] == [hosts.session_entry(skill)]
     assert hosts.with_guard(added, skill) is added
     assert hosts.runs_guard(added, skill) and not hosts.runs_guard(added, moved)
     relocated = hosts.with_guard(added, moved)
     assert relocated["hooks"]["PreToolUse"] == [other, hosts.guard_entry(moved)]
+    assert relocated["hooks"]["SessionStart"] == [hosts.session_entry(moved)]
     assert hosts.without_guard(relocated) == document
-    assert hosts.without_guard({"hooks": {"PreToolUse": [hosts.guard_entry(skill)]}}) == {}
+    earlier = {"hooks": {"PreToolUse": [hosts.guard_entry(skill)]}}
+    assert hosts.without_guard(earlier) == {}
+    # An install from before the session notice completes with one more entry.
+    assert not hosts.runs_guard(earlier, skill)
+    completed = hosts.with_guard(earlier, skill)
+    assert completed["hooks"]["SessionStart"] == [hosts.session_entry(skill)]
+    assert completed["hooks"]["PreToolUse"] == [hosts.guard_entry(skill)]
     assert added["model"] == "fixture" and document["hooks"]["PreToolUse"] == [other]
 
 
-@pytest.mark.parametrize("text", ["[]", "{", '{"hooks": []}', '{"hooks": {"PreToolUse": {}}}'])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "[]",
+        "{",
+        '{"hooks": []}',
+        '{"hooks": {"PreToolUse": {}}}',
+        '{"hooks": {"SessionStart": {}}}',
+    ],
+)
 def test_malformed_host_configuration_is_refused(tmp_path, text):
     path = tmp_path / "settings.json"
     path.write_text(text)
@@ -112,7 +129,12 @@ def test_guard_notice_follows_the_skill_location_and_every_hook_source(tmp_path,
         assert notice is not None and notice["host"] == host
         assert notice["config"] == str(hosts.hook_config(host))
         assert notice["enable"].endswith(f"install --host {host}")
-        assert notice["hook"] == {"hooks": {"PreToolUse": [hosts.guard_entry(skill)]}}
+        assert notice["hook"] == {
+            "hooks": {
+                "PreToolUse": [hosts.guard_entry(skill)],
+                "SessionStart": [hosts.session_entry(skill)],
+            }
+        }
         target = project / project_file
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(hosts.with_guard({}, skill)))

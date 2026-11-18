@@ -15,9 +15,13 @@ from signetum.validation import (
     resolve_validation_graph,
 )
 from signetum.validation.execution import ValidationExecutionError, ValidationInputs
+from signetum.worktrunk import provided_worktrunk
 
 ENGINE_TOOL = "signetum-engine"
 """The internal identity of the engine that runs a gate, beside the declared tools."""
+WORKTRUNK_TOOL = "signetum-worktrunk"
+"""The internal identity of the Skill's Worktrunk when the launcher provides one."""
+INTERNAL_TOOLS = frozenset({ENGINE_TOOL, WORKTRUNK_TOOL})
 
 
 def configured_validation(
@@ -51,12 +55,14 @@ def configured_validation(
             by_name[tool.name] = tool
         tools = tuple(by_name.values())
     try:
-        if any(tool.name == ENGINE_TOOL for tool in tools):
-            raise ManifestError(f"{ENGINE_TOOL} is an internal tool identity")
+        if reserved := next((tool.name for tool in tools if tool.name in INTERNAL_TOOLS), None):
+            raise ManifestError(f"{reserved} is an internal tool identity")
         tools = (
             *tools,
             ToolDeclaration(ENGINE_TOOL, (sys.executable, "-m", "signetum.runtime_identity")),
         )
+        if worktrunk := provided_worktrunk():
+            tools = (*tools, ToolDeclaration(WORKTRUNK_TOOL, (worktrunk, "--version")))
         inputs = ValidationInputs(
             "signetum.toml",
             tuple(sorted(profile.identity for profile in resolved)),

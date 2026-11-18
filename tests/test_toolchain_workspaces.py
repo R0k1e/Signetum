@@ -10,8 +10,9 @@ from subprocess import CompletedProcess
 import pytest
 import signetum.validation.repository as validation_repository
 import signetum.worktrunk as wt
+from signetum.manifest import load_manifest, parse_manifest
 from signetum.validation import ToolDeclaration, ValidationShard, ratchet
-from signetum.validation.repository import RepositoryValidationAdapter
+from signetum.validation.repository import RepositoryValidationAdapter, configured_validation
 
 
 def test_missing_mise_has_an_actionable_noninteractive_diagnostic(monkeypatch) -> None:
@@ -268,3 +269,41 @@ def test_removal_response_requires_one_exact_deleted_workspace(tmp_path, damage)
     else:
         with pytest.raises(wt.InfrastructureError):
             wt.require_removed_workspace(payload, workspace)
+
+
+def test_the_launcher_provided_worktrunk_runs_workspace_operations_and_is_bound(
+    monkeypatch, tmp_path: Path
+) -> None:
+    root = Path(__file__).parents[1]
+    manifest = (root / "signetum.toml").read_text()
+    names = {t.name for t in configured_validation(load_manifest(root / "signetum.toml"))[1].tools}
+    monkeypatch.delenv(wt.PROVIDED_WORKTRUNK, raising=False)
+    assert "signetum-worktrunk" not in names
+
+    commands: list[tuple[str, ...]] = []
+
+    def record(repository, command, **kwargs):
+        commands.append(command)
+        return CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(wt, "run_tool", record)
+    wt.worktrunk(tmp_path, ("list",))
+    assert commands[-1][0] == "wt"
+
+    monkeypatch.setenv(wt.PROVIDED_WORKTRUNK, "/skill/provided/wt")
+    wt.worktrunk(tmp_path, ("list",))
+    assert commands[-1][0] == "/skill/provided/wt"
+    _, inputs = configured_validation(load_manifest(root / "signetum.toml"))
+    assert (
+        ToolDeclaration("signetum-worktrunk", ("/skill/provided/wt", "--version")) in inputs.tools
+    )
+
+    # A relative value is not a launcher-provided executable; a project cannot claim the name.
+    monkeypatch.setenv(wt.PROVIDED_WORKTRUNK, "wt")
+    assert wt.provided_worktrunk() is None
+    declared = (
+        manifest
+        + '\n[[validation.tools]]\nname = "signetum-worktrunk"\nidentity_command = ["wt"]\n'
+    )
+    with pytest.raises(Exception, match="internal tool identity"):
+        configured_validation(parse_manifest(declared))
