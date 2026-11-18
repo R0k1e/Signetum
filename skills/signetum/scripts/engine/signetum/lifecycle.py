@@ -66,6 +66,8 @@ from signetum.operation_records import (
     read_message_file,
     read_message_files,
     remember_continuation,
+    require_project_commit_message,
+    require_project_commit_messages,
     write_message_copy,
 )
 from signetum.operation_records import complete_operation as _complete_operation
@@ -420,6 +422,7 @@ def admit(
     frozen = tuple(freeze_message(message) for message in messages)
     if len(frozen) != len(members):
         raise AdmissionError("admission requires one message for each member")
+    require_project_commit_messages(batch, frozen)
     with _exclusive_batch(batch):
         return _admit_held(batch, members, frozen)
 
@@ -836,6 +839,7 @@ def sync_batch(batch: Path, source: Path | None = None, *, message: str) -> dict
     """Merge the fresh delivery tip into one open batch, exclusively."""
 
     frozen = freeze_message(message)
+    require_project_commit_message(batch, frozen)
     if source is not None:
         raise AdmissionError(
             "a batch synchronizes only from the delivery branch",
@@ -1122,6 +1126,8 @@ def batch_open(
         raise AdmissionError("batch-open requires one message for each member")
     if not actor.strip() or not source.strip():
         raise AdmissionError("batch-open requires non-empty actor and source")
+    # Before the batch workspace or branch exists, so a refusal leaves nothing behind.
+    require_project_commit_messages(repository, frozen)
     engine = opening_engine(repository)
     member_names = tuple(_branch(member.resolve()) for member in members)
     task = (
@@ -1175,6 +1181,7 @@ def batch_deliver(
     frozen = freeze_message(message)
     _require_worktree_directory(source, "source")
     _require_worktree_directory(target, "target")
+    require_project_commit_message(source, frozen)
     with _exclusive_batch(source):
         return _deliver_held(source, target, expected_base, expected_tip, frozen)
 

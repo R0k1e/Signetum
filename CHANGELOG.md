@@ -3,6 +3,17 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.4 - 2026-11-18
+
+- A commit message the project's commit-msg hook refuses no longer leaves
+  anything behind. `workspace-sync`, `batch-open`, `batch-admit`, `batch-continue`
+  and `batch-deliver` check it first, so no pending operation, batch workspace or
+  branch is created.
+- An operation that produced no commit takes a corrected `--message-file` on
+  retry, including a clean merge the hook refused because of the staged change
+  (for example a required deletion section). Records an earlier release left
+  pending with a refused message no longer block a retry.
+
 ## 0.9.3 - 2026-11-18
 
 - The Skill description is shorter and states the outcome: develop and deliver

@@ -236,6 +236,13 @@ def read_message_file(path: Path) -> str:
     return freeze_message(text)
 
 
+def require_project_commit_messages(repository: Path, messages: Sequence[str]) -> None:
+    """Refuse a message the project's commit-msg hook rejects, before any effect or record."""
+
+    for message in messages:
+        require_project_commit_message(repository, freeze_message(message))
+
+
 def read_message_files(paths: Sequence[Path]) -> tuple[str, ...]:
     if not paths:
         raise AdmissionError("a message file is required")
@@ -660,6 +667,7 @@ def begin_operation(repository: Path, intent: OperationIntent) -> dict[str, obje
     document = _intent_document(intent)
     validate_operation(repository, document)
     with _lock(repository) as root:
+        _discard_unfinishable(repository, root)
         for stored in _documents(root):
             other = parse_operation(stored)
             if (
@@ -678,12 +686,62 @@ def begin_operation(repository: Path, intent: OperationIntent) -> dict[str, obje
                 return existing
             if _completed_proof_matches_git(repository, existing):
                 return existing
+            if _only_message_differs(existing, intent) and not _commit_matches_document(
+                repository, git_output(repository, "rev-parse", "HEAD"), existing
+            ):
+                require_project_commit_message(repository, intent.message)
+                path.unlink()
+                _write_atomic(path, _canonical(document))
+                return document
             raise AdmissionError(
                 "recorded operation conflicts with this request",
                 expected="retry the same operation and message, or leave the recorded proof",
             )
+        # A message the project would refuse can never become a commit, so it never
+        # becomes pending intent either.
+        require_project_commit_message(repository, intent.message)
         _write_atomic(path, _canonical(document))
         return document
+
+
+def _only_message_differs(document: Mapping[str, object], intent: OperationIntent) -> bool:
+    """A pending record that produced no commit and differs from the request only by message."""
+
+    if document.get("status") != "pending" or not isinstance(document.get("message"), str):
+        return False
+    same = {**_intent_document(intent), "message": document["message"]}
+    return _same_intent(document, intent_from_document(same))
+
+
+def _replace_pending_message(
+    repository: Path, document: Mapping[str, object], message: str
+) -> dict[str, object]:
+    """Let the operator correct the message of an operation that produced no commit."""
+
+    with _lock(repository) as root:
+        path = _record_path(root, str(document["id"]))
+        replaced = {**dict(document), "message": message}
+        validate_operation(repository, replaced)
+        _write_atomic(path, _canonical(replaced))
+    return replaced
+
+
+def _discard_unfinishable(repository: Path, root: Path) -> None:
+    """Drop pending intent whose message the project's commit-msg hook refuses.
+
+    An earlier engine recorded intent before that check. Such a record cannot
+    produce a commit, so it only blocks a retry with a corrected message.
+    """
+
+    for stored in _documents(root):
+        other = parse_operation(stored)
+        message = other.get("message")
+        if other.get("status") != "pending" or not isinstance(message, str):
+            continue
+        try:
+            require_project_commit_message(repository, message)
+        except AdmissionError:
+            _record_path(root, str(other["id"])).unlink(missing_ok=True)
 
 
 def git_proof(repository: Path, commit: str) -> dict[str, object]:
@@ -1218,6 +1276,10 @@ def merge_operation(repository: Path, intent: OperationIntent, *, recovery: str)
                 "pending operation does not match the branch tip",
                 expected=recovery,
             )
+        if document.get("message") != intent.message and _only_message_differs(document, intent):
+            # Nothing was committed, so the operator may supply a corrected message.
+            require_project_commit_message(repository, intent.message)
+            document = _replace_pending_message(repository, document, intent.message)
         if document.get("message") != intent.message or not _same_intent(document, intent):
             if document.get("before") != intent.before:
                 raise AdmissionError(
@@ -1251,7 +1313,11 @@ def merge_operation(repository: Path, intent: OperationIntent, *, recovery: str)
         if merge_head.stdout.strip() != intent.source:
             raise AdmissionError("open merge does not match the recorded operation")
         _restore_merge_message(repository, intent.message)
-        raise MergeConflict("merge is unresolved", expected=recovery)
+        if git_output(repository, "diff", "--name-only", "--diff-filter=U"):
+            raise MergeConflict("merge is unresolved", expected=recovery)
+        # A clean merge the commit-msg hook refused: commit it with the recorded message,
+        # which the hook now judges together with the actual staged change.
+        return _commit_open_merge(repository, intent)
     path = write_message_copy(repository, intent.message)
     try:
         completed = run_git(
@@ -1271,7 +1337,35 @@ def merge_operation(repository: Path, intent: OperationIntent, *, recovery: str)
         if git_output(repository, "diff", "--name-only", "--diff-filter=U"):
             _restore_merge_message(repository, intent.message)
             raise MergeConflict(diagnostic or "merge is unresolved", expected=recovery)
+        if run_git(repository, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0:
+            _restore_merge_message(repository, intent.message)
+            raise OperationFailed(
+                diagnostic or "merge failed",
+                expected="rerun the operation with a corrected --message-file; nothing was "
+                "committed and the recorded message is replaced",
+            )
         raise OperationFailed(diagnostic or "merge failed")
+    merged = git_output(repository, "rev-parse", "HEAD")
+    if not _commit_matches_document(repository, merged, _intent_document(intent)):
+        raise AdmissionError("merge result does not match the recorded operation")
+    complete_operation(repository, intent, merged)
+    return MergeOutcome("created", merged)
+
+
+def _commit_open_merge(repository: Path, intent: OperationIntent) -> MergeOutcome:
+    path = write_message_copy(repository, intent.message)
+    try:
+        completed = run_git(repository, "commit", "-F", str(path))
+    finally:
+        path.unlink(missing_ok=True)
+    if completed.returncode:
+        diagnostic = completed.stderr.strip() or completed.stdout.strip()
+        _restore_merge_message(repository, intent.message)
+        raise OperationFailed(
+            diagnostic or "merge commit failed",
+            expected="rerun the operation with a corrected --message-file; nothing was "
+            "committed and the recorded message is replaced",
+        )
     merged = git_output(repository, "rev-parse", "HEAD")
     if not _commit_matches_document(repository, merged, _intent_document(intent)):
         raise AdmissionError("merge result does not match the recorded operation")
