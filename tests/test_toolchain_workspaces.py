@@ -10,8 +10,9 @@ from subprocess import CompletedProcess
 import pytest
 import signetum.validation.repository as validation_repository
 import signetum.worktrunk as wt
+from signetum.manifest import load_manifest, parse_manifest
 from signetum.validation import ToolDeclaration, ValidationShard, ratchet
-from signetum.validation.repository import RepositoryValidationAdapter
+from signetum.validation.repository import RepositoryValidationAdapter, configured_validation
 
 
 def test_missing_mise_has_an_actionable_noninteractive_diagnostic(monkeypatch) -> None:
@@ -273,9 +274,6 @@ def test_removal_response_requires_one_exact_deleted_workspace(tmp_path, damage)
 def test_the_launcher_provided_worktrunk_runs_workspace_operations_and_is_bound(
     monkeypatch, tmp_path: Path
 ) -> None:
-    from signetum.manifest import load_manifest, parse_manifest
-    from signetum.validation.repository import configured_validation
-
     root = Path(__file__).parents[1]
     manifest = (root / "signetum.toml").read_text()
     names = {t.name for t in configured_validation(load_manifest(root / "signetum.toml"))[1].tools}

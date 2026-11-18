@@ -4,6 +4,7 @@ import argparse
 import json
 import shutil
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from operation_messages import operation_message, operation_messages
 from signetum import lifecycle, maintenance, runtime_identity
 from signetum import workspace_operations as ops
 from signetum import worktrunk as wt
+from signetum.change_cli import main as change_main
 from signetum.commit_check import CHAIN, commit_check_status, install_commit_check
 from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
@@ -21,6 +23,7 @@ from signetum.operation_records import (
 )
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.runtime_identity import engine_source as actual_engine_source
+from signetum.stalled_workspaces import stalled_workspaces
 from signetum.synchronization import member_contribution_paths
 from signetum.workflow_status import workflow_status
 from signetum.workspaces import (
@@ -1085,11 +1088,6 @@ def test_status_lists_each_workspace_with_the_outcome_it_proves(repository):
 
 
 def test_status_reports_stalled_members_from_local_state_only(repository):
-    import time
-
-    from signetum.change_cli import main as change_main
-    from signetum.stalled_workspaces import stalled_workspaces
-
     root, _ = repository
     idle = opened(root, "plan/idle")
     dirty = opened(root, "plan/dirty")
