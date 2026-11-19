@@ -22,6 +22,7 @@ from signetum.operation_records import (
     OperationIntent,
     begin_operation,
     commit_message,
+    load_index,
 )
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.runtime_identity import engine_source as actual_engine_source
@@ -990,8 +991,7 @@ def test_abandon_with_discard_aborts_an_open_merge_and_retires_its_pending_recor
     project_message_hook(root)
     # An earlier engine started the merge before checking the message: open merge, pending record.
     with monkeypatch.context() as earlier:
-        earlier.setattr(ops, "require_project_commit_message", lambda *_: None)
-        earlier.setattr(operation_records, "require_project_commit_message", lambda *_: None)
+        earlier_engine(earlier)
         with pytest.raises(OperationFailed):
             ops.workspace_sync(member, message=operation_message())
     assert len(pending_records(member)) == 1
@@ -1206,6 +1206,17 @@ def project_message_hook(root):
     git_output(root, "config", "core.hooksPath", str(hooks))
 
 
+def earlier_engine(monkeypatch):
+    """An engine that checked the message only when Git ran the merge."""
+
+    for module in (ops, operation_records, lifecycle):
+        for name in ("require_project_commit_message", "require_project_commit_messages"):
+            if hasattr(module, name):
+                monkeypatch.setattr(module, name, lambda *_: None)
+    monkeypatch.setattr(operation_records, "preflight_merge_message", lambda *_: None)
+    monkeypatch.setattr(lifecycle, "preflight_merge_message", lambda *_: None)
+
+
 def pending_records(root):
     directory = state_root(root) / "operations" / "records"
     return sorted(directory.glob("*.json")) if directory.is_dir() else []
@@ -1234,8 +1245,7 @@ def test_an_open_merge_the_hook_refused_takes_a_corrected_message(repository, mo
     project_message_hook(root)
     # An earlier engine recorded intent and started the merge before checking the message.
     with monkeypatch.context() as earlier:
-        earlier.setattr(ops, "require_project_commit_message", lambda *_: None)
-        earlier.setattr(operation_records, "require_project_commit_message", lambda *_: None)
+        earlier_engine(earlier)
         with pytest.raises(OperationFailed, match="conventional"):
             ops.workspace_sync(member, message=operation_message())
     assert len(pending_records(member)) == 1
@@ -1254,14 +1264,133 @@ def test_a_merge_that_deletes_files_takes_a_corrected_message_after_the_hook_ref
     git_output(root, "push", "origin", "main")
     project_message_hook(root)
 
-    with pytest.raises(OperationFailed, match="Removes"):
+    # The preflight judges the message against the real staged deletion: nothing is left behind.
+    with pytest.raises(AdmissionError, match="Removes") as refused:
         ops.workspace_sync(member, message=VALID)
-    # Nothing was committed; a corrected message replaces the recorded one and commits the merge.
+    assert "gone.txt" in refused.value.expected
+    assert pending_records(member) == []
+    assert run_git(member, "rev-parse", "--verify", "MERGE_HEAD").returncode != 0
     result = ops.workspace_sync(member, message=VALID + "\nRemoves:\n- gone.txt\n")
     assert not (member / "gone.txt").exists()
     assert result["source"] == git_output(member, "rev-parse", "HEAD^2")
     assert git_output(member, "show", "-s", "--format=%s", "HEAD") == "feat: synchronize the member"
     assert git_output(member, "status", "--porcelain") == ""
+
+
+def _deleting_member(root):
+    commit_file(root, "gone.txt")
+    git_output(root, "push", "origin", "main")
+    sibling = opened(root, "plan/sibling")
+    commit_approval(sibling, "sibling")
+    git_output(sibling, "rm", "gone.txt")
+    git_output(sibling, "commit", "-m", "remove gone.txt")
+    lifecycle.validate(sibling, "member")
+    return sibling
+
+
+OWNER = {"actor": "Owner", "source": "Owner authorized the fixture batch"}
+REMOVES = "feat: open the batch\n\nRemoves:\n- gone.txt\n"
+
+
+def test_batch_open_judges_a_deleting_first_admission_before_creating_anything(repository):
+    root, _ = repository
+    sibling = _deleting_member(root)
+    project_message_hook(root)
+
+    with pytest.raises(AdmissionError, match="Removes"):
+        lifecycle.batch_open(root, (sibling,), "gone", messages=("feat: open\n",), **OWNER)
+    assert git_output(root, "branch", "--list", "batch/gone") == ""
+    assert list(root.glob(".worktrees/batch~*")) == []
+    assert pending_records(root) == []
+
+    result = lifecycle.batch_open(root, (sibling,), "gone", messages=(REMOVES,), **OWNER)
+    assert result["status"] == "opened"
+
+
+def _stuck_batch(root, sibling, monkeypatch):
+    """A batch an earlier engine left with a clean open merge and a pending admission."""
+
+    with monkeypatch.context() as earlier:
+        earlier_engine(earlier)
+        with pytest.raises((OperationFailed, AdmissionError)):
+            lifecycle.batch_open(root, (sibling,), "stuck", messages=("feat: open\n",), **OWNER)
+    batch = next(root.glob(".worktrees/batch~*"))
+    assert run_git(batch, "rev-parse", "--verify", "MERGE_HEAD").returncode == 0
+    assert len(pending_records(root)) == 1
+    return batch
+
+
+def test_batch_open_retried_with_a_corrected_message_commits_the_open_merge(
+    repository, monkeypatch
+):
+    root, _ = repository
+    sibling = _deleting_member(root)
+    project_message_hook(root)
+    _stuck_batch(root, sibling, monkeypatch)
+
+    result = lifecycle.batch_open(root, (sibling,), "stuck", messages=(REMOVES,), **OWNER)
+
+    assert result["status"] == "opened"
+    assert pending_records(root) == [] or all(
+        json.loads(p.read_text())["status"] == "completed" for p in pending_records(root)
+    )
+
+
+def test_batch_continue_takes_a_corrected_message_for_the_open_merge(repository, monkeypatch):
+    root, _ = repository
+    sibling = _deleting_member(root)
+    project_message_hook(root)
+    batch = _stuck_batch(root, sibling, monkeypatch)
+
+    result = lifecycle.continue_batch(batch, messages=(REMOVES,))
+
+    assert result["status"] in {"admitted", "continued", "passed"}
+    assert run_git(batch, "rev-parse", "--verify", "MERGE_HEAD").returncode != 0
+    assert (batch / "gone.txt").exists() is False
+
+
+def test_batch_admit_resumes_a_refused_merge_with_a_corrected_message(repository, monkeypatch):
+    root, _ = repository
+    sibling = _deleting_member(root)
+    project_message_hook(root)
+    batch = _stuck_batch(root, sibling, monkeypatch)
+
+    result = lifecycle.admit(batch, (sibling,), messages=(REMOVES,))
+
+    assert result["status"] == "admitted"
+    assert run_git(batch, "rev-parse", "--verify", "MERGE_HEAD").returncode != 0
+
+
+def test_an_abandoned_stuck_batch_leaves_no_record_and_its_name_is_reusable(
+    repository, monkeypatch
+):
+    root, _ = repository
+    sibling = _deleting_member(root)
+    project_message_hook(root)
+    batch = _stuck_batch(root, sibling, monkeypatch)
+    tip = git_output(batch, "rev-parse", "HEAD")
+
+    _owner_abandon(root, batch, tip, discard=True)
+
+    assert pending_records(root) == []
+    result = lifecycle.batch_open(root, (sibling,), "stuck", messages=(REMOVES,), **OWNER)
+    assert result["status"] == "opened"
+
+
+def test_a_sync_committed_by_hand_is_recorded_instead_of_left_unrecognized(repository):
+    root, _ = repository
+    member = opened(root, "plan/by-hand")
+    commit_file(member, "own.txt")
+    source = commit_file(root, "sibling.txt")
+    git_output(root, "push", "origin", "main")
+    git_output(member, "merge", "--no-ff", source, "-m", "feat: merge by hand")
+    by_hand = git_output(member, "rev-parse", "HEAD")
+    assert load_index(member).for_commit(by_hand) is None
+
+    ops.workspace_sync(member, message="feat: merge by hand\n")
+
+    assert load_index(member).for_commit(by_hand) is not None
+    assert git_output(member, "rev-parse", "HEAD") == by_hand
 
 
 def _batch_ready_member(root):

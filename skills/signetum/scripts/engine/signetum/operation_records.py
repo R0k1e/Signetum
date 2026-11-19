@@ -27,6 +27,7 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 from signetum.git import GitError, git_output, repository_path, run_git
 from signetum.operations import AdmissionError, MergeConflict, OperationFailed
@@ -235,6 +236,78 @@ def read_message_file(path: Path) -> str:
     except UnicodeError as error:
         raise AdmissionError("commit message is not UTF-8") from error
     return freeze_message(text)
+
+
+def _staged_summary(repository: Path, before: str, tree: str) -> str:
+    changes = git_output(repository, "diff", "--name-status", "--no-renames", before, tree)
+    lines = changes.splitlines()
+    deleted = [line.split("\t", 1)[1] for line in lines if line.startswith("D\t")]
+    summary = f"the merge stages {len(lines)} paths"
+    if deleted:
+        shown = ", ".join(deleted[:8]) + (" ..." if len(deleted) > 8 else "")
+        summary += f", deleting {len(deleted)}: {shown}"
+    return summary
+
+
+def preflight_merge_message(repository: Path, before: str, source: str, message: str) -> None:
+    """Judge a merge message with the merge's real staged change, leaving nothing behind.
+
+    The merged tree comes from Git without touching the work tree, and the project's
+    commit-msg hook reads it through a temporary index. A merge needing conflict
+    resolution is left to its own recovery; Git older than 2.38 has no preflight tree.
+    """
+
+    merged = run_git(repository, "merge-tree", "--write-tree", "--no-messages", before, source)
+    if merged.returncode != 0 or not merged.stdout.strip():
+        return
+    tree = merged.stdout.strip().splitlines()[0]
+    descriptor, temporary = tempfile.mkstemp(prefix=".index-", dir=state_root(repository))
+    os.close(descriptor)
+    index = Path(temporary)
+    try:
+        index.unlink()
+        read = run_git(repository, "read-tree", tree, index_file=index)
+        if read.returncode != 0:
+            return
+        require_project_commit_message(
+            repository,
+            freeze_message(message),
+            index=index,
+            staged=_staged_summary(repository, before, tree),
+        )
+    finally:
+        index.unlink(missing_ok=True)
+
+
+def _adopt_unrecorded_merge(repository: Path, intent: OperationIntent, head: str) -> str | None:
+    """Record a merge of this source that was committed by hand, so Git stays the truth.
+
+    The commit already exists with its message; nothing is created or changed.
+    """
+
+    index = load_index(repository)
+    listing = git_output(
+        repository, "log", "--first-parent", "--merges", "--format=%H %P", head
+    ).splitlines()
+    for line in listing:
+        commit, *parents = line.split()
+        if len(parents) != 2 or parents[1] != intent.source or index.for_commit(commit):
+            continue
+        adopted = OperationIntent(
+            kind=intent.kind,
+            branch=intent.branch,
+            before=parents[0],
+            source=intent.source,
+            base=intent.base,
+            message=commit_message(repository, commit),
+            attested_base=intent.attested_base,
+            parents=(parents[0], intent.source),
+            sync_kind=intent.sync_kind,
+        )
+        begin_operation(repository, adopted, check_message=False)
+        complete_operation(repository, adopted, commit)
+        return commit
+    return None
 
 
 def require_project_commit_messages(repository: Path, messages: Sequence[str]) -> None:
@@ -657,7 +730,9 @@ def _completed_proof_matches_git(repository: Path, document: Mapping[str, object
     )
 
 
-def begin_operation(repository: Path, intent: OperationIntent) -> dict[str, object]:
+def begin_operation(
+    repository: Path, intent: OperationIntent, *, check_message: bool = True
+) -> dict[str, object]:
     """Persist pending intent. The same intent retries; a different one refuses.
 
     A completed proof that matches its Git object is idempotent. A different
@@ -669,6 +744,7 @@ def begin_operation(repository: Path, intent: OperationIntent) -> dict[str, obje
     validate_operation(repository, document)
     with _lock(repository) as root:
         _discard_unfinishable(repository, root)
+        _retire_orphans(repository, root)
         for stored in _documents(root):
             other = parse_operation(stored)
             if (
@@ -708,7 +784,8 @@ def begin_operation(repository: Path, intent: OperationIntent) -> dict[str, obje
             )
         # A message the project would refuse can never become a commit, so it never
         # becomes pending intent either.
-        require_project_commit_message(repository, intent.message)
+        if check_message:
+            require_project_commit_message(repository, intent.message)
         _write_atomic(path, _canonical(document))
         return document
 
@@ -722,11 +799,15 @@ def _only_message_differs(document: Mapping[str, object], intent: OperationInten
     return _same_intent(document, intent_from_document(same))
 
 
-def _replace_pending_message(
+def replace_pending_message(
     repository: Path, document: Mapping[str, object], message: str
 ) -> dict[str, object]:
-    """Let the operator correct the message of an operation that produced no commit."""
+    """Let the operator correct the message of an operation that produced no commit.
 
+    The hook judges it first, with whatever the repository currently stages.
+    """
+
+    require_project_commit_message(repository, message)
     with _lock(repository) as root:
         path = _record_path(root, str(document["id"]))
         replaced = {**dict(document), "message": message}
@@ -777,6 +858,26 @@ def retire_pending_operations(repository: Path, branch: str) -> list[dict[str, o
                 )
                 _record_path(root, str(stored["id"])).unlink(missing_ok=True)
     return retired
+
+
+def _retire_orphans(repository: Path, root: Path) -> None:
+    """Move pending intent whose checkout is gone into the retired journal.
+
+    Git is the source of truth: without its branch checkout a pending operation can
+    never complete, so it must not block anything.
+    """
+
+    known = {name for name, _, _ in branch_checkouts(repository)}
+    for stored in _documents(root):
+        branch = stored.get("branch")
+        if stored.get("status") == "pending" and isinstance(branch, str) and branch not in known:
+            retired = root / "retired" / quote(branch, safe="")
+            retired.mkdir(parents=True, exist_ok=True)
+            summary = {
+                key: stored.get(key) for key in ("id", "kind", "before", "source", "base", "status")
+            }
+            _write_atomic(retired / f"orphaned-operation-{stored['id']}.json", _canonical(summary))
+            _record_path(root, str(stored["id"])).unlink(missing_ok=True)
 
 
 def _discard_unfinishable(repository: Path, root: Path) -> None:
@@ -963,8 +1064,15 @@ def _commit_msg_hook(repository: Path) -> Path | None:
     return None
 
 
-def require_project_commit_message(repository: Path, message: str) -> None:
-    """Run a project commit-msg hook before a commit Git itself would not check."""
+def require_project_commit_message(
+    repository: Path, message: str, *, index: Path | None = None, staged: str = ""
+) -> None:
+    """Run a project commit-msg hook before a commit Git itself would not check.
+
+    ``index`` is a temporary index holding the change the commit would stage, so a
+    hook that reads the staged change judges the real result. ``staged`` summarizes
+    it for the refusal.
+    """
 
     hook = _commit_msg_hook(repository)
     if hook is None:
@@ -981,12 +1089,16 @@ def require_project_commit_message(repository: Path, message: str) -> None:
             cwd=repository,
             check=False,
             capture_output=True,
+            env={**os.environ, **({"GIT_INDEX_FILE": str(index)} if index else {})},
         )
         if completed.returncode != 0:
             stderr = completed.stderr.decode(errors="replace").strip()
             stdout = completed.stdout.decode(errors="replace").strip()
             diagnostic = stderr or stdout
-            raise AdmissionError(diagnostic or "project commit message hook refused the message")
+            raise AdmissionError(
+                diagnostic or "project commit message hook refused the message",
+                expected=staged or "correct the message and retry",
+            )
         if path.read_bytes() != message.encode():
             raise AdmissionError("project commit message hook changed the recorded message")
     finally:
@@ -1332,7 +1444,7 @@ def merge_operation(repository: Path, intent: OperationIntent, *, recovery: str)
         if document.get("message") != intent.message and _only_message_differs(document, intent):
             # Nothing was committed, so the operator may supply a corrected message.
             require_project_commit_message(repository, intent.message)
-            document = _replace_pending_message(repository, document, intent.message)
+            document = replace_pending_message(repository, document, intent.message)
         if document.get("message") != intent.message or not _same_intent(document, intent):
             if document.get("before") != intent.before:
                 raise AdmissionError(
@@ -1353,12 +1465,15 @@ def merge_operation(repository: Path, intent: OperationIntent, *, recovery: str)
     if outside:
         return _resume_completed_merge(repository, outside[0], head)
     if _ancestor(repository, intent.source, head) and not ready:
-        return MergeOutcome("contained", head)
+        adopted = _adopt_unrecorded_merge(repository, intent, head)
+        return MergeOutcome("recovered", adopted) if adopted else MergeOutcome("contained", head)
     if ready:
         intent = intent_from_document(ready[0])
     else:
         if head != intent.before:
             raise AdmissionError("operation before does not match the branch tip")
+        # Judge the final message against the real merge result before anything is recorded.
+        preflight_merge_message(repository, intent.before, intent.source, intent.message)
         begin_operation(repository, intent)
     require_project_commit_message(repository, intent.message)
     merge_head = run_git(repository, "rev-parse", "--verify", "MERGE_HEAD")

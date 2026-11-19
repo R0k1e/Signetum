@@ -36,6 +36,21 @@ id = "REL-004"
 outcome = "Release 0.9.5 carries the fix with the package and Skill versions and the changelog updated."
 acceptance = ["Package and Skill versions agree on 0.9.5 and the changelog has a 0.9.5 section."]
 
+[[change.contract.requirements]]
+id = "PREFLIGHT-005"
+outcome = "Before any operation record, branch or worktree exists, the merge result is computed without touching a work tree and the project's commit-msg hook judges the final message against that real staged change; a refusal leaves nothing behind and names the paths the merge stages and deletes."
+acceptance = [
+    "A first admission that deletes files and whose message the hook refuses leaves no batch branch, worktree or record from batch-open, and a corrected retry succeeds.",
+]
+
+[[change.contract.requirements]]
+id = "RECOVER-006"
+outcome = "Git is the source of truth. A clean open merge a hook refused takes a corrected message through batch-open, batch-admit, batch-continue or workspace-sync and is committed; a pending record of a vanished checkout is retired into the journal; a merge of the delivery source that was committed by hand is recorded rather than left unrecognized."
+acceptance = [
+    "A batch left with an open merge and a pending admission by an earlier engine is completed by each of batch-open, batch-admit and batch-continue with a corrected message, and after abandonment its name can be reused.",
+    "A sync merge committed by hand is bound to an operation record by workspace-sync.",
+]
+
 [change.contract.autonomy]
 allowed = [
     "Extend the operation records and workspace owners and their tests within these outcomes.",
@@ -82,9 +97,32 @@ scope = ["Commit checks", "Workspace synchronization", "Batch admission", "Publi
 statement = "The project's commit-msg hook judges a request's message before any operation record, workspace or branch is created. A recorded operation persists its pending intent before Git effects. A pending operation that produced no commit takes a corrected message on retry, and a clean open merge the hook refused is committed with it. Pending intent whose branch or checkout is gone, or whose checkout has no open merge and no matching commit, never blocks a new operation. The commit check validates the actual candidate commit, parents and tree against that operation, and completion and retry retain the same identity. New operation messages contain caller-supplied real content without automatically added Signetum trailers or internal tags. Ordinary commits and unrelated merges retain their authorization and project validation rules."
 rationale = "Intent that cannot take effect must not deadlock a retry."
 
+[[change.contract.decisions]]
+id = "abandon-clears-pending/preflight"
+change_id = "abandon-clears-pending"
+authority = "changes/abandon-clears-pending/change.toml#decisions/abandon-clears-pending/preflight"
+parents = ["abandon-clears-pending/owner"]
+reason = "Downstream incidents showed one class of deadlock through four doors: a message the project's hook refused only while Git ran the merge deadlocked workspace-sync, batch-open, batch-admit and batch-continue; an abandoned batch left a pending admission that blocked its name; abandonment refused an open merge; and a hand-committed sync was never recognized. Each patch fixed one door. The structural rule is that nothing is recorded or created before the real result is judged, that Git rather than a record decides what exists, and that intent is replaceable until a commit exists. The preflight uses a merged tree and a temporary index, so a hook that reads the staged change judges the real deletions without a work tree. Generating hook-specific message sections is not done because Signetum cannot know a project's format; the refusal names the staged and deleted paths instead. Reopen if a project needs generated message parts. The documented commands and schemas are unchanged, so this is a patch release."
+
+[[change.contract.decisions.clauses]]
+id = "abandon-clears-pending/preflight-clause"
+change_id = "abandon-clears-pending"
+action = "amend"
+expected = [{ id = "COMMIT-MERGE-001", version = 5 }]
+authority = "changes/abandon-clears-pending/change.toml#decisions/abandon-clears-pending/preflight"
+reason = "Judge the real merge first and let Git decide what exists."
+
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-MERGE-001"
+version = 6
+topic = "skill-first-development"
+scope = ["Commit checks", "Workspace synchronization", "Batch admission", "Publication"]
+statement = "Before any operation record, branch or worktree exists, the merge result is computed without a work tree and the project's commit-msg hook judges the final message against that real staged change, so a refusal leaves nothing behind. A recorded operation persists its pending intent before Git effects, and a retry of the same intent may replace it, message included, until a commit exists; a clean open merge a hook refused is committed with the corrected message. Pending intent whose branch or checkout is gone, or whose checkout has no open merge and no matching commit, never blocks a new operation and is retired into the journal. A merge of the source committed by hand is recorded rather than left unrecognized. The commit check validates the actual candidate commit, parents and tree against that operation, and completion and retry retain the same identity. New operation messages contain caller-supplied real content without automatically added Signetum trailers or internal tags. Ordinary commits and unrelated merges retain their authorization and project validation rules."
+rationale = "One rule replaces per-operation recovery."
+
 [[change.execution.steps]]
 id = "STEP-001"
-requirements = ["ABANDON-001", "STALE-002", "MERGE-003"]
+requirements = ["ABANDON-001", "STALE-002", "MERGE-003", "PREFLIGHT-005", "RECOVER-006"]
 action = "Retire pending records on removal and abandonment, treat stale pending intent as replaceable, abort an open merge on discard, with regression tests."
 
 [[change.execution.steps]]
