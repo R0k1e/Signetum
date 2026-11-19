@@ -3,6 +3,18 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.5 - 2026-11-19
+
+- Abandoning a workspace or branch, or removing a delivered workspace, retires
+  its pending operation records and keeps their summaries in the retirement
+  record, so a record no longer outlives the work and blocks reopening a batch of
+  the same name.
+- A pending operation whose branch or checkout is gone, or that has no open merge
+  and no commit, never blocks a new operation; the new request replaces it.
+- `maintenance workspace-abandon --discard` aborts an open merge itself after
+  checking the confirmed tip. Without `--discard` it still refuses and names the
+  flag.
+
 ## 0.9.4 - 2026-11-18
 
 - A commit message the project's commit-msg hook refuses no longer leaves
