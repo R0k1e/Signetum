@@ -9,8 +9,16 @@ their original release history. Git and accepted change records retain reasoning
   its pending operation records and keeps their summaries in the retirement
   record, so a record no longer outlives the work and blocks reopening a batch of
   the same name.
-- A pending operation whose branch or checkout is gone, or that has no open merge
-  and no commit, never blocks a new operation; the new request replaces it.
+- Before anything is recorded or created, `workspace-sync`, `batch-open` and
+  `batch-admit` compute the merge result and run the project's commit-msg hook
+  against the final message and the real staged change, so a refusal (for example
+  a missing deletion section) leaves no record, branch or worktree and names the
+  deleted paths.
+- A clean merge a hook refused, left open by an earlier release, takes a corrected
+  `--message-file` through `batch-open`, `batch-admit`, `batch-continue` or
+  `workspace-sync` and is committed.
+- A pending operation whose branch or checkout is gone never blocks a new
+  operation; it is retired into the journal.
 - `maintenance workspace-abandon --discard` aborts an open merge itself after
   checking the confirmed tip. Without `--discard` it still refuses and names the
   flag.
