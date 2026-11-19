@@ -31,6 +31,7 @@ from pathlib import Path
 from signetum.git import GitError, git_output, repository_path, run_git
 from signetum.operations import AdmissionError, MergeConflict, OperationFailed
 from signetum.workspaces import (
+    branch_checkouts,
     branch_name,
     state_root,
 )
@@ -675,6 +676,9 @@ def begin_operation(repository: Path, intent: OperationIntent) -> dict[str, obje
                 and other.get("branch") == intent.branch
                 and other.get("id") != intent.identity()
             ):
+                if _pending_is_stale(repository, other):
+                    _record_path(root, str(other["id"])).unlink(missing_ok=True)
+                    continue
                 raise AdmissionError(
                     "another operation is already pending for this branch",
                     expected="finish that operation before starting a different one on this branch",
@@ -690,6 +694,11 @@ def begin_operation(repository: Path, intent: OperationIntent) -> dict[str, obje
                 repository, git_output(repository, "rev-parse", "HEAD"), existing
             ):
                 require_project_commit_message(repository, intent.message)
+                path.unlink()
+                _write_atomic(path, _canonical(document))
+                return document
+            if _pending_is_stale(repository, existing):
+                # Left by an operation that never took effect, such as an abandoned workspace.
                 path.unlink()
                 _write_atomic(path, _canonical(document))
                 return document
@@ -724,6 +733,50 @@ def _replace_pending_message(
         validate_operation(repository, replaced)
         _write_atomic(path, _canonical(replaced))
     return replaced
+
+
+def _pending_is_stale(repository: Path, document: Mapping[str, object]) -> bool:
+    """Pending intent that can no longer take effect and produced no commit.
+
+    Its branch or checkout is gone, or its checkout is back at the recorded
+    starting point with no merge open, so retrying simply begins again.
+    """
+
+    if document.get("status") != "pending":
+        return False
+    branch = document.get("branch")
+    if not isinstance(branch, str):
+        return False
+    checkout = next(
+        (path for name, path, _ in branch_checkouts(repository) if name == branch), None
+    )
+    if checkout is None or not checkout.is_dir():
+        return True
+    if run_git(checkout, "rev-parse", "--verify", "--quiet", "MERGE_HEAD").returncode == 0:
+        return False
+    head = git_output(checkout, "rev-parse", "HEAD")
+    return not _commit_matches_document(repository, head, document)
+
+
+def retire_pending_operations(repository: Path, branch: str) -> list[dict[str, object]]:
+    """Remove every pending operation record of a branch and return their summaries.
+
+    An abandoned or removed workspace never completes them; the caller keeps the
+    summaries in the workspace's retirement record as the audit trail.
+    """
+
+    retired: list[dict[str, object]] = []
+    with _lock(repository) as root:
+        for stored in _documents(root):
+            if stored.get("status") == "pending" and stored.get("branch") == branch:
+                retired.append(
+                    {
+                        key: stored.get(key)
+                        for key in ("id", "kind", "before", "source", "base", "status")
+                    }
+                )
+                _record_path(root, str(stored["id"])).unlink(missing_ok=True)
+    return retired
 
 
 def _discard_unfinishable(repository: Path, root: Path) -> None:

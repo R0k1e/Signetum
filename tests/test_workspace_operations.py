@@ -19,6 +19,8 @@ from signetum.commit_check import CHAIN, commit_check_status, install_commit_che
 from signetum.development_store import snapshot
 from signetum.git import git_output, run_git
 from signetum.operation_records import (
+    OperationIntent,
+    begin_operation,
     commit_message,
 )
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
@@ -963,6 +965,103 @@ def test_abandonment_requires_the_owners_confirmation_of_the_exact_tip(
     assert retirement["authorization"]["actor"] == "Owner"
     assert retirement["authorization"]["source"] == "Owner chat 2026-11-04"
     assert retirement["record"]["kind"] == "member"
+
+
+def _owner_abandon(root, member, tip, **extra):
+    return ops.workspace_abandon(
+        root,
+        member,
+        tip,
+        actor="Owner",
+        source="Owner chat 2026-11-19",
+        reason="Superseded merge.",
+        **extra,
+    )
+
+
+def test_abandon_with_discard_aborts_an_open_merge_and_retires_its_pending_record(
+    repository, monkeypatch
+):
+    root, _ = repository
+    member = opened(root, "plan/merging")
+    tip = commit_file(member, "own.txt")
+    commit_file(root, "sibling.txt")
+    git_output(root, "push", "origin", "main")
+    project_message_hook(root)
+    # An earlier engine started the merge before checking the message: open merge, pending record.
+    with monkeypatch.context() as earlier:
+        earlier.setattr(ops, "require_project_commit_message", lambda *_: None)
+        earlier.setattr(operation_records, "require_project_commit_message", lambda *_: None)
+        with pytest.raises(OperationFailed):
+            ops.workspace_sync(member, message=operation_message())
+    assert len(pending_records(member)) == 1
+
+    with pytest.raises(AdmissionError, match="git_operation"):
+        _owner_abandon(root, member, tip)
+    assert member.exists()
+
+    result = _owner_abandon(root, member, tip, discard=True)
+
+    assert not member.exists()
+    assert pending_records(root) == []
+    retirement = json.loads(Path(str(result["retirement"])).read_text())
+    assert [item["kind"] for item in retirement["retired_operations"]] == ["member-sync"]
+    assert retirement["outcome"] == "abandoned"
+
+
+def _pending_intent(root, branch, *, sync_kind="delivery"):
+    tip = git_output(root, "rev-parse", branch)
+    source = git_output(root, "rev-parse", "HEAD")
+    base = git_output(root, "merge-base", branch, "HEAD")
+    return OperationIntent(
+        kind="member-sync",
+        branch=branch,
+        before=tip,
+        source=source,
+        base=base,
+        message=VALID,
+        attested_base=base,
+        parents=(tip, source),
+        sync_kind=sync_kind,
+    )
+
+
+def test_branch_abandon_retires_pending_records_and_a_new_operation_proceeds(repository):
+    root, _ = repository
+    member = opened(root, "plan/loose")
+    tip = commit_file(member, "loose.txt")
+    git_output(member, "switch", "--detach")
+    commit_file(root, "sibling.txt")
+    intent = _pending_intent(root, "plan/loose")
+    begin_operation(root, intent)
+    assert len(pending_records(root)) == 1
+
+    result = ops.branch_abandon(
+        root,
+        "plan/loose",
+        tip,
+        actor="Owner",
+        source="Owner chat 2026-11-19",
+        reason="Dropped.",
+    )
+
+    assert pending_records(root) == []
+    retirement = json.loads(Path(str(result["retirement"])).read_text())
+    assert len(retirement["retired_operations"]) == 1
+
+
+def test_pending_intent_of_a_vanished_branch_never_blocks_a_new_operation(repository):
+    root, _ = repository
+    member = opened(root, "plan/vanished")
+    commit_file(member, "own.txt")
+    commit_file(root, "sibling.txt")
+    begin_operation(root, _pending_intent(root, "plan/vanished"))
+    shutil.rmtree(member)
+    git_output(root, "worktree", "prune")
+    other = _pending_intent(root, "plan/vanished", sync_kind="parent")
+
+    assert begin_operation(root, other)["sync_kind"] == "parent"
+    assert len(pending_records(root)) == 1
 
 
 def test_leftovers_lists_and_removes_only_confirmed_outside_work(repository, monkeypatch, capsys):

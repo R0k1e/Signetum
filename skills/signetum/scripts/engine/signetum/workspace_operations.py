@@ -22,6 +22,7 @@ from signetum.operation_records import (
     freeze_message,
     merge_operation,
     require_project_commit_message,
+    retire_pending_operations,
 )
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict
 from signetum.policy import delivery_policy
@@ -439,6 +440,17 @@ def _state_reason(workspace: wt.WorkspaceIdentity, expected_tip: str | None) -> 
     return None
 
 
+def _only_open_merge(path: Path) -> bool:
+    """A merge is open and no other Git operation is."""
+
+    if run_git(path, "rev-parse", "--verify", "--quiet", "MERGE_HEAD").returncode:
+        return False
+    others = ("CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer")
+    return not any(
+        repository_path(path, "rev-parse", "--git-path", name).exists() for name in others
+    )
+
+
 def _clean_reason(workspace: wt.WorkspaceIdentity, discard: bool) -> str | None:
     if discard:
         staged = run_git(workspace.path, "diff", "--cached", "--quiet")
@@ -533,6 +545,9 @@ def remove_workspace(
         json_output=True,
     )
     wt.require_removed_workspace(result, workspace)
+    ending = _with_retired_operations(
+        ending, retire_pending_operations(repository, workspace.branch)
+    )
     retired = retire_record(registry, workspace.branch, workspace.head, ending)
     return {
         "branch": workspace.branch,
@@ -541,6 +556,14 @@ def remove_workspace(
         **ending,
         "retirement": str(retired),
     }
+
+
+def _with_retired_operations(
+    ending: dict[str, object], retired: list[dict[str, object]]
+) -> dict[str, object]:
+    """Keep pending operations the removal retired in the retirement record."""
+
+    return {**ending, "retired_operations": retired} if retired else ending
 
 
 def _settle(
@@ -687,7 +710,21 @@ def workspace_abandon(
         raise AdmissionError("workspace-abandon cannot remove the delivery checkout")
     record = _record(repository, item.branch)
     with exclusive_batch(item.path) if record and record.kind == "batch" else nullcontext():
+        if discard and _only_open_merge(item.path):
+            # The owner confirmed this exact tip, and discarding is what they asked for.
+            if git_output(item.path, "rev-parse", "HEAD") != expected_tip:
+                raise AdmissionError(
+                    "workspace tip differs from the confirmed tip; confirm the current tip again"
+                )
+            aborted = run_git(item.path, "merge", "--abort")
+            if aborted.returncode:
+                raise AdmissionError(aborted.stderr.strip() or "cannot abort the open merge")
         refusal = _runtime_reason(item) or _state_reason(item, expected_tip)
+        if refusal == "git_operation" and not discard and _only_open_merge(item.path):
+            raise AdmissionError(
+                "workspace-abandon refuses git_operation workspace",
+                expected="rerun with --discard to abort the open merge, or finish it",
+            )
         if refusal == "advanced":
             raise AdmissionError(
                 "workspace tip differs from the confirmed tip; confirm the current tip again"
@@ -875,6 +912,7 @@ def branch_abandon(
             "recorded_at": datetime.now(UTC).date().isoformat(),
         },
     }
+    ending = _with_retired_operations(ending, retire_pending_operations(repository, branch))
     retired = retire_record(state_root(repository), branch, expected_tip, ending)
     return {
         "status": "abandoned",
