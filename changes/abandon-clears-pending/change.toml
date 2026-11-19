@@ -19,7 +19,7 @@ acceptance = [
 
 [[change.contract.requirements]]
 id = "STALE-002"
-outcome = "A pending operation record whose branch or checkout is gone, or whose checkout has no open merge and no matching commit, never blocks a new operation: the new request replaces it."
+outcome = "A pending operation record whose branch or checkout is gone never blocks a new operation: the new request replaces it."
 acceptance = [
     "A new operation with a different intent proceeds over the pending record of a vanished branch.",
 ]
@@ -45,10 +45,9 @@ acceptance = [
 
 [[change.contract.requirements]]
 id = "RECOVER-006"
-outcome = "Git is the source of truth. A clean open merge a hook refused takes a corrected message through batch-open, batch-admit, batch-continue or workspace-sync and is committed; a pending record of a vanished checkout is retired into the journal; a merge of the delivery source that was committed by hand is recorded rather than left unrecognized."
+outcome = "Git is the source of truth. A clean open merge a hook refused takes a corrected message through batch-open, batch-admit, batch-continue or workspace-sync and is committed; a pending record of a vanished checkout is retired into the journal."
 acceptance = [
     "A batch left with an open merge and a pending admission by an earlier engine is completed by each of batch-open, batch-admit and batch-continue with a corrected message, and after abandonment its name can be reused.",
-    "A sync merge committed by hand is bound to an operation record by workspace-sync.",
 ]
 
 [change.contract.autonomy]
@@ -119,6 +118,29 @@ topic = "skill-first-development"
 scope = ["Commit checks", "Workspace synchronization", "Batch admission", "Publication"]
 statement = "Before any operation record, branch or worktree exists, the merge result is computed without a work tree and the project's commit-msg hook judges the final message against that real staged change, so a refusal leaves nothing behind. A recorded operation persists its pending intent before Git effects, and a retry of the same intent may replace it, message included, until a commit exists; a clean open merge a hook refused is committed with the corrected message. Pending intent whose branch or checkout is gone, or whose checkout has no open merge and no matching commit, never blocks a new operation and is retired into the journal. A merge of the source committed by hand is recorded rather than left unrecognized. The commit check validates the actual candidate commit, parents and tree against that operation, and completion and retry retain the same identity. New operation messages contain caller-supplied real content without automatically added Signetum trailers or internal tags. Ordinary commits and unrelated merges retain their authorization and project validation rules."
 rationale = "One rule replaces per-operation recovery."
+
+[[change.contract.decisions]]
+id = "abandon-clears-pending/git-first"
+change_id = "abandon-clears-pending"
+authority = "changes/abandon-clears-pending/change.toml#decisions/abandon-clears-pending/git-first"
+parents = ["abandon-clears-pending/preflight"]
+reason = "Release testing showed two parts of the preflight decision too broad. A live checkout with no open merge can belong to a concurrent operation that has not yet run its Git effect, so only a vanished branch or checkout makes pending intent safe to retire; the existing rule that a different pending operation on one branch fails closed stays. Recording a merge committed by hand as a synchronization contradicts the accepted rule that a manual merge cannot become synchronization proof, which protects provenance, so it is not done; recovery of such a workspace needs its own owner decision. Reopen if a supported adoption of a hand-made sync is wanted."
+
+[[change.contract.decisions.clauses]]
+id = "abandon-clears-pending/git-first-clause"
+change_id = "abandon-clears-pending"
+action = "amend"
+expected = [{ id = "COMMIT-MERGE-001", version = 6 }]
+authority = "changes/abandon-clears-pending/change.toml#decisions/abandon-clears-pending/git-first"
+reason = "Retire only orphaned intent and keep manual merges outside synchronization proof."
+
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-MERGE-001"
+version = 7
+topic = "skill-first-development"
+scope = ["Commit checks", "Workspace synchronization", "Batch admission", "Publication"]
+statement = "Before any operation record, branch or worktree exists, the merge result is computed without a work tree and the project's commit-msg hook judges the final message against that real staged change, so a refusal leaves nothing behind. A recorded operation persists its pending intent before Git effects, and a retry of the same intent may replace it, message included, until a commit exists; a clean open merge a hook refused is committed with the corrected message. Pending intent whose branch or checkout is gone never blocks a new operation and is retired into the journal; a live checkout keeps its pending intent and a different pending operation on its branch fails closed. The commit check validates the actual candidate commit, parents and tree against that operation, and completion and retry retain the same identity. New operation messages contain caller-supplied real content without automatically added Signetum trailers or internal tags. Ordinary commits and unrelated merges retain their authorization and project validation rules."
+rationale = "Only orphaned intent is retired; manual merges stay outside synchronization proof."
 
 [[change.execution.steps]]
 id = "STEP-001"
