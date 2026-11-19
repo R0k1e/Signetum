@@ -3,6 +3,26 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.5 - 2026-11-19
+
+- Abandoning a workspace or branch, or removing a delivered workspace, retires
+  its pending operation records and keeps their summaries in the retirement
+  record, so a record no longer outlives the work and blocks reopening a batch of
+  the same name.
+- Before anything is recorded or created, `workspace-sync`, `batch-open` and
+  `batch-admit` compute the merge result and run the project's commit-msg hook
+  against the final message and the real staged change, so a refusal (for example
+  a missing deletion section) leaves no record, branch or worktree and names the
+  deleted paths.
+- A clean merge a hook refused, left open by an earlier release, takes a corrected
+  `--message-file` through `batch-open`, `batch-admit`, `batch-continue` or
+  `workspace-sync` and is committed.
+- A pending operation whose branch or checkout is gone never blocks a new
+  operation; it is retired into the journal.
+- `maintenance workspace-abandon --discard` aborts an open merge itself after
+  checking the confirmed tip. Without `--discard` it still refuses and names the
+  flag.
+
 ## 0.9.4 - 2026-11-18
 
 - A commit message the project's commit-msg hook refuses no longer leaves

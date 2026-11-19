@@ -2,7 +2,7 @@
 name: signetum
 description: "Develop and deliver code changes with Agents: approved scope, isolated workspaces, validated integration and explicit delivery, for one Agent or many in parallel."
 metadata:
-  version: "0.9.4"
+  version: "0.9.5"
 ---
 
 # Reliable Agent development and delivery

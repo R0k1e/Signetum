@@ -63,9 +63,11 @@ from signetum.operation_records import (
     legacy_commit,
     load_index,
     merge_operation,
+    preflight_merge_message,
     read_message_file,
     read_message_files,
     remember_continuation,
+    replace_pending_message,
     require_project_commit_message,
     require_project_commit_messages,
     write_message_copy,
@@ -427,10 +429,25 @@ def admit(
         return _admit_held(batch, members, frozen)
 
 
+def _resume_refused_merge(batch: Path, messages: tuple[str, ...]) -> None:
+    """Commit a clean open merge a project hook refused, with the corrected first message."""
+
+    if not repository_path(batch, "rev-parse", "--git-path", "MERGE_HEAD").is_file():
+        return
+    if not messages or _git(batch, "diff", "--name-only", "--diff-filter=U"):
+        return
+    pending = _pending_merge_record(
+        batch, _git(batch, "rev-parse", "HEAD"), _git(batch, "rev-parse", "MERGE_HEAD")
+    )
+    if pending is not None:
+        _continue_batch_held(batch, None, messages[:1])
+
+
 def _admit_held(
     batch: Path, members: tuple[Path, ...], messages: tuple[str, ...]
 ) -> dict[str, object]:
     require_batch_engine(batch)
+    _resume_refused_merge(batch, messages)
     _require_no_merge(batch)
     _require_clean(batch)
     batch_branch = _branch(batch)
@@ -650,6 +667,11 @@ def _continue_batch_held(
     frozen = pending.get("message")
     if not isinstance(frozen, str):
         raise AdmissionError("pending operation message is invalid")
+    corrected = message if message is not None else (messages[0] if messages else None)
+    if corrected is not None and corrected != frozen:
+        # Nothing was committed, so the operator may supply a corrected message.
+        pending = replace_pending_message(batch, pending, corrected)
+        frozen = corrected
     _require_modern_continuation(message, messages, frozen, pending)
     resolution = create_commit(
         batch,
@@ -1128,6 +1150,8 @@ def batch_open(
         raise AdmissionError("batch-open requires non-empty actor and source")
     # Before the batch workspace or branch exists, so a refusal leaves nothing behind.
     require_project_commit_messages(repository, frozen)
+    first_tip = _git(members[0].resolve(), "rev-parse", "HEAD")
+    preflight_merge_message(repository, fresh_delivery(repository)[1], first_tip, frozen[0])
     engine = opening_engine(repository)
     member_names = tuple(_branch(member.resolve()) for member in members)
     task = (
