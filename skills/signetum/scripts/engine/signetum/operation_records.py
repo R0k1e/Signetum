@@ -279,37 +279,6 @@ def preflight_merge_message(repository: Path, before: str, source: str, message:
         index.unlink(missing_ok=True)
 
 
-def _adopt_unrecorded_merge(repository: Path, intent: OperationIntent, head: str) -> str | None:
-    """Record a merge of this source that was committed by hand, so Git stays the truth.
-
-    The commit already exists with its message; nothing is created or changed.
-    """
-
-    index = load_index(repository)
-    listing = git_output(
-        repository, "log", "--first-parent", "--merges", "--format=%H %P", head
-    ).splitlines()
-    for line in listing:
-        commit, *parents = line.split()
-        if len(parents) != 2 or parents[1] != intent.source or index.for_commit(commit):
-            continue
-        adopted = OperationIntent(
-            kind=intent.kind,
-            branch=intent.branch,
-            before=parents[0],
-            source=intent.source,
-            base=intent.base,
-            message=commit_message(repository, commit),
-            attested_base=intent.attested_base,
-            parents=(parents[0], intent.source),
-            sync_kind=intent.sync_kind,
-        )
-        begin_operation(repository, adopted, check_message=False)
-        complete_operation(repository, adopted, commit)
-        return commit
-    return None
-
-
 def require_project_commit_messages(repository: Path, messages: Sequence[str]) -> None:
     """Refuse a message the project's commit-msg hook rejects, before any effect or record."""
 
@@ -819,8 +788,8 @@ def replace_pending_message(
 def _pending_is_stale(repository: Path, document: Mapping[str, object]) -> bool:
     """Pending intent that can no longer take effect and produced no commit.
 
-    Its branch or checkout is gone, or its checkout is back at the recorded
-    starting point with no merge open, so retrying simply begins again.
+    Its branch or checkout is gone, so nothing can complete it. A live checkout
+    keeps its pending intent, which a concurrent operation may still own.
     """
 
     if document.get("status") != "pending":
@@ -831,12 +800,7 @@ def _pending_is_stale(repository: Path, document: Mapping[str, object]) -> bool:
     checkout = next(
         (path for name, path, _ in branch_checkouts(repository) if name == branch), None
     )
-    if checkout is None or not checkout.is_dir():
-        return True
-    if run_git(checkout, "rev-parse", "--verify", "--quiet", "MERGE_HEAD").returncode == 0:
-        return False
-    head = git_output(checkout, "rev-parse", "HEAD")
-    return not _commit_matches_document(repository, head, document)
+    return checkout is None or not checkout.is_dir()
 
 
 def retire_pending_operations(repository: Path, branch: str) -> list[dict[str, object]]:
@@ -1465,8 +1429,7 @@ def merge_operation(repository: Path, intent: OperationIntent, *, recovery: str)
     if outside:
         return _resume_completed_merge(repository, outside[0], head)
     if _ancestor(repository, intent.source, head) and not ready:
-        adopted = _adopt_unrecorded_merge(repository, intent, head)
-        return MergeOutcome("recovered", adopted) if adopted else MergeOutcome("contained", head)
+        return MergeOutcome("contained", head)
     if ready:
         intent = intent_from_document(ready[0])
     else:

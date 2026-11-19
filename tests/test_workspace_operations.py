@@ -22,7 +22,6 @@ from signetum.operation_records import (
     OperationIntent,
     begin_operation,
     commit_message,
-    load_index,
 )
 from signetum.operations import AdmissionError, InfrastructureError, MergeConflict, OperationFailed
 from signetum.runtime_identity import engine_source as actual_engine_source
@@ -1375,22 +1374,6 @@ def test_an_abandoned_stuck_batch_leaves_no_record_and_its_name_is_reusable(
     assert pending_records(root) == []
     result = lifecycle.batch_open(root, (sibling,), "stuck", messages=(REMOVES,), **OWNER)
     assert result["status"] == "opened"
-
-
-def test_a_sync_committed_by_hand_is_recorded_instead_of_left_unrecognized(repository):
-    root, _ = repository
-    member = opened(root, "plan/by-hand")
-    commit_file(member, "own.txt")
-    source = commit_file(root, "sibling.txt")
-    git_output(root, "push", "origin", "main")
-    git_output(member, "merge", "--no-ff", source, "-m", "feat: merge by hand")
-    by_hand = git_output(member, "rev-parse", "HEAD")
-    assert load_index(member).for_commit(by_hand) is None
-
-    ops.workspace_sync(member, message="feat: merge by hand\n")
-
-    assert load_index(member).for_commit(by_hand) is not None
-    assert git_output(member, "rev-parse", "HEAD") == by_hand
 
 
 def _batch_ready_member(root):
