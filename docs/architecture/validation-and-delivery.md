@@ -315,6 +315,13 @@ members. There is no repinning operation. Legacy records without an engine remai
 unpinned and status says so; members remain unpinned. A void validation names
 each changed input and its before/after identities.
 
+Abandonment retires pending operations and leaves completed operations available
+for immutable history. Admission reads the member's recorded synchronizations
+to identify its contribution. Final reads the replacement batch's admission
+chain along its first parents, so older admission merges in a member's ancestry
+remain history. Exact ready evidence remains usable when the member's checked
+inputs are unchanged across engine versions.
+
 The commit check also refuses added or modified Proposed decisions using final's
 predicate on the commit and its parent, and rewritten delivered commitments
 using `changed_commitments`. The registered workspace base identifies delivered
