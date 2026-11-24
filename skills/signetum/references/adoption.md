@@ -218,9 +218,10 @@ The engine remains in the installed Skill. Do not add an application dependency.
 Operate consumer repositories through the installed Skill launcher, for example
 `sh ~/.claude/skills/signetum/scripts/signetum <operation>`. Project wrappers
 set `SIGNETUM_SKILL` and call that launcher's `scripts/signetum`; they never
-call an engine in another development checkout. Update the Skill only when no
-batch is open. A batch pins the opening engine; finish it with that engine or
-open a new batch for the same ready members. Publishing a newer release leaves
+call an engine in another development checkout. A batch pins the opening engine;
+normally finish it before updating. To replace a blocked 0.9.5 batch, follow the
+[recovery procedure](delivery-recovery.md#replace-a-095-batch-blocked-by-a-superseded-invalid-record).
+Publishing a newer release leaves
 an open batch's installed engine and pin in place. Repository self-hosting runs
 batch operations from the batch worktree with its own engine. When that
 checked-out engine rejects `--message-file`, adopt the qualified repository

@@ -281,8 +281,9 @@ def read_package(
     repository: Path, manifest: RepositoryManifest, change_id: str, revision: str
 ) -> ConsolidatedPackage:
     root = f"{changes_root(manifest)}/{change_id}"
+    path = f"{root}/change.toml"
     try:
-        source = committed_blob(repository, revision, f"{root}/change.toml")
+        source = committed_blob(repository, revision, path)
         if source is not None:
             legacy = git_output(
                 repository,
@@ -295,7 +296,7 @@ def read_package(
                 f"{root}/specs",
                 f"{root}/plans",
             )
-            if competing_legacy_authorities(f"{root}/change.toml", frozenset(legacy.splitlines())):
+            if competing_legacy_authorities(path, frozenset(legacy.splitlines())):
                 raise ValueError("change has competing consolidated and legacy authorities")
             record = parse_change_record(source[1])
             if record.id != change_id:
@@ -303,9 +304,7 @@ def read_package(
             return ConsolidatedPackage(record)
         raise ValueError("approved change record is unavailable")
     except (GitError, ValueError, KeyError) as error:
-        raise ChangeError(
-            f"change {change_id} package is unavailable or invalid: {error}"
-        ) from error
+        raise ChangeError(f"change package {path} is unavailable or invalid: {error}") from error
 
 
 APPROVAL_ORDER_REMEDY = (
@@ -501,9 +500,8 @@ def require_member_commit(
 ) -> None:
     """Judge one new member commit with the approval order ready applies to every commit.
 
-    A commit that changes only change records and decisions always passes. Any
-    other commit must follow, in its parent, the committed approval of each
-    change package the member carries, binding the contract the commit holds.
+    Approval order applies to implementation commits. Each must follow, in its
+    parent, the committed approval of each change package the member carries.
     """
 
     manifest = _action_manifest(repository, manifest, commit)

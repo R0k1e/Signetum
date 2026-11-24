@@ -17,7 +17,9 @@ its last pass; it may run no integration checks. Final stays complete, so a
 failure that appears only when members combine surfaces at final. Before final, reconcile
 retained findings with `status` and the journal tools. Final checks the
 frozen source and generates the delivery review; do not write a duplicate review
-file. Show the approved outcomes, standing answers, accepted decision changes,
+file. The review lists superseded invalid record revisions by commit and parse
+cause. An invalid current record refuses with its path and cause.
+Show the approved outcomes, standing answers, accepted decision changes,
 evidence, test changes and their effect on coverage, and unfinished work before
 explicitly authorized delivery. Source journals and
 admitted receipts remain bound to that exact review.
@@ -145,3 +147,23 @@ Ordinary Git merges keep project hooks enabled. `commit-tree` publication runs
 the project `commit-msg` hook and fails closed if that hook rejects or changes
 the frozen message. Follow the project's commit convention; do not invent a
 release subject from the delivery stage.
+
+## Replace a 0.9.5 batch blocked by a superseded invalid record
+
+Update the installed Skill to 0.9.6 and restart the session. [Update procedure](adoption.md#update-the-skill)
+
+From the delivery checkout, run `maintenance workspace-abandon
+<old-batch-worktree> <confirmed-tip> --actor <owner> --source <confirmation>
+--reason <why>`. Keep the member workspaces.
+
+Run `batch-open --name <new-name> --actor <owner> --source <approval> --member
+<member-worktree> --message-file <path>`. Repeat the member and message-file
+pair in admission order, or open with the first member and use `batch-admit
+--batch <new-batch-worktree>` with the remaining pairs in that order. Members
+with unchanged tips and checked inputs keep their original `ready` receipts
+and recorded `maintenance workspace-sync --batch` merges.
+
+From the new batch worktree, run `final --deliver --target <delivery-worktree>
+--actor <owner> --source <delivery-authorization> --message-file <path>`. After
+delivery passes, run `maintenance cleanup --all-delivered` from the delivery
+checkout.

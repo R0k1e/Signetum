@@ -3,6 +3,20 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.6 - 2026-11-24
+
+- The commit check refuses invalid change records after approval in registered
+  members and batches, including records-only commits. It reports the record
+  path and validation cause before the branch moves.
+- Final lists superseded invalid record revisions with their commits and causes.
+  Contract revisions compare consecutive valid records. An invalid current
+  record produces a structured refusal naming the record.
+- To recover a 0.9.5 batch blocked at final, use 0.9.6 to abandon the old batch
+  at its confirmed tip, admit the same ready members in order into a new batch,
+  then run `final --deliver` and `maintenance cleanup --all-delivered`. Members
+  with unchanged checked inputs keep their ready evidence and any recorded
+  synchronization history.
+
 ## 0.9.5 - 2026-11-19
 
 - Abandoning a workspace or branch, or removing a delivered workspace, retires
