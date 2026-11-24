@@ -32,9 +32,15 @@ id = "REL-003"
 outcome = "Release 0.9.6 carries the fix with the package and Skill versions and the changelog updated."
 acceptance = ["Package and Skill versions agree on 0.9.6 and the changelog has a 0.9.6 section."]
 
+[[change.contract.requirements]]
+id = "REBATCH-004"
+outcome = "After a batch is abandoned, its members, including members that synchronized with it and so carry its admission merges in their ancestry, are admitted into a new batch opened by the current engine without rebuilding their history, pass final there, and are cleaned up after delivery."
+acceptance = ["tests/test_batch_synchronization.py::test_rebatch_after_abandoning_an_older_engine_batch delivers and cleans up the original ready members, including synchronized history and a superseded invalid record, with split and combined admission."]
+
 [change.contract.autonomy]
 allowed = [
     "Extend the commit check, the authorization history and their tests within these outcomes.",
+    "Repair the supported replacement-batch path for unchanged member histories and cover it through the public lifecycle.",
     "Reconcile the affected architecture and Skill guidance.",
 ]
 requires_confirmation = [
@@ -73,6 +79,11 @@ action = "Refuse an invalid approved record in the commit check, retain a supers
 id = "STEP-002"
 requirements = ["REL-003"]
 action = "Set versions to 0.9.6 and add the changelog section."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["REBATCH-004"]
+action = "Exercise the replacement batch through abandonment, admission, final, delivery and cleanup; repair refusals and document the supported recovery."
 
 [change.approval]
 actor = "Repository owner"
