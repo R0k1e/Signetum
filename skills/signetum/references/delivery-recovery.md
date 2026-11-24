@@ -17,7 +17,9 @@ its last pass; it may run no integration checks. Final stays complete, so a
 failure that appears only when members combine surfaces at final. Before final, reconcile
 retained findings with `status` and the journal tools. Final checks the
 frozen source and generates the delivery review; do not write a duplicate review
-file. Show the approved outcomes, standing answers, accepted decision changes,
+file. The review lists superseded invalid record revisions by commit and parse
+cause. An invalid current record refuses with its path and cause.
+Show the approved outcomes, standing answers, accepted decision changes,
 evidence, test changes and their effect on coverage, and unfinished work before
 explicitly authorized delivery. Source journals and
 admitted receipts remain bound to that exact review.

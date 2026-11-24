@@ -18,16 +18,18 @@ Workspace opening and every successful preparation install or verify the
 `active | inactive` chain and warns when inactive; see the
 [adoption guide](adoption.md) for the project-owned hook snippet. Skill hooks
 call the stable launcher rather than an interpreter in a replaceable cache.
-The check judges each new implementation commit against its parent approval;
-records-only commits retain their existing rules. A recorded synchronization,
+The check judges each new implementation commit against its parent approval.
+A recorded synchronization,
 admission or publication commit must keep the exact message frozen for that
 operation. Ready and final provide the same attribution backstop when a hook
 cannot run. Where the project declares no commit convention, use a lightweight
 Conventional Commit subject without assigning a type from the lifecycle stage.
 It also refuses added or modified Proposed decisions and rewritten delivered
 commitments through the predicates final uses. These checks read committed
-snapshots; the registered base identifies delivered packages, so newly introduced
-packages remain editable. Records-only commits still undergo these record checks.
+snapshots; the registered base identifies delivered packages. A new single-parent
+commit must leave a valid change record for a package introduced in the workspace
+once a valid approved version exists in its history. Invalid drafts can be
+committed before approval. Records-only commits also undergo these checks.
 
 Signetum runs its own pinned Worktrunk, so a project provides none. When another
 declared tool is missing from the default Mise environment, Signetum runs it under

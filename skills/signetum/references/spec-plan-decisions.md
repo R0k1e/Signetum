@@ -19,9 +19,10 @@ qualify. Authorization is recorded once. Later scope changes update change.toml
 and are recorded only, without contract-digest binding or re-approval. Final
 review derives and lists those revisions from source history per change, starting
 at the first change.toml that parses as an approved record. Earlier unparsable
-drafts stay in the review with their commit and parse cause and never count as
-approval. An unparsable record after authorization fails review even when a later
-commit is valid. Record `recorded_at`; `date` is not accepted as that field.
+drafts and superseded invalid postapproval revisions stay in the review with
+their commits and parse causes. Contract revisions compare consecutive valid
+records. An invalid current record refuses with its path and cause. Record
+`recorded_at`; `date` is not accepted as that field.
 
 Trace to the root cause before asking. Ask related questions together, once.
 The coordinating Agent decides package splits, ordering and batching and reports

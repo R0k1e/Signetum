@@ -2,7 +2,7 @@
 name: signetum
 description: "Develop and deliver code changes with Agents: approved scope, isolated workspaces, validated integration and explicit delivery, for one Agent or many in parallel."
 metadata:
-  version: "0.9.5"
+  version: "0.9.6"
 ---
 
 # Reliable Agent development and delivery
@@ -49,7 +49,9 @@ the owner verbatim. Commit it before implementation. Record later scope changes
 without re-approval; final review derives change.toml revisions from history,
 starting at the first record that parses as approved. An unparsable change.toml
 before that authorization stays a review diagnostic with its commit and parse
-cause and is not authority. An unparsable record after authorization fails review.
+cause. Final also reports invalid postapproval revisions that a later valid
+record replaces, and derives contract revisions from valid records. An invalid
+current record refuses with its path and cause.
 `approval.date` is not a substitute for `recorded_at`.
 Preserve existing authorization; installation and passing checks confer none.
 
@@ -64,7 +66,9 @@ until it passes. A hook those operations install refuses an implementation commi
 before the committed approval of the workspace's own change record; commit the
 approval first, never bypass the hook. It also refuses added or modified Proposed
 decisions and rewritten delivered commitments, including in records-only commits,
-through the predicates final uses. Never hand back a member or call it done without a passing
+through the predicates final uses. For a package introduced in the workspace,
+new single-parent commits must leave a valid record once an approved version exists
+in history. Never hand back a member or call it done without a passing
 `ready` on its current tip. `ready --explain` shows its selection without checks.
 Follow [work and validation](references/worktree-validation.md) during development
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)

@@ -249,10 +249,11 @@ That history starts at the first `change.toml` that parses as an approved record
 An earlier `change.toml` that does not parse is not authority and does not qualify
 implementation. Final keeps each such draft on that change as `invalid_drafts`,
 with its commit and the source parse cause. `approval_commit` is that first parsed
-approval, and `contract_revisions` still lists every later parsed contract change.
-A `change.toml` that does not parse after authorization fails review, including
-when a later commit parses. Current parsing does not alias `approval.date` to
-`recorded_at` or drop the extra field. The review
+approval. Final reports invalid postapproval revisions that a later valid record
+replaces as `superseded_invalid`, with their commits and parse causes.
+`contract_revisions` compares consecutive valid records across those revisions.
+An invalid current record refuses with its path and cause. Current parsing does
+not alias `approval.date` to `recorded_at` or drop the extra field. The review
 includes the authority and contract digests at the parent, including superseded
 contracts. Old excluded drafts remain unused unless approved and committed as
 legacy authority. Records-only commits are attributed to the records they touch.
@@ -317,8 +318,10 @@ each changed input and its before/after identities.
 The commit check also refuses added or modified Proposed decisions using final's
 predicate on the commit and its parent, and rewritten delivered commitments
 using `changed_commitments`. The registered workspace base identifies delivered
-packages; records first introduced in this workspace remain editable under their
-existing rules. These record predicates also apply to records-only commits.
+packages. For a package introduced in the workspace, a new single-parent commit
+must leave a valid record once the parent or an earlier revision holds a valid
+approval. These predicates also apply to records-only commits. Invalid drafts
+remain committable before approval.
 
 
 Final's review binds approvals, source journals, admitted receipts, batch commit

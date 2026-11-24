@@ -312,10 +312,14 @@ def _project_review(
     root, _ = authority_roots(repository, commit=commit)
     selected = []
     for change_id in sorted(set(change_ids)):
-        blob = committed_blob(repository, commit, f"{root}/{change_id}/change.toml")
-        if blob is None:
-            continue
-        record = parse_change_record(blob[1])
+        relative = f"{root}/{change_id}/change.toml"
+        try:
+            blob = committed_blob(repository, commit, relative)
+            if blob is None:
+                continue
+            record = parse_change_record(blob[1])
+        except ValueError as error:
+            raise ValueError(f"invalid current change record {relative}: {error}") from error
         if record.id != change_id:
             raise ValueError("source review change identity is inconsistent")
         for decision in record.contract.decisions:
