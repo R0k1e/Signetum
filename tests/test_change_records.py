@@ -5,15 +5,16 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from change_fixtures import commit_approval, consolidated_approval
+from change_fixtures import ADDED_REQUIREMENT, ADDED_STEP, commit_approval, consolidated_approval
 from operation_messages import operation_message, operation_messages
 from signetum import change_cli, lifecycle
 from signetum.change_record import parse_change_record
 from signetum.development_store import snapshot as development_snapshot
 from signetum.gate_records import failure_path
+from signetum.operation_cli import run_operation
 from signetum.operations import AdmissionError
-from signetum.serialization import ValueDecodeError
 from signetum.workflow_status import workflow_status
+from signetum.workspaces import state_root
 from test_batch_admission import _git, _record, _repository
 
 
@@ -436,26 +437,64 @@ def test_final_keeps_an_invalid_draft_and_starts_at_the_valid_approval(tmp_path)
     assert invalid not in {item["commit"] for item in revisions}
 
 
-def test_an_invalid_revision_after_authorization_fails_even_when_corrected(tmp_path):
-    """A later valid record does not excuse an unparsable postauthorization revision."""
+def test_final_reports_an_invalid_revision_after_authorization_when_corrected(tmp_path, capsys):
+    """Review records the invalid revision and derives authority across valid revisions."""
     member, batch, _base = _open_member(tmp_path, "invalid-after-approval")
     commit_approval(member)
     (member / "behavior.txt").write_text("implemented\n")
     _git(member, "add", ".")
     _git(member, "commit", "-m", "implement behavior")
-    path = member / "changes/example/change.toml"
-    approved = path.read_text()
-    path.write_text(approved.replace("recorded_at = 2026-10-29", "date = 2026-10-29", 1))
-    _git(member, "commit", "-am", "record an invalid postauthorization revision")
-    corrected = approved.replace("Implement the confirmed behavior.", "Corrected outcome.")
-    path.write_text(corrected)
+    first = _revise(
+        member,
+        "Implement the confirmed behavior.",
+        "Clarified outcome.",
+        "record a valid postauthorization revision",
+    )
+    relative = "changes/example/change.toml"
+    path = member / relative
+    incomplete = path.read_text() + ADDED_REQUIREMENT
+    path.write_text(incomplete)
+    _git(member, "commit", "-am", "add a requirement without a step")
+    invalid = _git(member, "rev-parse", "HEAD")
+    cause = "execution steps must cover exactly the owned requirements"
+    with pytest.raises(AdmissionError) as refused:
+        lifecycle.validate(member, "member")
+    assert relative in str(refused.value)
+    assert cause in str(refused.value)
+
+    path.write_text(incomplete + ADDED_STEP)
     _git(member, "commit", "-am", "correct the record after the invalid revision")
-    parse_change_record(path.read_text())
+    corrected = _git(member, "rev-parse", "HEAD")
     assert lifecycle.validate(member, "member")["status"] == "ready"
     lifecycle.admit(batch, (member,), messages=operation_messages(1))
 
-    with pytest.raises(ValueDecodeError, match="declared alternatives"):
-        lifecycle.validate(batch, "final")
+    final: Any = lifecycle.validate(batch, "final")
+    [approval] = final["delivery_review"]["approvals"]
+    assert approval["superseded_invalid"] == [{"commit": invalid, "cause": cause}]
+    revisions = approval["contract_revisions"]
+    assert [item["commit"] for item in revisions] == [first, corrected]
+    assert revisions[1]["before"] == revisions[0]["after"]
+    assert revisions[1]["fields"]["requirements"]["after"][-1]["id"] == "REQ-2"
+
+    (batch / relative).write_text(incomplete)
+    # Reproduce a batch tip written by an engine without the new commit check.
+    _git(
+        batch,
+        "-c",
+        "core.hooksPath=/dev/null",
+        "commit",
+        "-am",
+        "leave an invalid record at the batch tip",
+    )
+    capsys.readouterr()
+    code = run_operation(
+        batch, "final", lambda: lifecycle.validate(batch, "final"), state_root=state_root
+    )
+    failure = json.loads(capsys.readouterr().out)
+    assert code == 2
+    assert failure["status"] == "invalid"
+    assert relative in failure["cause"]
+    assert cause in failure["cause"]
 
 
 def test_an_invalid_draft_never_qualifies_implementation(tmp_path):

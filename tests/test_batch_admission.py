@@ -13,8 +13,14 @@ from typing import Any, Literal
 
 import pytest
 import signetum.lifecycle as lifecycle
+from change_fixtures import (
+    ADDED_REQUIREMENT,
+    ADDED_STEP,
+    approved_record_source,
+    commit_approval,
+    consolidated_approval,
+)
 from change_fixtures import approve_change as _approve_change
-from change_fixtures import approved_record_source, commit_approval, consolidated_approval
 from operation_messages import operation_message, operation_messages
 from pydantic import JsonValue
 from signetum.commit_check import install_commit_check
@@ -1254,6 +1260,10 @@ def test_commit_check_allows_record_refinements_and_unchanged_historical_proposa
     _git(repository, "checkout", "-b", branch)
     _record(repository, branch, base, kind)
     assert install_commit_check(repository)["status"] == "active"
+    current = consolidated_approval(repository, base, change_id="current", approved=False)
+    draft = current.read_text()
+    current.write_text(draft + ADDED_REQUIREMENT)
+    assert _committed(repository, "draft an incomplete requirement").returncode == 0
     commit_approval(repository, "current")
     path = repository / "changes/delivered/change.toml"
     original = path.read_text()
@@ -1264,6 +1274,26 @@ def test_commit_check_allows_record_refinements_and_unchanged_historical_proposa
     accepted.write_text("# Accepted\n\nStatus: Accepted\n")
     assert _committed(repository, "refine execution and add accepted decision").returncode == 0
     # A package introduced after the registered base is still this workspace's intent.
-    current = repository / "changes/current/change.toml"
     current.write_text(current.read_text().replace('outcome = "', 'outcome = "Refined '))
     assert _committed(repository, "refine new contract").returncode == 0
+    approved = current.read_text()
+    tip = _git(repository, "rev-parse", "HEAD")
+    current.write_text(approved + ADDED_REQUIREMENT)
+    refused = _committed(repository, "add a requirement without a step")
+    assert refused.returncode != 0
+    assert str(current.relative_to(repository)) in refused.stderr
+    assert "execution steps must cover exactly the owned requirements" in refused.stderr
+    assert _git(repository, "rev-parse", "HEAD") == tip
+
+    current.write_text(approved + ADDED_REQUIREMENT + ADDED_STEP)
+    assert _committed(repository, "add a requirement and its step").returncode == 0
+
+    current.write_text(draft)
+    assert _committed(repository, "record a valid draft revision").returncode == 0
+    tip = _git(repository, "rev-parse", "HEAD")
+    current.write_text(draft + ADDED_REQUIREMENT)
+    refused = _committed(repository, "add an incomplete requirement after historical approval")
+    assert refused.returncode != 0
+    assert str(current.relative_to(repository)) in refused.stderr
+    assert "execution steps must cover exactly the owned requirements" in refused.stderr
+    assert _git(repository, "rev-parse", "HEAD") == tip

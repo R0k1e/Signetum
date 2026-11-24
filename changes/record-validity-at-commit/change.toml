@@ -1,0 +1,91 @@
+[change]
+schema_version = 2
+id = "record-validity-at-commit"
+
+[change.source]
+kind = "human_direction"
+summary = "A downstream batch of eleven members passed every member gate and was refused at final with an unhandled error: two records-only commits, made after approval, added a requirement without its execution step and the next commit added the step. The commit check accepted the invalid record, ready read only the tip, and final failed on history that every later member had already merged. The owner directed that Signetum be fixed so the batch can be delivered without rebuilding member history."
+
+[change.contract]
+version = 1
+approved_base = "cda733a655dda77128b3fbd5c521762dca3cc110" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "COMMIT-001"
+outcome = "The commit check refuses a new single-parent commit on a registered member or batch that leaves a change record of a package introduced in that workspace invalid once an approved version of that record exists, records-only commits included, and names the record and the cause; the branch tip stays unchanged."
+acceptance = [
+    "A records-only commit after approval that adds a requirement without an execution step is refused, and the same change with its step in one commit is accepted.",
+    "A draft record before its approval can still be committed invalid.",
+]
+
+[[change.contract.requirements]]
+id = "HISTORY-002"
+outcome = "Authorization history keeps strict validation of the current record and of every revision that grants or changes authority. A revision after approval that does not validate and that a later valid revision of the same record replaces is retained as a diagnostic with its commit and cause and grants no authority; it no longer fails ready or final. An invalid current record still fails."
+acceptance = [
+    "A batch whose history holds an invalid revision replaced by a valid one passes final and its review lists that revision as superseded.",
+    "A batch whose current record is invalid is refused with a structured failure that names the record, not an unhandled error.",
+    "Contract revisions are computed between consecutive valid revisions across a superseded one.",
+]
+
+[[change.contract.requirements]]
+id = "REL-003"
+outcome = "Release 0.9.6 carries the fix with the package and Skill versions and the changelog updated."
+acceptance = ["Package and Skill versions agree on 0.9.6 and the changelog has a 0.9.6 section."]
+
+[[change.contract.requirements]]
+id = "REBATCH-004"
+outcome = "After a batch is abandoned, its members, including members that synchronized with it and so carry its admission merges in their ancestry, are admitted into a new batch opened by the current engine without rebuilding their history, pass final there, and are cleaned up after delivery."
+acceptance = ["tests/test_batch_synchronization.py::test_rebatch_after_abandoning_an_older_engine_batch delivers and cleans up the original ready members, including synchronized history and a superseded invalid record, with split and combined admission."]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the commit check, the authorization history and their tests within these outcomes.",
+    "Repair the supported replacement-batch path for unchanged member histories and cover it through the public lifecycle.",
+    "Reconcile the affected architecture and Skill guidance.",
+]
+requires_confirmation = [
+    "Changing a record or manifest schema, loosening the command guard, publishing a release, or running update or install against an installed Skill.",
+]
+
+[[change.contract.decisions]]
+id = "record-validity-at-commit/owner"
+change_id = "record-validity-at-commit"
+authority = "changes/record-validity-at-commit/change.toml#decisions/record-validity-at-commit/owner"
+parents = ["commit-check-covers-records/record-predicates"]
+reason = "A record's validity is knowable when the commit is made, so the commit check is where an invalid revision is refused; waiting leaves immutable history that merged members share. Final stayed strict about every revision after approval, which turned one correctable slip into a refusal that only a history rebuild could clear, although the invalid revision never carried authority: the gates read the current record and the revisions between valid records. Retaining it as a named diagnostic keeps the review honest without blocking delivery. Refusing only at commit time and leaving final strict was rejected because history written by an earlier engine would stay undeliverable. Reopen if an invalid revision is found to have carried authority through any gate."
+
+[[change.contract.decisions.clauses]]
+id = "record-validity-at-commit/clause"
+change_id = "record-validity-at-commit"
+action = "amend"
+expected = [{ id = "COMMIT-RECORDS-001", version = 1 }]
+authority = "changes/record-validity-at-commit/change.toml#decisions/record-validity-at-commit/owner"
+reason = "Refuse an invalid approved record at commit time and treat a superseded invalid revision as a diagnostic."
+
+[[change.contract.decisions.clauses.updates]]
+id = "COMMIT-RECORDS-001"
+version = 2
+topic = "skill-first-development"
+scope = ["Commit checks", "Authorization history"]
+statement = "The commit check applies the shared Proposed-decision predicate to the commit and its parent and changed_commitments to delivered packages identified by the registered workspace base. It refuses added or modified Proposed decisions and rewritten delivered commitments before the branch moves, including records-only commits. It also refuses a commit that leaves a change record of a package introduced in the workspace invalid once an approved version of that record exists. Unchanged historical proposals and changes to packages first introduced by the workspace remain subject to their existing rules. Final retains the same predicates as a backstop and validates the current record strictly; a revision after approval that does not validate and that a later valid revision replaces is reported as a superseded diagnostic and grants no authority."
+rationale = "Invalid authority is refused where it can still be corrected, and history that cannot be corrected does not block a valid current record."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["COMMIT-001", "HISTORY-002"]
+action = "Refuse an invalid approved record in the commit check, retain a superseded invalid revision as a diagnostic in authorization history, with regression tests and reconciled guidance."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["REL-003"]
+action = "Set versions to 0.9.6 and add the changelog section."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["REBATCH-004"]
+action = "Exercise the replacement batch through abandonment, admission, final, delivery and cleanup; repair refusals and document the supported recovery."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-24
+statement = "On 2026-11-24 the owner directed that Signetum be fixed first so that a downstream batch refused at final for a superseded invalid record revision can be delivered without rebuilding its history."

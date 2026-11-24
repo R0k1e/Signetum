@@ -11,6 +11,8 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
+from signetum.change.paths import changes_root
+from signetum.change.revisions import has_approved_revision
 from signetum.change.scope import (
     ChangeError,
     DeliveryScope,
@@ -19,6 +21,7 @@ from signetum.change.scope import (
     delivery_scope,
     require_member_commit,
 )
+from signetum.change_record import parse_change_record
 from signetum.decision_proposals import proposal_paths
 from signetum.git import GitError, git_output, isolated_git_environment, repository_path, run_git
 from signetum.manifest import ManifestError, parse_manifest
@@ -29,6 +32,7 @@ from signetum.operation_records import (
 )
 from signetum.operations import AdmissionError
 from signetum.runtime_identity import engine_source
+from signetum.source_authority import committed_blob
 from signetum.workspaces import WorkspaceError, read_record, state_root
 
 HOOK_NAME = "reference-transaction"
@@ -238,6 +242,17 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
         rewritten = changed_commitments(repository, manifest, old, new, scope)
         if rewritten:
             raise ChangeError("commit rewrites delivered commitments: " + ", ".join(rewritten))
+        for change_id in delivered.first_delivered:
+            path = f"{changes_root(manifest)}/{change_id}/change.toml"
+            try:
+                source = committed_blob(repository, new, path)
+                if source is not None:
+                    parse_change_record(source[1])
+            except GitError:
+                raise
+            except ValueError as error:
+                if has_approved_revision(repository, path, old):
+                    raise ChangeError(f"invalid change record {path}: {error}") from error
         if record.kind == "batch":
             commit_attribution(repository, manifest, record, new)
         else:

@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from change_fixtures import commit_approval
+from change_fixtures import ADDED_REQUIREMENT, ADDED_STEP, commit_approval
 from operation_messages import operation_message, operation_messages, write_operation_message
-from signetum import change_cli, lifecycle, maintenance
+from signetum import change_cli, lifecycle, maintenance, runtime_identity
 from signetum import manifest as manifest_format
 from signetum import workspace_operations as ops
 from signetum.change_record import contract_digest, parse_change_record
@@ -601,6 +601,205 @@ def test_a_member_synchronized_from_its_batch_keeps_its_own_change(repository):
     result: Any = lifecycle.admit(batch, (member,), messages=operation_messages(1))
     assert [item["branch"] for item in result["admitted"]] == ["change/owned"]
     assert (batch / "owned-more.txt").exists()
+
+
+@pytest.mark.parametrize("combined", [False, True], ids=["split", "combined"])
+def test_rebatch_after_abandoning_an_older_engine_batch(
+    repository, monkeypatch, capsys, tmp_path, combined
+):
+    root, _ = repository
+    base = git_output(root, "rev-parse", "HEAD")
+    owner = ["--actor", "Owner", "--source", "Owner authorized the fixture operation"]
+    messages = [
+        write_operation_message(tmp_path, name=f"member-{index}.txt", text=message)
+        for index, message in enumerate(operation_messages(3), start=1)
+    ]
+
+    def invoke(cwd, arguments, status, *, exit_code=0):
+        monkeypatch.chdir(cwd)
+        capsys.readouterr()
+        code = (
+            maintenance.main(arguments[1:])
+            if arguments[0] == "maintenance"
+            else lifecycle.main(arguments)
+        )
+        outcome = json.loads(capsys.readouterr().out)
+        assert code == exit_code, outcome
+        assert outcome["status"] == (status if exit_code else "passed"), outcome
+        if not exit_code:
+            assert outcome["outcome"] == status, outcome
+        return outcome
+
+    def member_args(member, message):
+        return ["--member", str(member), "--message-file", str(message)]
+
+    members, tips, evidence = [], [], []
+    old_batch = None
+    current_identity = runtime_identity.identity()
+    with monkeypatch.context() as older:
+        # Model the old installed engine identity; the fixture leaves the commit
+        # check inactive so it can also produce the old invalid record revision.
+        older.setattr(
+            runtime_identity,
+            "identity",
+            lambda: {
+                **current_identity,
+                "version": "0.9.5",
+                "implementation": "sha256:" + "f" * 64,
+            },
+        )
+        older.setattr(sys, "executable", older_engine(tmp_path))
+        for index, message in enumerate(messages, start=1):
+            change_id = f"member-{index}"
+            opened = invoke(root, ["workspace-open", f"change/{change_id}", "main"], "opened")
+            assert opened["base"] == base
+            member = Path(opened["worktree"])
+            commit_approval(member, change_id)
+            commit_file(member, f"{change_id}.txt", change_id)
+            if index == 1:
+                record = member / "changes" / change_id / "change.toml"
+                incomplete = record.read_text() + ADDED_REQUIREMENT
+                record.write_text(incomplete)
+                git_output(member, "commit", "-am", "Add a requirement without its step")
+                invalid = git_output(member, "rev-parse", "HEAD")
+                record.write_text(incomplete + ADDED_STEP)
+                git_output(member, "commit", "-am", "Add the missing step")
+
+            if old_batch is not None:
+                old_tip = git_output(old_batch, "rev-parse", "HEAD")
+                synced = invoke(
+                    member,
+                    [
+                        "maintenance",
+                        "workspace-sync",
+                        "--batch",
+                        str(old_batch),
+                        "--message-file",
+                        str(message),
+                    ],
+                    "synchronized",
+                )
+                assert synced["source"] == old_tip
+                assert git_output(member, "rev-parse", "HEAD^2") == old_tip
+            ready = invoke(member, ["ready"], "ready")
+            tip = git_output(member, "rev-parse", "HEAD")
+            assert ready["source"] == tip
+            assert [item["change_id"] for item in ready["approvals"]] == [change_id]
+
+            arguments = member_args(member, message)
+            if old_batch is None:
+                admitted = invoke(
+                    root, ["batch-open", "--name", "original", *owner, *arguments], "opened"
+                )
+                old_batch = Path(admitted["worktree"])
+            else:
+                admitted = invoke(
+                    root, ["batch-admit", "--batch", str(old_batch), *arguments], "admitted"
+                )
+            [entry] = admitted["admitted"]
+            assert entry["original"] == tip
+            assert entry["ready_evidence"] == Path(ready["receipt"]).name
+            members.append(member)
+            tips.append(tip)
+            evidence.append(entry["ready_evidence"])
+
+    assert old_batch is not None
+    old_tip = git_output(old_batch, "rev-parse", "HEAD")
+    mismatch = invoke(old_batch, ["final"], "invalid", exit_code=2)
+    assert "batch engine mismatch" in mismatch["cause"]
+    assert "open a new batch" in mismatch["expected"]
+    abandoned = invoke(
+        root,
+        [
+            "maintenance",
+            "workspace-abandon",
+            str(old_batch),
+            old_tip,
+            *owner,
+            "--reason",
+            "Replace the old engine batch",
+        ],
+        "abandoned",
+    )
+    assert abandoned["tip"] == old_tip
+    assert abandoned["outcome"] == "abandoned"
+    assert not old_batch.exists()
+    assert [git_output(member, "rev-parse", "HEAD") for member in members] == tips
+    original_receipts = [ready_receipts(member) for member in members]
+
+    arguments = [
+        member_args(member, message) for member, message in zip(members, messages, strict=True)
+    ]
+    initial = [arg for group in (arguments if combined else arguments[:1]) for arg in group]
+    opened = invoke(root, ["batch-open", "--name", "replacement", *owner, *initial], "opened")
+    batch = Path(opened["worktree"])
+    admitted = opened["admitted"]
+    assert opened["unchanged"] == []
+    if not combined:
+        for group in arguments[1:]:
+            result = invoke(root, ["batch-admit", "--batch", str(batch), *group], "admitted")
+            assert result["unchanged"] == []
+            admitted.extend(result["admitted"])
+    assert [item["original"] for item in admitted] == tips
+    assert [item["ready_evidence"] for item in admitted] == evidence
+    assert [ready_receipts(member) for member in members] == original_receipts
+    assert [git_output(member, "rev-parse", "HEAD") for member in members] == tips
+    assert git_output(
+        batch, "rev-list", "--first-parent", "--reverse", f"{base}..HEAD"
+    ).splitlines() == [item["admission_commit"] for item in admitted]
+
+    batch_tip = git_output(batch, "rev-parse", "HEAD")
+    publication_message = write_operation_message(tmp_path, name="publication.txt")
+    delivered = invoke(
+        batch,
+        [
+            "final",
+            "--deliver",
+            "--target",
+            str(root),
+            *owner,
+            "--message-file",
+            str(publication_message),
+        ],
+        "delivered",
+    )
+    assert delivered["source"] == batch_tip
+    assert delivered["base"] == base
+    assert [item["original"] for item in delivered["members"]] == tips
+    assert delivered["cleanup"]["status"] == "pending"
+    final = json.loads(Path(delivered["validation"]["final_receipt"]).read_text())
+    assert final["valid"] is True
+    review = final["delivery_review"]["inputs"]
+    assert [item["changes"] for item in review["member_chain"]] == [
+        [f"member-{index}"] for index in range(1, 4)
+    ]
+    assert review["combination_repairs"] == []
+    approvals = {item["change_id"]: item for item in final["delivery_review"]["approvals"]}
+    [diagnostic] = approvals["member-1"]["superseded_invalid"]
+    assert diagnostic["commit"] == invalid
+    assert "execution steps must cover exactly the owned requirements" in diagnostic["cause"]
+    assert (
+        git_output(root, "rev-parse", "HEAD", "origin/main").splitlines()
+        == [delivered["delivery_commit"]] * 2
+    )
+    assert git_output(root, "rev-parse", "HEAD^{tree}") == git_output(
+        batch, "rev-parse", "HEAD^{tree}"
+    )
+    assert set(git_output(root, "diff", "--name-only", base, "HEAD").splitlines()) == {
+        path
+        for index in range(1, 4)
+        for path in (f"member-{index}.txt", f"changes/member-{index}/change.toml")
+    }
+    for index in range(1, 4):
+        assert (root / f"member-{index}.txt").read_text() == f"member-{index}"
+
+    cleaned = invoke(root, ["maintenance", "cleanup", "--all-delivered"], "cleaned")
+    assert {item["branch"]: item["outcome"] for item in cleaned["removed"]} == {
+        "batch/replacement": "delivered",
+        **{f"change/member-{index}": "delivered" for index in range(1, 4)},
+    }
+    assert all(not worktree.exists() for worktree in [batch, *members])
+    assert git_output(root, "branch", "--format=%(refname:short)") == "main"
 
 
 @pytest.mark.parametrize("manual_commit", [False, True])

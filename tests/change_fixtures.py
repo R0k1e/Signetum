@@ -9,6 +9,19 @@ from signetum.git import git_output
 from signetum.operations import AdmissionError
 from signetum.workspaces import WorkspaceError, recorded_base
 
+ADDED_REQUIREMENT = """
+[[change.contract.requirements]]
+id = "REQ-2"
+outcome = "Report the revised result."
+acceptance = ["The result includes the revision."]
+"""
+ADDED_STEP = """
+[[change.execution.steps]]
+id = "STEP-2"
+requirements = ["REQ-2"]
+action = "Verify the revised result."
+"""
+
 
 def approve_legacy_change(repository: Path, change_id: str = "example") -> None:
     root = repository / "changes" / change_id
