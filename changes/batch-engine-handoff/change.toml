@@ -4,19 +4,19 @@ id = "batch-engine-handoff"
 
 [change.source]
 kind = "human_direction"
-summary = "A downstream batch of eleven members was pinned to engine 0.9.5, whose final could not complete it, and the fixed engine was refused by the pin; the only remedy was to abandon the batch and admit the same members again. In the same work an agent committed with an overridden hooks path, so the commit check never ran, and nothing later said so. The owner asked what remains wrong in Signetum and directed that it be handled now."
+summary = "A downstream batch of eleven members was pinned to engine 0.9.5, whose final could not complete it, and the fixed engine was refused by the pin; the only remedy was to abandon the batch and admit the same members again. In the same work an agent committed with an overridden hooks path, so the commit check never ran, and nothing later said so. The owner directed that both be handled now and that the remedy stay simple."
 
 [change.contract]
 version = 1
 approved_base = "daf3f11d1debffbb9d1a57f8c2d9328a012d143f" # pragma: allowlist secret
 
 [[change.contract.requirements]]
-id = "HANDOFF-001"
-outcome = "An open batch pinned to an engine that can no longer operate it is handed to the running engine by one explicit maintenance operation that names the owner and where the owner confirmed it. The operation records the previous and new engine identities in the batch record, keeps the batch branch, its admissions and the members' ready evidence, and voids only batch-level evidence so final runs again under the new engine. Without that operation a mismatched engine is refused as today, and the refusal names the operation."
+id = "PIN-001"
+outcome = "An updated installed Skill operates a batch that an earlier installed Skill opened: admission, final and delivery proceed without a refusal, a new command or a reopened batch. The batch keeps recording the engine that opened it and each operation the engine that ran it, and final evidence produced by a different engine than the one now running is not reused, so final runs again. An engine from a foreign checkout is still refused."
 acceptance = [
-    "A batch opened by one engine and refused by another is completed through final and delivery after the handoff, without abandoning it or admitting members again.",
-    "The handoff is refused without an owner and a confirmation source, and for a batch whose pin already matches.",
-    "The batch record shows both engine identities and the authorization after the handoff.",
+    "A batch opened by one installed engine identity and continued by another is admitted to, passes final and is delivered with no extra step.",
+    "A final receipt produced under the earlier identity is not accepted for delivery under the new one.",
+    "A foreign checkout engine is refused for batch-open and for operating a batch as today.",
 ]
 
 [[change.contract.requirements]]
@@ -34,7 +34,7 @@ acceptance = ["Package and Skill versions agree on 0.9.7 and the changelog has a
 
 [change.contract.autonomy]
 allowed = [
-    "Extend the engine pin, the commit check evidence, ready and final, their tests and the affected guidance within these outcomes.",
+    "Change the engine pin check, the commit check evidence, ready and final, their tests and the affected guidance within these outcomes.",
 ]
 requires_confirmation = [
     "Changing a record or manifest schema in a way older engines cannot read, loosening the command guard, publishing a release, or running update or install against an installed Skill.",
@@ -45,12 +45,12 @@ id = "batch-engine-handoff/owner"
 change_id = "batch-engine-handoff"
 authority = "changes/batch-engine-handoff/change.toml#decisions/batch-engine-handoff/owner"
 parents = ["engine-pin-and-hook-chain/engine-and-hook"]
-reason = "The pin exists so that evidence gathered under one engine is not silently reinterpreted by another. It assumed the opening engine can always finish its batch. When that engine has a defect in final, the pin turned a tool repair into abandoning and reopening the batch, which costs an admission round per member and adds nothing the pin protects: member evidence is unpinned and batch evidence can be regenerated. An explicit, owner-authorized handoff that voids batch-level evidence keeps the pin's guarantee and removes the dead end. Silent repinning stays refused. Detecting unchecked commits at ready belongs with it because a hook cannot stop a caller that overrides the hooks path, and immutable attribution was named as the backstop without a gate that reads it. Reopen if a handoff is found to carry batch evidence across engines."
+reason = "The pin was added because a mutable foreign checkout engine invalidated running validation. That case is closed by refusing foreign checkout engines, which stays. Refusing a newer installed Skill adds nothing to it: an installed Skill is an immutable released engine, member evidence is unpinned, and the only batch-level evidence is final, which is bound to the engine that produced it and simply runs again. The refusal instead turned a tool repair into abandoning a batch and admitting eleven members again. An owner-authorized handoff operation was considered and rejected as machinery for a case that needs none. Detecting unchecked commits at ready belongs here because a hook cannot stop a caller that overrides the hooks path, and immutable attribution was named as the backstop without a gate that reads it. Reopen if an installed engine update is found to carry stale batch evidence into delivery."
 
 [[change.execution.steps]]
 id = "STEP-001"
-requirements = ["HANDOFF-001"]
-action = "Add the owner-authorized engine handoff for an open batch with regression tests and reconciled guidance."
+requirements = ["PIN-001"]
+action = "Stop refusing an installed Skill engine that differs from the batch's opening engine, and bind final evidence to the engine that produced it."
 
 [[change.execution.steps]]
 id = "STEP-002"
@@ -65,4 +65,4 @@ action = "Set versions to 0.9.7 and add the changelog section."
 [change.approval]
 actor = "Repository owner"
 recorded_at = 2026-11-25
-statement = "On 2026-11-25 the owner asked what remains wrong in Signetum after the 0.9.6 repair and directed that it be handled without waiting."
+statement = "On 2026-11-25 the owner directed that what remains wrong in Signetum after the 0.9.6 repair be handled without waiting, and that the engine pin remedy stay simple."
