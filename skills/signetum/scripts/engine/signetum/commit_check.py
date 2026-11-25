@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
@@ -33,7 +34,7 @@ from signetum.operation_records import (
 from signetum.operations import AdmissionError
 from signetum.runtime_identity import engine_source
 from signetum.source_authority import committed_blob
-from signetum.workspaces import WorkspaceError, read_record, state_root
+from signetum.workspaces import WorkspaceError, read_record, record_path, state_root
 
 HOOK_NAME = "reference-transaction"
 MARK = "# signetum-commit-check"
@@ -41,6 +42,58 @@ _ZERO = re.compile(r"0+")
 CHAIN = """input=$(cat)
 shim="$(git rev-parse --git-common-dir)/signetum/hooks/reference-transaction"
 if [ -x "$shim" ]; then printf '%s\\n' "$input" | "$shim" "$@" || exit $?; fi"""
+
+
+def _check_directory(repository: Path) -> Path:
+    return state_root(repository) / "commit-check"
+
+
+def activate_commit_check(repository: Path) -> list[str]:
+    """Freeze the registered history that predates local hook evidence."""
+    root = state_root(repository)
+    directory = root / "commit-check"
+    baseline = directory / "legacy-tips"
+    if not baseline.exists():
+        directory.mkdir(parents=True, exist_ok=True)
+        with (directory / "activation.lock").open("a+b") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            if not baseline.exists():
+                refs = git_output(
+                    repository, "for-each-ref", "--format=%(objectname) %(refname)", "refs/heads"
+                )
+                tips = {
+                    commit
+                    for commit, branch in (line.split(" ", 1) for line in refs.splitlines())
+                    if record_path(root, branch.removeprefix("refs/heads/")).is_file()
+                }
+                _write_local(baseline, "\n".join(sorted(tips)), mode=0o600)
+    return baseline.read_text(encoding="utf-8").splitlines()
+
+
+def require_checked_commits(
+    repository: Path, base: str, tip: str, *, delivery_sources: tuple[str, ...] = ()
+) -> None:
+    legacy = activate_commit_check(repository)
+    commits = git_output(
+        repository,
+        "rev-list",
+        "--ignore-missing",
+        "--min-parents=1",
+        "--max-parents=1",
+        tip,
+        "--not",
+        base,
+        *delivery_sources,
+        *legacy,
+    )
+    directory = _check_directory(repository)
+    for commit in commits.splitlines():
+        if not (directory / commit).is_file():
+            raise AdmissionError(
+                f"commit {commit} was not judged by the commit check",
+                expected="restore the reference-transaction hook and recreate the commit through "
+                "it (git commit --amend --no-edit if it is the tip)",
+            )
 
 
 def hook_script(engine: str, *, launcher: bool = False, local: str | None = None) -> str:
@@ -107,13 +160,13 @@ def _inside_worktree(directory: Path) -> bool:
     return completed.returncode == 0 and completed.stdout.strip() == "true"
 
 
-def _write_hook(target: Path, content: str) -> None:
+def _write_local(target: Path, content: str, *, mode: int) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix=".signetum-hook-", dir=target.parent)
+    descriptor, temporary = tempfile.mkstemp(prefix=".signetum-", dir=target.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             stream.write(content)
-        Path(temporary).chmod(0o755)
+        Path(temporary).chmod(mode)
         os.replace(temporary, target)
     finally:
         Path(temporary).unlink(missing_ok=True)
@@ -173,17 +226,18 @@ def commit_check_status(worktree: Path, *, refresh: bool = False) -> dict[str, o
 
 def install_commit_check(worktree: Path) -> dict[str, object]:
     """Refresh the local shim, preserve project hooks and probe the actual chain."""
+    activate_commit_check(worktree)
     shim = state_root(worktree) / "hooks" / HOOK_NAME
     launcher = engine_source(worktree) == "skill"
     engine = (
         str(Path(os.environ["SIGNETUM_SKILL"]) / "scripts/signetum") if launcher else sys.executable
     )
     local = None if launcher else _worktree_engine(worktree, engine)
-    _write_hook(shim, hook_script(engine, launcher=launcher, local=local))
+    _write_local(shim, hook_script(engine, launcher=launcher, local=local), mode=0o755)
     target = repository_path(worktree, "rev-parse", "--git-path", "hooks") / HOOK_NAME
     managed = target.exists() and MARK in target.read_text(encoding="utf-8", errors="replace")
     if not _inside_worktree(target.parent) and (not target.exists() or managed):
-        _write_hook(target, "#!/bin/sh\n" + MARK + "\n" + CHAIN + "\n")
+        _write_local(target, "#!/bin/sh\n" + MARK + "\n" + CHAIN + "\n", mode=0o755)
     return commit_check_status(worktree, refresh=True)
 
 
@@ -222,24 +276,30 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
                             "commit with git commit --no-edit to keep the recorded message" + follow
                         ),
                     )
-    if parents != [old]:
-        # Unrelated merges, branch moves and rewrites keep their provenance checks.
+    if len(parents) != 1:
         return None
+    parent = parents[0]
+    # An amend replaces the old tip with a sibling and is judged against its parent.
+    if parent != old and parent != git_output(
+        repository, "rev-parse", "--verify", f"{old}^", check=False
+    ):
+        return None
+    activate_commit_check(repository)
     manifest = parse_manifest(git_output(repository, "show", f"{new}:signetum.toml"))
     try:
-        proposals = proposal_paths(repository, manifest, old, new)
+        proposals = proposal_paths(repository, manifest, parent, new)
         if proposals:
             raise ChangeError("commit adds or modifies proposal decisions: " + ", ".join(proposals))
         # The parent contains this workspace's newly approved packages too. Only
         # packages already held at the registered base are delivered authority.
         delivered = delivery_scope(repository, manifest, record.base, new)
-        changed = delivery_scope(repository, manifest, old, new)
+        changed = delivery_scope(repository, manifest, parent, new)
         delivered_ids = {item.change_id for item in delivered.previously_delivered}
         scope = DeliveryScope(
             (),
             tuple(item for item in changed.previously_delivered if item.change_id in delivered_ids),
         )
-        rewritten = changed_commitments(repository, manifest, old, new, scope)
+        rewritten = changed_commitments(repository, manifest, parent, new, scope)
         if rewritten:
             raise ChangeError("commit rewrites delivered commitments: " + ", ".join(rewritten))
         for change_id in delivered.first_delivered:
@@ -251,7 +311,7 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
             except GitError:
                 raise
             except ValueError as error:
-                if has_approved_revision(repository, path, old):
+                if has_approved_revision(repository, path, parent):
                     raise ChangeError(f"invalid change record {path}: {error}") from error
         if record.kind == "batch":
             commit_attribution(repository, manifest, record, new)
@@ -259,6 +319,7 @@ def judge(repository: Path, branch: str, old: str, new: str) -> ChangeError | No
             require_member_commit(repository, manifest, record.base, new)
     except ChangeError as error:
         return error
+    (_check_directory(repository) / new).touch()
     return None
 
 
@@ -280,7 +341,7 @@ def main() -> int:
         except (GitError, ManifestError, WorkspaceError, ValueError, OSError) as error:
             print(
                 f"signetum: commit check skipped for {branch}: {error}; "
-                "ready and final still check approval order.",
+                "ready and final require a commit check verdict.",
                 file=sys.stderr,
             )
             continue

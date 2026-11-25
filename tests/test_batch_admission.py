@@ -98,6 +98,9 @@ shards = ["repo:check"]
 MEMBER_COMMAND = ("true",)
 
 
+pytestmark = pytest.mark.usefixtures("consumer_engine")
+
+
 def _repository(path: Path) -> Path:
     path.mkdir()
     _git(path, "init", "-b", "main")
@@ -1154,6 +1157,67 @@ def test_final_refuses_an_unattributed_direct_batch_commit(tmp_path):
 
     with pytest.raises(OperationError, match=unattributed):
         lifecycle.validate(batch, "final")
+
+
+def test_ready_refuses_an_unchecked_commit_and_accepts_its_amendment(tmp_path, monkeypatch):
+    repository = _repository(tmp_path / "repository")
+    assert install_commit_check(repository)["status"] == "active"
+    member = tmp_path / "member"
+    _git(repository, "worktree", "add", "-b", "impl/member", str(member), "main")
+    _git(member, "commit", "--allow-empty", "-m", "work before registration")
+    base = _git(member, "rev-parse", "HEAD")
+    _record(member, "impl/member", base)
+    commit_approval(member, "member")
+    (member / "implementation.txt").write_text("approved implementation\n")
+    _git(member, "add", "implementation.txt")
+    hooks = tmp_path / "partial-hooks"
+    hooks.mkdir()
+    for name in ("pre-commit", "commit-msg"):
+        hook = hooks / name
+        hook.write_text("#!/bin/sh\nexit 0\n")
+        hook.chmod(0o755)
+    _git(member, "-c", f"core.hooksPath={hooks}", "commit", "-m", "implement")
+    unchecked = _git(member, "rev-parse", "HEAD")
+
+    with pytest.raises(OperationError, match=unchecked) as refused:
+        lifecycle.validate(member, "member")
+    assert "git commit --amend --no-edit" in refused.value.expected
+
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2002-01-01T00:00:00Z")
+    _git(member, "commit", "--amend", "--no-edit")
+    ready = lifecycle.validate(member, "member")
+    assert ready["source"] != unchecked
+    assert ready["base"] == base
+
+    record = member / "changes/member/change.toml"
+    record.write_text(record.read_text() + "\n# Record clarification.\n")
+    _git(member, "-c", f"core.hooksPath={hooks}", "commit", "-am", "clarify the record")
+    unchecked_record = _git(member, "rev-parse", "HEAD")
+    with pytest.raises(OperationError, match=unchecked_record):
+        lifecycle.validate(member, "member")
+
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2002-01-01T00:00:01Z")
+    _git(member, "commit", "--amend", "--no-edit")
+    assert lifecycle.validate(member, "member")["checks_started"] is False
+
+
+def test_final_refuses_an_unchecked_batch_commit_and_accepts_its_amendment(tmp_path, monkeypatch):
+    batch = _combined_batch(tmp_path, commit_check=True)
+    commit_approval(batch, "reconcile")
+    (batch / "reconciled.txt").write_text("approved combination repair\n")
+    _git(batch, "add", "reconciled.txt")
+    _git(batch, "-c", "core.hooksPath=/dev/null", "commit", "-m", "reconcile both members")
+    unchecked = _git(batch, "rev-parse", "HEAD")
+
+    with pytest.raises(OperationError, match=unchecked) as refused:
+        lifecycle.validate(batch, "final")
+    assert "git commit --amend --no-edit" in refused.value.expected
+
+    monkeypatch.setenv("GIT_COMMITTER_DATE", "2002-01-01T00:00:00Z")
+    _git(batch, "commit", "--amend", "--no-edit")
+    final: Any = lifecycle.validate(batch, "final")
+    assert final["source"] != unchecked
+    assert len(final["delivery_review"]["inputs"]["member_chain"]) == 2
 
 
 def test_commit_check_refuses_member_implementation_before_its_committed_approval(tmp_path):

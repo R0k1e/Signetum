@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from dataclasses import asdict
 from pathlib import Path
 from shutil import which
 
@@ -16,8 +17,11 @@ from signetum.manifest import load_manifest
 from signetum.operation_records import commit_message, load_index
 from signetum.operations import InfrastructureError, OperationFailed
 from signetum.publication_binding import bind_publication, review_local_inputs
+from signetum.validation.execution import build_evidence_identity
 from signetum.workspaces import WorkspaceRecord, write_record
 from test_batch_admission import MANIFEST
+
+pytestmark = pytest.mark.usefixtures("consumer_engine")
 
 
 def git(repository: Path, *arguments: str) -> str:
@@ -69,7 +73,9 @@ def delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             source, load_manifest(source / "signetum.toml"), base, tip, receipts
         )
     }
-    evidence = {"valid": True}
+    graph, inputs = lifecycle._runtime_validation(load_manifest(source / "signetum.toml"))
+    identity = build_evidence_identity(graph, inputs, lifecycle.RepositoryValidationAdapter(source))
+    evidence = {"valid": True, "identity": asdict(identity)}
     (receipts / "final-test.json").write_text(
         json.dumps(
             {

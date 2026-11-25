@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from signetum import runtime_identity, workspace_operations
+from signetum import lifecycle, lifecycle_validation, runtime_identity, workspace_operations
 from signetum import worktrunk as wt
 from signetum.git import git_output
 from signetum.operations import InfrastructureError
@@ -15,7 +15,13 @@ from signetum.workspaces import branch_name
 
 
 @pytest.fixture
-def local_repository(tmp_path, monkeypatch):
+def consumer_engine(monkeypatch):
+    """Model the installed source when calling the engine directly inside a test."""
+    monkeypatch.setattr(runtime_identity, "engine_source", lambda repository: "skill")
+
+
+@pytest.fixture
+def local_repository(tmp_path, monkeypatch, consumer_engine):
     root = tmp_path / "repository"
     root.mkdir()
     git_output(root, "init", "-b", "main")
@@ -123,15 +129,15 @@ def local_repository(tmp_path, monkeypatch):
 
     monkeypatch.setattr(wt, "worktrunk", native_worktrunk)
     monkeypatch.setattr(wt, "run_tool", native_preparation)
-    # Scenarios about other contracts commit freely; approval-order tests opt back in.
+    # These lightweight scenarios simulate an older runtime without local verdicts.
     monkeypatch.setattr(
         workspace_operations,
         "install_commit_check",
         lambda worktree: {"status": "skipped", "cause": "fixture scenario"},
     )
-    # These scenarios exercise consumer behavior with a stable installed engine.
-    # Engine-source boundary tests explicitly select the real classifier.
-    monkeypatch.setattr(runtime_identity, "engine_source", lambda repository: "skill")
+    monkeypatch.setattr(workspace_operations, "activate_commit_check", lambda worktree: [])
+    monkeypatch.setattr(lifecycle, "require_checked_commits", lambda *args, **kwargs: None)
+    monkeypatch.setattr(lifecycle_validation, "require_checked_commits", lambda *args: None)
     return root, state
 
 

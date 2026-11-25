@@ -16,6 +16,8 @@ from signetum.git import git_output
 from signetum.validation.execution import ValidationExecutionError
 from signetum.workspaces import BatchAuthorization, WorkspaceRecord, write_record
 
+pytestmark = pytest.mark.usefixtures("consumer_engine")
+
 NODE = "tests/test_contract.py::test_contract"
 
 NODES = """import json, sys

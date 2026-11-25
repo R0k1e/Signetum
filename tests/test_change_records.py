@@ -17,6 +17,8 @@ from signetum.workflow_status import workflow_status
 from signetum.workspaces import state_root
 from test_batch_admission import _git, _record, _repository
 
+pytestmark = pytest.mark.usefixtures("consumer_engine")
+
 
 def _manifest(log: Path) -> str:
     def logged(name: str) -> str:
