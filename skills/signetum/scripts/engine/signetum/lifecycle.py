@@ -1393,7 +1393,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     parsed = _parser().parse_args(supplied)
-    engine = runtime_identity.identity()
+    engine = (
+        runtime_identity.identity()
+        if parsed.command.startswith("batch-") or parsed.command == "final"
+        else None
+    )
     result: dict[str, object]
     if parsed.command == "workspace-open":
         result = workspace_open(repository, parsed.branch, parsed.base)
@@ -1458,7 +1462,7 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
             parsed.expected_batch_tip,
             message=read_message_file(parsed.message_file),
         )
-    return {**result, "engine": engine}
+    return result if engine is None else {**result, "engine": engine}
 
 
 def main(arguments: list[str] | None = None) -> int:

@@ -307,7 +307,7 @@ Batch-open captures `engine = {version, implementation, source}` in its schema-2
 workspace record. Updated installed Skill engines can continue installed Skill
 batches. A self-hosted batch runs its repository engine from the batch worktree,
 including initial admission. Foreign checkout engines cannot open or operate a
-batch. Lifecycle results report the executing engine. Delivery requires final
+batch. Batch lifecycle results report the executing engine. Delivery requires final
 evidence from the current runtime identity.
 Legacy records without an engine and member records remain unpinned. A void
 validation names each changed input and its before/after identities.
