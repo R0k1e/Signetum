@@ -47,6 +47,38 @@ authority = "changes/batch-engine-handoff/change.toml#decisions/batch-engine-han
 parents = ["engine-pin-and-hook-chain/engine-and-hook"]
 reason = "The pin was added because a mutable foreign checkout engine invalidated running validation. That case is closed by refusing foreign checkout engines, which stays. Refusing a newer installed Skill adds nothing to it: an installed Skill is an immutable released engine, member evidence is unpinned, and the only batch-level evidence is final, which is bound to the engine that produced it and simply runs again. The refusal instead turned a tool repair into abandoning a batch and admitting eleven members again. An owner-authorized handoff operation was considered and rejected as machinery for a case that needs none. Detecting unchecked commits at ready belongs here because a hook cannot stop a caller that overrides the hooks path, and immutable attribution was named as the backstop without a gate that reads it. Reopen if an installed engine update is found to carry stale batch evidence into delivery."
 
+[[change.contract.decisions.clauses]]
+id = "batch-engine-handoff/engine-pin"
+change_id = "batch-engine-handoff"
+action = "amend"
+expected = [{ id = "ENGINE-PIN-001", version = 1 }]
+authority = "changes/batch-engine-handoff/change.toml#decisions/batch-engine-handoff/owner"
+reason = "Continue installed Skill batches across engine updates while preserving exact final evidence."
+
+[[change.contract.decisions.clauses.updates]]
+id = "ENGINE-PIN-001"
+version = 2
+topic = "skill-first-development"
+scope = ["Batch lifecycle"]
+statement = "Batch-open records the opening engine version, implementation and source. Foreign checkout engines cannot open or operate batches. An installed Skill engine can operate a batch opened by an installed Skill engine of a different version or implementation. Repository engines pin the batch location; schema-1 batches remain unpinned and members are not pinned. Final evidence binds the engine that produced it and delivery requires that engine identity."
+rationale = "An installed engine update can repair a batch without rebuilding it, while a fresh final qualifies the batch under the current engine."
+
+[[change.contract.decisions.clauses]]
+id = "batch-engine-handoff/hook-chain"
+change_id = "batch-engine-handoff"
+action = "amend"
+expected = [{ id = "HOOK-CHAIN-001", version = 1 }]
+authority = "changes/batch-engine-handoff/change.toml#decisions/batch-engine-handoff/owner"
+reason = "Read immutable commit check evidence at ready and final."
+
+[[change.contract.decisions.clauses.updates]]
+id = "HOOK-CHAIN-001"
+version = 2
+topic = "skill-first-development"
+scope = ["Workspace preparation", "Commit checking", "Status", "Member readiness", "Final validation"]
+statement = "A stable machine-local commit-check shim uses the installed launcher for Skill engines. Install-or-verify runs after preparation and functionally probes the effective reference-transaction hook. Foreign hooks are preserved and can chain the shim; inactive checks warn in status with the chaining contract. Ready and final retain immutable attribution and read commit check evidence. They refuse a single-parent commit made after workspace registration that the check did not judge, identifying the commit and how to recreate it through the hook. Commits predating registration and merges recorded by Signetum operations are exempt."
+rationale = "An overridden hooks path can skip the commit check even when the configured chain is active."
+
 [[change.execution.steps]]
 id = "STEP-001"
 requirements = ["PIN-001"]
