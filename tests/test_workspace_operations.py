@@ -1645,7 +1645,7 @@ def test_check_runs_the_engine_of_the_worktree_updating_the_branch(
     assert "maintenance worktree-prepare" in refused.stderr
 
 
-def test_pinned_batch_refuses_changed_engine_before_any_batch_work(repository, monkeypatch):
+def test_pinned_batch_refuses_foreign_checkout_before_any_batch_work(repository, monkeypatch):
 
     root, state = repository
     base = git_output(root, "rev-parse", "HEAD")
@@ -1665,10 +1665,7 @@ def test_pinned_batch_refuses_changed_engine_before_any_batch_work(repository, m
     )
     pin = read_record(state_root(batch), "batch/pinned").engine
     assert pin is not None
-    original = runtime_identity.identity
-    monkeypatch.setattr(
-        runtime_identity, "identity", lambda: {**original(), "implementation": "sha256:" + "f" * 64}
-    )
+    monkeypatch.setattr(runtime_identity, "engine_source", lambda repository: "checkout")
     before = git_output(batch, "rev-parse", "HEAD")
     attempts = (state / "attempts").read_text() if (state / "attempts").exists() else None
     for action in (
@@ -1680,9 +1677,8 @@ def test_pinned_batch_refuses_changed_engine_before_any_batch_work(repository, m
     ):
         with pytest.raises(AdmissionError) as refused:
             action()
-        assert pin.version in str(refused.value)
-        assert pin.implementation in str(refused.value)
-        assert "new batch" in refused.value.expected
+        assert "checkout" in str(refused.value)
+        assert "installed Skill" in refused.value.expected
     assert git_output(batch, "rev-parse", "HEAD") == before
     assert ((state / "attempts").read_text() if (state / "attempts").exists() else None) == attempts
     status = workflow_status(batch, snapshot(batch), source=before)

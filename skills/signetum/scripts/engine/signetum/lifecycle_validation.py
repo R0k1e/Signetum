@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
 from signetum.change.scope import changed_commitments, delivery_scope
+from signetum.commit_check import require_checked_commits
 from signetum.decision_identity import numbered_targets
 from signetum.development_store import DevelopmentReviewError
 from signetum.development_store import reconciliation_summary as source_reconciliation_summary
@@ -186,6 +187,7 @@ def validate_workspace(
             )
         except (DeviationError, DevelopmentReviewError) as error:
             raise AdmissionError(f"execution reconciliation failed: {error}") from error
+        require_checked_commits(repository, evidence_base, source)
     else:
         reconciliation = None
         try:

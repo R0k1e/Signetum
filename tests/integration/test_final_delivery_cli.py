@@ -11,10 +11,17 @@ from signetum import lifecycle
 from test_batch_admission import _git
 from test_delivery_discoveries import member_and_batch
 
+pytestmark = pytest.mark.usefixtures("consumer_engine")
+
 
 def _cli(repository, *arguments):
+    invoke = (
+        "from signetum import runtime_identity; "
+        "runtime_identity.engine_source = lambda repository: 'skill'; "
+        "from signetum.cli import app; app()"
+    )
     return subprocess.run(  # noqa: S603 -- public CLI in an owned disposable repository
-        [sys.executable, "-m", "signetum.cli", *arguments],
+        [sys.executable, "-c", invoke, *arguments],
         cwd=repository,
         capture_output=True,
         text=True,

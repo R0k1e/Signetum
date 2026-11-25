@@ -1,4 +1,4 @@
-"""Batch engine authority captured at opening, checked before batch work."""
+"""Record the opening engine and enforce the batch engine source."""
 
 from dataclasses import asdict
 from pathlib import Path
@@ -7,7 +7,9 @@ from signetum import runtime_identity
 from signetum.operations import AdmissionError
 from signetum.workspaces import BatchEngine, branch_name, read_record, state_root
 
-REMEDY = "finish this batch with that engine, or open a new batch for the same ready members"
+INSTALLED_SKILL = (
+    "invoke the installed Skill launcher: sh ~/.claude/skills/signetum/scripts/signetum"
+)
 
 
 def opening_engine(repository: Path) -> BatchEngine:
@@ -15,10 +17,7 @@ def opening_engine(repository: Path) -> BatchEngine:
     if source == "checkout":
         raise AdmissionError(
             "batch-open refuses an engine from a foreign checkout",
-            expected=(
-                "invoke the installed Skill: "
-                "sh ~/.claude/skills/signetum/scripts/signetum batch-open"
-            ),
+            expected=INSTALLED_SKILL,
         )
     observed = runtime_identity.identity()
     return BatchEngine(
@@ -35,6 +34,7 @@ def engine_status(repository: Path) -> dict[str, object]:
     pin = record.engine
     source = runtime_identity.engine_source(repository)
     observed = runtime_identity.identity()
+    expected = _required_source(pin, source)
     matches = source == pin.source and (
         source == "repository"
         or (observed["version"], observed["implementation"]) == (pin.version, pin.implementation)
@@ -47,12 +47,21 @@ def engine_status(repository: Path) -> dict[str, object]:
             "implementation": observed["implementation"],
             "source": source,
         },
-        **({"expected": REMEDY} if not matches else {}),
+        **({"expected": expected} if expected else {}),
     }
 
 
+def _required_source(pin: BatchEngine | None, source: str) -> str | None:
+    if pin is not None and pin.source != source:
+        if pin.source == "repository":
+            return "run the repository engine from the batch worktree"
+        return INSTALLED_SKILL
+    return INSTALLED_SKILL if source == "checkout" else None
+
+
 def require_batch_engine(repository: Path) -> None:
-    status = engine_status(repository)
-    if status["status"] == "mismatch":
-        pin = status["pinned"]
-        raise AdmissionError(f"batch engine mismatch: pinned {pin}", expected=REMEDY)
+    record = read_record(state_root(repository), branch_name(repository))
+    source = runtime_identity.engine_source(repository)
+    expected = _required_source(record.engine, source)
+    if expected:
+        raise AdmissionError(f"batch operations refuse engine source {source}", expected=expected)

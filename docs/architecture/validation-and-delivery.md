@@ -282,18 +282,18 @@ touches the probe before filtering branch refs, and the ref is deleted.
 Status reports `active` or `inactive`, its cause and the chaining snippet;
 it re-probes when the effective hook path or hook file changes. An inactive
 check warns and does not refuse workspace opening. Git older than 2.28 cannot
-run this hook. The same immutable attribution predicate remains the ready/final
-backstop. Branch creation/deletion and other refs retain their existing rules; an
-implementation commit still requires its parent approval. Before member sync,
+run this hook. The check records passing single-parent commits locally by object
+ID, including amendments. Ready and final require that proof alongside immutable
+attribution. They exempt history at the registered base and registered tips
+captured when tracking first activates. Merge provenance remains separately
+checked. Before member sync,
 batch sync, admission or publication changes Git, Signetum stores one pending
 operation: frozen message, parents and, when already known, the tree. One branch
 has one pending operation. During the
 reference transaction, a candidate merge whose parents and pending MERGE_HEAD
 match that operation must carry exactly that message. A different message
 refuses before the branch moves, naming `git commit --no-edit` and, for a batch,
-`batch-continue`. A merge an older engine started finishes with the engine that
-opened its batch. Ordinary commits and unrelated merges retain their existing
-rules. After a manual `--no-edit` commit, `batch-continue` accepts only the exact
+`batch-continue`. After a manual `--no-edit` commit, `batch-continue` accepts only the exact
 recorded merge at HEAD, validates it and completes base advancement and pending
 admissions; it also commits a staged resolution with the frozen message.
 
@@ -304,22 +304,18 @@ A copied modern message cannot create a mapping or change a baseline. The
 numbering check still requires the committed rename.
 
 Batch-open captures `engine = {version, implementation, source}` in its schema-2
-workspace record. An installed Skill engine pins version and implementation;
-a self-hosted repository engine pins its location inside the batch worktree,
-because admission legitimately changes its source. Initial self-hosted admission
-enters that batch's engine. A foreign checkout engine cannot open
-a batch: invoke the installed Skill launcher instead. Admission, continuation,
-batch sync, final and delivery refuse mismatches before work, naming the pin and
-the remedy: finish with that engine or open a new batch for the same ready
-members. There is no repinning operation. Legacy records without an engine remain
-unpinned and status says so; members remain unpinned. A void validation names
-each changed input and its before/after identities.
+workspace record. Updated installed Skill engines can continue installed Skill
+batches. A self-hosted batch runs its repository engine from the batch worktree,
+including initial admission. Foreign checkout engines cannot open or operate a
+batch. Batch lifecycle results report the executing engine. Delivery requires final
+evidence from the current runtime identity.
+Legacy records without an engine and member records remain unpinned. A void
+validation names each changed input and its before/after identities.
 
 Abandonment retires pending operations and leaves completed operations available
 for immutable history. Admission reads the member's recorded synchronizations
-to identify its contribution. Final reads the replacement batch's admission
-chain along its first parents, so older admission merges in a member's ancestry
-remain history. Exact ready evidence remains usable when the member's checked
+to identify its contribution. Final reads the batch's first-parent admission
+chain. Exact ready evidence remains usable when the member's checked
 inputs are unchanged across engine versions.
 
 The commit check also refuses added or modified Proposed decisions using final's

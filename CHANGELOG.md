@@ -3,6 +3,14 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.7 - 2026-11-25
+
+- An updated installed Skill can continue an open batch. Delivery requires a
+  fresh final after the engine changes. Foreign checkout engines remain refused.
+- Ready and final identify commits that skipped the commit check and explain how
+  to recreate them through the hook. Existing registered history is grandfathered
+  when local tracking first activates.
+
 ## 0.9.6 - 2026-11-24
 
 - The commit check refuses invalid change records after approval in registered
@@ -11,11 +19,8 @@ their original release history. Git and accepted change records retain reasoning
 - Final lists superseded invalid record revisions with their commits and causes.
   Contract revisions compare consecutive valid records. An invalid current
   record produces a structured refusal naming the record.
-- To recover a 0.9.5 batch blocked at final, use 0.9.6 to abandon the old batch
-  at its confirmed tip, admit the same ready members in order into a new batch,
-  then run `final --deliver` and `maintenance cleanup --all-delivered`. Members
-  with unchanged checked inputs keep their ready evidence and any recorded
-  synchronization history.
+- Rebuilding a 0.9.5 batch under 0.9.6 preserved member ready evidence and
+  recorded synchronization history when checked inputs were unchanged.
 
 ## 0.9.5 - 2026-11-19
 
