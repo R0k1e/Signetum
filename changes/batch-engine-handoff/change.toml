@@ -1,0 +1,68 @@
+[change]
+schema_version = 2
+id = "batch-engine-handoff"
+
+[change.source]
+kind = "human_direction"
+summary = "A downstream batch of eleven members was pinned to engine 0.9.5, whose final could not complete it, and the fixed engine was refused by the pin; the only remedy was to abandon the batch and admit the same members again. In the same work an agent committed with an overridden hooks path, so the commit check never ran, and nothing later said so. The owner asked what remains wrong in Signetum and directed that it be handled now."
+
+[change.contract]
+version = 1
+approved_base = "daf3f11d1debffbb9d1a57f8c2d9328a012d143f" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "HANDOFF-001"
+outcome = "An open batch pinned to an engine that can no longer operate it is handed to the running engine by one explicit maintenance operation that names the owner and where the owner confirmed it. The operation records the previous and new engine identities in the batch record, keeps the batch branch, its admissions and the members' ready evidence, and voids only batch-level evidence so final runs again under the new engine. Without that operation a mismatched engine is refused as today, and the refusal names the operation."
+acceptance = [
+    "A batch opened by one engine and refused by another is completed through final and delivery after the handoff, without abandoning it or admitting members again.",
+    "The handoff is refused without an owner and a confirmation source, and for a batch whose pin already matches.",
+    "The batch record shows both engine identities and the authorization after the handoff.",
+]
+
+[[change.contract.requirements]]
+id = "UNCHECKED-002"
+outcome = "Ready and final refuse a member or batch that contains a commit made after the workspace was registered for which no commit check ran, naming the commit, and say how to correct it; commits the check judged are unaffected."
+acceptance = [
+    "A commit made with an overridden hooks path on a registered member is refused by ready with the commit named, and passes after it is recreated through the hook.",
+    "Merges recorded by Signetum operations and commits made before registration are not refused.",
+]
+
+[[change.contract.requirements]]
+id = "REL-003"
+outcome = "Release 0.9.7 carries both with the package and Skill versions and the changelog updated."
+acceptance = ["Package and Skill versions agree on 0.9.7 and the changelog has a 0.9.7 section."]
+
+[change.contract.autonomy]
+allowed = [
+    "Extend the engine pin, the commit check evidence, ready and final, their tests and the affected guidance within these outcomes.",
+]
+requires_confirmation = [
+    "Changing a record or manifest schema in a way older engines cannot read, loosening the command guard, publishing a release, or running update or install against an installed Skill.",
+]
+
+[[change.contract.decisions]]
+id = "batch-engine-handoff/owner"
+change_id = "batch-engine-handoff"
+authority = "changes/batch-engine-handoff/change.toml#decisions/batch-engine-handoff/owner"
+parents = ["engine-pin-and-hook-chain/engine-and-hook"]
+reason = "The pin exists so that evidence gathered under one engine is not silently reinterpreted by another. It assumed the opening engine can always finish its batch. When that engine has a defect in final, the pin turned a tool repair into abandoning and reopening the batch, which costs an admission round per member and adds nothing the pin protects: member evidence is unpinned and batch evidence can be regenerated. An explicit, owner-authorized handoff that voids batch-level evidence keeps the pin's guarantee and removes the dead end. Silent repinning stays refused. Detecting unchecked commits at ready belongs with it because a hook cannot stop a caller that overrides the hooks path, and immutable attribution was named as the backstop without a gate that reads it. Reopen if a handoff is found to carry batch evidence across engines."
+
+[[change.execution.steps]]
+id = "STEP-001"
+requirements = ["HANDOFF-001"]
+action = "Add the owner-authorized engine handoff for an open batch with regression tests and reconciled guidance."
+
+[[change.execution.steps]]
+id = "STEP-002"
+requirements = ["UNCHECKED-002"]
+action = "Make ready and final refuse commits that no commit check judged, with regression tests."
+
+[[change.execution.steps]]
+id = "STEP-003"
+requirements = ["REL-003"]
+action = "Set versions to 0.9.7 and add the changelog section."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = 2026-11-25
+statement = "On 2026-11-25 the owner asked what remains wrong in Signetum after the 0.9.6 repair and directed that it be handled without waiting."
