@@ -194,19 +194,18 @@ a checkout a tool points at, is refused; update it through that repository and
 run `setup`. Update when no Agent session is working, because the swap replaces
 the running folder. `identity` reports complete Skill content and actual
 engine/dependency identity. New project configuration uses manifest format 6 and
-protocol 2; format 5 remains readable, with no project-level engine implementation pin. Batches separately record their
-opening engine. Omitted evidence fields mean the
-published evidence protocol and schema digest.
+protocol 2. Format 5 remains readable. Omitted evidence fields use the published
+evidence protocol and schema digest.
 
 - `update --check` compares the newest release without preparing or replacing.
   Offline, unavailable and no-release results are not up-to-date claims.
 - An installed Skill with the released digest, or a newer one, is left unchanged.
 - `install --release <tag>` places a specific published release.
 
-Compatible implementation changes require no project edit or commit. Verification
-still records actual runtime identity. Members remain unpinned; batch operations
-require the recorded batch engine. Changed configuration/protocol contracts return migration_required
-before the folder is replaced, and without editing the project. Migrate required
+Compatible implementation changes require no project edit or commit. An updated
+installed Skill can continue open batches. Run final again before delivery, which
+requires the engine identity recorded in final evidence. Changed configuration or
+protocol contracts return `migration_required` before replacement. Migrate required
 bindings and callers through a separately approved adoption preview, qualify and
 deliver, then run `update` again. Existing active workspaces and receipts
 are not automatically migrated.
@@ -218,11 +217,7 @@ The engine remains in the installed Skill. Do not add an application dependency.
 Operate consumer repositories through the installed Skill launcher, for example
 `sh ~/.claude/skills/signetum/scripts/signetum <operation>`. Project wrappers
 set `SIGNETUM_SKILL` and call that launcher's `scripts/signetum`; they never
-call an engine in another development checkout. A batch pins the opening engine;
-normally finish it before updating. To replace a blocked 0.9.5 batch, follow the
-[recovery procedure](delivery-recovery.md#replace-a-095-batch-blocked-by-a-superseded-invalid-record).
-Publishing a newer release leaves
-an open batch's installed engine and pin in place. Repository self-hosting runs
+call an engine in another development checkout. Repository self-hosting runs
 batch operations from the batch worktree with its own engine. When that
 checked-out engine rejects `--message-file`, adopt the qualified repository
 engine and the declared preparation inputs it needs before admission. The source
@@ -242,12 +237,12 @@ if [ -x "$shim" ]; then printf '%s\n' "$input" | "$shim" "$@" || exit $?; fi
 
 Preparation verifies the effective chain with a real Git probe. Check status for
 `commit_check.status`: an inactive check warns with its cause and chaining
-snippet; ready and final still judge immutable commit attribution.
+snippet. Ready and final refuse commits that skipped the check.
 
 ## Upgrade to 0.8
 
-Update the installed Skill only when no batch is open and restart sessions. The
-update result includes migration guidance. Format-5 configuration and format-1
+Update the installed Skill and restart sessions. The update result includes
+migration guidance. Format-5 configuration and format-1
 change records remain readable: keep historical approvals and journals intact,
 including approval digests, pending observations and old failure receipts. Old
 digests and owed ledgers are ignored; observations appear in unfinished work.

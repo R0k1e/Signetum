@@ -18,6 +18,7 @@ from pathlib import Path
 from shutil import which
 from time import perf_counter
 
+from signetum import runtime_identity
 from signetum import worktrunk as wt
 from signetum.change.member import qualify_member
 from signetum.change.paths import changes_root
@@ -26,6 +27,7 @@ from signetum.change.scope import (
     records_only,
     records_only_ancestors,
 )
+from signetum.commit_check import require_checked_commits
 from signetum.decision_claims import clause_claims, owning_workspace, require_distinct_claims
 from signetum.decision_proposals import proposal_paths
 from signetum.delivery import publish_batch
@@ -84,11 +86,11 @@ from signetum.policy import delivery_policy
 from signetum.preparation import PreparationResult
 from signetum.provenance import attested_base as _attested_base
 from signetum.provenance import members_and_plans as _delivery_provenance
-from signetum.publication_binding import require_publication_binding
+from signetum.publication_binding import final_engine, require_publication_binding
 from signetum.repository_selection import select_repository
 from signetum.source_admission import require_source_admission, stable_patch_id
 from signetum.stacking import require_parent_admitted
-from signetum.synchronization import member_contribution_paths
+from signetum.synchronization import incorporated_syncs, member_contribution_paths
 from signetum.validation import (
     ValidationGraph,
 )
@@ -219,6 +221,12 @@ def _ready_member(repository: Path) -> dict[str, object]:
     manifest = load_manifest(repository / "signetum.toml")
     base = _recorded_base(repository)
     approvals = qualify_member(repository, manifest, base, source)
+    delivery_sources = tuple(
+        synced
+        for synced, kind in incorporated_syncs(repository, base, source)
+        if kind == "delivery"
+    )
+    require_checked_commits(repository, base, source, delivery_sources=delivery_sources)
     if records_only_ancestors(repository, changes_root(manifest), base, source):
         try:
             receipt = _admission_evidence(repository, source, manifest)
@@ -1225,21 +1233,22 @@ def _deliver_held(
     final_receipts = sorted(_receipt_root(source).glob("final-*.json"), reverse=True)
     if not final_receipts:
         raise AdmissionError("no final receipt exists")
-    matching_receipt = next(
-        (
-            path
-            for path in final_receipts
-            if (payload := json.loads(path.read_text(encoding="utf-8"))).get("source")
-            == expected_tip
+    engine = runtime_identity.identity()
+    exact = False
+    for matching_receipt in final_receipts:
+        payload = json.loads(matching_receipt.read_text(encoding="utf-8"))
+        if (
+            payload.get("source") == expected_tip
             and payload.get("base") == expected_base
             and payload.get("valid") is True
-        ),
-        None,
-    )
-    if matching_receipt is None:
+        ):
+            exact = True
+            if final_engine(payload) == engine:
+                break
+    else:
+        if exact:
+            raise AdmissionError("final receipt lacks the current engine identity; rerun final")
         raise AdmissionError("final receipt does not bind the expected batch tip")
-
-    payload = json.loads(matching_receipt.read_text(encoding="utf-8"))
     binding = require_publication_binding(source, payload, source=expected_tip, base=expected_base)
 
     target_branch = _branch(target)
@@ -1384,6 +1393,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
     parsed = _parser().parse_args(supplied)
+    engine = runtime_identity.identity()
     result: dict[str, object]
     if parsed.command == "workspace-open":
         result = workspace_open(repository, parsed.branch, parsed.base)
@@ -1448,7 +1458,7 @@ def _dispatch(repository: Path, supplied: list[str]) -> dict[str, object]:
             parsed.expected_batch_tip,
             message=read_message_file(parsed.message_file),
         )
-    return result
+    return {**result, "engine": engine}
 
 
 def main(arguments: list[str] | None = None) -> int:

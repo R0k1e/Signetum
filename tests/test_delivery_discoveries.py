@@ -17,6 +17,8 @@ from signetum.deviations import (
 )
 from test_batch_admission import _git, _record, _repository
 
+pytestmark = pytest.mark.usefixtures("consumer_engine")
+
 
 def member_and_batch(tmp_path, *, historical=False):
     root = _repository(tmp_path / "repository")

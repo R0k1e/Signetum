@@ -6,12 +6,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
+from signetum.evidence.receipts import EvidenceIdentity
 from signetum.execution_review import ExecutionReviewInputs
 from signetum.git import git_output, run_git
 from signetum.operation_records import operation_input_names
 from signetum.operations import AdmissionError
 from signetum.policy import delivery_policy
 from signetum.serialization import dataclass_from_mapping
+from signetum.validation.configuration import ENGINE_TOOL
 from signetum.workspaces import branch_name, record_path, state_root
 
 
@@ -175,3 +177,17 @@ def require_publication_binding(
     if git_output(repository, "rev-parse", "HEAD") != source:
         raise AdmissionError("source tip differs from the final publication binding")
     return binding
+
+
+def final_engine(payload: dict[str, object]) -> object:
+    """Read the producing engine from existing final evidence."""
+    evidence = payload.get("evidence")
+    if isinstance(evidence, dict):
+        try:
+            identity = dataclass_from_mapping(EvidenceIdentity, evidence.get("identity"))
+            return json.loads(
+                next(tool.identity for tool in identity.tools if tool.name == ENGINE_TOOL)
+            )
+        except (StopIteration, TypeError, ValueError):
+            pass
+    return None

@@ -13,7 +13,7 @@ from time import perf_counter
 from typing import Literal
 
 from signetum import worktrunk as wt
-from signetum.commit_check import install_commit_check
+from signetum.commit_check import activate_commit_check, install_commit_check
 from signetum.git import git_output, immutable_git_reads, repository_path, run_git
 from signetum.manifest import UnsupportedManifestError, load_manifest, parse_manifest
 from signetum.operation_records import (
@@ -79,6 +79,7 @@ def open_workspace(
     destination = workspace_destination(root, branch)
     if branch == delivery_policy(root).branch:
         raise AdmissionError("workspace-open cannot adopt the delivery worktree")
+    activate_commit_check(root)
     # A member opened on another member's branch is stacked on that member's tip.
     parent = stacked_parent(root, base, delivery_policy(root).branch) if kind == "member" else None
     registered = tuple(item for item in wt.worktrees(root) if item.branch == branch)
@@ -120,14 +121,10 @@ def open_workspace(
         if (
             engine is not None
             and record.engine is not None
-            and record.engine != engine
-            and not (
-                record.engine is not None and record.engine.source == engine.source == "repository"
-            )
+            and record.engine.source != engine.source
         ):
             raise AdmissionError(
-                f"existing batch has a different engine pin: {record.engine}",
-                expected="finish with the pinned engine or open a new batch",
+                f"existing batch requires engine source {record.engine.source}",
             )
         if record.base != source or record.kind != kind or record.parent != parent:
             raise AdmissionError(

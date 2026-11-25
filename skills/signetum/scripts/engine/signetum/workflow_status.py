@@ -7,6 +7,7 @@ delivery branch; cleanup proves it again against a fresh fetch before removal.
 import json
 from pathlib import Path
 
+from signetum import runtime_identity
 from signetum.change.scope import (
     APPROVAL_ORDER_REMEDY,
     ChangeError,
@@ -22,6 +23,7 @@ from signetum.gate_records import failed_tip, pending_admissions
 from signetum.git import git_output, repository_path
 from signetum.manifest import ManifestError, load_manifest
 from signetum.policy import delivery_policy
+from signetum.publication_binding import final_engine
 from signetum.serialization import contract_mapping
 from signetum.source_authority import authority_roots, source_path
 from signetum.stacking import admission_order, parent_moved
@@ -104,6 +106,7 @@ def workflow_status(
     )
     receipts = []
     has_final = False
+    current_engine = None
     # Evidence of an ancestor stands while only change records changed since.
     evidenced = {source}
     if workspace is not None and workspace.kind == "member":
@@ -121,7 +124,12 @@ def workflow_status(
                 for a in artifacts
             ):
                 continue
-            has_final = has_final or "final" in receipt.execution.gates
+            if "final" in receipt.execution.gates:
+                if current_engine is None:
+                    current_engine = runtime_identity.identity()
+                if final_engine(payload) != current_engine:
+                    continue
+                has_final = True
             receipts.append(
                 {
                     "path": str(path),
@@ -216,7 +224,7 @@ def workflow_status(
     engine = (
         engine_status(repository) if workspace is not None and workspace.kind == "batch" else None
     )
-    if engine is not None and engine["status"] == "mismatch":
+    if engine is not None and "expected" in engine:
         next_action = str(engine["expected"])
     workspaces = workspace_endings(repository)
     stalled = (
