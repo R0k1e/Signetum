@@ -75,7 +75,7 @@ Follow [work and validation](references/worktree-validation.md) during developme
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
 for integration, review, explicit delivery and cleanup. The coordinating Agent owns
 scope, shared interfaces and integration and runs heavy validation serially;
-Signetum does not schedule Agents. Deliver what is ready, round by round: whenever
+Signetum does not schedule Agents. Deliver what is ready, round by round, as a merge queue does: whenever
 admitted members exist and no final is running, run final and deliver; members that
 pass ready meanwhile open the next batch. Never hold ready members for a planned
 set. A worker leaves a workspace only with every change committed. `status` lists stalled member workspaces.
