@@ -1,0 +1,35 @@
+[change]
+schema_version = 2
+id = "deliver-what-is-ready"
+
+[change.source]
+kind = "human_direction"
+summary = "In a downstream project the coordinating Agent opened a batch, admitted members as they passed ready and waited until every planned member had passed before running final, so members that were done early waited for the slowest, and one failing member held the others back; batch names ended up describing when a batch was opened. Merge queues in common use instead test whatever is queued at that moment, deliver it, and take later arrivals into the next round, removing a member that fails."
+
+[change.contract]
+version = 1
+approved_base = "07929c071cf85fc03ae224b93995f26e477896a2" # pragma: allowlist secret
+
+[[change.contract.requirements]]
+id = "CADENCE-001"
+outcome = "The Skill's guidance recommends delivering what is ready: whenever admitted members exist and no final is running, run final and deliver; members that pass ready while a final runs open the next batch. It no longer suggests waiting for a planned set, and says how to handle a member that fails final: repair it in its workspace and admit the new ready tip when that is quick, otherwise take the batch forward without it by the existing operations, naming the cost of each path."
+acceptance = ["SKILL.md and the delivery reference state the cadence and the failing-member handling in their existing places, without new operations.", "Batch naming guidance matches: a default name needs no meaning."]
+
+[[change.contract.requirements]]
+id = "REL-002"
+outcome = "Release 0.9.8 carries the guidance with the package and Skill versions and the changelog updated."
+acceptance = ["Package and Skill versions agree on 0.9.8 and the changelog has a 0.9.8 section."]
+
+[change.contract.autonomy]
+allowed = ["Change SKILL.md, the references, README or QUICKSTART text that describes batch cadence, the changelog and tests of documentation where they exist."]
+requires_confirmation = ["Adding or changing an operation."]
+
+[[change.execution.steps]]
+id = "CADENCE"
+requirements = ["CADENCE-001", "REL-002"]
+action = "Recommend delivering whatever is ready, round by round."
+
+[change.approval]
+actor = "Repository owner"
+recorded_at = "2026-11-26"
+statement = "On 2026-11-26 the owner directed that the recommended use deliver whatever is ready, round by round, as merge queues do, and approved publishing it as 0.9.8 and updating the installed Skill."
