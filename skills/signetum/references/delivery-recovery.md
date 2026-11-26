@@ -5,9 +5,13 @@ Use the repository's seven lifecycle operations: `workspace-open`, `ready`,
 Use separate local maintenance utilities only within their authorization.
 Approval to implement or passing validation does not authorize publication.
 
-Named ready members enter a batch through admission. Admit a stacked member after
-its parent, in the same `batch-admit` with the parent named first or in a later
-one. Admission refuses a child whose parent's latest admission in the batch is not
+Named ready members enter a batch through admission. Deliver what is ready,
+round by round, as a merge queue does: whenever admitted members exist and no
+final is running, run final and deliver under the owner's authorization. Members
+that pass ready while a final runs open the next batch, which synchronizes with
+that delivery as described below. Never wait for a planned set of members.
+Admit a stacked member after its parent, in the same `batch-admit` with the
+parent named first or in a later one. Admission refuses a child whose parent's latest admission in the batch is not
 the exact parent tip the child holds; synchronize the child or readmit the parent.
 A `workspace-sync --batch` from a batch that admitted the parent also gives the
 child that admitted parent tip.
@@ -62,7 +66,15 @@ and remote identities before acting. Fix every failed shard and check it lists i
 one round before validating again. Preserve work after conflict or publication
 uncertainty. Resolve an open batch merge through `batch-continue`. After a failed
 final, fix a defect owned by one member in that member, run ready and admit its
-new tip. Fix a defect that appears only in the combination directly in the batch
+new tip when that repair is quick. It costs that member's ready, the batch gate
+over its new commits and another complete final, while the other members wait.
+Otherwise move the others forward without it: with the owner's confirmation of
+the batch tip, abandon the batch through `maintenance workspace-abandon` and
+`batch-open` a new batch with the other members. Their ready evidence stays
+usable while their checked inputs are unchanged. It costs that confirmation, a
+new batch gate and complete final, and redoing any combination repair made in
+the abandoned batch; the failing member joins a later round once it passes ready.
+Fix a defect that appears only in the combination directly in the batch
 under the authorization recorded by `batch-open --actor <owner> --source <approval>`.
 Final lists each combination repair with its commit, subject, diffstat and
 authorization. No draft change record or journal entry is required. A schema-1
@@ -139,7 +151,9 @@ publisher owns ref cleanup after delivery: verify that the exact remote tip is
 reachable from the delivery branch and refuse deletion if the tip has changed.
 Preserve unmerged work. Local workspace cleanup does not prune remote branches.
 
-Batch names default to the member task names. For a combined outcome use
+Batch names default to the member task names; that default needs no further
+meaning. Pass any short task slug through `--name` only when the default exceeds
+the 96-character slug limit or a combined outcome needs one:
 `batch-open --actor <owner> --source <approval> --name <task-slug> --member <path> --message-file <path> ...`.
 One message file is required for each member, in the same order. Reusing a name does not
 authorize a different base or workspace role. Publication uses the caller message.
