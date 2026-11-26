@@ -3,6 +3,18 @@
 This file records user-visible Signetum releases. Earlier RepoSeal entries retain
 their original release history. Git and accepted change records retain reasoning.
 
+## 0.9.8 - 2026-11-26
+
+- The Skill recommends delivering what is ready, round by round, as a merge
+  queue does: whenever admitted members exist and no final is running, run final
+  and deliver; members that pass ready meanwhile open the next batch. It no
+  longer suggests waiting for a planned set of members.
+- A member that fails final is repaired in its workspace and readmitted when
+  that is quick; otherwise the other members move on through a new batch after
+  the owner confirms abandoning the current one. The guidance names the cost of
+  each path.
+- A default batch name needs no meaning.
+
 ## 0.9.7 - 2026-11-25
 
 - An updated installed Skill can continue an open batch. Delivery requires a

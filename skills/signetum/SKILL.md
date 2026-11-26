@@ -2,7 +2,7 @@
 name: signetum
 description: "Develop and deliver code changes with Agents: approved scope, isolated workspaces, validated integration and explicit delivery, for one Agent or many in parallel."
 metadata:
-  version: "0.9.7"
+  version: "0.9.8"
 ---
 
 # Reliable Agent development and delivery
@@ -75,8 +75,10 @@ Follow [work and validation](references/worktree-validation.md) during developme
 and parallel coordination; use [delivery and recovery](references/delivery-recovery.md)
 for integration, review, explicit delivery and cleanup. The coordinating Agent owns
 scope, shared interfaces and integration and runs heavy validation serially;
-Signetum does not schedule Agents. A worker leaves a workspace only with every
-change committed. `status` lists stalled member workspaces.
+Signetum does not schedule Agents. Deliver what is ready, round by round: whenever
+admitted members exist and no final is running, run final and deliver; members that
+pass ready meanwhile open the next batch. Never hold ready members for a planned
+set. A worker leaves a workspace only with every change committed. `status` lists stalled member workspaces.
 Every workspace ends delivered, contained (its content already reached the
 delivery branch) or abandoned. Publication leaves workspaces in place and reports
 cleanup as pending. `maintenance cleanup --all-delivered` removes the first two;
@@ -122,7 +124,9 @@ Admission and that sync refuse two changes claiming one decision clause ID.
 Ready, admission, continuation and final require approved source packages, intact
 journal ancestry. Observations never block; pending observations and deferrals
 appear in delivery review unfinished work. Repair an admitted defect in
-a member and admit its new ready tip; never amend a commit bound by a journal.
+a member and admit its new ready tip when that is quick; otherwise deliver the
+others without it as [delivery and recovery](references/delivery-recovery.md)
+describes. Never amend a commit bound by a journal.
 Ready reuses passing evidence of each `inherit = true` shard that the impact
 rules show no follow-up path affects, with or without a provider; a path no rule
 explains reruns them all. Admission and current static or world checks remain required.

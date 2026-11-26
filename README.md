@@ -60,8 +60,9 @@ For a development task, describe the behavior normally. Discuss consequential
 choices with the agent, then approve the outcome and acceptance. For parallel
 work, agree on task boundaries, dependencies, shared interfaces and an integration
 owner. You or your coding-agent host organize the agents; each member develops
-in an isolated worktree. Qualified changes enter a named batch for complete
-validation and explicit delivery.
+in an isolated worktree. Qualified changes are delivered round by round:
+each batch takes the members ready at that moment through complete validation
+and explicit delivery.
 
 ## What it gives you
 
