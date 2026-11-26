@@ -64,7 +64,8 @@ For parallel work, ask:
 
 > Use Signetum to divide [change] into independent tasks. Propose ownership,
 > shared interfaces, dependencies and an integration owner first. Give each
-> coding agent an isolated worktree and bring ready members into one named batch.
+> coding agent an isolated worktree and deliver ready members round by round,
+> each batch taking what is ready.
 
 You or your coding-agent host launch and coordinate the agents. Agree on shared
 interfaces before dependent edits, synchronize deliberately and let the named

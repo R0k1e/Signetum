@@ -276,8 +276,8 @@ def test_the_launcher_provided_worktrunk_runs_workspace_operations_and_is_bound(
 ) -> None:
     root = Path(__file__).parents[1]
     manifest = (root / "signetum.toml").read_text()
-    names = {t.name for t in configured_validation(load_manifest(root / "signetum.toml"))[1].tools}
     monkeypatch.delenv(wt.PROVIDED_WORKTRUNK, raising=False)
+    names = {t.name for t in configured_validation(load_manifest(root / "signetum.toml"))[1].tools}
     assert "signetum-worktrunk" not in names
 
     commands: list[tuple[str, ...]] = []
